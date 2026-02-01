@@ -1,0 +1,14 @@
+メソッドID,メソッド名,発案者,基準豆量(g),基準湯量(ml),湯温（℃）,挽き目（Kingrinder K6）,概要,推奨機器,ソース
+method001,4:6メソッド,Tetsu Kasuya,15,225,85,80,お湯を40%/60%に分けて甘味・酸味を調整するメソッド,"V60, 手挽きミル",https://example.com/46-method
+77443f2b,ORIGAMI ウェーブ 基本,Yasuo Suzuki,15,240,85,80,甘みを引き出す。透過式と浸漬式のプチハイブリット。,ORIGAMI、ウェーブフィルタ,https://youtu.be/dpYaU8LfwG4?si=Zt7T50RpZy942hNf
+607358c0,ORIGAMI 円錐 基本,Yasuo Suzuki,15,240,85,80,クリアな酸味を引き出す,ORIGAMI、円錐フィルタ,https://youtu.be/dpYaU8LfwG4?si=Zt7T50RpZy942hNf
+cf25c0d0,WBrC2023 チャンピオンレシピ,CalrosMadina,15.5,250,91,95,シンプルでフレーバーを引き出す,豆15.5g、ORIGAMI、円錐フィルタ,https://youtu.be/ZXsrt14w8x0?si=83bEBSzABHpEs7qI
+327fb7a5,New Hybrid Method,Tetsu Kasuya,15,225,88,80,ハリオスイッチを使った透過と浸漬のハイブリッドメソッド。途中で湯温を下げるのが特徴。,ハリオスイッチ,https://youtu.be/4FeUp_zNiiY?si=1lYWffSEZSMXQyJU
+403d8538,kenken 浅煎り用メソッド,kenken,12,192,96,,,Hariov60 0,https://youtu.be/jsfHZHt9aVo?si=G8qU8sVwXb7NNgmx
+c3ab6a81,kenken 浅煎り用メソッド2,kenken,20,340,96,78,浅煎り用おすすめレシピ,Hario V60 01,https://youtu.be/6kUwlUV34jc?si=iiOF01W83sLo5DjC
+2b92984d,kenken 浅煎り用メソッド ウェーブフィルタ,kenken,20,360,96,85,ウェーブフィルター用,,https://youtu.be/d-9Osq0Gm0c?si=e9bhkox57pm-dqJq
+9a4a54a9,4:6メソッド 急冷式,Kashiya,20,150,90,,4:6メソッドのアイスコーヒーレシピ。,,https://youtu.be/TfSBzFeoL4s?si=qbmST2utEWSlpq75
+26d43335,kenken 浅煎り用 急冷式,kenken,25,255,100,73,,,https://youtu.be/paKwVZeWSTg?si=y3N0UErlPHxD0h55
+869b01e8,ちょっと贅沢な珈琲店 松原スペシャル,松原,8,150,80,0,ドリッパーに移して淹れる方法,Flower dripper,
+654c2399,井崎式,井崎,21,300,92,85,,Hario V60,https://youtu.be/UW565cU1XWk?si=oJxke6R5NhOw7Igx
+ed6f2106,岬焙煎所 浅煎り向け浸漬式,岬焙煎所,14,210,90,80,岬焙煎所で見たレシピ,浸漬式ドリッパー,
