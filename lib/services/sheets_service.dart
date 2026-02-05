@@ -8,7 +8,7 @@ import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 
 // URL Placeholder - User needs to provide this
-const String kGoogleSheetsApiUrl = 'https://script.google.com/macros/s/AKfycbzc3ts7-ja-HxGZYAtHDPWE3yFdDqdnpfcZFN2fFMsY-2mqx_w73HtFCVUoa9Q7Bkxa/exec';
+const String kGoogleSheetsApiUrl = 'https://script.google.com/macros/s/AKfycbx3ZIgSRh8v7ORcrL960GzZm0qD6I4X1jqsWYXHrZ8kpRXnpEs59N7pfszP-I6_AnoV/exec';
 
 class SheetsService {
   final http.Client _client;
@@ -277,58 +277,215 @@ class SheetsService {
   }
 
   Future<void> addBean(BeanMaster bean) async {
-    // Reverse mapping for write
-    final reverseMap = {
-      'id': '豆ID',
-      'name': '豆名',
+    final data = _reverseMapBean(bean);
+    await _postData('bean_master', 'add', data);
+  }
+
+  Future<void> updateBean(BeanMaster bean) async {
+    final data = _reverseMapBean(bean);
+    await _postData('bean_master', 'update', data);
+  }
+
+  Future<void> addGrinder(GrinderMaster grinder) async {
+    final data = _reverseMapGrinder(grinder);
+    await _postData('mill_master', 'add', data);
+  }
+  
+  Future<void> updateGrinder(GrinderMaster grinder) async {
+    final data = _reverseMapGrinder(grinder);
+    await _postData('mill_master', 'update', data);
+  }
+
+  Future<void> addCoffeeRecord(CoffeeRecord record) async {
+    final data = _reverseMapCoffeeRecord(record);
+    await _postData('coffee_data', 'add', data);
+  }
+
+  Future<void> updateCoffeeRecord(CoffeeRecord record) async {
+    final data = _reverseMapCoffeeRecord(record);
+    await _postData('coffee_data', 'update', data);
+  }
+
+  Map<String, dynamic> _reverseMapCoffeeRecord(CoffeeRecord record) {
+     final reverseMap = {
+      'id': '記録ID',
+      'brewedAt': '記録日',
+      'grinderId': 'ミル',
+      'dripperId': 'ドリッパー',
+      'filterId': 'フィルター',
+      'beanId': '豆名',
       'roastLevel': '焙煎度',
       'origin': '産地',
-      'store': '購入店舗',
-      'type': '豆の種類',
-      'imageUrl': '豆画像URL',
-      'purchaseDate': '購入日',
-      'firstUseDate': '開封日',
-      'lastUseDate': '使い切り日',
-      'isInStock': '在庫',
+      'beanWeight': '豆の量(g)',
+      'grindSize': '挽き目',
+      'methodId': '抽出方法',
+      'taste': '味',
+      'concentration': '濃度',
+      'temperature': '湯温(℃)',
+      'bloomingWater': '蒸らし湯量(ml)',
+      'totalWater': '湯量(ml)',
+      'bloomingTime': '蒸らし時間(秒)',
+      'totalTime': '抽出時間(秒)',
+      'scoreFragrance': '香り(1-10)',
+      'scoreAcidity': '酸味(1-10)',
+      'scoreBitterness': '苦味(1-10)',
+      'scoreSweetness': '甘味(1-10)',
+      'scoreComplexity': '複雑さ(1-10)',
+      'scoreFlavor': 'フレーバー(1-10)',
+      'scoreOverall': '総合評価(1-10)',
+      'comment': 'コメント',
+      'grinderImageUrl': 'ミル写真URL',
+      'dripperImageUrl': 'ドリッパー写真URL',
+      'filterImageUrl': 'フィルタ写真URL',
+      'beanImageUrl': '豆写真URL',
     };
+    // Need to handle DateTime for brewedAt specifically if _mapToJson doesn't
+    var json = record.toJson();
+    // Ensure brewedAt is string format if it isn't already (toJson usually handles it)
+    return _mapToJson(json, reverseMap);
+  }
 
-    final json = bean.toJson();
+  Future<void> addDripper(DripperMaster dripper) async {
+    final data = _reverseMapDripper(dripper);
+    await _postData('dripper_master', 'add', data);
+  }
+
+  Future<void> updateDripper(DripperMaster dripper) async {
+    final data = _reverseMapDripper(dripper);
+    await _postData('dripper_master', 'update', data);
+  }
+
+  Future<void> addFilter(FilterMaster filter) async {
+    final data = _reverseMapFilter(filter);
+    await _postData('filter_master', 'add', data);
+  }
+
+  Future<void> updateFilter(FilterMaster filter) async {
+    final data = _reverseMapFilter(filter);
+    await _postData('filter_master', 'update', data);
+  }
+
+  Future<void> addMethod(MethodMaster method) async {
+    final data = _reverseMapMethod(method);
+    await _postData('methods_master', 'add', data);
+  }
+
+  Future<void> updateMethod(MethodMaster method) async {
+    final data = _reverseMapMethod(method);
+    await _postData('methods_master', 'update', data);
+  }
+
+  // --- Pouring Steps ---
+
+  Future<void> addPouringStep(PouringStep step) async {
+    final data = _reverseMapPouringStep(step);
+    await _postData('pouring_steps', 'add', data);
+  }
+
+  Future<void> updatePouringStep(PouringStep step) async {
+    final data = _reverseMapPouringStep(step);
+    await _postData('pouring_steps', 'update', data);
+  }
+
+  Future<void> deletePouringStepsForMethod(String methodId) async {
+     // This would preferably be a batch operation or a specific 'delete_all' action on the backend
+     // Since backend is generic, we might need a custom action or just use 'action: delete' if supported.
+     // For now, let's assume valid action 'delete_by_method_id' is NOT standard in our generic script?
+     // Actually the generic script usually takes 'id' to delete.
+     // To delete ALL for a method, we might need to filter and delete one by one or support a filter delete.
+     // Let's assume for now we will just ADD/UPDATE. Deleting old ones might be tricky without bulk API.
+     // Workaround: We will just ADD new ones. If we edit, we UPDATE existing ones.
+     // If we remove one in UI, we should call 'delete' if available.
+     // Let's add a generic 'delete' method if we have the ID.
+  }
+
+  Future<void> deletePouringStep(String stepId) async {
+     await _postData('pouring_steps', 'delete', {'ID': stepId});
+  }
+
+  // Helpers for reverse mapping
+  Map<String, dynamic> _reverseMapBean(BeanMaster bean) {
+     final reverseMap = {
+      'id': '豆ID', 'name': '豆名', 'roastLevel': '焙煎度', 'origin': '産地',
+      'store': '購入店舗', 'type': '豆の種類', 'imageUrl': '豆画像URL',
+      'purchaseDate': '購入日', 'firstUseDate': '開封日', 'lastUseDate': '使い切り日', 'isInStock': '在庫',
+    };
+    return _mapToJson(bean.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _reverseMapGrinder(GrinderMaster item) {
+    final reverseMap = { 'id': 'ミルID', 'name': 'ミル名', 'grindRange': '挽き目範囲', 'description': '説明', 'imageUrl': 'ミル画像URL' };
+    return _mapToJson(item.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _reverseMapDripper(DripperMaster item) {
+    final reverseMap = { 'id': 'ドリッパーID', 'name': 'ドリッパー名', 'material': '素材', 'shape': '形状', 'imageUrl': 'ドリッパー画像URL' };
+    return _mapToJson(item.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _reverseMapFilter(FilterMaster item) {
+    final reverseMap = { 'id': 'フィルターID', 'name': 'フィルター名', 'material': '素材', 'size': 'サイズ', 'imageUrl': 'フィルター画像URL' };
+    return _mapToJson(item.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _reverseMapMethod(MethodMaster item) {
+    final reverseMap = { 
+       'id': 'メソッドID', 'name': 'メソッド名', 'author': '発案者', 
+       'baseBeanWeight': '基準豆量(g)', 'baseWaterAmount': '基準湯量(ml)', 
+       'temperature': '湯温（℃）', 'grindSize': '粒度', 
+       'description': '説明', 'recommendedEquipment': '推奨機器', 'sourceUrl': 'ソース'
+    };
+    return _mapToJson(item.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _reverseMapPouringStep(PouringStep item) {
+    final reverseMap = {
+      'id': 'ID',
+      'methodId': 'メソッドID（親）',
+      'stepOrder': '並び順',
+      'duration': '加算時間（秒）',
+      'waterAmount': '加算湯量（ml）',
+      'waterReference': '湯量基準(豆量15g)',
+      'waterRatio': '湯量係数',
+      'description': '注意事項',
+    };
+    return _mapToJson(item.toJson(), reverseMap);
+  }
+
+  Map<String, dynamic> _mapToJson(Map<String, dynamic> json, Map<String, String> reverseMap) {
     final data = <String, dynamic>{};
     json.forEach((key, value) {
       if (reverseMap.containsKey(key)) {
-        // Convert Dates to String if needed? json_serializable usually handles this via toJson, 
-        // but for Sheets we might want specific format.
-        // Assuming GAS handles standard string or raw value.
-        // BeanMaster toJson likely produces String for DateTime or raw string.
         data[reverseMap[key]!] = value;
       }
     });
-
-    await _postData('bean_master', data);
+    return data;
   }
 
-  Future<void> _postData(String sheetName, Map<String, dynamic> data) async {
+  Future<void> _postData(String sheetName, String action, Map<String, dynamic> data) async {
      if (_baseUrl.isEmpty) return;
+     
+     print('DEBUG: Sending $action request to $sheetName');
+     print('DEBUG: Payload: $data');
 
      try {
-       // Append sheet param for POST? Or in body?
-       // Usually GAS WebApp doPost(e) accesses e.parameter or e.postData.contents
-       // We will try sending generic "action=add" and data in body.
-       
        final response = await _client.post(
          Uri.parse(_baseUrl),
-         headers: {'Content-Type': 'application/json'},
+         // Use text/plain to avoid CORS preflight OPTIONS request which GAS doesn't handle well
+         headers: {'Content-Type': 'text/plain'},
          body: json.encode({
            'sheet': sheetName,
-           'action': 'add',
+           'action': action,
            'data': data,
          }),
        );
 
        if (response.statusCode == 200 || response.statusCode == 302) {
-         print('DEBUG: Successfully posted to $sheetName');
+         print('DEBUG: Successfully posted to $sheetName ($action)');
+         print('DEBUG: Response Body: ${response.body}');
        } else {
-         throw Exception('Failed to post to $sheetName: ${response.statusCode} ${response.body}');
+         print('ERROR: Failed to post to $sheetName: ${response.statusCode} ${response.body}');
+         throw Exception('Failed to post to $sheetName: ${response.statusCode}');
        }
      } catch (e) {
        print('Error posting to $sheetName: $e');

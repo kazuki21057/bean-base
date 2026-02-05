@@ -50,17 +50,17 @@ void main() {
 
     // Verify Table displayed
     // Table headers
-    expect(find.text('Time'), findsOneWidget);
+    expect(find.text('Time (Start)'), findsOneWidget);
     expect(find.text('Total Weight (g)'), findsOneWidget); 
     // Rows
     expect(find.text('Bloom'), findsOneWidget);
     expect(find.text('Pour'), findsOneWidget);
     
-    // Check initial values (cumulative time)
-    // S1 duration 30 -> Time 0:30
-    // S2 duration 30 (+30=60) -> Time 1:00
+    // Check initial values (Start Time)
+    // S1 duration 30 -> Start 0:00
+    // S2 duration 30 (Start 0:30)
+    expect(find.text('0:00'), findsOneWidget);
     expect(find.text('0:30'), findsOneWidget);
-    expect(find.text('1:00'), findsOneWidget);
 
     // Verify Add Step
     // Wait, need to find Add Step button

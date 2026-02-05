@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';
+import '../models/bean_master.dart'; // Add
 import '../providers/data_providers.dart';
+import 'log_edit_screen.dart'; // Add
+
+import '../utils/image_utils.dart';
 
 class LogDetailScreen extends ConsumerWidget {
   final CoffeeRecord log;
@@ -13,11 +17,11 @@ class LogDetailScreen extends ConsumerWidget {
     // Watch masters for name resolution
     final beansAsync = ref.watch(beanMasterProvider);
     final methodsAsync = ref.watch(methodMasterProvider);
-    final grindersAsync = ref.watch(grinderMasterProvider); // Assuming provider exists
+    final grindersAsync = ref.watch(grinderMasterProvider);
     final drippersAsync = ref.watch(dripperMasterProvider);
     final filtersAsync = ref.watch(filterMasterProvider);
 
-    // Resolution helpers (using basic map lookup, valid if data loaded)
+    // Resolution helpers
     String resolve(String id, AsyncValue<List<dynamic>> asyncValue) {
       if (id.isEmpty) return '-';
       return asyncValue.maybeWhen(
@@ -37,14 +41,51 @@ class LogDetailScreen extends ConsumerWidget {
     final dripperName = resolve(log.dripperId, drippersAsync);
     final filterName = resolve(log.filterId, filtersAsync);
 
+    // Resolve Image URL
+    String? imageUrl = log.beanImageUrl;
+    if ((imageUrl == null || imageUrl.isEmpty) && log.beanId.isNotEmpty) {
+      beansAsync.whenData((beans) {
+        final bean = beans.firstWhere((b) => b.id == log.beanId, orElse: () => BeanMaster(id: '', name: '', roastLevel: '', origin: '', store: '', type: '', purchaseDate: DateTime.now(), firstUseDate: DateTime.now(), lastUseDate: DateTime.now(), isInStock: false));
+        if (bean.id.isNotEmpty) {
+           imageUrl = bean.imageUrl;
+        }
+      });
+    }
+    final optimizedImageUrl = ImageUtils.getOptimizedImageUrl(imageUrl);
+
     return Scaffold(
         appBar: AppBar(
           title: Text('$beanName - ${_formatDate(log.brewedAt)}'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => LogEditScreen(log: log)));
+              },
+            ),
+          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              if (optimizedImageUrl != null)
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    image: DecorationImage(
+                      image: NetworkImage(optimizedImageUrl),
+                      fit: BoxFit.cover,
+                    ),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4)),
+                    ],
+                  ),
+                ),
+                
               _buildSection(context, 'Basic Info', [
                 _buildRow('Brewed At', log.brewedAt.toString().split('.')[0]),
                 _buildRow('Bean', beanName),

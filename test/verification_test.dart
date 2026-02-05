@@ -15,7 +15,7 @@ void main() {
           '豆名': 'Ethiopia Yirgacheffe',
           '豆の量(g)': 20.0,
           '味': null, // Null value checks
-          '総合評価': 5
+          '総合評価(1-10)': 5
         }
       ];
 
@@ -45,7 +45,7 @@ void main() {
           '記録日': '2023-01-01T10:00:00.000',
           '豆名': 'Brazil',
           '豆の量(g)': '', // Empty string for double failure check
-          '総合評価': ''  // Empty string for int failure check
+          '総合評価(1-10)': ''  // Empty string for int failure check
         }
       ];
 
@@ -69,7 +69,7 @@ void main() {
           '記録日': 'INVALID-DATE', // Should default to now
           '豆名': 'Test Bean',
           '豆の量(g)': '20.5', // String double
-          '総合評価': '8' // String int
+          '総合評価(1-10)': '8' // String int
         }
       ];
 
@@ -96,7 +96,7 @@ void main() {
           '豆名': 'Test Bean',
           '豆の量(g)': 15.0,
           '抽出方法': 'method001', // New key mapping check
-          '湯温(°C)': 92, // New key mapping
+          '湯温(℃)': 92, // New key mapping
         }
       ];
 

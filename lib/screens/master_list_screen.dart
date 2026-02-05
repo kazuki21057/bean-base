@@ -6,6 +6,8 @@ import 'master_detail_screen.dart';
 import 'method_detail_screen.dart';
 import 'master_add_screen.dart';
 
+import '../utils/image_utils.dart';
+
 class MasterListScreen extends ConsumerWidget {
   const MasterListScreen({super.key});
 
@@ -59,27 +61,65 @@ class BeanMasterList extends ConsumerWidget {
     return beansAsync.when(
       data: (beans) {
         final visibleBeans = beans.where((b) => b.name != '-' && b.name.isNotEmpty).toList();
-        return ListView.builder(
+        return GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8,
+          ),
           itemCount: visibleBeans.length,
           itemBuilder: (context, index) {
             final bean = visibleBeans[index];
-            return ListTile(
-              leading: bean.imageUrl != null ? Image.network(bean.imageUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.coffee)) : const Icon(Icons.coffee),
-              title: Text(bean.name),
-              subtitle: Text('${bean.roastLevel} - ${bean.origin}'),
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
-                  title: bean.name,
-                  data: bean.toJson(),
-                  imageUrl: bean.imageUrl,
-                )));
-              },
+            final imageUrl = ImageUtils.getOptimizedImageUrl(bean.imageUrl);
+            
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
+                    title: bean.name,
+                    data: bean.toJson(),
+                    imageUrl: imageUrl, // Pass optimized URL
+                    masterType: 'Bean',
+                  )));
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: imageUrl != null
+                          ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.coffee))
+                          : _buildPlaceholder(Icons.coffee),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(bean.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          Text('${bean.roastLevel} - ${bean.origin}', style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, s) => Center(child: Text('Error: $e')),
+    );
+  }
+
+  Widget _buildPlaceholder(IconData icon) {
+    return Container(
+      color: Colors.brown[50], // Light brown background
+      child: Icon(icon, size: 40, color: Colors.brown[300]),
     );
   }
 }
@@ -91,18 +131,36 @@ class MethodMasterList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final methodsAsync = ref.watch(methodMasterProvider);
     return methodsAsync.when(
-      data: (methods) => ListView.builder(
+      data: (methods) => GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8,
+        ),
         itemCount: methods.length,
         itemBuilder: (context, index) {
           final method = methods[index];
-          return ListTile(
-            title: Text(method.name),
-            subtitle: Text(method.description),
-            onTap: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => MethodDetailScreen(
-                method: method,
-              )));
-            },
+          return Card(
+            child: InkWell(
+              onTap: () {
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => MethodDetailScreen(
+                  method: method,
+                )));
+              },
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.receipt_long, size: 40, color: Colors.brown),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text(method.name, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
@@ -119,25 +177,57 @@ class GrinderMasterList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final grindersAsync = ref.watch(grinderMasterProvider);
     return grindersAsync.when(
-      data: (grinders) => ListView.builder(
+      data: (grinders) => GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8,
+        ),
         itemCount: grinders.length,
         itemBuilder: (context, index) {
           final grinder = grinders[index];
-          return ListTile(
-            leading: grinder.imageUrl != null ? Image.network(grinder.imageUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.build)) : const Icon(Icons.build),
-            title: Text(grinder.name),
-            onTap: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
-                title: grinder.name,
-                data: grinder.toJson(),
-                imageUrl: grinder.imageUrl,
-              )));
-            },
+          final imageUrl = ImageUtils.getOptimizedImageUrl(grinder.imageUrl);
+          
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
+                  title: grinder.name,
+                  data: grinder.toJson(),
+                  imageUrl: imageUrl, // Pass optimized URL
+                  masterType: 'Grinder',
+                )));
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: imageUrl != null
+                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.inventory))
+                        : _buildPlaceholder(Icons.inventory),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(grinder.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, s) => Center(child: Text('Error: $e')),
+    );
+  }
+
+  Widget _buildPlaceholder(IconData icon) {
+    return Container(
+      color: Colors.blueGrey[50], 
+      child: Icon(icon, size: 40, color: Colors.blueGrey[300]),
     );
   }
 }
@@ -149,26 +239,64 @@ class DripperMasterList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final drippersAsync = ref.watch(dripperMasterProvider);
     return drippersAsync.when(
-      data: (drippers) => ListView.builder(
+      data: (drippers) => GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8,
+        ),
         itemCount: drippers.length,
         itemBuilder: (context, index) {
            final dripper = drippers[index];
-           return ListTile(
-            leading: dripper.imageUrl != null ? Image.network(dripper.imageUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.filter_alt)) : const Icon(Icons.filter_alt),
-            title: Text(dripper.name),
-            subtitle: Text(dripper.shape ?? ''),
-            onTap: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
-                title: dripper.name,
-                data: dripper.toJson(),
-                imageUrl: dripper.imageUrl,
-              )));
-            },
+           final imageUrl = ImageUtils.getOptimizedImageUrl(dripper.imageUrl);
+           
+           return Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
+                  title: dripper.name,
+                  data: dripper.toJson(),
+                  imageUrl: imageUrl, // Pass optimized URL
+                  masterType: 'Dripper',
+                )));
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: imageUrl != null
+                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.filter_alt))
+                        : _buildPlaceholder(Icons.filter_alt),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(dripper.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (dripper.shape != null)
+                             Text(dripper.shape!, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, s) => Center(child: Text('Error: $e')),
+    );
+  }
+
+  Widget _buildPlaceholder(IconData icon) {
+    return Container(
+      color: Colors.orange[50], 
+      child: Icon(icon, size: 40, color: Colors.orange[300]),
     );
   }
 }
@@ -180,26 +308,57 @@ class FilterMasterList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filtersAsync = ref.watch(filterMasterProvider);
     return filtersAsync.when(
-      data: (filters) => ListView.builder(
+      data: (filters) => GridView.builder(
+        padding: const EdgeInsets.all(8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8,
+        ),
         itemCount: filters.length,
         itemBuilder: (context, index) {
           final filter = filters[index];
-          return ListTile(
-            leading: filter.imageUrl != null ? Image.network(filter.imageUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.coffee_maker)) : const Icon(Icons.coffee_maker),
-            title: Text(filter.name),
-            subtitle: Text('Material: ${filter.material ?? '-'} / Size: ${filter.size ?? '-'}'),
-            onTap: () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
-                title: filter.name,
-                data: filter.toJson(),
-                imageUrl: filter.imageUrl,
-              )));
-            },
+          final imageUrl = ImageUtils.getOptimizedImageUrl(filter.imageUrl);
+          
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                 Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
+                  title: filter.name,
+                  data: filter.toJson(),
+                  imageUrl: imageUrl, // Pass optimized URL
+                  masterType: 'Filter',
+                )));
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                   Expanded(
+                    child: imageUrl != null
+                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.coffee_maker))
+                        : _buildPlaceholder(Icons.coffee_maker),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(filter.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, s) => Center(child: Text('Error: $e')),
+    );
+  }
+
+  Widget _buildPlaceholder(IconData icon) {
+    return Container(
+      color: Colors.blue[50], 
+      child: Icon(icon, size: 40, color: Colors.blue[300]),
     );
   }
 }

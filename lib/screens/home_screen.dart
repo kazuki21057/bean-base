@@ -8,6 +8,8 @@ import 'statistics_screen.dart';
 import 'master_detail_screen.dart';
 import 'log_detail_screen.dart';
 
+import '../utils/image_utils.dart';
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -29,66 +31,21 @@ class HomeScreen extends ConsumerWidget {
           )
         ],
       ),
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: 0,
-            onDestinationSelected: (int index) {
-              if (index == 0) return; // Already here
-              if (index == 1) {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const CoffeeLogListScreen()));
-              } else if (index == 2) {
-                 Navigator.push(context, MaterialPageRoute(builder: (_) => const MasterListScreen()));
-              } else if (index == 3) {
-                 Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen()));
-              } else if (index == 4) {
-                 Navigator.push(context, MaterialPageRoute(builder: (_) => const StatisticsScreen()));
-              }
-            },
-            labelType: NavigationRailLabelType.selected,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.dashboard),
-                label: Text('Home'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.list),
-                label: Text('Logs'),
-              ),
-              NavigationRailDestination(
-                 icon: Icon(Icons.dataset),
-                 label: Text('Masters'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.calculate),
-                label: Text('Calculator'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.analytics),
-                label: Text('Stats'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Dashboard',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInventorySection(context, beansAsync, recentLogsAsync),
-                  const SizedBox(height: 16),
-                  _buildRecentLogsSection(context, recentLogsAsync, beansAsync),
-                ],
-              ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dashboard',
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            _buildInventorySection(context, beansAsync, recentLogsAsync),
+            const SizedBox(height: 16),
+            _buildRecentLogsSection(context, recentLogsAsync, beansAsync),
+          ],
+        ),
       ),
     );
   }
@@ -113,13 +70,20 @@ class HomeScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-              ListView.separated(
+              GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.8,
+                ),
                 itemCount: stockBeans.length,
-                separatorBuilder: (context, index) => const Divider(),
                 itemBuilder: (context, index) {
                   final bean = stockBeans[index];
+                  final imageUrl = ImageUtils.getOptimizedImageUrl(bean.imageUrl);
                   
                   // Calculate Last Use Date
                   DateTime? lastUse;
@@ -134,31 +98,59 @@ class HomeScreen extends ConsumerWidget {
                   
                   final dateFormat = (DateTime? d) => d != null ? '${d.year}/${d.month}/${d.day}' : '-';
 
-                  return ListTile(
-                    leading: const Icon(Icons.inventory_2, color: Colors.brown),
-                    title: Text(bean.name),
-                    subtitle: Text(
-                      'Purchased: ${dateFormat(bean.purchaseDate)}\n'
-                      'Opened: ${dateFormat(bean.firstUseDate)}\n'
-                      'Last Brewed: ${dateFormat(lastUse)}',
+                  return Card(
+                    margin: EdgeInsets.zero,
+                    clipBehavior: Clip.antiAlias,
+                    elevation: 2,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
+                          title: bean.name,
+                          data: bean.toJson(),
+                          imageUrl: imageUrl, // Pass optimized
+                          masterType: 'Bean',
+                        )));
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: imageUrl != null 
+                                ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.brown[50], child: Icon(Icons.coffee, color: Colors.brown[300])))
+                                : Container(color: Colors.brown[50], child: Icon(Icons.coffee, color: Colors.brown[300])),
+                          ),
+
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(bean.name, style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 4),
+                                Text('Last: ${dateFormat(lastUse)}', style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    isThreeLine: true,
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => MasterDetailScreen(
-                        title: bean.name,
-                        data: bean.toJson(),
-                        imageUrl: bean.imageUrl,
-                      )));
-                    },
                   );
                 },
               ),
+              const SizedBox(height: 16),
             ],
           ),
         );
       },
       loading: () => const LinearProgressIndicator(),
       error: (e, s) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildPlaceholder(IconData icon) {
+    return Container(
+      color: Colors.brown[50], 
+      child: Icon(icon, size: 40, color: Colors.brown[300]),
     );
   }
 
@@ -213,27 +205,37 @@ class HomeScreen extends ConsumerWidget {
                   final double bubbleRadius = 12.0 + (log.scoreOverall * 1.5);
                   
                   return ListTile(
-                    leading: CircleAvatar(
-                      radius: bubbleRadius > 28 ? 28 : bubbleRadius, // Cap size
-                      backgroundColor: Colors.orange,
-                      child: Text(
-                        '${log.scoreOverall}', 
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-                      ),
-                    ),
+                    leading: null,
                     title: Text(beanName, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(
-                      '${log.brewedAt.year}/${log.brewedAt.month}/${log.brewedAt.day}',
+                      '${log.brewedAt.year}/${log.brewedAt.month}/${log.brewedAt.day} ${log.brewedAt.hour}:${log.brewedAt.minute.toString().padLeft(2, '0')}',
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.replay, color: Colors.blue),
-                      tooltip: 'Reuse Recipe',
-                      onPressed: () {
-                         Navigator.push(context, MaterialPageRoute(builder: (_) => CalculatorScreen(
-                           initialMethodId: log.methodId,
-                           initialBeanWeight: log.beanWeight,
-                         )));
-                      },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                         Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '${log.scoreOverall}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.replay, color: Colors.blue),
+                          tooltip: 'Reuse Recipe',
+                          onPressed: () {
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => CalculatorScreen(
+                               initialMethodId: log.methodId,
+                               initialBeanWeight: log.beanWeight,
+                             )));
+                          },
+                        ),
+                      ],
                     ),
                     onTap: () {
                        Navigator.push(context, MaterialPageRoute(builder: (_) => LogDetailScreen(log: log)));

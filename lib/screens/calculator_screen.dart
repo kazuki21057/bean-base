@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
-import '../models/equipment_masters.dart';
+import '../models/coffee_record.dart'; // Add
+import '../models/bean_master.dart'; // Add
+import '../models/equipment_masters.dart'; // Add
+import '../services/sheets_service.dart'; // Add
 
 class CalculatorScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
@@ -25,9 +28,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final TextEditingController _beanWeightController = TextEditingController();
   
   // Equipment
+  BeanMaster? _selectedBean; // Add
   GrinderMaster? _selectedGrinder;
   DripperMaster? _selectedDripper;
   FilterMaster? _selectedFilter;
+
+  // Brew Date
+  DateTime _brewedAt = DateTime.now();
 
   // Evaluation
   final Map<String, int> _scores = {
@@ -267,6 +274,27 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     );
   }
 
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _brewedAt,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (date != null) {
+      if (!mounted) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_brewedAt),
+      );
+      if (time != null) {
+        setState(() {
+          _brewedAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final methodsAsync = ref.watch(methodMasterProvider);
@@ -368,14 +396,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             // Collapsible Table
             ExpansionTile(
               title: const Text('Pouring Steps', style: TextStyle(fontWeight: FontWeight.bold)),
-              initiallyExpanded: false, // Hidden by default as requested
+              initiallyExpanded: true, // Auto expand relevant
               children: [
                 SingleChildScrollView( // Horizontal scroll
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     columns: const [
                       DataColumn(label: Text('#')),
-                      DataColumn(label: Text('Time')),
+                      DataColumn(label: Text('Time (Start)')),
                       DataColumn(label: Text('Total Weight (g)')), 
                       DataColumn(label: Text('Description')),
                       DataColumn(label: Text('Action')),
@@ -408,6 +436,22 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
             // Log Preparation Section
             Text('Log Details', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+             // Date Picker
+            InkWell(
+              onTap: _pickDateTime,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Brewed At',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.calendar_today),
+                ),
+                child: Text(
+                  '${_brewedAt.year}/${_brewedAt.month}/${_brewedAt.day} ${_brewedAt.hour}:${_brewedAt.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             _buildEquipmentSection(ref),
             const Divider(),
@@ -454,7 +498,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       final index = entry.key;
       final step = entry.value;
 
-      // Calculate logic
+      // Start Time (Prior cumulative)
+      final startTime = cumulativeTime;
+      
+      // Calculate
       double stepAmount = 0.0;
       if (step.waterRatio != null && step.waterRatio! > 0) {
         stepAmount = step.waterRatio! * currentWeight;
@@ -464,12 +511,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       cumulativeTotal += stepAmount;
       final currentTotal = cumulativeTotal; 
 
-      final prevTime = cumulativeTime;
       cumulativeTime += step.duration;
-      final currentCumulativeTime = cumulativeTime; 
+      final endTime = cumulativeTime;
 
-      // Highlighting Logic
-      final isActive = _stopwatch.isRunning && elapsedSec >= prevTime && elapsedSec < currentCumulativeTime;
+      // Highlighting Logic: Current time is between startTime and endTime
+      final isActive = _stopwatch.isRunning && elapsedSec >= startTime && elapsedSec < endTime;
 
       return DataRow(
         color: MaterialStateProperty.resolveWith((states) {
@@ -477,21 +523,28 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         }),
         cells: [
         DataCell(Text(step.stepOrder.toString())),
-        // Time (Cumulative)
+        // Time (Start Time)
         DataCell(TextFormField(
-          initialValue: _formatTime(currentCumulativeTime),
+          initialValue: _formatTime(startTime),
           keyboardType: TextInputType.datetime,
           onFieldSubmitted: (v) {
+            // Edit Start Time logic
+            if (index == 0) return; 
+
             final val = _parseTime(v);
             if (val != null) {
-              int prevT = 0;
-              for(int i=0; i<index; i++) {
-                prevT += _workingSteps[i].duration;
+              // Get previous step's start time
+              int prevStepStartTime = 0;
+              for(int i=0; i<index-1; i++) {
+                prevStepStartTime += _workingSteps[i].duration;
               }
-              final newDuration = val - prevT;
-              if (newDuration >= 0) {
+              
+              // New duration for Step N-1 = New Start Time of N - Start Time of N-1
+              final newDurationPrevStep = val - prevStepStartTime;
+              
+              if (newDurationPrevStep >= 0) {
                  setState(() {
-                    _workingSteps[index] = _copyWith(step, duration: newDuration);
+                    _workingSteps[index-1] = _copyWith(_workingSteps[index-1], duration: newDurationPrevStep);
                  });
               }
             }
@@ -499,6 +552,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         )),
         // Total Weight Cell
         DataCell(TextFormField(
+          key: ValueKey('weight_${index}_${currentTotal}'), // Force rebuild on value change
           initialValue: currentTotal.toStringAsFixed(1),
           keyboardType: TextInputType.number,
           onFieldSubmitted: (v) { 
@@ -551,30 +605,65 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       ]);
     }).toList();
   }
+  
   Widget _buildEquipmentSection(WidgetRef ref) {
     final grinders = ref.watch(grinderMasterProvider).valueOrNull ?? [];
     final drippers = ref.watch(dripperMasterProvider).valueOrNull ?? [];
     final filters = ref.watch(filterMasterProvider).valueOrNull ?? [];
 
+    final beans = ref.watch(beanMasterProvider).valueOrNull ?? []; // Fetch beans
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        DropdownButtonFormField<BeanMaster>( // Add Bean Selector
+          decoration: const InputDecoration(labelText: 'Bean'),
+          value: _selectedBean,
+          isExpanded: true,
+          items: beans.where((b) => b.isInStock).map((e) => DropdownMenuItem( // Filter in-stock? Or all? Let's say in-stock or previously selected
+            value: e, 
+            child: Text(e.name, overflow: TextOverflow.ellipsis)
+          )).toList(),
+          onChanged: (v) => setState(() => _selectedBean = v),
+        ),
+        const SizedBox(height: 8),
         DropdownButtonFormField<GrinderMaster>(
           decoration: const InputDecoration(labelText: 'Grinder'),
           value: _selectedGrinder,
-          items: grinders.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
+          items: grinders.map((e) => DropdownMenuItem(
+            value: e, 
+            child: Row(children: [
+               if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
+                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+               Text(e.name)
+            ])
+          )).toList(),
           onChanged: (v) => setState(() => _selectedGrinder = v),
         ),
         DropdownButtonFormField<DripperMaster>(
           decoration: const InputDecoration(labelText: 'Dripper'),
           value: _selectedDripper,
-          items: drippers.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
+           items: drippers.map((e) => DropdownMenuItem(
+            value: e, 
+            child: Row(children: [
+               if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
+                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+               Text(e.name)
+            ])
+          )).toList(),
           onChanged: (v) => setState(() => _selectedDripper = v),
         ),
         DropdownButtonFormField<FilterMaster>(
           decoration: const InputDecoration(labelText: 'Filter'),
           value: _selectedFilter,
-          items: filters.map((e) => DropdownMenuItem(value: e, child: Text(e.name))).toList(),
+           items: filters.map((e) => DropdownMenuItem(
+            value: e, 
+            child: Row(children: [
+               if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
+                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+               Text(e.name)
+            ])
+          )).toList(),
           onChanged: (v) => setState(() => _selectedFilter = v),
         ),
       ],
@@ -604,17 +693,83 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     );
   }
 
-  void _logThisBrew() {
-    print('LOGGING BREW (Preview):');
-    print('Method: ${_selectedMethod?.name}');
-    print('Bean Weight: ${_beanWeightController.text}');
-    print('Equipment: G=${_selectedGrinder?.name}, D=${_selectedDripper?.name}, F=${_selectedFilter?.name}');
-    print('Scores: $_scores');
-    print('Notes: ${_notesController.text}');
+  Future<void> _logThisBrew() async {
+    if (_selectedMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a method.')));
+      return;
+    }
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Log Preview printed to console (Not saved to Sheet)'))
+    // Calculate final totals
+    final currentWeight = double.tryParse(_beanWeightController.text) ?? 15.0;
+    final baseWeight = _selectedMethod?.baseBeanWeight ?? 15.0;
+    final factor = baseWeight > 0 ? (currentWeight / baseWeight) : 1.0;
+    
+    double totalWater = 0.0;
+    int totalTime = 0;
+    double bloomingWater = 0.0;
+    int bloomingTime = 0;
+
+    for (var i = 0; i < _workingSteps.length; i++) {
+       final s = _workingSteps[i];
+       double amt = 0.0;
+       if (s.waterRatio != null && s.waterRatio! > 0) {
+         amt = s.waterRatio! * currentWeight;
+       } else {
+         amt = s.waterAmount * factor;
+       }
+       totalWater += amt;
+       totalTime += s.duration;
+       
+       // Heuristic: First step is blooming
+       if (i == 0) {
+         bloomingWater = amt;
+         bloomingTime = s.duration;
+       }
+    }
+
+    final record = CoffeeRecord(
+      id: 'REC-${DateTime.now().millisecondsSinceEpoch}',
+      brewedAt: _brewedAt,
+      methodId: _selectedMethod!.id,
+      beanId: _selectedBean?.id ?? 'UNKNOWN', 
+      beanWeight: currentWeight,
+      grinderId: _selectedGrinder?.id ?? '',
+      dripperId: _selectedDripper?.id ?? '',
+      filterId: _selectedFilter?.id ?? '',
+      roastLevel: _selectedBean?.roastLevel ?? '',
+      origin: _selectedBean?.origin ?? '',
+      grindSize: _selectedMethod!.grindSize ?? '',
+      temperature: _selectedMethod!.temperature ?? 0.0,
+      taste: '', // Placeholder or add UI input
+      concentration: '', // Placeholder or add UI input
+      bloomingWater: bloomingWater,
+      bloomingTime: bloomingTime,
+      totalWater: totalWater,
+      totalTime: totalTime,
+      scoreFragrance: _scores['Fragrance'] ?? 0,
+      scoreAcidity: _scores['Acidity'] ?? 0,
+      scoreBitterness: _scores['Bitterness'] ?? 0,
+      scoreSweetness: _scores['Sweetness'] ?? 0,
+      scoreComplexity: _scores['Complexity'] ?? 0,
+      scoreFlavor: _scores['Flavor'] ?? 0,
+      scoreOverall: _scores['Overall'] ?? 0,
+      comment: _notesController.text,
+      // Images not set here (uploaded separately or linked manually? For now optional)
     );
+
+    try {
+      // Use sheetsServiceProvider directly
+      await ref.read(sheetsServiceProvider).addCoffeeRecord(record);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Brew logged successfully!')));
+        Navigator.pop(context); 
+      }
+      ref.refresh(coffeeRecordsProvider);
+    } catch (e) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error logging: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   String _formatTime(int seconds) {
