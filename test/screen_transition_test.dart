@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bean_base/screens/home_screen.dart';
 import 'package:bean_base/providers/data_providers.dart';
-import 'package:bean_base/models/coffee_record.dart';
+
+import 'package:bean_base/layout/main_layout.dart';
+import 'package:bean_base/utils/nav_key.dart';
 
 void main() {
   testWidgets('App starts and navigates to CoffeeLogListScreen from NavigationRail', (WidgetTester tester) async {
@@ -12,9 +14,17 @@ void main() {
       ProviderScope(
         overrides: [
           coffeeRecordsProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith((ref) async => []),
+          methodMasterProvider.overrideWith((ref) async => []),
+          grinderMasterProvider.overrideWith((ref) async => []),
+          dripperMasterProvider.overrideWith((ref) async => []),
+          filterMasterProvider.overrideWith((ref) async => []),
         ],
-        child: const MaterialApp(
-          home: HomeScreen(),
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          debugShowCheckedModeBanner: false,
+          builder: (context, child) => MainLayout(child: child ?? const SizedBox.shrink()), 
+          home: const HomeScreen(),
         ),
       ),
     );
@@ -25,10 +35,10 @@ void main() {
     // Verify HomeScreen is displayed
     expect(find.text('BeanBase 2.0'), findsOneWidget);
     expect(find.text('Dashboard'), findsOneWidget);
-    expect(find.text('No coffee logs found. Start brewing!'), findsOneWidget);
+    expect(find.text('No recent brews found.'), findsOneWidget);
 
-    // Find NavigationRail destination for Logs (Icon(Icons.list))
-    final logsIcon = find.byIcon(Icons.list);
+    // Find NavigationRail destination for Logs (Icon(Icons.coffee))
+    final logsIcon = find.byIcon(Icons.coffee);
     expect(logsIcon, findsOneWidget);
 
     // Tap Logs

@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import 'coffee_log_list_screen.dart';
-import 'master_list_screen.dart';
-import 'calculator_screen.dart';
-import 'statistics_screen.dart';
+
+import '../screens/calculator_screen.dart';
 import 'master_detail_screen.dart';
 import 'log_detail_screen.dart';
 

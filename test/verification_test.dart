@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:bean_base/models/coffee_record.dart';
+
 import 'package:bean_base/services/sheets_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

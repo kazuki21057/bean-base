@@ -4,8 +4,7 @@ import '../providers/data_providers.dart';
 import 'log_detail_screen.dart';
 
 import 'calculator_screen.dart';
-import '../models/bean_master.dart';
-import '../models/method_master.dart';
+
 
 class CoffeeLogListScreen extends ConsumerWidget {
   const CoffeeLogListScreen({super.key});
