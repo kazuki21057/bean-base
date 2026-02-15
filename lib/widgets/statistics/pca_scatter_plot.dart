@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/statistics_service.dart';
 import '../../models/coffee_record.dart';
 import '../../providers/data_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/ai_analysis_service.dart';
 
 class PcaScatterPlot extends ConsumerWidget {
   final List<CoffeeRecord> records;
@@ -109,6 +111,18 @@ class PcaScatterPlot extends ConsumerWidget {
             _buildScoreLegend(),
             const Divider(),
             _buildComponentInfo(result.components),
+            const SizedBox(height: 16),
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () => _handleAiAnalysis(context, ref, result.components),
+                icon: const Icon(Icons.psychology),
+                label: const Text("AI Analyze Components"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple.shade50,
+                  foregroundColor: Colors.deepPurple,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -136,11 +150,15 @@ class PcaScatterPlot extends ConsumerWidget {
       children: [
         const Text("Score:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
         const SizedBox(width: 8),
+        // Low
+        Container(width: _getScoreRadius(0)*2, height: _getScoreRadius(0)*2, decoration: BoxDecoration(color: _getScoreColor(0), shape: BoxShape.circle)),
+        const SizedBox(width: 4),
         Text("Low", style: TextStyle(fontSize: 10, color: _getScoreColor(0))),
+        // Bar
         Expanded(
           child: Container(
-            height: 10,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
+            height: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -149,17 +167,109 @@ class PcaScatterPlot extends ConsumerWidget {
                   _getScoreColor(10),
                 ],
               ),
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(3),
             ),
           ),
         ),
+        // High
         Text("High", style: TextStyle(fontSize: 10, color: _getScoreColor(10))),
-        const SizedBox(width: 8),
-        // Size Reference
-        Container(width: _getScoreRadius(2)*2, height: _getScoreRadius(2)*2, decoration: BoxDecoration(color: Colors.grey, shape: BoxShape.circle)),
-        const SizedBox(width: 2),
-        Container(width: _getScoreRadius(10)*2, height: _getScoreRadius(10)*2, decoration: BoxDecoration(color: Colors.grey, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Container(width: _getScoreRadius(10)*2, height: _getScoreRadius(10)*2, decoration: BoxDecoration(color: _getScoreColor(10), shape: BoxShape.circle)),
       ],
+    );
+  }
+
+  Future<void> _handleAiAnalysis(BuildContext context, WidgetRef ref, List<PcaComponent> components) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? apiKey = prefs.getString('gemini_api_key');
+
+    if (apiKey == null || apiKey.isEmpty) {
+      if (context.mounted) {
+        apiKey = await _showApiKeyDialog(context);
+        if (apiKey != null && apiKey.isNotEmpty) {
+          await prefs.setString('gemini_api_key', apiKey);
+        } else {
+          return; // Cancelled
+        }
+      }
+    }
+
+    if (apiKey == null || apiKey.isEmpty) return;
+
+    if (context.mounted) {
+      _showAnalysisResultDialog(context, ref, components, apiKey);
+    }
+  }
+
+  Future<String?> _showApiKeyDialog(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Enter Gemini API Key"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: "API Key",
+            hintText: "Enter your Google Gemini API Key",
+            border: OutlineInputBorder(),
+          ),
+          obscureText: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAnalysisResultDialog(BuildContext context, WidgetRef ref, List<PcaComponent> components, String apiKey) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return FutureBuilder<String>(
+          future: ref.read(aiAnalysisServiceProvider).analyzeComponents(components, apiKey),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AlertDialog(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text("Analyzing components with Gemini..."),
+                  ],
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return AlertDialog(
+                title: const Text("Error"),
+                content: Text("Analysis failed: ${snapshot.error}"),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+                ],
+              );
+            }
+
+            return AlertDialog(
+              title: const Text("AI Analysis Result"),
+              content: SingleChildScrollView(
+                child: Text(snapshot.data ?? "No result."),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

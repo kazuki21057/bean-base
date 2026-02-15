@@ -7,6 +7,73 @@ import 'method_detail_screen.dart';
 import 'master_add_screen.dart';
 
 import '../utils/image_utils.dart';
+import 'package:file_picker/file_picker.dart';
+import '../services/image_service.dart';
+
+Future<void> _handleImageImport(BuildContext context, WidgetRef ref) async {
+  debugPrint("MASTER_SCREEN: Import button pressed (Web/Mobile Compatible Mode)");
+  try {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true, 
+      type: FileType.image,
+    );
+    
+    if (result == null || result.files.isEmpty) {
+      debugPrint("MASTER_SCREEN: Import canceled by user or no files selected.");
+      return;
+    }
+    
+    debugPrint("MASTER_SCREEN: Selected ${result.files.length} files.");
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    final imageService = ref.read(imageServiceProvider);
+    // Pass list of PlatformFile directly to service
+    final summary = await imageService.importBeanImages(result.files);
+
+    // Close loading
+    if (context.mounted) Navigator.of(context).pop();
+
+    // Show result
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import Result'),
+          content: Text(summary),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+     // Refresh the list - Riverpod FutureProvider should auto-refresh if we invalidate or if the service updates the source.
+     // Since SheetsService doesn't use a Stream, we might need to invalidate the provider.
+     ref.invalidate(beanMasterProvider);
+
+  } catch (e) {
+    debugPrint("MASTER_SCREEN: Error picking files: $e");
+    // Close loading if open (tricky to check exact state, but try safely)
+    // Usually user sees nothing if pick fails before dialog. 
+    // If dialog is open, we should close it, but `context` might be unstable.
+    // For now just show error.
+    if (context.mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+}
 
 class MasterListScreen extends ConsumerWidget {
   const MasterListScreen({super.key});
@@ -19,6 +86,13 @@ class MasterListScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Masters'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate),
+              tooltip: 'Import Images (Bulk)',
+              onPressed: () async {
+                 await _handleImageImport(context, ref);
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: 'Add New',

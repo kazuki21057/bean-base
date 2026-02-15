@@ -68,18 +68,28 @@ class RadarChartWidget extends ConsumerWidget {
             const SizedBox(height: 16),
             
             // Chart
+            const Text("Scale: 0 - 10 (Grid: 2, 4, 6, 8, 10)", style: TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 4),
             AspectRatio(
               aspectRatio: 1.3,
               child: RadarChart(
                 RadarChartData(
                   radarTouchData: RadarTouchData(enabled: false), // Disable touch for simplicity
-                  dataSets: [
-                     // Dummy Data for Scale (0-10)
+                   dataSets: [
+                     // Dummy Data for Scale Min (0) - Force visual minimum
                      RadarDataSet(
                        fillColor: Colors.transparent,
                        borderColor: Colors.transparent,
                        entryRadius: 0,
-                       dataEntries: List.filled(6, const RadarEntry(value: 10.0)),
+                       dataEntries: List.filled(7, const RadarEntry(value: 0.0)),
+                       borderWidth: 0,
+                     ),
+                     // Dummy Data for Scale Max (10)
+                     RadarDataSet(
+                       fillColor: Colors.transparent,
+                       borderColor: Colors.transparent,
+                       entryRadius: 0,
+                       dataEntries: List.filled(7, const RadarEntry(value: 10.0)),
                        borderWidth: 0,
                      ),
                      // Global Average (Always show)
@@ -105,12 +115,12 @@ class RadarChartWidget extends ConsumerWidget {
                   radarBorderData: const BorderSide(color: Colors.transparent),
                   titlePositionPercentageOffset: 0.2,
                   titleTextStyle: const TextStyle(color: Colors.brown, fontSize: 13, fontWeight: FontWeight.bold),
-                  tickCount: 5, // 2, 4, 6, 8, 10
-                  ticksTextStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+                  tickCount: 5,
+                  ticksTextStyle: const TextStyle(color: Colors.brown, fontSize: 10), // Visible ticks
                   tickBorderData: const BorderSide(color: Colors.transparent),
                   gridBorderData: BorderSide(color: Colors.brown.withOpacity(0.2), width: 1),
                   getTitle: (index, angle) {
-                    const titles = ['Fragrance', 'Acidity', 'Bitterness', 'Sweetness', 'Complexity', 'Flavor'];
+                    const titles = ['Score', 'Fragrance', 'Acidity', 'Bitterness', 'Sweetness', 'Complexity', 'Flavor'];
                     if (index < titles.length) {
                        return RadarChartTitle(text: titles[index], angle: angle);
                     }
@@ -147,8 +157,8 @@ class RadarChartWidget extends ConsumerWidget {
   }
 
   List<RadarEntry> _mapToEntries(Map<String, double> data) {
-    // Expected order: Fragrance, Acidity, Bitterness, Sweetness, Complexity, Flavor
-    const keys = ['Fragrance', 'Acidity', 'Bitterness', 'Sweetness', 'Complexity', 'Flavor'];
+    // Expected order: Score (Top/12 o'clock), Fragrance, Acidity, Bitterness, Sweetness, Complexity, Flavor
+    const keys = ['Score', 'Fragrance', 'Acidity', 'Bitterness', 'Sweetness', 'Complexity', 'Flavor'];
     return keys.map((k) => RadarEntry(value: data[k] ?? 0)).toList();
   }
 

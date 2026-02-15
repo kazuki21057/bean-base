@@ -103,7 +103,7 @@ class StatisticsService {
        if (list.isEmpty) {
          return {
            'Fragrance': 0, 'Acidity': 0, 'Bitterness': 0, 
-           'Sweetness': 0, 'Complexity': 0, 'Flavor': 0
+           'Sweetness': 0, 'Complexity': 0, 'Flavor': 0, 'Score': 0
          };
        }
        final count = list.length;
@@ -114,6 +114,7 @@ class StatisticsService {
          'Sweetness': list.fold(0.0, (s, r) => s + r.scoreSweetness) / count,
          'Complexity': list.fold(0.0, (s, r) => s + r.scoreComplexity) / count,
          'Flavor': list.fold(0.0, (s, r) => s + r.scoreFlavor) / count,
+         'Score': list.fold(0.0, (s, r) => s + r.scoreOverall) / count,
        };
     }
 

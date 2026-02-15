@@ -71,4 +71,31 @@ class BeanMaster {
     }
     return false;
   }
+  BeanMaster copyWith({
+    String? id,
+    String? name,
+    String? roastLevel,
+    String? origin,
+    String? store,
+    String? type,
+    String? imageUrl,
+    DateTime? purchaseDate,
+    DateTime? firstUseDate,
+    DateTime? lastUseDate,
+    bool? isInStock,
+  }) {
+    return BeanMaster(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      roastLevel: roastLevel ?? this.roastLevel,
+      origin: origin ?? this.origin,
+      store: store ?? this.store,
+      type: type ?? this.type,
+      imageUrl: imageUrl ?? this.imageUrl,
+      purchaseDate: purchaseDate ?? this.purchaseDate,
+      firstUseDate: firstUseDate ?? this.firstUseDate,
+      lastUseDate: lastUseDate ?? this.lastUseDate,
+      isInStock: isInStock ?? this.isInStock,
+    );
+  }
 }

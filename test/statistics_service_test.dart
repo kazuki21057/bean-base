@@ -123,6 +123,8 @@ void main() {
       
       // Global Avg for Fragrance: (7+8+6)/3 = 7
       expect(data.average['Fragrance'], 7.0);
+      // Global Avg Score: (8+9+7)/3 = 8.0
+      expect(data.average['Score'], 8.0);
       expect(data.target, isNull);
     });
 
@@ -136,6 +138,8 @@ void main() {
       expect(data.target, isNotNull);
       // Bean1 Avg Fragrance: (7+8)/2 = 7.5
       expect(data.target!['Fragrance'], 7.5);
+      // Bean1 Avg Score: (8+9)/2 = 8.5
+      expect(data.target!['Score'], 8.5);
     });
 
     test('calculatePca returns points with coordinates', () {

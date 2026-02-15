@@ -5,15 +5,11 @@ Stats画面のチャート表現をより明確にし、主成分分析(PCA)にA
 
 ## 変更内容
 ### `lib/widgets/statistics/radar_chart_widget.dart`
-- [MODIFY] **'Score' 軸の追加**:
-  - `StatisticsService.calculateRadarData` で `scoreOverall` の計算を追加。
-  - タイトルリストとデータマップに「Score」を追加。
-- [MODIFY] **全軸への数値表示**:
-  - `fl_chart` の RadarChart は通常1軸にのみ目盛りを表示する仕様。
-  - **対応策**:
-    - **軸タイトルへの数値付記**: 例「Fragrance (0-10)」や、最大値「(10)」をタイトルに含めることで、直感的なスケールを示す。
-    - **独自描画の検討**: `ScatterChart` 等を重ねて描画する方法は複雑性が高いため、まずは「グリッド線の意味（2点刻み）」を明確にする凡例や説明を追加する方向で検討。
-    - ※ユーザー要望の「デバッグ強化」として、ライブラリのプロパティ(`ticksTextStyle`等)が他の軸にも適用可能か詳細調査を行う。
+- [MODIFY] **Scoreを頂点（12時方向）に**:
+  - タイトルとデータエントリの順序を変更する: `['Score', 'Fragrance', ...]`。
+- [MODIFY] **数値描画 (2, 4, 6, 8, 10)**:
+  - `ticksTextStyle` の色を濃く、サイズを調整して視認性を高める。
+  - `tickCount` が適切か再確認する。
 
 ### `lib/widgets/statistics/pca_scatter_plot.dart`
 - [MODIFY] **凡例レイアウト**:
@@ -25,6 +21,8 @@ Stats画面のチャート表現をより明確にし、主成分分析(PCA)にA
   - ※APIキー未設定時は設定画面へ誘導。
 
 ### `lib/services/ai_analysis_service.dart` (新規)
+- [FIX] **Gemini Model Name**:
+  - エラー回避のため、モデル名を `gemini-1.5-flash` から `gemini-pro` に変更する。
 - [NEW] Google Gemini API と連携するサービスの作成。
   - 依存: `google_generative_ai` パッケージ。
   - メソッド: `Future<String> analyzeComponents(List<PcaComponent> components)`
