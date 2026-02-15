@@ -74,6 +74,14 @@ class RadarChartWidget extends ConsumerWidget {
                 RadarChartData(
                   radarTouchData: RadarTouchData(enabled: false), // Disable touch for simplicity
                   dataSets: [
+                     // Dummy Data for Scale (0-10)
+                     RadarDataSet(
+                       fillColor: Colors.transparent,
+                       borderColor: Colors.transparent,
+                       entryRadius: 0,
+                       dataEntries: List.filled(6, const RadarEntry(value: 10.0)),
+                       borderWidth: 0,
+                     ),
                      // Global Average (Always show)
                      RadarDataSet(
                        fillColor: Colors.grey.withOpacity(0.2),
@@ -96,9 +104,9 @@ class RadarChartWidget extends ConsumerWidget {
                   borderData: FlBorderData(show: false),
                   radarBorderData: const BorderSide(color: Colors.transparent),
                   titlePositionPercentageOffset: 0.2,
-                  titleTextStyle: const TextStyle(color: Colors.brown, fontSize: 10),
-                  tickCount: 1,
-                  ticksTextStyle: const TextStyle(color: Colors.transparent),
+                  titleTextStyle: const TextStyle(color: Colors.brown, fontSize: 13, fontWeight: FontWeight.bold),
+                  tickCount: 5, // 2, 4, 6, 8, 10
+                  ticksTextStyle: const TextStyle(color: Colors.grey, fontSize: 10),
                   tickBorderData: const BorderSide(color: Colors.transparent),
                   gridBorderData: BorderSide(color: Colors.brown.withOpacity(0.2), width: 1),
                   getTitle: (index, angle) {

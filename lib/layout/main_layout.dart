@@ -18,43 +18,52 @@ class MainLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navIndexProvider);
 
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (int index) {
-              ref.read(navIndexProvider.notifier).state = index;
-              _navigateToIndex(index);
-            },
-            labelType: NavigationRailLabelType.selected,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.dashboard),
-                label: Text('Home'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 640;
+        
+        return Scaffold(
+          body: isMobile 
+            ? child
+            : Row(
+                children: [
+                  NavigationRail(
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: (int index) {
+                         ref.read(navIndexProvider.notifier).state = index;
+                        _navigateToIndex(index);
+                    },
+                    labelType: NavigationRailLabelType.selected,
+                    destinations: const [
+                      NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Home')),
+                      NavigationRailDestination(icon: Icon(Icons.list), label: Text('Masters')),
+                      NavigationRailDestination(icon: Icon(Icons.coffee), label: Text('Logs')),
+                      NavigationRailDestination(icon: Icon(Icons.calculate), label: Text('Calc')),
+                      NavigationRailDestination(icon: Icon(Icons.analytics), label: Text('Stats')),
+                    ],
+                  ),
+                  const VerticalDivider(thickness: 1, width: 1),
+                  Expanded(child: child),
+                ],
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.list),
-                label: Text('Masters'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.coffee),
-                label: Text('Logs'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.calculate),
-                label: Text('Calc'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.analytics),
-                label: Text('Stats'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          Expanded(child: child),
-        ],
-      ),
+          bottomNavigationBar: isMobile
+            ? NavigationBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: (int index) {
+                   ref.read(navIndexProvider.notifier).state = index;
+                   _navigateToIndex(index);
+                },
+                destinations: const [
+                  NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home', tooltip: ''),
+                  NavigationDestination(icon: Icon(Icons.list), label: 'Masters', tooltip: ''),
+                  NavigationDestination(icon: Icon(Icons.coffee), label: 'Logs', tooltip: ''),
+                  NavigationDestination(icon: Icon(Icons.calculate), label: 'Calc', tooltip: ''),
+                  NavigationDestination(icon: Icon(Icons.analytics), label: 'Stats', tooltip: ''),
+                ],
+              )
+            : null,
+        );
+      },
     );
   }
 

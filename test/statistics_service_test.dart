@@ -1,6 +1,8 @@
 import 'package:bean_base/models/coffee_record.dart';
 import 'package:bean_base/services/statistics_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ml_linalg/linalg.dart';
+import 'package:ml_linalg/dtype.dart';
 
 void main() {
   group('StatisticsService Tests', () {
@@ -134,6 +136,19 @@ void main() {
       expect(data.target, isNotNull);
       // Bean1 Avg Fragrance: (7+8)/2 = 7.5
       expect(data.target!['Fragrance'], 7.5);
+    });
+
+    test('calculatePca returns points with coordinates', () {
+      // Need at least 3 records
+      final result = service.calculatePca(mockRecords);
+      
+      expect(result.points.length, mockRecords.length);
+      expect(result.points.first.x, isNotNull);
+      expect(result.points.first.y, isNotNull);
+      expect(result.points.first.metadata, isNotEmpty); // Check metadata
+      
+      expect(result.components.length, 2); // PC1, PC2
+      expect(result.components.first.contributions.length, 6); // 6 features
     });
   });
 }

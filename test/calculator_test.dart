@@ -5,6 +5,7 @@ import 'package:bean_base/screens/calculator_screen.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/pouring_step.dart';
+import 'package:bean_base/models/coffee_record.dart';
 
 
 void main() {
@@ -33,6 +34,8 @@ void main() {
           grinderMasterProvider.overrideWith((ref) async => []),
           dripperMasterProvider.overrideWith((ref) async => []),
           filterMasterProvider.overrideWith((ref) async => []),
+          filterMasterProvider.overrideWith((ref) async => []),
+          coffeeRecordsProvider.overrideWith((ref) async => []), // Mock coffee records (corrected name)
         ],
         child: const MaterialApp(
           home: CalculatorScreen(),
@@ -68,22 +71,20 @@ void main() {
     expect(find.text('0:30'), findsOneWidget);
 
     // Verify Add Step
-    // Wait, need to find Add Step button
-    final addStepBtn = find.text('Add Step');
-    await tester.scrollUntilVisible(addStepBtn, 500);
-    await tester.tap(addStepBtn);
+    final addStepFinder = find.text('Add Step');
+    expect(addStepFinder, findsOneWidget);
+    await tester.ensureVisible(addStepFinder);
+    await tester.tap(addStepFinder);
     await tester.pumpAndSettle();
     
     // Should have 3 rows now (2 original + 1 new)
-    // Finding DataRows is tricky, but we can verify by counting Delete icons or cells
     expect(find.byIcon(Icons.delete), findsNWidgets(3));
 
     // verify Save button enabled
-    final saveBtn = find.text('Save');
-    // Ensure we scroll to the save button (it's near add step, so should be visible but safe to scroll)
-    await tester.scrollUntilVisible(saveBtn, 500);
-    expect(saveBtn, findsOneWidget);
-    await tester.tap(saveBtn);
+    final saveBtnFinder = find.text('Save');
+    expect(saveBtnFinder, findsOneWidget);
+    await tester.ensureVisible(saveBtnFinder);
+    await tester.tap(saveBtnFinder);
     await tester.pumpAndSettle();
 
     // Dialog

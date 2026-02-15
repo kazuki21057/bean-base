@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
+import '../providers/data_providers.dart';
+import '../widgets/coffee_log_card.dart';
 import 'master_add_screen.dart';
 
-class MasterDetailScreen extends StatelessWidget {
+class MasterDetailScreen extends ConsumerWidget {
   final String title;
   final Map<String, dynamic> data;
   final String? imageUrl;
-  final String masterType; // Added to identify type for editing
+  final String masterType;
 
   const MasterDetailScreen({
     super.key,
     required this.title,
     required this.data,
-    required this.masterType, // Required now
+    required this.masterType,
     this.imageUrl,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logsAsync = ref.watch(coffeeRecordsProvider);
+    final methodsAsync = ref.watch(methodMasterProvider);
+    final beansAsync = ref.watch(beanMasterProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -26,13 +33,6 @@ class MasterDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // Reconstruct object from Map? 
-              // Ideally validation should be done, but we can pass the map or reconstruct object.
-              // MasterAddScreen expects an Object (BeanMaster etc.) for editing.
-              // So we need to reconstruct it here or pass the raw map and let MasterAddScreen handle it?
-              // MasterAddScreen currently expects Objects (BeanMaster etc.) in `editData`.
-              // So we must reconstruct.
-              
               dynamic obj;
               try {
                 if (masterType == 'Bean') {
@@ -78,27 +78,72 @@ class MasterDetailScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                children: data.entries.map((e) {
-                  if (e.key == 'imageUrl' || e.key == 'id') return const SizedBox.shrink(); // Skip internal or already shown
-                  
-                  String displayValue = e.value?.toString() ?? '-';
-                  if ((e.key.contains('Date') || e.key.contains('日')) && displayValue.contains('T')) {
-                     try {
-                        final dt = DateTime.parse(displayValue);
-                        displayValue = '${dt.year}/${dt.month}/${dt.day}';
-                     } catch (_) {}
-                  }
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...data.entries.map((e) {
+                    if (e.key == 'imageUrl' || e.key == 'id') return const SizedBox.shrink();
+                    
+                    String displayValue = e.value?.toString() ?? '-';
+                    if ((e.key.contains('Date') || e.key.contains('日')) && displayValue.contains('T')) {
+                       try {
+                          final dt = DateTime.parse(displayValue);
+                          displayValue = '${dt.year}/${dt.month}/${dt.day}';
+                       } catch (_) {}
+                    }
 
-                  return Card(
-                    child: ListTile(
-                      title: Text(
-                        e.key,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    return Card(
+                      child: ListTile(
+                        title: Text(
+                          e.key,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(displayValue),
                       ),
-                      subtitle: Text(displayValue),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+
+                  const SizedBox(height: 24),
+                  Text('Related Logs', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+
+                  logsAsync.when(
+                    data: (logs) {
+                      final id = data['id'].toString();
+                      final relatedLogs = logs.where((l) {
+                        if (masterType == 'Bean') return l.beanId == id;
+                        if (masterType == 'Grinder') return l.grinderId == id;
+                        if (masterType == 'Dripper') return l.dripperId == id;
+                        if (masterType == 'Filter') return l.filterId == id;
+                        return false;
+                      }).toList();
+                      
+                      // Sort by date desc
+                      relatedLogs.sort((a,b) => b.brewedAt.compareTo(a.brewedAt));
+
+                      if (relatedLogs.isEmpty) {
+                         return const Text('No logs recorded yet.');
+                      }
+
+                      // We need maps for names
+                      final methodMap = <String, String>{};
+                      methodsAsync.whenData((methods) => methods.forEach((m) => methodMap[m.id] = m.name));
+                      final beanMap = <String, String>{};
+                      beansAsync.whenData((beans) => beans.forEach((b) => beanMap[b.id] = b.name));
+
+                      return Column(
+                        children: relatedLogs.map((log) {
+                           return CoffeeLogCard(
+                             log: log, 
+                             beanName: beanMap[log.beanId] ?? log.beanId, // Use map for Bean
+                             methodName: methodMap[log.methodId] ?? log.methodId
+                           );
+                        }).toList(),
+                      );
+                    },
+                    loading: () => const CircularProgressIndicator(),
+                    error: (e, s) => Text('Error loading logs: $e'),
+                  )
+                ],
               ),
             ),
           ],

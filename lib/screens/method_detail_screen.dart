@@ -6,6 +6,8 @@ import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../widgets/method_steps_editor.dart';
 import '../services/sheets_service.dart';
+import '../widgets/coffee_log_card.dart';
+import '../models/bean_master.dart';
   /* 
      Replace the entire _buildStepsList method calls and definitions 
      and the Editing Logic helpers with just the Widget usage.
@@ -140,6 +142,14 @@ class _MethodDetailScreenState extends ConsumerState<MethodDetailScreen> {
             ),
             const SizedBox(height: 8),
             _buildStepsList(),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Text('Related Logs', style: Theme.of(context).textTheme.titleLarge),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildRelatedLogs(ref),
           ],
         ),
       ),
@@ -225,6 +235,37 @@ class _MethodDetailScreenState extends ConsumerState<MethodDetailScreen> {
         // Note: The Editor maintains its own state for rendering, 
         // but calls this callback so we have the latest data for _saveChanges.
       },
+    );
+  }
+
+  Widget _buildRelatedLogs(WidgetRef ref) {
+    final logsAsync = ref.watch(coffeeRecordsProvider);
+    final beansAsync = ref.watch(beanMasterProvider);
+
+    return logsAsync.when(
+      data: (logs) {
+        final relatedLogs = logs.where((l) => l.methodId == _method.id).toList();
+        relatedLogs.sort((a,b) => b.brewedAt.compareTo(a.brewedAt));
+
+        if (relatedLogs.isEmpty) {
+           return const Text('No logs recorded yet.');
+        }
+
+        final beanMap = <String, String>{};
+        beansAsync.whenData((beans) => beans.forEach((b) => beanMap[b.id] = b.name));
+
+        return Column(
+          children: relatedLogs.map((log) {
+             return CoffeeLogCard(
+               log: log, 
+               beanName: beanMap[log.beanId] ?? log.beanId,
+               methodName: _method.name
+             );
+          }).toList(),
+        );
+      },
+      loading: () => const CircularProgressIndicator(),
+      error: (e, s) => Text('Error loading logs: $e'),
     );
   }
 
