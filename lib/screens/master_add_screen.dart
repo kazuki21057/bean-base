@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/sheets_service.dart';
+import '../services/image_service.dart';
 import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../widgets/method_steps_editor.dart';
+import '../widgets/bean_image.dart';
 
 class MasterAddScreen extends ConsumerStatefulWidget {
   // If editObject is provided, we are in Edit Mode
@@ -144,6 +147,34 @@ class _BeanAddFormState extends ConsumerState<BeanAddForm> with MasterFormMixin 
     if (parts.isNotEmpty) _nameController.text = parts.join(' ');
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true, // Important for Web
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        showSnackbar('Uploading image...');
+        final service = ref.read(imageServiceProvider);
+        final url = await service.saveImage(file);
+        
+        if (url != null) {
+          setState(() {
+            _imageUrlController.text = url;
+          });
+          showSnackbar('Image uploaded!');
+        } else {
+          showSnackbar('Failed to upload image', isError: true);
+        }
+      }
+    } catch (e) {
+      showSnackbar('Error picking image: $e', isError: true);
+    }
+  }
+
   Future<void> _submit() async {
     if (formKey.currentState!.validate()) {
       final bean = BeanMaster(
@@ -194,10 +225,32 @@ class _BeanAddFormState extends ConsumerState<BeanAddForm> with MasterFormMixin 
             Row(
               children: [
                 Expanded(child: TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name', helperText: 'Auto-generated'))),
-                IconButton(icon: Icon(_isAutoNameEnabled ? Icons.link : Icons.link_off), onPressed: () => setState(() => _isAutoNameEnabled = !_isAutoNameEnabled)),
+                IconButton(
+                  icon: Icon(_isAutoNameEnabled ? Icons.link : Icons.link_off),
+                  tooltip: 'Auto-Generate Name',
+                  onPressed: () => setState(() => _isAutoNameEnabled = !_isAutoNameEnabled),
+                ),
               ],
             ),
-            TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL')),
+            Row(
+              children: [
+                Expanded(child: TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL'))),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.cloud_upload),
+                  tooltip: 'Upload Image',
+                  onPressed: _pickImage,
+                ),
+              ],
+            ),
+            if (_imageUrlController.text.isNotEmpty)
+               Padding(
+                 padding: const EdgeInsets.only(top: 8.0),
+                 child: SizedBox(
+                   height: 100,
+                   child: BeanImage(imagePath: _imageUrlController.text),
+                 ),
+               ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _submit, child: Text(isEdit ? 'Update Bean' : 'Register Bean')),
           ],
@@ -452,6 +505,8 @@ class _MethodAddFormState extends ConsumerState<MethodAddForm> with MasterFormMi
   final _urlController = TextEditingController();
   
   List<PouringStep> _steps = [];
+  List<PouringStep> _originalSteps = [];
+  bool _initialStepsLoaded = false;
 
   @override
   void initState() {
@@ -465,12 +520,6 @@ class _MethodAddFormState extends ConsumerState<MethodAddForm> with MasterFormMi
       _baseBeanController.text = widget.editData!.baseBeanWeight.toString();
       _baseWaterController.text = widget.editData!.baseWaterAmount.toString();
       _urlController.text = widget.editData!.sourceUrl ?? '';
-      
-      // Ideally we should load steps if editing, but for now assuming "Add New" focus based on user request.
-      // Loading steps here would require AsyncValue watching similar to MethodDetailScreen.
-      // If user edits complex method here, steps might be lost if we don't load them.
-      // Strategy: Since MethodDetailScreen handles editing well, MasterAddScreen should focus on creation.
-      // If isEdit, we leave steps empty (risk of overwriting? No, we only Add/Update steps we know about).
     }
   }
 
@@ -501,12 +550,22 @@ class _MethodAddFormState extends ConsumerState<MethodAddForm> with MasterFormMi
            await service.addMethod(method);
         }
         
-        // 2. Save Steps (Only for Add New currently fully supported, as we don't load existing steps here)
-        // If creating new method, all steps are new.
+        // 2. Save Steps (Smart Diff)
+        
+        // Identify Deleted Steps
+        // Steps in _originalSteps but NOT in _steps (by ID)
+        final currentIds = _steps.map((s) => s.id).toSet();
+        final deletedSteps = _originalSteps.where((s) => !currentIds.contains(s.id)).toList();
+        
+        for (var step in deletedSteps) {
+           await service.deletePouringStep(step.id);
+        }
+
+        // Identify Added & Updated Steps
         for (var step in _steps) {
-            // Ensure step has correct methodId
+            final isNew = step.id.startsWith('new_');
             final stepToSave = PouringStep(
-              id: step.id.startsWith('new_') ? step.id : 'new_${DateTime.now().millisecondsSinceEpoch}_${step.stepOrder}', // Ensure valid ID
+              id: isNew ? 'new_${DateTime.now().millisecondsSinceEpoch}_${step.stepOrder}' : step.id, // Generate proper ID for new
               methodId: methodId, 
               stepOrder: step.stepOrder,
               duration: step.duration,
@@ -515,7 +574,13 @@ class _MethodAddFormState extends ConsumerState<MethodAddForm> with MasterFormMi
               waterRatio: step.waterRatio,
               description: step.description,
             );
-            await service.addPouringStep(stepToSave);
+            
+            if (isNew) {
+               await service.addPouringStep(stepToSave);
+            } else {
+               // Update
+               await service.updatePouringStep(stepToSave);
+            }
         }
         
         ref.invalidate(methodMasterProvider);
@@ -532,6 +597,17 @@ class _MethodAddFormState extends ConsumerState<MethodAddForm> with MasterFormMi
 
   @override
   Widget build(BuildContext context) {
+    // Load initial steps if editing
+    final stepsAsync = ref.watch(pouringStepsProvider);
+    if (isEdit && !_initialStepsLoaded && stepsAsync.hasValue) {
+      final allSteps = stepsAsync.value!;
+      final methodSteps = allSteps.where((s) => s.methodId == editId).toList();
+      methodSteps.sort((a,b) => a.stepOrder.compareTo(b.stepOrder));
+      _steps = methodSteps.toList(); // Copy
+      _originalSteps = methodSteps.toList(); // Copy original state
+      _initialStepsLoaded = true;
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(

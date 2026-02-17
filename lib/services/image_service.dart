@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -12,11 +13,38 @@ class ImageService {
 
   ImageService(this.ref);
 
-  import 'package:file_picker/file_picker.dart';
+
+
+
+import 'package:firebase_storage/firebase_storage.dart';
+
+  /// Uploads a file to Firebase Storage and returns the download URL.
+  Future<String?> uploadImage(PlatformFile file) async {
+    try {
+      final storageRef = FirebaseStorage.instance.ref();
+      final filename = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      final imageRef = storageRef.child('bean_images/$filename');
+
+      if (kIsWeb) {
+        if (file.bytes == null) return null;
+        await imageRef.putData(file.bytes!, SettableMetadata(contentType: 'image/jpeg')); // Assume jpeg/png
+      } else {
+        if (file.path == null) return null;
+        final File ioFile = File(file.path!);
+        await imageRef.putFile(ioFile);
+      }
+
+      final downloadUrl = await imageRef.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      debugPrint("Error uploading image: $e");
+      return null;
+    }
+  }
 
   /// Imports images from a list of selected files.
   /// Matches filenames (e.g., "01a78ca6.jpg") to Bean IDs.
-  /// Copies matched images to app's local storage and updates Bean data.
+  /// Copies matched images to app's local storage or uploads to Firebase (Web) and updates Bean data.
   /// Returns a summary string.
   Future<String> importBeanImages(List<PlatformFile> files) async {
     final beanMaster = ref.read(beanMasterProvider).value;
@@ -24,7 +52,8 @@ class ImageService {
       return "Error: No bean master data loaded.";
     }
 
-    // Prepare destination directory if NOT on web
+    // Prepare destination directory if NOT on web (and we want local copy)
+    // For this implementation, we will prefer Firebase for Web.
     Directory? imagesDir;
     if (!kIsWeb) {
       final appDocDir = await getApplicationDocumentsDirectory();
@@ -40,8 +69,6 @@ class ImageService {
     List<String> errors = [];
 
     // Map Bean ID to Bean for quick lookup. 
-    // Optimization: Check if filename *contains* ID, or vice versa?
-    // Current logic: Filename starts with ID.
     final beanMap = {for (var b in beanMaster) b.id: b};
 
     for (final file in files) {
@@ -50,7 +77,6 @@ class ImageService {
 
       // Find matching ID
       for (var id in beanMap.keys) {
-        // Match if filename starts with ID (case insensitive somewhat safe for UUIDs/IDs)
         if (filename.startsWith(id)) {
           matchedId = id;
           break;
@@ -59,46 +85,59 @@ class ImageService {
 
       if (matchedId != null) {
         try {
-          String newImageUrl;
+          String? newImageUrl;
           
           if (kIsWeb) {
-            // Web: Cannot save to local storage. 
-            // We can't really persist the image for reload unless uploaded.
-            // For now, we will just log success and update with a placeholder or data URI if small.
-            // But data URI is heavy. Let's just warn and SKIP updating the bean with a useless path.
-            // Or, we could use the blob URL if we had it, but that expires.
-            // Compromise: Update with original filename as "reference" but show warning.
-            
-            // Actually, user wants to verify "Import" works. 
-            // We will increment success count but NOT change the URL to something broken.
-            // Or maybe set it to "web_imported_placeholder" to show it touched the bean?
-            // Let's just log it.
-            debugPrint("Simulating import for Web: $filename -> $matchedId");
-            successCount++;
-            continue; 
-          } else {
-            // Mobile/Desktop: Copy file
-            if (file.path == null) {
-              errors.add("Failed to get path for $filename");
-              failCount++;
-              continue;
+            // Web: Upload to Firebase
+            debugPrint("Uploading $filename to Firebase...");
+            newImageUrl = await uploadImage(file);
+            if (newImageUrl == null) {
+               errors.add("Failed to upload $filename");
+               failCount++;
+               continue;
             }
-            final newPath = p.join(imagesDir!.path, filename);
-            // On some platforms pickFiles gives cached path, we copy it to our permanent dir
-            await File(file.path!).copy(newPath);
-            newImageUrl = newPath;
+          } else {
+            // Mobile/Desktop: Copy file locally (Default behavior for now, can switch to Firebase too if desired)
+            // User requested Firebase to be used. Let's try to use Firebase if possible, otherwise local.
+            // But for now, let's keep local for Mobile/Desktop to be safe and offline-capable unless explicitly asked to force cloud only.
+            // Actually, the user asked "I want to use it on smartphone". Authentication might be tricky if we enforce Firebase rules.
+            // But let's assume public read/write for now (Test Mode).
+            // Let's SUPPORT basic upload for all if we want.
+            // However, to keep it simple and consistent with previous logic:
+            // Web -> Must use Firebase.
+            // Mobile -> Can use Local (faster, offline). 
+            // PROPOSAL: Let's stick to Local for Mobile/Desktop for now to avoid breaking existing workflow, 
+            // BUT verify Firebase works on Web.
+            // (If user wants synchronization across devices, we MUST use Firebase everywhere. 
+            //  The user said "Finally I want to use it on smartphone", implying syncing data from PC to Phone?
+            //  If so, we need Firebase for ALL.
+            //  Let's enabling upload for ALL platforms then.)
+            
+            // Uploading to Firebase for ALL platforms to support multi-device sync.
+            final url = await uploadImage(file); 
+             if (url != null) {
+                newImageUrl = url;
+             } else {
+                // Fallback to local if upload fails?
+                if (file.path != null) {
+                   final newPath = p.join(imagesDir!.path, filename);
+                   await File(file.path!).copy(newPath);
+                   newImageUrl = newPath; 
+                }
+             }
           }
 
-          // Update Bean (Only on non-web where we have a valid path)
-          final bean = beanMap[matchedId]!;
-          final updatedBean = bean.copyWith(imageUrl: newImageUrl);
-          
-          // Helper to find index and update list in provider? 
-          // Actually sheetsServiceProvider.updateBean handles backend, but we need to refresh UI?
-          // The provider watcher should handle it if we invalidate or update state.
-          await ref.read(sheetsServiceProvider).updateBean(updatedBean);
-          
-          successCount++;
+          if (newImageUrl != null) {
+             // Update Bean
+             final bean = beanMap[matchedId]!;
+             final updatedBean = bean.copyWith(imageUrl: newImageUrl);
+             await ref.read(sheetsServiceProvider).updateBean(updatedBean);
+             successCount++;
+          } else {
+             failCount++;
+             errors.add("Could not get image URL/Path for $filename");
+          }
+
         } catch (e) {
           failCount++;
           errors.add("Failed to process $filename: $e");
@@ -109,9 +148,6 @@ class ImageService {
     }
 
     String result = "Import Complete.\nSuccess: $successCount\nFailed: $failCount\nSkipped: $skippedCount";
-    if (kIsWeb && successCount > 0) {
-      result += "\n(Note: Web import is simulation only. Files not saved locally.)";
-    }
     if (errors.isNotEmpty) {
       result += "\nErrors:\n${errors.join('\n')}";
     }
@@ -119,25 +155,30 @@ class ImageService {
   }
   
   /// Helper to save a single image (e.g. from picker/camera)
-  Future<String?> saveImage(File sourceFile) async {
-    if (kIsWeb) return null; // Not supported on web
-    try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final imagesDir = Directory(p.join(appDocDir.path, 'bean_images'));
-      if (!await imagesDir.exists()) {
-        await imagesDir.create(recursive: true);
-      }
-      
-      final filename = p.basename(sourceFile.path);
-      final newFilename = '${DateTime.now().millisecondsSinceEpoch}_$filename';
-      final newPath = p.join(imagesDir.path, newFilename);
-      
-      await sourceFile.copy(newPath);
-      return newPath;
-    } catch (e) {
-      debugPrint("Error saving image: $e");
-      return null;
+  /// Returns the path (local) or URL (firebase).
+  Future<String?> saveImage(PlatformFile file) async {
+    // Prefer Firebase Upload
+    final url = await uploadImage(file);
+    if (url != null) return url;
+    
+    // Fallback to local
+    if (!kIsWeb && file.path != null) {
+        try {
+          final appDocDir = await getApplicationDocumentsDirectory();
+          final imagesDir = Directory(p.join(appDocDir.path, 'bean_images'));
+          if (!await imagesDir.exists()) {
+            await imagesDir.create(recursive: true);
+          }
+          final filename = p.basename(file.path!);
+          final newFilename = '${DateTime.now().millisecondsSinceEpoch}_$filename';
+          final newPath = p.join(imagesDir.path, newFilename);
+          await File(file.path!).copy(newPath);
+          return newPath;
+        } catch (e) {
+           debugPrint("Error saving local: $e");
+        }
     }
+    return null;
   }
 }
 

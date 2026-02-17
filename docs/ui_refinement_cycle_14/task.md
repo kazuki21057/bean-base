@@ -16,10 +16,12 @@
   - [x] インポート結果（成功件数、失敗件数）を表示する。
 
 ## 2. Gemini API 修正 (Cycle 14)
-- [x] **APIチェックツール作成**: `tools/check_gemini.ps1` (PowerShell/curl) を作成し、接続テスト環境を整備。
-  - 現状: APIキーは有効だがモデルアクセス権なし (404) を確認済み。
-- [x] **モデル名変更**: `gemini-1.5-flash` を優先し、`gemini-pro` へフォールバックするロジックを実装。
+- [x] **APIチェックツール作成**: `tools/check_gemini.ps1` (PowerShell) を改善し `gemini-2.5-flash` での接続を確認。
+- [x] **モデル名変更**: アプリ本体 (`AiAnalysisService`) を `gemini-2.5-flash` 優先に変更。(`2.0-flash-lite`, `1.5-flash` をフォールバック)
 
 ## 3. Web/Mobile 対応 (追加)
 - [x] **インポート方式変更**: `getDirectoryPath` (PC専用) から `pickFiles` (Web/Mobile対応) へ変更。
-- [x] **Web対応**: `kIsWeb` フラグによる保存処理のスキップ（シミュレーションモード）実装。
+## 4. AI & UI 連携 (追加)
+- [x] **日本語化対応**: プロンプトに日本語での回答を指示。
+- [x] **結果の埋め込み**: 分析結果をダイアログではなくPCAチャートの下部に表示するように変更。
+- [x] **状態保持**: アプリ実行中は分析結果を保持するよう `StateProvider` を導入。

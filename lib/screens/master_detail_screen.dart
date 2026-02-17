@@ -4,6 +4,7 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../providers/data_providers.dart';
 import '../widgets/coffee_log_card.dart';
+import '../widgets/bean_image.dart';
 import 'master_add_screen.dart';
 
 class MasterDetailScreen extends ConsumerWidget {
@@ -67,12 +68,13 @@ class MasterDetailScreen extends ConsumerWidget {
               SizedBox(
                 height: 250,
                 width: double.infinity,
-                child: Image.network(
-                  imageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(child: Icon(Icons.broken_image, size: 50));
-                  },
+                child: Hero(
+                  tag: '${masterType.toLowerCase()}-${data['id']}',
+                  child: BeanImage(
+                    imagePath: imageUrl,
+                    fit: BoxFit.cover,
+                    placeholderIcon: Icons.broken_image,
+                  ),
                 ),
               ),
             Padding(

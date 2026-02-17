@@ -8,6 +8,7 @@ import '../models/coffee_record.dart'; // Add
 import '../models/bean_master.dart'; // Add
 import '../models/equipment_masters.dart'; // Add
 import '../services/sheets_service.dart'; // Add
+import '../widgets/bean_image.dart';
 
 class CalculatorScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
@@ -634,7 +635,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             value: e, 
             child: Row(children: [
                if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+                  Padding(padding: const EdgeInsets.only(right: 8), child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
                Text(e.name)
             ])
           )).toList(),
@@ -647,7 +648,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             value: e, 
             child: Row(children: [
                if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+                  Padding(padding: const EdgeInsets.only(right: 8), child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
                Text(e.name)
             ])
           )).toList(),
@@ -660,7 +661,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             value: e, 
             child: Row(children: [
                if(e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                 Padding(padding: const EdgeInsets.only(right: 8), child: Image.network(e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, errorBuilder: (c,err,s) => const Icon(Icons.broken_image, size: 24))),
+                  Padding(padding: const EdgeInsets.only(right: 8), child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
                Text(e.name)
             ])
           )).toList(),

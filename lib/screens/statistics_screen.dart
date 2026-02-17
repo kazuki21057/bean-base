@@ -71,10 +71,7 @@ class StatisticsScreen extends ConsumerWidget {
                 Text('Flavor Analysis (PCA)', style: Theme.of(context).textTheme.titleLarge),
                 const Text('Visualizing flavor similarity (2D Projection)', style: TextStyle(color: Colors.grey)),
                 const SizedBox(height: 8),
-                SizedBox(
-                  height: 300,
-                  child: PcaScatterPlot(records: filteredRecords),
-                ),
+                PcaScatterPlot(records: filteredRecords),
                 const SizedBox(height: 24),
 
                 // Ranking

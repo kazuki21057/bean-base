@@ -8,7 +8,8 @@ class AiAnalysisService {
     if (components.isEmpty) return "No components to analyze.";
     if (apiKey.isEmpty) return "API Key is missing.";
 
-    final modelsToTry = ['gemini-1.5-flash', 'gemini-pro'];
+    // Prioritize newer models as per user testing
+    final modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
     
     final prompt = _buildPrompt(components);
 
@@ -52,6 +53,9 @@ class AiAnalysisService {
     buffer.writeln("\nTask: Interpret what these principal components likely represent in the context of coffee tasting.");
     buffer.writeln("For example, does PC1 represent 'Roast Level' (Bitterness vs Acidity)? Or 'Fruitiness'?");
     buffer.writeln("Please provide a concise explanation for PC1 and PC2 in 1-2 sentences each.");
+    buffer.writeln("IMPORTANT: Please respond in Japanese.");
+    buffer.writeln("output format: Start directly with the interpretation. Do not include introductory phrases like 'Here is the analysis' or 'I will interpret'.");
+    buffer.writeln("Example format:\n**PC1の解釈:** ...\n**PC2の解釈:** ...");
     return buffer.toString();
   }
 }

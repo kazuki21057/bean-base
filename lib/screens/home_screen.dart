@@ -5,9 +5,13 @@ import 'coffee_log_list_screen.dart';
 
 import '../screens/calculator_screen.dart';
 import 'master_detail_screen.dart';
+import 'master_add_screen.dart';
 import 'log_detail_screen.dart';
 
 import '../utils/image_utils.dart';
+import '../widgets/bean_image.dart';
+
+import 'settings_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -23,11 +27,19 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Data',
             onPressed: () {
               ref.refresh(coffeeRecordsProvider);
               ref.refresh(beanMasterProvider);
             },
-          )
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -56,7 +68,28 @@ class HomeScreen extends ConsumerWidget {
         // Filter in-stock beans
         final stockBeans = beans.where((b) => b.isInStock).toList();
         
-        if (stockBeans.isEmpty) return const SizedBox.shrink();
+        if (stockBeans.isEmpty) {
+           return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                   const Icon(Icons.inventory, size: 48, color: Colors.grey),
+                   const SizedBox(height: 16),
+                   const Text('No beans in stock.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                   const SizedBox(height: 16),
+                   ElevatedButton.icon(
+                     onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => MasterAddScreen(masterType: 'Bean')));
+                     },
+                     icon: const Icon(Icons.add),
+                     label: const Text('Add Bean'),
+                   )
+                ],
+              ),
+            ),
+          );
+        }
 
         return Card(
           child: Column(
@@ -114,9 +147,10 @@ class HomeScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                            child: imageUrl != null 
-                                ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.brown[50], child: Icon(Icons.coffee, color: Colors.brown[300])))
-                                : Container(color: Colors.brown[50], child: Icon(Icons.coffee, color: Colors.brown[300])),
+                            child: BeanImage(
+                                imagePath: imageUrl,
+                                placeholderIcon: Icons.coffee,
+                            ),
                           ),
 
                           Padding(
@@ -163,10 +197,24 @@ class HomeScreen extends ConsumerWidget {
         }).toList();
 
         if (validLogs.isEmpty) {
-          return const Card(
+          return Card(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('No recent brews found.'),
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                   const Icon(Icons.coffee_maker, size: 48, color: Colors.grey),
+                   const SizedBox(height: 16),
+                   const Text('No recent brews found.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                   const SizedBox(height: 16),
+                   ElevatedButton.icon(
+                     onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen()));
+                     },
+                     icon: const Icon(Icons.add),
+                     label: const Text('Brew Coffee'),
+                   )
+                ],
+              ),
             ),
           );
         }

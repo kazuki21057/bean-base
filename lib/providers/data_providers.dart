@@ -35,3 +35,7 @@ final filterMasterProvider = FutureProvider<List<FilterMaster>>((ref) async {
 final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {
   return ref.watch(sheetsServiceProvider).getPouringSteps();
 });
+
+// AI Analysis State
+final aiAnalysisResultProvider = StateProvider<String?>((ref) => null);
+final aiAnalysisLoadingProvider = StateProvider<bool>((ref) => false);

@@ -9,6 +9,7 @@ import 'master_add_screen.dart';
 import '../utils/image_utils.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/image_service.dart';
+import '../widgets/bean_image.dart';
 
 Future<void> _handleImageImport(BuildContext context, WidgetRef ref) async {
   debugPrint("MASTER_SCREEN: Import button pressed (Web/Mobile Compatible Mode)");
@@ -97,7 +98,7 @@ class MasterListScreen extends ConsumerWidget {
               icon: const Icon(Icons.add),
               tooltip: 'Add New',
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const MasterAddScreen()));
+                Navigator.push(context, MaterialPageRoute(builder: (_) => MasterAddScreen()));
               },
             ),
           ],
@@ -163,9 +164,13 @@ class BeanMasterList extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: imageUrl != null
-                          ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.coffee))
-                          : _buildPlaceholder(Icons.coffee),
+                      child: Hero(
+                        tag: 'bean-${bean.id}',
+                        child: BeanImage(
+                          imagePath: imageUrl,
+                          placeholderIcon: Icons.coffee,
+                        ),
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -279,9 +284,13 @@ class GrinderMasterList extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: imageUrl != null
-                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.inventory))
-                        : _buildPlaceholder(Icons.inventory),
+                    child: Hero(
+                      tag: 'grinder-${grinder.id}',
+                      child: BeanImage(
+                        imagePath: imageUrl,
+                        placeholderIcon: Icons.inventory,
+                      ),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(8.0),
@@ -341,9 +350,13 @@ class DripperMasterList extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: imageUrl != null
-                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.filter_alt))
-                        : _buildPlaceholder(Icons.filter_alt),
+                    child: Hero(
+                      tag: 'dripper-${dripper.id}',
+                      child: BeanImage(
+                        imagePath: imageUrl,
+                        placeholderIcon: Icons.filter_alt,
+                      ),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(8.0),
@@ -410,9 +423,13 @@ class FilterMasterList extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                    Expanded(
-                    child: imageUrl != null
-                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c,e,s) => _buildPlaceholder(Icons.coffee_maker))
-                        : _buildPlaceholder(Icons.coffee_maker),
+                    child: Hero(
+                      tag: 'filter-${filter.id}',
+                      child: BeanImage(
+                        imagePath: imageUrl,
+                        placeholderIcon: Icons.coffee_maker,
+                      ),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(8.0),

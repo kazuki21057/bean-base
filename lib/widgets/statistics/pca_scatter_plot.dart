@@ -53,7 +53,8 @@ class PcaScatterPlot extends ConsumerWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Expanded(
+            SizedBox(
+              height: 300,
               child: ScatterChart(
                 ScatterChartData(
                   scatterSpots: points.map((p) {
@@ -112,20 +113,57 @@ class PcaScatterPlot extends ConsumerWidget {
             const Divider(),
             _buildComponentInfo(result.components),
             const SizedBox(height: 16),
-            Center(
-              child: ElevatedButton.icon(
-                onPressed: () => _handleAiAnalysis(context, ref, result.components),
-                icon: const Icon(Icons.psychology),
-                label: const Text("AI Analyze Components"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple.shade50,
-                  foregroundColor: Colors.deepPurple,
-                ),
-              ),
-            ),
+            _buildAiAnalysisSection(context, ref, result.components, ref.watch(aiAnalysisLoadingProvider), ref.watch(aiAnalysisResultProvider)),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAiAnalysisSection(BuildContext context, WidgetRef ref, List<PcaComponent> components, bool isLoading, String? result) {
+    if (isLoading) {
+      return const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()));
+    }
+
+    return Column(
+      children: [
+        if (result != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.deepPurple.shade100),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.psychology, size: 16, color: Colors.deepPurple),
+                    const SizedBox(width: 8),
+                    Text("AI Analysis", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(result, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: () => _handleAiAnalysis(context, ref, components),
+            icon: const Icon(Icons.psychology),
+            label: Text(result == null ? "AI Analyze Components" : "Re-Analyze"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple.shade50,
+              foregroundColor: Colors.deepPurple,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -196,8 +234,15 @@ class PcaScatterPlot extends ConsumerWidget {
 
     if (apiKey == null || apiKey.isEmpty) return;
 
-    if (context.mounted) {
-      _showAnalysisResultDialog(context, ref, components, apiKey);
+    // Start Analysis
+    ref.read(aiAnalysisLoadingProvider.notifier).state = true;
+    try {
+      final result = await ref.read(aiAnalysisServiceProvider).analyzeComponents(components, apiKey);
+      ref.read(aiAnalysisResultProvider.notifier).state = result;
+    } catch (e) {
+      ref.read(aiAnalysisResultProvider.notifier).state = "Error: $e";
+    } finally {
+      ref.read(aiAnalysisLoadingProvider.notifier).state = false;
     }
   }
 
@@ -227,51 +272,8 @@ class PcaScatterPlot extends ConsumerWidget {
     );
   }
 
-  void _showAnalysisResultDialog(BuildContext context, WidgetRef ref, List<PcaComponent> components, String apiKey) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return FutureBuilder<String>(
-          future: ref.read(aiAnalysisServiceProvider).analyzeComponents(components, apiKey),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const AlertDialog(
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text("Analyzing components with Gemini..."),
-                  ],
-                ),
-              );
-            }
 
-            if (snapshot.hasError) {
-              return AlertDialog(
-                title: const Text("Error"),
-                content: Text("Analysis failed: ${snapshot.error}"),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-                ],
-              );
-            }
 
-            return AlertDialog(
-              title: const Text("AI Analysis Result"),
-              content: SingleChildScrollView(
-                child: Text(snapshot.data ?? "No result."),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
   Widget _buildComponentInfo(List<PcaComponent> components) {
     return Column(
