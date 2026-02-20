@@ -37,7 +37,7 @@ Future<void> _handleImageImport(BuildContext context, WidgetRef ref) async {
 
     final imageService = ref.read(imageServiceProvider);
     // Pass list of PlatformFile directly to service
-    final summary = await imageService.importBeanImages(result.files);
+    final summary = await imageService.importMasterImages(result.files);
 
     // Close loading
     if (context.mounted) Navigator.of(context).pop();

@@ -21,27 +21,15 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows; // Provide a dummy for linux to avoid crashing early
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -50,23 +38,47 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCVQsW_YPpRaL3cdyb3T40N2OO2DG1zSyw',
-    appId: '1:657985869923:web:bc34e496c0bc285b010056',
-    messagingSenderId: '657985869923',
-    projectId: 'beanbase-app-2016',
-    authDomain: 'beanbase-app-2016.firebaseapp.com',
-    storageBucket: 'beanbase-app-2016.firebasestorage.app',
-    measurementId: 'G-BV6W80DTQ6',
+    apiKey: 'dummy_web',
+    appId: 'dummy_web',
+    messagingSenderId: 'dummy_web',
+    projectId: 'dummy_web',
+    authDomain: 'dummy_web',
+    storageBucket: 'dummy_web',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'dummy_android',
+    appId: 'dummy_android',
+    messagingSenderId: 'dummy_android',
+    projectId: 'dummy_android',
+    storageBucket: 'dummy_android',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'dummy_ios',
+    appId: 'dummy_ios',
+    messagingSenderId: 'dummy_ios',
+    projectId: 'dummy_ios',
+    storageBucket: 'dummy_ios',
+    iosBundleId: 'dummy_ios',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'dummy_macos',
+    appId: 'dummy_macos',
+    messagingSenderId: 'dummy_macos',
+    projectId: 'dummy_macos',
+    storageBucket: 'dummy_macos',
+    iosBundleId: 'dummy_macos',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCVQsW_YPpRaL3cdyb3T40N2OO2DG1zSyw',
-    appId: '1:657985869923:web:19ba0c962bead53b010056',
-    messagingSenderId: '657985869923',
-    projectId: 'beanbase-app-2016',
-    authDomain: 'beanbase-app-2016.firebaseapp.com',
-    storageBucket: 'beanbase-app-2016.firebasestorage.app',
-    measurementId: 'G-S89S6DMWDQ',
+    apiKey: 'dummy_windows',
+    appId: 'dummy_windows',
+    messagingSenderId: 'dummy_windows',
+    projectId: 'dummy_windows',
+    authDomain: 'dummy_windows',
+    storageBucket: 'dummy_windows',
   );
 
 }

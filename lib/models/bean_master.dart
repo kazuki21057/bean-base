@@ -4,7 +4,7 @@ part 'bean_master.g.dart';
 
 @JsonSerializable()
 class BeanMaster {
-  @JsonKey(defaultValue: '')
+  @JsonKey(defaultValue: '', fromJson: _parseString)
   final String id;
   @JsonKey(defaultValue: '-')
   final String name;
@@ -71,6 +71,12 @@ class BeanMaster {
     }
     return false;
   }
+
+  static String _parseString(dynamic value) {
+    if (value == null) return '';
+    return value.toString();
+  }
+
   BeanMaster copyWith({
     String? id,
     String? name,

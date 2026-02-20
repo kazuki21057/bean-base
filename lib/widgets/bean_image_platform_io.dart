@@ -9,7 +9,9 @@ Widget? getInternalImage(
   Widget Function(BuildContext, Object, StackTrace?) errorBuilder
 ) {
   try {
-    final file = File(path);
+    // Decode path to handle URL-encoded characters (like Japanese or spaces in absolute Linux paths)
+    final decodedPath = Uri.decodeFull(path);
+    final file = File(decodedPath);
     if (file.existsSync()) {
         return Image.file(
             file,

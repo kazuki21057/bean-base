@@ -7,20 +7,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../models/bean_master.dart';
 import '../services/sheets_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ImageService {
   final Ref ref;
 
   ImageService(this.ref);
 
-
-
-
-import 'package:firebase_storage/firebase_storage.dart';
-
   /// Uploads a file to Firebase Storage and returns the download URL.
   Future<String?> uploadImage(PlatformFile file) async {
     try {
+      // Check if Firebase is initialized properly
+      if (Firebase.apps.isEmpty) {
+        debugPrint("Firebase not initialized. Falling back to local/original path.");
+        return kIsWeb ? file.name : file.path;
+      }
+
       final storageRef = FirebaseStorage.instance.ref();
       final filename = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
       final imageRef = storageRef.child('bean_images/$filename');
@@ -43,13 +46,17 @@ import 'package:firebase_storage/firebase_storage.dart';
   }
 
   /// Imports images from a list of selected files.
-  /// Matches filenames (e.g., "01a78ca6.jpg") to Bean IDs.
-  /// Copies matched images to app's local storage or uploads to Firebase (Web) and updates Bean data.
+  /// Matches filenames to Master IDs (Bean, Grinder, Dripper, Filter).
+  /// Copies matched images to app's local storage or uploads to Firebase (Web) and updates Master data.
   /// Returns a summary string.
-  Future<String> importBeanImages(List<PlatformFile> files) async {
-    final beanMaster = ref.read(beanMasterProvider).value;
-    if (beanMaster == null || beanMaster.isEmpty) {
-      return "Error: No bean master data loaded.";
+  Future<String> importMasterImages(List<PlatformFile> files) async {
+    final beanMaster = ref.read(beanMasterProvider).value ?? [];
+    final grinderMaster = ref.read(grinderMasterProvider).value ?? [];
+    final dripperMaster = ref.read(dripperMasterProvider).value ?? [];
+    final filterMaster = ref.read(filterMasterProvider).value ?? [];
+
+    if (beanMaster.isEmpty && grinderMaster.isEmpty && dripperMaster.isEmpty && filterMaster.isEmpty) {
+      return "Error: No master data loaded.";
     }
 
     // Prepare destination directory if NOT on web (and we want local copy)
@@ -68,18 +75,34 @@ import 'package:firebase_storage/firebase_storage.dart';
     int skippedCount = 0;
     List<String> errors = [];
 
-    // Map Bean ID to Bean for quick lookup. 
     final beanMap = {for (var b in beanMaster) b.id: b};
+    final grinderMap = {for (var g in grinderMaster) g.id: g};
+    final dripperMap = {for (var d in dripperMaster) d.id: d};
+    final filterMap = {for (var f in filterMaster) f.id: f};
 
     for (final file in files) {
       final filename = file.name;
+      final lowerFilename = filename.toLowerCase();
       String? matchedId;
+      String? matchedType;
 
-      // Find matching ID
+      // Find matching ID (case-insensitive and trimmed)
       for (var id in beanMap.keys) {
-        if (filename.startsWith(id)) {
-          matchedId = id;
-          break;
+        if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'bean'; break; }
+      }
+      if (matchedId == null) {
+        for (var id in grinderMap.keys) {
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'grinder'; break; }
+        }
+      }
+      if (matchedId == null) {
+        for (var id in dripperMap.keys) {
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'dripper'; break; }
+        }
+      }
+      if (matchedId == null) {
+        for (var id in filterMap.keys) {
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'filter'; break; }
         }
       }
 
@@ -128,10 +151,20 @@ import 'package:firebase_storage/firebase_storage.dart';
           }
 
           if (newImageUrl != null) {
-             // Update Bean
-             final bean = beanMap[matchedId]!;
-             final updatedBean = bean.copyWith(imageUrl: newImageUrl);
-             await ref.read(sheetsServiceProvider).updateBean(updatedBean);
+             final sheets = ref.read(sheetsServiceProvider);
+             if (matchedType == 'bean') {
+               final updated = beanMap[matchedId]!.copyWith(imageUrl: newImageUrl);
+               await sheets.updateBean(updated);
+             } else if (matchedType == 'grinder') {
+               final updated = grinderMap[matchedId]!.copyWith(imageUrl: newImageUrl);
+               await sheets.updateGrinder(updated);
+             } else if (matchedType == 'dripper') {
+               final updated = dripperMap[matchedId]!.copyWith(imageUrl: newImageUrl);
+               await sheets.updateDripper(updated);
+             } else if (matchedType == 'filter') {
+               final updated = filterMap[matchedId]!.copyWith(imageUrl: newImageUrl);
+               await sheets.updateFilter(updated);
+             }
              successCount++;
           } else {
              failCount++;

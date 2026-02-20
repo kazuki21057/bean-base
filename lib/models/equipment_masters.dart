@@ -24,6 +24,22 @@ class GrinderMaster {
       _$GrinderMasterFromJson(json);
 
   Map<String, dynamic> toJson() => _$GrinderMasterToJson(this);
+
+  GrinderMaster copyWith({
+    String? id,
+    String? name,
+    String? grindRange,
+    String? description,
+    String? imageUrl,
+  }) {
+    return GrinderMaster(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      grindRange: grindRange ?? this.grindRange,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+    );
+  }
 }
 
 @JsonSerializable()
@@ -48,6 +64,22 @@ class DripperMaster {
       _$DripperMasterFromJson(json);
 
   Map<String, dynamic> toJson() => _$DripperMasterToJson(this);
+
+  DripperMaster copyWith({
+    String? id,
+    String? name,
+    String? material,
+    String? shape,
+    String? imageUrl,
+  }) {
+    return DripperMaster(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      material: material ?? this.material,
+      shape: shape ?? this.shape,
+      imageUrl: imageUrl ?? this.imageUrl,
+    );
+  }
 }
 
 @JsonSerializable()
@@ -73,6 +105,22 @@ class FilterMaster {
       _$FilterMasterFromJson(json);
 
   Map<String, dynamic> toJson() => _$FilterMasterToJson(this);
+
+  FilterMaster copyWith({
+    String? id,
+    String? name,
+    String? material,
+    String? size,
+    String? imageUrl,
+  }) {
+    return FilterMaster(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      material: material ?? this.material,
+      size: size ?? this.size,
+      imageUrl: imageUrl ?? this.imageUrl,
+    );
+  }
 
   static String? _parseString(dynamic value) {
     if (value == null) return null;

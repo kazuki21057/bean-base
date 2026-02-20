@@ -7,7 +7,7 @@ part of 'bean_master.dart';
 // **************************************************************************
 
 BeanMaster _$BeanMasterFromJson(Map<String, dynamic> json) => BeanMaster(
-  id: json['id'] as String? ?? '',
+  id: json['id'] == null ? '' : BeanMaster._parseString(json['id']),
   name: json['name'] as String? ?? '-',
   roastLevel: json['roastLevel'] as String? ?? '',
   origin: json['origin'] as String? ?? '',
