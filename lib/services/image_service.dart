@@ -213,6 +213,29 @@ class ImageService {
     }
     return null;
   }
+
+  /// Deletes an image given its URL or local path.
+  Future<void> deleteImage(String imageUrl) async {
+    try {
+      if (imageUrl.startsWith('http') || imageUrl.contains('firebasestorage')) {
+        // Firebase URL
+        if (Firebase.apps.isNotEmpty) {
+          final storageRef = FirebaseStorage.instance.refFromURL(imageUrl);
+          await storageRef.delete();
+          debugPrint("[Antigravity] Action: Deleted Image from Firebase Storage: ${storageRef.fullPath}");
+        }
+      } else {
+        // Local File Path
+        final file = File(imageUrl);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint("[Antigravity] Action: Deleted Image from Local Storage: $imageUrl");
+        }
+      }
+    } catch (e) {
+      debugPrint("[Antigravity] Error: Failed to delete image: $e");
+    }
+  }
 }
 
 final imageServiceProvider = Provider<ImageService>((ref) => ImageService(ref));

@@ -403,6 +403,30 @@ class SheetsService {
      await _postData('pouring_steps', 'delete', {'ID': stepId});
   }
 
+  Future<void> deleteBean(String id) async {
+     await _postData('bean_master', 'delete', {'豆ID': id});
+  }
+
+  Future<void> deleteGrinder(String id) async {
+     await _postData('mill_master', 'delete', {'ミルID': id});
+  }
+
+  Future<void> deleteDripper(String id) async {
+     await _postData('dripper_master', 'delete', {'ドリッパーID': id});
+  }
+
+  Future<void> deleteFilter(String id) async {
+     await _postData('filter_master', 'delete', {'フィルターID': id});
+  }
+
+  Future<void> deleteMethod(String id) async {
+     await _postData('methods_master', 'delete', {'メソッドID': id});
+  }
+
+  Future<void> deleteCoffeeRecord(String id) async {
+     await _postData('coffee_data', 'delete', {'記録ID': id});
+  }
+
   // Helpers for reverse mapping
   Map<String, dynamic> _reverseMapBean(BeanMaster bean) {
      final reverseMap = {

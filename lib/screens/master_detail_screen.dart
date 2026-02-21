@@ -6,6 +6,8 @@ import '../providers/data_providers.dart';
 import '../widgets/coffee_log_card.dart';
 import '../widgets/bean_image.dart';
 import 'master_add_screen.dart';
+import '../services/sheets_service.dart';
+import '../services/image_service.dart';
 
 class MasterDetailScreen extends ConsumerWidget {
   final String title;
@@ -20,6 +22,58 @@ class MasterDetailScreen extends ConsumerWidget {
     required this.masterType,
     this.imageUrl,
   });
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete'),
+        content: const Text('Are you sure you want to delete this item?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text('Delete', style: TextStyle(color: Colors.red))
+          ),
+        ],
+      )
+    );
+
+    if (confirmed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleting...')));
+      try {
+        if (imageUrl != null && imageUrl!.isNotEmpty) {
+           await ref.read(imageServiceProvider).deleteImage(imageUrl!);
+        }
+        
+        final service = ref.read(sheetsServiceProvider);
+        final id = data['id'].toString();
+        
+        if (masterType == 'Bean') {
+          await service.deleteBean(id);
+          ref.invalidate(beanMasterProvider);
+        } else if (masterType == 'Grinder') {
+          await service.deleteGrinder(id);
+          ref.invalidate(grinderMasterProvider);
+        } else if (masterType == 'Dripper') {
+          await service.deleteDripper(id);
+          ref.invalidate(dripperMasterProvider);
+        } else if (masterType == 'Filter') {
+          await service.deleteFilter(id);
+          ref.invalidate(filterMasterProvider);
+        }
+        
+        if (context.mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted successfully')));
+           Navigator.pop(context);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete: $e'), backgroundColor: Colors.red));
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +112,11 @@ class MasterDetailScreen extends ConsumerWidget {
                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot edit this item (parsing failed)')));
               }
             },
-          )
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () => _confirmDelete(context, ref),
+          ),
         ],
       ),
       body: SingleChildScrollView(

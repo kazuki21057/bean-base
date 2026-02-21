@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import '../services/sheets_service.dart';
 import '../services/image_service.dart';
 import '../models/bean_master.dart';
@@ -10,6 +9,7 @@ import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../widgets/method_steps_editor.dart';
 import '../widgets/bean_image.dart';
+import '../widgets/image_upload_field.dart';
 
 class MasterAddScreen extends ConsumerStatefulWidget {
   // If editObject is provided, we are in Edit Mode
@@ -147,33 +147,7 @@ class _BeanAddFormState extends ConsumerState<BeanAddForm> with MasterFormMixin 
     if (parts.isNotEmpty) _nameController.text = parts.join(' ');
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true, // Important for Web
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        showSnackbar('Uploading image...');
-        final service = ref.read(imageServiceProvider);
-        final url = await service.saveImage(file);
-        
-        if (url != null) {
-          setState(() {
-            _imageUrlController.text = url;
-          });
-          showSnackbar('Image uploaded!');
-        } else {
-          showSnackbar('Failed to upload image', isError: true);
-        }
-      }
-    } catch (e) {
-      showSnackbar('Error picking image: $e', isError: true);
-    }
-  }
+
 
   Future<void> _submit() async {
     if (formKey.currentState!.validate()) {
@@ -232,25 +206,12 @@ class _BeanAddFormState extends ConsumerState<BeanAddForm> with MasterFormMixin 
                 ),
               ],
             ),
-            Row(
-              children: [
-                Expanded(child: TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL'))),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.cloud_upload),
-                  tooltip: 'Upload Image',
-                  onPressed: _pickImage,
-                ),
-              ],
+            ImageUploadField(
+              initialImageUrl: _imageUrlController.text,
+              onImageUploaded: (url) {
+                _imageUrlController.text = url ?? '';
+              },
             ),
-            if (_imageUrlController.text.isNotEmpty)
-               Padding(
-                 padding: const EdgeInsets.only(top: 8.0),
-                 child: SizedBox(
-                   height: 100,
-                   child: BeanImage(imagePath: _imageUrlController.text),
-                 ),
-               ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _submit, child: Text(isEdit ? 'Update Bean' : 'Register Bean')),
           ],
@@ -287,33 +248,7 @@ class _GrinderAddFormState extends ConsumerState<GrinderAddForm> with MasterForm
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true, // Important for Web
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        showSnackbar('Uploading image...');
-        final service = ref.read(imageServiceProvider);
-        final url = await service.saveImage(file);
-        
-        if (url != null) {
-          setState(() {
-            _imageUrlController.text = url;
-          });
-          showSnackbar('Image uploaded!');
-        } else {
-          showSnackbar('Failed to upload image', isError: true);
-        }
-      }
-    } catch (e) {
-      showSnackbar('Error picking image: $e', isError: true);
-    }
-  }
+
 
   Future<void> _submit() async {
     if (formKey.currentState!.validate()) {
@@ -354,25 +289,12 @@ class _GrinderAddFormState extends ConsumerState<GrinderAddForm> with MasterForm
             TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name'), validator: (v) => v!.isEmpty ? 'Required' : null),
             TextFormField(controller: _rangeController, decoration: const InputDecoration(labelText: 'Grind Range')),
             TextFormField(controller: _descController, decoration: const InputDecoration(labelText: 'Description')),
-            Row(
-              children: [
-                Expanded(child: TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL'))),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.cloud_upload),
-                  tooltip: 'Upload Image',
-                  onPressed: _pickImage,
-                ),
-              ],
+            ImageUploadField(
+              initialImageUrl: _imageUrlController.text,
+              onImageUploaded: (url) {
+                _imageUrlController.text = url ?? '';
+              },
             ),
-            if (_imageUrlController.text.isNotEmpty)
-               Padding(
-                 padding: const EdgeInsets.only(top: 8.0),
-                 child: SizedBox(
-                   height: 100,
-                   child: BeanImage(imagePath: _imageUrlController.text),
-                 ),
-               ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _submit, child: Text(isEdit ? 'Update Grinder' : 'Register Grinder')),
           ],
@@ -409,33 +331,7 @@ class _DripperAddFormState extends ConsumerState<DripperAddForm> with MasterForm
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true, // Important for Web
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        showSnackbar('Uploading image...');
-        final service = ref.read(imageServiceProvider);
-        final url = await service.saveImage(file);
-        
-        if (url != null) {
-          setState(() {
-            _imageUrlController.text = url;
-          });
-          showSnackbar('Image uploaded!');
-        } else {
-          showSnackbar('Failed to upload image', isError: true);
-        }
-      }
-    } catch (e) {
-      showSnackbar('Error picking image: $e', isError: true);
-    }
-  }
+
 
   Future<void> _submit() async {
     if (formKey.currentState!.validate()) {
@@ -476,25 +372,12 @@ class _DripperAddFormState extends ConsumerState<DripperAddForm> with MasterForm
             TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name'), validator: (v) => v!.isEmpty ? 'Required' : null),
             TextFormField(controller: _materialController, decoration: const InputDecoration(labelText: 'Material')),
             TextFormField(controller: _shapeController, decoration: const InputDecoration(labelText: 'Shape')),
-            Row(
-              children: [
-                Expanded(child: TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL'))),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.cloud_upload),
-                  tooltip: 'Upload Image',
-                  onPressed: _pickImage,
-                ),
-              ],
+            ImageUploadField(
+              initialImageUrl: _imageUrlController.text,
+              onImageUploaded: (url) {
+                _imageUrlController.text = url ?? '';
+              },
             ),
-            if (_imageUrlController.text.isNotEmpty)
-               Padding(
-                 padding: const EdgeInsets.only(top: 8.0),
-                 child: SizedBox(
-                   height: 100,
-                   child: BeanImage(imagePath: _imageUrlController.text),
-                 ),
-               ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _submit, child: Text(isEdit ? 'Update Dripper' : 'Register Dripper')),
           ],
@@ -531,33 +414,7 @@ class _FilterAddFormState extends ConsumerState<FilterAddForm> with MasterFormMi
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true, // Important for Web
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        showSnackbar('Uploading image...');
-        final service = ref.read(imageServiceProvider);
-        final url = await service.saveImage(file);
-        
-        if (url != null) {
-          setState(() {
-            _imageUrlController.text = url;
-          });
-          showSnackbar('Image uploaded!');
-        } else {
-          showSnackbar('Failed to upload image', isError: true);
-        }
-      }
-    } catch (e) {
-      showSnackbar('Error picking image: $e', isError: true);
-    }
-  }
+
 
   Future<void> _submit() async {
     if (formKey.currentState!.validate()) {
@@ -598,25 +455,12 @@ class _FilterAddFormState extends ConsumerState<FilterAddForm> with MasterFormMi
             TextFormField(controller: _nameController, decoration: const InputDecoration(labelText: 'Name'), validator: (v) => v!.isEmpty ? 'Required' : null),
             TextFormField(controller: _materialController, decoration: const InputDecoration(labelText: 'Material')),
             TextFormField(controller: _sizeController, decoration: const InputDecoration(labelText: 'Size')),
-            Row(
-              children: [
-                Expanded(child: TextFormField(controller: _imageUrlController, decoration: const InputDecoration(labelText: 'Image URL'))),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.cloud_upload),
-                  tooltip: 'Upload Image',
-                  onPressed: _pickImage,
-                ),
-              ],
+            ImageUploadField(
+              initialImageUrl: _imageUrlController.text,
+              onImageUploaded: (url) {
+                _imageUrlController.text = url ?? '';
+              },
             ),
-            if (_imageUrlController.text.isNotEmpty)
-               Padding(
-                 padding: const EdgeInsets.only(top: 8.0),
-                 child: SizedBox(
-                   height: 100,
-                   child: BeanImage(imagePath: _imageUrlController.text),
-                 ),
-               ),
             const SizedBox(height: 20),
             ElevatedButton(onPressed: _submit, child: Text(isEdit ? 'Update Filter' : 'Register Filter')),
           ],
