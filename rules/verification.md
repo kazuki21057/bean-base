@@ -29,3 +29,8 @@ You must guarantee the quality of your code through the following verification s
   ```dart
   debugPrint('[Antigravity] Action: Sync to Google Sheets started');
   try { ... } catch (e) { debugPrint('[Antigravity] Error: $e'); }
+  ```
+
+### Lessons Learned & Prevention Rules
+- **Firestore Initialization**: When adding or migrating to `cloud_firestore`, ensure that `flutterfire configure` is executed in the user's environment to replace dummy `firebase_options.dart` values. The browser subagent sandbox blocks external APIs like Firestore, so final commits must be verified manually by the user or via a local emulator.
+- **ID Field Type Parsing**: External data sources (like Google Sheets) may return numeric IDs as `int` or `double`. Always ensure that ID fields expected as `String` in models are explicitly cast via `.toString()` during the `fromJson` mapping to prevent `type 'int' is not a subtype of type 'String?'` crashes.
