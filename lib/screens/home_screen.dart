@@ -12,6 +12,8 @@ import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
 
 import 'settings_screen.dart';
+import '../services/sheets_service.dart';
+import '../utils/firestore_migrator.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -38,6 +40,28 @@ class HomeScreen extends ConsumerWidget {
             tooltip: 'Settings',
             onPressed: () {
                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.cloud_upload),
+            tooltip: 'Migrate to Firestore',
+            onPressed: () async {
+              final sheetsService = ref.read(sheetsServiceProvider);
+              final migrator = FirestoreMigrator(sheetsService: sheetsService);
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Migration started... Check console.')),
+              );
+              try {
+                await migrator.migrateAllData();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Migration completed successfully!')),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Migration failed: $e')),
+                );
+              }
             },
           ),
         ],

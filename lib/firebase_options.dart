@@ -38,12 +38,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'dummy_web',
-    appId: 'dummy_web',
-    messagingSenderId: 'dummy_web',
-    projectId: 'dummy_web',
-    authDomain: 'dummy_web',
-    storageBucket: 'dummy_web',
+    apiKey: 'AIzaSyCVQsW_YPpRaL3cdyb3T40N2OO2DG1zSyw',
+    appId: '1:657985869923:web:bc34e496c0bc285b010056',
+    messagingSenderId: '657985869923',
+    projectId: 'beanbase-app-2016',
+    authDomain: 'beanbase-app-2016.firebaseapp.com',
+    storageBucket: 'beanbase-app-2016.firebasestorage.app',
+    measurementId: 'G-BV6W80DTQ6',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -73,12 +74,13 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'dummy_windows',
-    appId: 'dummy_windows',
-    messagingSenderId: 'dummy_windows',
-    projectId: 'dummy_windows',
-    authDomain: 'dummy_windows',
-    storageBucket: 'dummy_windows',
+    apiKey: 'AIzaSyCVQsW_YPpRaL3cdyb3T40N2OO2DG1zSyw',
+    appId: '1:657985869923:web:19ba0c962bead53b010056',
+    messagingSenderId: '657985869923',
+    projectId: 'beanbase-app-2016',
+    authDomain: 'beanbase-app-2016.firebaseapp.com',
+    storageBucket: 'beanbase-app-2016.firebasestorage.app',
+    measurementId: 'G-S89S6DMWDQ',
   );
 
 }

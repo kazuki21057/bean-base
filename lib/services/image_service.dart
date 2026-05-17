@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../models/bean_master.dart';
-import '../services/sheets_service.dart';
+import '../services/firestore_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -151,7 +151,7 @@ class ImageService {
           }
 
           if (newImageUrl != null) {
-             final sheets = ref.read(sheetsServiceProvider);
+             final sheets = ref.read(firestoreServiceProvider);
              if (matchedType == 'bean') {
                final updated = beanMap[matchedId]!.copyWith(imageUrl: newImageUrl);
                await sheets.updateBean(updated);

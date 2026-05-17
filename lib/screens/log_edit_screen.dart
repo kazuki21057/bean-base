@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';
 import '../providers/data_providers.dart';
-import '../services/sheets_service.dart';
+import '../services/firestore_service.dart';
 
 class LogEditScreen extends ConsumerStatefulWidget {
   final CoffeeRecord log;
@@ -87,7 +87,7 @@ class _LogEditScreenState extends ConsumerState<LogEditScreen> {
         scoreOverall: _scoreOverall,
       );
 
-      await ref.read(sheetsServiceProvider).updateCoffeeRecord(updatedLog);
+      await ref.read(firestoreServiceProvider).updateCoffeeRecord(updatedLog);
       
       // Refresh logs
       ref.invalidate(coffeeRecordsProvider);

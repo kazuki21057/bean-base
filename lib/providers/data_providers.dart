@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/sheets_service.dart';
+import '../services/firestore_service.dart';
 import '../models/coffee_record.dart';
 import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
@@ -8,32 +8,32 @@ import '../models/pouring_step.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
-  final service = ref.watch(sheetsServiceProvider);
+  final service = ref.watch(firestoreServiceProvider);
   return service.getCoffeeRecords();
 });
 
 final beanMasterProvider = FutureProvider<List<BeanMaster>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getBeans();
+  return ref.watch(firestoreServiceProvider).getBeans();
 });
 
 final methodMasterProvider = FutureProvider<List<MethodMaster>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getMethods();
+  return ref.watch(firestoreServiceProvider).getMethods();
 });
 
 final grinderMasterProvider = FutureProvider<List<GrinderMaster>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getGrinders();
+  return ref.watch(firestoreServiceProvider).getGrinders();
 });
 
 final dripperMasterProvider = FutureProvider<List<DripperMaster>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getDrippers();
+  return ref.watch(firestoreServiceProvider).getDrippers();
 });
 
 final filterMasterProvider = FutureProvider<List<FilterMaster>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getFilters();
+  return ref.watch(firestoreServiceProvider).getFilters();
 });
 
 final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {
-  return ref.watch(sheetsServiceProvider).getPouringSteps();
+  return ref.watch(firestoreServiceProvider).getPouringSteps();
 });
 
 // AI Analysis State

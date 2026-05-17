@@ -107,17 +107,13 @@ class SheetsService {
       final newKey = keyMap[key] ?? key;
       
       // 2. Sanitize value
-      final sanitizedValue = _sanitizeValue(value);
-      
-      // 3. Add to new map ONLY if not null (to allow defaults to trigger)
-      // BUT: If the field is nullable, we might want to keep explicit null?
-      // json_serializable behavior: 
-      // - if key is missing -> defaultValue used.
-      // - if key is present but value is null -> defaultValue used (if includeIfNull: true default).
-      // So adding it as null is usually safe if we want default.
-      // However, to be safest for "defaultValue" triggering, it's often best to omit the key for empty values.
+      dynamic sanitizedValue = _sanitizeValue(value);
       
       if (sanitizedValue != null) {
+        // Fix for int IDs being passed where String is expected
+        if (newKey.toLowerCase().contains('id') && sanitizedValue is num) {
+           sanitizedValue = sanitizedValue.toString();
+        }
         newMap[newKey] = sanitizedValue;
       }
     });
