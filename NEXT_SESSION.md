@@ -20,6 +20,22 @@
   - GAS エンドポイント `kGoogleSheetsApiUrl`（`lib/services/sheets_service.dart`）が現在も有効かを併せて確認。
 - これらが済めば **Cycle 19 完了** → Phase 1（画面構成・ナビ再編、Cycle 20–22）へ。
 
+## 2.5 自動ループのセットアップ状況（2026-06-28 設定）
+省コスト方針は `docs/改修マスタープラン.md §5.1` 参照（実装日=クラウド／評価日=ローカル、$0.5/日厳守）。
+
+### ✅ クラウドルーティン（実装日・毎日5:00 JST）
+- ID: `trig_01W3iqfgRZYaVZvkY8Jc83gg`（名前「BeanBase実装日ループ」、model: sonnet-4-6）
+- cron `0 20 * * *`（UTC）= 05:00 JST。次回 6/29 05:02 JST。Claude Code を閉じてもクラウドで実行。
+- 管理: https://claude.ai/code/routines/trig_01W3iqfgRZYaVZvkY8Jc83gg
+- **⚠ 機能させるための前提（要対応）:**
+  1. **GitHub 未接続** — このままではクラウドがリポジトリにアクセス/ push 不可。`/web-setup` を実行するか Claude GitHub App をインストールすること。
+  2. **クラウド環境に Flutter SDK が無い可能性** — `analyze`/`test` が動かない場合あり。プロンプトは「動かなければ NEXT_SESSION に記録して安全終了」する設計。初回実行後に要確認。
+
+### △ ローカル評価ループ（評価日・5:30 JST）
+- ジョブ `46e07e84`（`flutter run`＋Playwright で疎通/見た目を評価）。
+- **重大な制約**: このセッション限定で、**Claude Code を閉じると消滅**・7日で自動失効。`durable` が効かなかった。
+- → 現状の仕組みでは「毎朝自動評価」は**Claude Code を起動し続けない限り不発**。実用上は、PC でセッションを開いたときに手動で評価パスを回す運用が現実的（`/loop` を都度起動 等）。
+
 ## 3. 日次ループの回し方（毎回）
 1. `\start`（git pull・当日タスク確認）
 2. `docs/改修マスタープラン.md` から当日タスクを選ぶ
