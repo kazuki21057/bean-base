@@ -6,7 +6,7 @@ import '../providers/data_providers.dart';
 import '../widgets/coffee_log_card.dart';
 import '../widgets/bean_image.dart';
 import 'master_add_screen.dart';
-import '../services/firestore_service.dart';
+import '../services/data_service.dart';
 import '../services/image_service.dart';
 
 class MasterDetailScreen extends ConsumerWidget {
@@ -46,7 +46,7 @@ class MasterDetailScreen extends ConsumerWidget {
            await ref.read(imageServiceProvider).deleteImage(imageUrl!);
         }
         
-        final service = ref.read(firestoreServiceProvider);
+        final service = ref.read(dataServiceProvider);
         final id = data['id'].toString();
         
         if (masterType == 'Bean') {

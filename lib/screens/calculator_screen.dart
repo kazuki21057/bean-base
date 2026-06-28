@@ -7,7 +7,7 @@ import '../models/pouring_step.dart';
 import '../models/coffee_record.dart'; // Add
 import '../models/bean_master.dart'; // Add
 import '../models/equipment_masters.dart'; // Add
-import '../services/firestore_service.dart'; // Add
+import '../services/data_service.dart'; // Add
 import '../widgets/bean_image.dart';
 
 class CalculatorScreen extends ConsumerStatefulWidget {
@@ -759,8 +759,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     );
 
     try {
-      // Use firestoreServiceProvider directly
-      await ref.read(firestoreServiceProvider).addCoffeeRecord(record);
+      // Use dataServiceProvider directly
+      await ref.read(dataServiceProvider).addCoffeeRecord(record);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Brew logged successfully!')));
         Navigator.pop(context); 

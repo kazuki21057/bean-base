@@ -1,23 +1,22 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-06-28
+最終更新: 2026-06-28（Cycle 19 進行中）
 
-## 1. 当日やったこと（改修の準備セットアップ）
-BeanBase 大規模改修の **土台** を整備した。コード改修（Phaseタスク）はまだ未着手。
+## 1. 当日やったこと（Cycle 19 / Phase 0: データ基盤を Sheets に戻す）
+データアクセスを Firestore → **Google Sheets** に差し戻した（T0-1〜T0-3、T0-5 の analyze/test まで）。
 
-- **全体設計書を作成**: `docs/改修マスタープラン.md`（進捗表付き）。今後の毎日のタスクはここから選ぶ。
-- **日次改修ループのルールを CLAUDE.md に追記**: 終了条件4つ（①タスク完了 ②連続3回失敗 ③当日コスト>$0.5 ④当日ターン>=10）。
-- **ガードレール実装**: `.claude/hooks/loop_guard.js`（Stop/UserPromptSubmitフック）。transcript からコスト（種別単価で重み付け）とターン数を算出し `.claude/loop_state.md` へ出力、超過時に停止指示を注入。`settings.local.json` に登録済み・発火確認済み。
-- データ基盤の方針確定: **Firestore → Google Sheets に戻す**（`SheetsService` 再活用）。
+- **抽象インターフェース `DataService` を新設**（`lib/services/data_service.dart`）。`SheetsService`/`FirestoreService` 両方に `implements` させ、`@override` 付与。
+- **単一の `dataServiceProvider` に集約**。現在は `SheetsService()` を返す。**バックエンド切替はこの1行のみ**で済む構成に。
+- 読み取り7プロバイダ（`data_providers.dart`）＋書込9箇所（各画面・`image_service`）を `firestoreServiceProvider` → `dataServiceProvider` に切替。
+- **検証**: `flutter analyze` 新規エラー/警告なし（`annotate_overrides` 解消）／`flutter test` **17件全パス**。
+- Cycle 19 ドキュメント3点を `docs/cycle_19_sheets_revert/` に作成。マスタープラン進捗表を更新。
 
 ## 2. 残課題 / 次回の着手点
-- **Cycle 19 = Phase 0「データ基盤を Sheets に戻す」から開始**（マスタープラン §3 参照）。
-  - T0-1 `SheetsService` の現状調査・再有効化方針
-  - T0-2 `data_providers.dart` の読み取りを Firestore→Sheets に切替
-  - T0-3 各CRUDの書込を Sheets に戻す
-  - T0-4 画像保存先の方針決定（Drive or ローカル）
-  - T0-5 `analyze`/`test`/`run` で接続確認
-- 終了条件（Cycle 19）: Sheets 経由で一覧/登録/編集/削除が動き `flutter run` で接続成功。
+- **T0-4（要ユーザー判断）**: 画像保存先を決める。**Google Drive 保存** か **端末ローカル保存** か。
+  - `ImageService` は現状 Firebase Storage 前提 → 決定後に再設計が必要。
+- **T0-5 の run 確認（要ユーザー・ローカル）**: サンドボックスは外部通信不可。ローカルで `flutter run -d chrome` し、Sheets 経由で一覧/登録/編集/削除の疎通を確認。
+  - GAS エンドポイント `kGoogleSheetsApiUrl`（`lib/services/sheets_service.dart`）が現在も有効かを併せて確認。
+- これらが済めば **Cycle 19 完了** → Phase 1（画面構成・ナビ再編、Cycle 20–22）へ。
 
 ## 3. 日次ループの回し方（毎回）
 1. `\start`（git pull・当日タスク確認）
@@ -28,6 +27,4 @@ BeanBase 大規模改修の **土台** を整備した。コード改修（Phase
 6. 終了条件に達したら新規着手せず、本書と進捗表を更新して `\end`
 
 ## 4. 開発再開時のプロンプト例
-> 「\start を実行し、NEXT_SESSION.md と docs/改修マスタープラン.md を確認して、Cycle 19（Phase 0：データ基盤を Sheets に戻す）の T0-1 から進めてください。」
-
-お疲れ様でした。また次回！
+> 「\start を実行し、NEXT_SESSION.md を確認。Cycle 19 の残り（T0-4 画像保存先の決定と T0-5 のローカル接続確認）を進めてください。」

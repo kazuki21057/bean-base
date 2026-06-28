@@ -6,11 +6,12 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
+import 'data_service.dart';
 
 // URL Placeholder - User needs to provide this
 const String kGoogleSheetsApiUrl = 'https://script.google.com/macros/s/AKfycbx3ZIgSRh8v7ORcrL960GzZm0qD6I4X1jqsWYXHrZ8kpRXnpEs59N7pfszP-I6_AnoV/exec';
 
-class SheetsService {
+class SheetsService implements DataService {
   final http.Client _client;
   final String _baseUrl = kGoogleSheetsApiUrl;
 
@@ -145,6 +146,7 @@ class SheetsService {
     return value;
   }
 
+  @override
   Future<List<CoffeeRecord>> getCoffeeRecords() async {
     final keyMap = {
       '記録ID': 'id',
@@ -191,6 +193,7 @@ class SheetsService {
     });
   }
 
+  @override
   Future<List<BeanMaster>> getBeans() async {
     final keyMap = {
       '豆ID': 'id',
@@ -208,6 +211,7 @@ class SheetsService {
     return _fetchData('bean_master', (map) => BeanMaster.fromJson(_remapKeys(map, keyMap)));
   }
 
+  @override
   Future<List<MethodMaster>> getMethods() async {
     final keyMap = {
       'メソッドID': 'id',
@@ -223,8 +227,9 @@ class SheetsService {
     };
     return _fetchData('methods_master', (map) => MethodMaster.fromJson(_remapKeys(map, keyMap)));
   }
-  
-    Future<List<PouringStep>> getPouringSteps() async {
+
+  @override
+  Future<List<PouringStep>> getPouringSteps() async {
     final keyMap = {
       'ID': 'id',
       'メソッドID（親）': 'methodId',
@@ -238,6 +243,7 @@ class SheetsService {
     return _fetchData('pouring_steps', (map) => PouringStep.fromJson(_remapKeys(map, keyMap)));
   }
 
+  @override
   Future<List<GrinderMaster>> getGrinders() async {
     final keyMap = {
       'ミルID': 'id',
@@ -250,6 +256,7 @@ class SheetsService {
     return _fetchData('mill_master', (map) => GrinderMaster.fromJson(_remapKeys(map, keyMap)));
   }
 
+  @override
   Future<List<DripperMaster>> getDrippers() async {
     final keyMap = {
       'ドリッパーID': 'id',
@@ -261,6 +268,7 @@ class SheetsService {
     return _fetchData('dripper_master', (map) => DripperMaster.fromJson(_remapKeys(map, keyMap)));
   }
 
+  @override
   Future<List<FilterMaster>> getFilters() async {
      final keyMap = {
       'フィルターID': 'id',
@@ -272,31 +280,37 @@ class SheetsService {
     return _fetchData('filter_master', (map) => FilterMaster.fromJson(_remapKeys(map, keyMap)));
   }
 
+  @override
   Future<void> addBean(BeanMaster bean) async {
     final data = _reverseMapBean(bean);
     await _postData('bean_master', 'add', data);
   }
 
+  @override
   Future<void> updateBean(BeanMaster bean) async {
     final data = _reverseMapBean(bean);
     await _postData('bean_master', 'update', data);
   }
 
+  @override
   Future<void> addGrinder(GrinderMaster grinder) async {
     final data = _reverseMapGrinder(grinder);
     await _postData('mill_master', 'add', data);
   }
   
+  @override
   Future<void> updateGrinder(GrinderMaster grinder) async {
     final data = _reverseMapGrinder(grinder);
     await _postData('mill_master', 'update', data);
   }
 
+  @override
   Future<void> addCoffeeRecord(CoffeeRecord record) async {
     final data = _reverseMapCoffeeRecord(record);
     await _postData('coffee_data', 'add', data);
   }
 
+  @override
   Future<void> updateCoffeeRecord(CoffeeRecord record) async {
     final data = _reverseMapCoffeeRecord(record);
     await _postData('coffee_data', 'update', data);
@@ -341,31 +355,37 @@ class SheetsService {
     return _mapToJson(json, reverseMap);
   }
 
+  @override
   Future<void> addDripper(DripperMaster dripper) async {
     final data = _reverseMapDripper(dripper);
     await _postData('dripper_master', 'add', data);
   }
 
+  @override
   Future<void> updateDripper(DripperMaster dripper) async {
     final data = _reverseMapDripper(dripper);
     await _postData('dripper_master', 'update', data);
   }
 
+  @override
   Future<void> addFilter(FilterMaster filter) async {
     final data = _reverseMapFilter(filter);
     await _postData('filter_master', 'add', data);
   }
 
+  @override
   Future<void> updateFilter(FilterMaster filter) async {
     final data = _reverseMapFilter(filter);
     await _postData('filter_master', 'update', data);
   }
 
+  @override
   Future<void> addMethod(MethodMaster method) async {
     final data = _reverseMapMethod(method);
     await _postData('methods_master', 'add', data);
   }
 
+  @override
   Future<void> updateMethod(MethodMaster method) async {
     final data = _reverseMapMethod(method);
     await _postData('methods_master', 'update', data);
@@ -373,16 +393,19 @@ class SheetsService {
 
   // --- Pouring Steps ---
 
+  @override
   Future<void> addPouringStep(PouringStep step) async {
     final data = _reverseMapPouringStep(step);
     await _postData('pouring_steps', 'add', data);
   }
 
+  @override
   Future<void> updatePouringStep(PouringStep step) async {
     final data = _reverseMapPouringStep(step);
     await _postData('pouring_steps', 'update', data);
   }
 
+  @override
   Future<void> deletePouringStepsForMethod(String methodId) async {
      // This would preferably be a batch operation or a specific 'delete_all' action on the backend
      // Since backend is generic, we might need a custom action or just use 'action: delete' if supported.
@@ -395,30 +418,37 @@ class SheetsService {
      // Let's add a generic 'delete' method if we have the ID.
   }
 
+  @override
   Future<void> deletePouringStep(String stepId) async {
      await _postData('pouring_steps', 'delete', {'ID': stepId});
   }
 
+  @override
   Future<void> deleteBean(String id) async {
      await _postData('bean_master', 'delete', {'豆ID': id});
   }
 
+  @override
   Future<void> deleteGrinder(String id) async {
      await _postData('mill_master', 'delete', {'ミルID': id});
   }
 
+  @override
   Future<void> deleteDripper(String id) async {
      await _postData('dripper_master', 'delete', {'ドリッパーID': id});
   }
 
+  @override
   Future<void> deleteFilter(String id) async {
      await _postData('filter_master', 'delete', {'フィルターID': id});
   }
 
+  @override
   Future<void> deleteMethod(String id) async {
      await _postData('methods_master', 'delete', {'メソッドID': id});
   }
 
+  @override
   Future<void> deleteCoffeeRecord(String id) async {
      await _postData('coffee_data', 'delete', {'記録ID': id});
   }

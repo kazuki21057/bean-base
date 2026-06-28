@@ -5,7 +5,7 @@ import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../widgets/method_steps_editor.dart';
-import '../services/firestore_service.dart';
+import '../services/data_service.dart';
 import '../widgets/coffee_log_card.dart';
 import '../models/bean_master.dart';
   /* 
@@ -283,7 +283,7 @@ class _MethodDetailScreenState extends ConsumerState<MethodDetailScreen> {
       grindSize: _method.grindSize,
     );
     
-    final service = ref.read(firestoreServiceProvider);
+    final service = ref.read(dataServiceProvider);
 
     try {
       // 1. Update Method Master
