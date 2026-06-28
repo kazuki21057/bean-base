@@ -12,8 +12,10 @@
 - Cycle 19 ドキュメント3点を `docs/cycle_19_sheets_revert/` に作成。マスタープラン進捗表を更新。
 
 ## 2. 残課題 / 次回の着手点
-- **T0-4（要ユーザー判断）**: 画像保存先を決める。**Google Drive 保存** か **端末ローカル保存** か。
-  - `ImageService` は現状 Firebase Storage 前提 → 決定後に再設計が必要。
+- **T0-4b（画像保存の実装）**: 画像保存先は **Google Drive に決定**。実装は **GAS拡張方式**（クライアント直叩きの OAuth を避け、既存 GAS Web App を拡張して画像bytesをDriveへ保存し公開URLを返す）。
+  - `ImageService` の Firebase Storage 依存を Drive アップロードに差し替え。Web/モバイル両対応。
+  - GAS側: Drive保存 + ファイル共有設定（リンク閲覧可） + `uc?export=view&id=` 形式URL返却。
+  - 詳細メモ: `docs/cycle_19_sheets_revert/task.md` の「T0-4 決定」節。
 - **T0-5 の run 確認（要ユーザー・ローカル）**: サンドボックスは外部通信不可。ローカルで `flutter run -d chrome` し、Sheets 経由で一覧/登録/編集/削除の疎通を確認。
   - GAS エンドポイント `kGoogleSheetsApiUrl`（`lib/services/sheets_service.dart`）が現在も有効かを併せて確認。
 - これらが済めば **Cycle 19 完了** → Phase 1（画面構成・ナビ再編、Cycle 20–22）へ。
