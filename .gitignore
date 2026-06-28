@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 pictures/
+
+# 日次ループの transient 状態ファイル
+.claude/loop_state.md
+.claude/loop_failures.txt
