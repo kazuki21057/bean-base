@@ -8,7 +8,7 @@
 | T0-2 | `data_providers.dart` の読み取りを Firestore→Sheets に切替 | ✅ |
 | T0-3 | 各CRUD書込（records/beans/grinders/drippers/filters/methods/pouringSteps）を Sheets に戻す | ✅ |
 | T0-4 | 画像保存先の方針決定（**Google Drive 保存**に決定） | ✅ |
-| T0-4b | Drive 画像保存の実装（GAS拡張方式・別タスク） | ⬜ |
+| T0-4b | Drive 画像保存の実装（GAS拡張方式・別タスク） | ✅ |
 | T0-5 | `analyze`/`test` で確認（✅） / `run` で Sheets 接続確認 | 🟦（run はユーザーがローカルで実施） |
 
 ## T0-4 決定: Google Drive 保存（実装方針メモ）

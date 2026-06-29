@@ -1,53 +1,90 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../providers/data_providers.dart';
-import '../models/bean_master.dart';
 import '../services/data_service.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import '../services/sheets_service.dart';
+
+String _mimeTypeFromName(String filename) {
+  final ext = p.extension(filename).toLowerCase();
+  switch (ext) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.png':
+      return 'image/png';
+    case '.gif':
+      return 'image/gif';
+    case '.webp':
+      return 'image/webp';
+    default:
+      return 'image/jpeg';
+  }
+}
 
 class ImageService {
   final Ref ref;
 
   ImageService(this.ref);
 
-  /// Uploads a file to Firebase Storage and returns the download URL.
+  /// Uploads a file to Google Drive via GAS and returns the shareable URL.
   Future<String?> uploadImage(PlatformFile file) async {
     try {
-      // Check if Firebase is initialized properly
-      if (Firebase.apps.isEmpty) {
-        debugPrint("Firebase not initialized. Falling back to local/original path.");
-        return kIsWeb ? file.name : file.path;
-      }
-
-      final storageRef = FirebaseStorage.instance.ref();
-      final filename = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-      final imageRef = storageRef.child('bean_images/$filename');
-
+      final Uint8List? bytes;
       if (kIsWeb) {
-        if (file.bytes == null) return null;
-        await imageRef.putData(file.bytes!, SettableMetadata(contentType: 'image/jpeg')); // Assume jpeg/png
+        bytes = file.bytes;
       } else {
         if (file.path == null) return null;
-        final File ioFile = File(file.path!);
-        await imageRef.putFile(ioFile);
+        bytes = await File(file.path!).readAsBytes();
       }
+      if (bytes == null) return null;
 
-      final downloadUrl = await imageRef.getDownloadURL();
-      return downloadUrl;
+      final base64Data = base64Encode(bytes);
+      final filename = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      final mimeType = _mimeTypeFromName(file.name);
+
+      final body = jsonEncode({
+        'action': 'uploadImage',
+        'filename': filename,
+        'mimeType': mimeType,
+        'data': base64Data,
+      });
+
+      debugPrint('[Antigravity] Action: Uploading image to Drive via GAS: $filename');
+      final response = await http.post(
+        Uri.parse(kGoogleSheetsApiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        if (result['success'] == true) {
+          final url = result['url'] as String?;
+          debugPrint('[Antigravity] Action: Image uploaded. URL: $url');
+          return url;
+        } else {
+          debugPrint('[Antigravity] Error: GAS upload failed: ${result['error']}');
+          return null;
+        }
+      } else {
+        debugPrint('[Antigravity] Error: GAS responded ${response.statusCode}: ${response.body}');
+        return null;
+      }
     } catch (e) {
-      debugPrint("Error uploading image: $e");
+      debugPrint('[Antigravity] Error: uploadImage failed: $e');
       return null;
     }
   }
 
   /// Imports images from a list of selected files.
   /// Matches filenames to Master IDs (Bean, Grinder, Dripper, Filter).
-  /// Copies matched images to app's local storage or uploads to Firebase (Web) and updates Master data.
+  /// Uploads to Google Drive via GAS and updates Master data.
   /// Returns a summary string.
   Future<String> importMasterImages(List<PlatformFile> files) async {
     final beanMaster = ref.read(beanMasterProvider).value ?? [];
@@ -56,185 +93,132 @@ class ImageService {
     final filterMaster = ref.read(filterMasterProvider).value ?? [];
 
     if (beanMaster.isEmpty && grinderMaster.isEmpty && dripperMaster.isEmpty && filterMaster.isEmpty) {
-      return "Error: No master data loaded.";
+      return 'Error: No master data loaded.';
     }
-
-    // Prepare destination directory if NOT on web (and we want local copy)
-    // For this implementation, we will prefer Firebase for Web.
-    Directory? imagesDir;
-    if (!kIsWeb) {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      imagesDir = Directory(p.join(appDocDir.path, 'bean_images'));
-      if (!await imagesDir.exists()) {
-        await imagesDir.create(recursive: true);
-      }
-    }
-
-    int successCount = 0;
-    int failCount = 0;
-    int skippedCount = 0;
-    List<String> errors = [];
 
     final beanMap = {for (var b in beanMaster) b.id: b};
     final grinderMap = {for (var g in grinderMaster) g.id: g};
     final dripperMap = {for (var d in dripperMaster) d.id: d};
     final filterMap = {for (var f in filterMaster) f.id: f};
 
+    int successCount = 0;
+    int failCount = 0;
+    int skippedCount = 0;
+    final List<String> errors = [];
+
     for (final file in files) {
-      final filename = file.name;
-      final lowerFilename = filename.toLowerCase();
+      final lowerFilename = file.name.toLowerCase();
       String? matchedId;
       String? matchedType;
 
-      // Find matching ID (case-insensitive and trimmed)
       for (var id in beanMap.keys) {
-        if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'bean'; break; }
+        if (lowerFilename.startsWith(id.trim().toLowerCase())) {
+          matchedId = id; matchedType = 'bean'; break;
+        }
       }
       if (matchedId == null) {
         for (var id in grinderMap.keys) {
-          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'grinder'; break; }
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) {
+            matchedId = id; matchedType = 'grinder'; break;
+          }
         }
       }
       if (matchedId == null) {
         for (var id in dripperMap.keys) {
-          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'dripper'; break; }
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) {
+            matchedId = id; matchedType = 'dripper'; break;
+          }
         }
       }
       if (matchedId == null) {
         for (var id in filterMap.keys) {
-          if (lowerFilename.startsWith(id.trim().toLowerCase())) { matchedId = id; matchedType = 'filter'; break; }
+          if (lowerFilename.startsWith(id.trim().toLowerCase())) {
+            matchedId = id; matchedType = 'filter'; break;
+          }
         }
       }
 
       if (matchedId != null) {
         try {
-          String? newImageUrl;
-          
-          if (kIsWeb) {
-            // Web: Upload to Firebase
-            debugPrint("Uploading $filename to Firebase...");
-            newImageUrl = await uploadImage(file);
-            if (newImageUrl == null) {
-               errors.add("Failed to upload $filename");
-               failCount++;
-               continue;
-            }
-          } else {
-            // Mobile/Desktop: Copy file locally (Default behavior for now, can switch to Firebase too if desired)
-            // User requested Firebase to be used. Let's try to use Firebase if possible, otherwise local.
-            // But for now, let's keep local for Mobile/Desktop to be safe and offline-capable unless explicitly asked to force cloud only.
-            // Actually, the user asked "I want to use it on smartphone". Authentication might be tricky if we enforce Firebase rules.
-            // But let's assume public read/write for now (Test Mode).
-            // Let's SUPPORT basic upload for all if we want.
-            // However, to keep it simple and consistent with previous logic:
-            // Web -> Must use Firebase.
-            // Mobile -> Can use Local (faster, offline). 
-            // PROPOSAL: Let's stick to Local for Mobile/Desktop for now to avoid breaking existing workflow, 
-            // BUT verify Firebase works on Web.
-            // (If user wants synchronization across devices, we MUST use Firebase everywhere. 
-            //  The user said "Finally I want to use it on smartphone", implying syncing data from PC to Phone?
-            //  If so, we need Firebase for ALL.
-            //  Let's enabling upload for ALL platforms then.)
-            
-            // Uploading to Firebase for ALL platforms to support multi-device sync.
-            final url = await uploadImage(file); 
-             if (url != null) {
-                newImageUrl = url;
-             } else {
-                // Fallback to local if upload fails?
-                if (file.path != null) {
-                   final newPath = p.join(imagesDir!.path, filename);
-                   await File(file.path!).copy(newPath);
-                   newImageUrl = newPath; 
-                }
-             }
+          final newImageUrl = await uploadImage(file);
+          if (newImageUrl == null) {
+            errors.add('Failed to upload ${file.name}');
+            failCount++;
+            continue;
           }
 
-          if (newImageUrl != null) {
-             final sheets = ref.read(dataServiceProvider);
-             if (matchedType == 'bean') {
-               final updated = beanMap[matchedId]!.copyWith(imageUrl: newImageUrl);
-               await sheets.updateBean(updated);
-             } else if (matchedType == 'grinder') {
-               final updated = grinderMap[matchedId]!.copyWith(imageUrl: newImageUrl);
-               await sheets.updateGrinder(updated);
-             } else if (matchedType == 'dripper') {
-               final updated = dripperMap[matchedId]!.copyWith(imageUrl: newImageUrl);
-               await sheets.updateDripper(updated);
-             } else if (matchedType == 'filter') {
-               final updated = filterMap[matchedId]!.copyWith(imageUrl: newImageUrl);
-               await sheets.updateFilter(updated);
-             }
-             successCount++;
-          } else {
-             failCount++;
-             errors.add("Could not get image URL/Path for $filename");
+          final service = ref.read(dataServiceProvider);
+          if (matchedType == 'bean') {
+            await service.updateBean(beanMap[matchedId]!.copyWith(imageUrl: newImageUrl));
+          } else if (matchedType == 'grinder') {
+            await service.updateGrinder(grinderMap[matchedId]!.copyWith(imageUrl: newImageUrl));
+          } else if (matchedType == 'dripper') {
+            await service.updateDripper(dripperMap[matchedId]!.copyWith(imageUrl: newImageUrl));
+          } else if (matchedType == 'filter') {
+            await service.updateFilter(filterMap[matchedId]!.copyWith(imageUrl: newImageUrl));
           }
-
+          successCount++;
         } catch (e) {
           failCount++;
-          errors.add("Failed to process $filename: $e");
+          errors.add('Failed to process ${file.name}: $e');
         }
       } else {
         skippedCount++;
       }
     }
 
-    String result = "Import Complete.\nSuccess: $successCount\nFailed: $failCount\nSkipped: $skippedCount";
+    String result = 'Import Complete.\nSuccess: $successCount\nFailed: $failCount\nSkipped: $skippedCount';
     if (errors.isNotEmpty) {
-      result += "\nErrors:\n${errors.join('\n')}";
+      result += '\nErrors:\n${errors.join('\n')}';
     }
     return result;
   }
-  
-  /// Helper to save a single image (e.g. from picker/camera)
-  /// Returns the path (local) or URL (firebase).
+
+  /// Saves a single image (e.g. from picker) to Google Drive via GAS.
   Future<String?> saveImage(PlatformFile file) async {
-    // Prefer Firebase Upload
-    final url = await uploadImage(file);
-    if (url != null) return url;
-    
-    // Fallback to local
-    if (!kIsWeb && file.path != null) {
-        try {
-          final appDocDir = await getApplicationDocumentsDirectory();
-          final imagesDir = Directory(p.join(appDocDir.path, 'bean_images'));
-          if (!await imagesDir.exists()) {
-            await imagesDir.create(recursive: true);
-          }
-          final filename = p.basename(file.path!);
-          final newFilename = '${DateTime.now().millisecondsSinceEpoch}_$filename';
-          final newPath = p.join(imagesDir.path, newFilename);
-          await File(file.path!).copy(newPath);
-          return newPath;
-        } catch (e) {
-           debugPrint("Error saving local: $e");
-        }
-    }
-    return null;
+    return uploadImage(file);
   }
 
-  /// Deletes an image given its URL or local path.
+  /// Requests GAS to delete the Drive file identified by the URL.
+  /// Only attempts deletion for Drive URLs; no-op for other URLs.
   Future<void> deleteImage(String imageUrl) async {
     try {
-      if (imageUrl.startsWith('http') || imageUrl.contains('firebasestorage')) {
-        // Firebase URL
-        if (Firebase.apps.isNotEmpty) {
-          final storageRef = FirebaseStorage.instance.refFromURL(imageUrl);
-          await storageRef.delete();
-          debugPrint("[Antigravity] Action: Deleted Image from Firebase Storage: ${storageRef.fullPath}");
+      final fileId = _driveFileId(imageUrl);
+      if (fileId == null) {
+        debugPrint('[Antigravity] Action: deleteImage skipped (not a Drive URL): $imageUrl');
+        return;
+      }
+
+      final body = jsonEncode({'action': 'deleteImage', 'fileId': fileId});
+      final response = await http.post(
+        Uri.parse(kGoogleSheetsApiUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        if (result['success'] == true) {
+          debugPrint('[Antigravity] Action: Deleted Drive image: $fileId');
+        } else {
+          debugPrint('[Antigravity] Error: GAS deleteImage failed: ${result['error']}');
         }
       } else {
-        // Local File Path
-        final file = File(imageUrl);
-        if (await file.exists()) {
-          await file.delete();
-          debugPrint("[Antigravity] Action: Deleted Image from Local Storage: $imageUrl");
-        }
+        debugPrint('[Antigravity] Error: GAS deleteImage responded ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint("[Antigravity] Error: Failed to delete image: $e");
+      debugPrint('[Antigravity] Error: deleteImage failed: $e');
     }
+  }
+
+  /// Extracts the Google Drive file ID from a Drive URL, or returns null.
+  String? _driveFileId(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    if (uri.host.contains('drive.google.com')) {
+      return uri.queryParameters['id'];
+    }
+    return null;
   }
 }
 

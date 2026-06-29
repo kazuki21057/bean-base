@@ -1,23 +1,26 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-06-28（Cycle 19 進行中）
+最終更新: 2026-06-29（Cycle 19 進行中）
 
-## 1. 当日やったこと（Cycle 19 / Phase 0: データ基盤を Sheets に戻す）
-データアクセスを Firestore → **Google Sheets** に差し戻した（T0-1〜T0-3、T0-5 の analyze/test まで）。
+## 1. 当日やったこと（Cycle 19 / T0-4b: Drive 画像保存の実装）
 
-- **抽象インターフェース `DataService` を新設**（`lib/services/data_service.dart`）。`SheetsService`/`FirestoreService` 両方に `implements` させ、`@override` 付与。
-- **単一の `dataServiceProvider` に集約**。現在は `SheetsService()` を返す。**バックエンド切替はこの1行のみ**で済む構成に。
-- 読み取り7プロバイダ（`data_providers.dart`）＋書込9箇所（各画面・`image_service`）を `firestoreServiceProvider` → `dataServiceProvider` に切替。
-- **検証**: `flutter analyze` 新規エラー/警告なし（`annotate_overrides` 解消）／`flutter test` **17件全パス**。
-- Cycle 19 ドキュメント3点を `docs/cycle_19_sheets_revert/` に作成。マスタープラン進捗表を更新。
+**T0-4b 完了**: `ImageService` の Firebase Storage 依存を Google Drive (GAS経由) に切替。
+
+- `lib/services/image_service.dart` を全面刷新：
+  - `uploadImage()`: base64 で GAS に POST → Drive に保存 → 公開URL を返す
+  - `deleteImage()`: Drive URL から fileId を抽出し GAS に削除リクエスト
+  - `importMasterImages()` / `saveImage()`: 上記を利用するよう整理
+- `pubspec.yaml`: `firebase_storage` パッケージを削除（`firebase_core` は main.dart で使用のため残存）
+- `tools/gas_image_upload_patch.js`: GAS スクリプトに追加が必要なコード（`handleUploadImage` / `handleDeleteImage`）を同梱
+
+**⚠ ユーザー対応が必要な項目:**
+1. **GAS スクリプトの更新** — `tools/gas_image_upload_patch.js` の内容を既存 GAS Web App の `doPost` に追加し、新しいデプロイ URL を発行する。`DRIVE_FOLDER_ID` に自分の Drive フォルダIDを設定すること。
+2. **GAS URL の更新** — 新しいデプロイ URL を `lib/services/sheets_service.dart` の `kGoogleSheetsApiUrl` に反映。
+3. **`flutter pub get`** — `firebase_storage` を削除したため、ローカルで `flutter pub get` を実行。
+4. **`flutter analyze` / `flutter test`** — ローカルで実行して問題ないか確認。
 
 ## 2. 残課題 / 次回の着手点
-- **T0-4b（画像保存の実装）**: 画像保存先は **Google Drive に決定**。実装は **GAS拡張方式**（クライアント直叩きの OAuth を避け、既存 GAS Web App を拡張して画像bytesをDriveへ保存し公開URLを返す）。
-  - `ImageService` の Firebase Storage 依存を Drive アップロードに差し替え。Web/モバイル両対応。
-  - GAS側: Drive保存 + ファイル共有設定（リンク閲覧可） + `uc?export=view&id=` 形式URL返却。
-  - 詳細メモ: `docs/cycle_19_sheets_revert/task.md` の「T0-4 決定」節。
-- **T0-5 の run 確認（要ユーザー・ローカル）**: サンドボックスは外部通信不可。ローカルで `flutter run -d chrome` し、Sheets 経由で一覧/登録/編集/削除の疎通を確認。
-  - GAS エンドポイント `kGoogleSheetsApiUrl`（`lib/services/sheets_service.dart`）が現在も有効かを併せて確認。
+- **T0-5 の run 確認（要ユーザー・ローカル）**: GAS を更新後、`flutter run -d chrome` で画像アップロード・削除の疎通を確認。Sheets の一覧/登録/編集/削除も再確認。
 - これらが済めば **Cycle 19 完了** → Phase 1（画面構成・ナビ再編、Cycle 20–22）へ。
 
 ## 2.5 自動ループのセットアップ状況（2026-06-28 設定）
