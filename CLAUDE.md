@@ -104,8 +104,8 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 **終了条件 — 次のいずれかに達したら必ず停止すること:**
 1. **タスク完了** — その日の終了条件(各Cycle冒頭に明記)を満たした。
 2. **連続3回失敗** — 「失敗」=実装後の検証(`analyze`/`test`/`run`)でエラーが出ること。失敗するたび `.claude/loop_failures.txt` の整数を+1し、成功したら0にリセットする。3に達したら停止。
-3. **当日コストが $0.5 超** — `loop_guard.js` が transcript のトークンを種別単価で重み付け合算して算出。
-4. **当日ターン数が 10 に達した** — 同フックが算出。
+3. **当日コストが $1.5 超** — `loop_guard.js` が transcript のトークンを種別単価で重み付け合算して算出。
+4. **当日ターン数が 30 に達した** — 同フックが算出。
 
 **ガードレールの仕組み:** `.claude/hooks/loop_guard.js`(Stop / UserPromptSubmit フック)が毎ターン現セッションの transcript を解析し、当日のコスト・ターン数を `.claude/loop_state.md` に書き出す。UserPromptSubmit 時には状態を文脈へ注入し、しきい値超過時は「新規改修を止め、引き継ぎ書と進捗表を更新して終了せよ」と指示する。**コスト・ターン数の数値はこのフックが真実**(自前で数えない)。連続失敗は自分で `loop_failures.txt` を更新する。
 

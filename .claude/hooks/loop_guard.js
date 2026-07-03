@@ -24,8 +24,8 @@ const fs = require('fs');
 const path = require('path');
 
 // --- しきい値 ---
-const COST_LIMIT = 0.5; // USD
-const TURN_LIMIT = 10;
+const COST_LIMIT = 1.5; // USD
+const TURN_LIMIT = 30;
 const FAIL_LIMIT = 3;
 
 // --- 料金 (per 1M tokens) ---
