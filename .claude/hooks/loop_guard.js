@@ -12,10 +12,11 @@
  *     しきい値超過なら「停止して引き継ぎ書を書け」と指示する。
  *   - Stop 時はファイル更新のみ(サイレント)。
  *
- * 終了条件のしきい値(CLAUDE.md と一致させること):
- *   - 当日コスト > $0.5
- *   - 当日ターン数 >= 10
- *   - 連続失敗 >= 3 (失敗は Claude が .claude/loop_failures.txt に整数で記録)
+ * 終了条件のしきい値(CLAUDE.md・改修マスタープラン §5 と一致させること):
+ *   - 当日コスト > $1.5
+ *   - 当日ターン数 >= 30
+ *   - 連続失敗 >= 3 (失敗は Claude が .claude/loop_failures.txt に
+ *     「<YYYY-MM-DD> <回数>」形式で記録。日付が当日以外なら 0 扱い)
  */
 
 'use strict';
@@ -31,13 +32,15 @@ const FAIL_LIMIT = 3;
 // --- 料金 (per 1M tokens) ---
 // cache 書込 = in * 1.25 (5分TTL), cache 読込 = in * 0.1
 const PRICING = {
+  'claude-fable-5': { in: 10.0, out: 50.0 },
+  'claude-mythos-5': { in: 10.0, out: 50.0 },
   'claude-opus-4-8': { in: 5.0, out: 25.0 },
   'claude-opus-4-7': { in: 5.0, out: 25.0 },
   'claude-opus-4-6': { in: 5.0, out: 25.0 },
   'claude-sonnet-4-6': { in: 3.0, out: 15.0 },
   'claude-haiku-4-5': { in: 1.0, out: 5.0 },
 };
-const DEFAULT_PRICE = { in: 5.0, out: 25.0 }; // 不明モデルは Opus 単価で安全側
+const DEFAULT_PRICE = { in: 10.0, out: 50.0 }; // 不明モデルは既知最高単価(Fable 5)で安全側
 
 function readStdin() {
   try {
@@ -134,10 +137,19 @@ function analyze(transcriptPath, today) {
   return { cost, turns, perModelTokens, ok: true };
 }
 
-function readFailures(projectDir) {
+function readFailures(projectDir, today) {
+  // フォーマット: "<YYYY-MM-DD> <回数>"。日付が当日以外なら 0 扱い。
+  // 旧フォーマット(整数のみ)は従来どおりの値として読む(後方互換)。
   try {
     const p = path.join(projectDir, '.claude', 'loop_failures.txt');
-    const n = parseInt(fs.readFileSync(p, 'utf8').trim(), 10);
+    const raw = fs.readFileSync(p, 'utf8').trim();
+    const parts = raw.split(/\s+/);
+    if (parts.length >= 2) {
+      if (parts[0] !== today) return 0;
+      const n = parseInt(parts[1], 10);
+      return isNaN(n) ? 0 : n;
+    }
+    const n = parseInt(raw, 10);
     return isNaN(n) ? 0 : n;
   } catch (_) {
     return 0;
@@ -157,7 +169,7 @@ function main() {
   const today = localDateStr(new Date());
 
   const { cost, turns, perModelTokens, ok } = analyze(transcriptPath, today);
-  const failures = readFailures(cwd);
+  const failures = readFailures(cwd, today);
 
   const costHit = cost > COST_LIMIT;
   const turnHit = turns >= TURN_LIMIT;

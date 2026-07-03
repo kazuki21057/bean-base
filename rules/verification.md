@@ -1,36 +1,29 @@
-# Antigravity Project Protocols
+# 検証ルール (Verification Rules)
 
-You are **Antigravity**, the dedicated Senior System Architect for this project.
-You must strictly adhere to the following verification standards, supplementing the global `Gemini.md` guidelines.
+コードを提出(commit)する前に、必ず以下の検証を順に実施する。
 
-## 1. Engineering & Verification Standards
-You must guarantee the quality of your code through the following verification steps before submission.
+## 必須検証フロー
 
-### Mandatory Verification Flow
-1. **Static Analysis**:
-   - Run `flutter analyze`.
-   - Action: Fix all reported errors and lints immediately.
+1. **静的解析**: `flutter analyze` — 新規のエラー・警告をすべて解消する(既存 issue はスコープ外)。
+2. **自動テスト**: `flutter test` — 全件パス。ロジックを追加した場合は対応する単体テストも追加する。
+3. **実行時検証**: `flutter run -d chrome` で以下を確認する。
+   - **安定性**: クラッシュせず起動し、コンソールに `Exception`/`Error` ログが出ない。
+   - **UI**: Overflow 警告(黄黒ストライプ)が出ない。
+   - **外部サービス(重要)**: Google Sheets(GAS Web App)・Google Drive(画像)・Gemini API との通信が成功する。認証・データ送受信・パースを確認し、タイムアウトやエラーが握りつぶされていないこと。
+4. **視覚検証**: コードを読むだけでなく、ブラウザ(必要なら Playwright)で実際の挙動を確認する(例: 画像アップロードボタンが実際にクリックできるか)。Playwright の snapshot・スクリーンショットはコスト抑制のため要所のみ。
 
-2. **Automated Testing**:
-   - Run `flutter test`.
-   - Action: Ensure all tests pass to prevent regressions.
+## コーディング規約
 
-3. **Runtime & Connectivity Verification**:
-   - Run `flutter run` and verify the following:
-     - **App Stability**: The app launches without crashing. No `Exception` or `Error` logs in the console.
-     - **UI Integrity**: No `Overflow` warnings (yellow/black stripes).
-     - **External Systems (CRITICAL)**: Verify communication with external services (e.g., **Google Sheets**, Firebase, REST APIs).
-       - Confirm authentication is successful.
-       - Confirm data is sent/received and parsed correctly.
-       - Ensure network timeouts and errors are handled gracefully.
-
-### Coding Guidelines
-- **Logging**: Implement explicit logging with the `[Antigravity]` prefix for key actions (especially external syncs).
+- **ロギング**: 主要アクションと外部サービス連携には `[Antigravity]` prefix で明示的にログを出す。
   ```dart
   debugPrint('[Antigravity] Action: Sync to Google Sheets started');
   try { ... } catch (e) { debugPrint('[Antigravity] Error: $e'); }
   ```
+- **マスター系の変更は全種別へ**: マスターの UI・機能を追加・修正する際は、Bean だけでなく Grinder / Dripper / Filter(該当すれば Method も)すべてに漏れなく適用する。共通部品化できる場合は共通化を優先する。
 
-### Lessons Learned & Prevention Rules
-- **Firestore Initialization**: When adding or migrating to `cloud_firestore`, ensure that `flutterfire configure` is executed in the user's environment to replace dummy `firebase_options.dart` values. The browser subagent sandbox blocks external APIs like Firestore, so final commits must be verified manually by the user or via a local emulator.
-- **ID Field Type Parsing**: External data sources (like Google Sheets) may return numeric IDs as `int` or `double`. Always ensure that ID fields expected as `String` in models are explicitly cast via `.toString()` during the `fromJson` mapping to prevent `type 'int' is not a subtype of type 'String?'` crashes.
+## 教訓 (Lessons Learned)
+
+- **ID 型キャスト**: Sheets 等の外部データは数値 ID を int/double で返すことがある。モデルの `fromJson` では String 想定の ID を必ず `.toString()` で明示キャストする(`type 'int' is not a subtype of type 'String?'` 対策)。空 ID はガードする。
+- **GAS デプロイ URL**: GAS スクリプトを更新すると新しいデプロイ URL が発行される。`kGoogleSheetsApiUrl` の更新を忘れない。
+- **サンドボックス制限**: エージェントのサンドボックス環境は外部 API(GAS/Drive/Firebase)への通信をブロックすることがある。その場合、最終疎通確認はユーザーがローカルで `flutter run` して行う。
+- **Firestore はレガシー**: `FirestoreService` 系に触る指示があった場合のみ、`flutterfire configure` で `firebase_options.dart` を実値に再生成してから作業する。
