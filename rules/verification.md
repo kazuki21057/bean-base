@@ -27,3 +27,4 @@
 - **GAS デプロイ URL**: GAS スクリプトを更新すると新しいデプロイ URL が発行される。`kGoogleSheetsApiUrl` の更新を忘れない。
 - **サンドボックス制限**: エージェントのサンドボックス環境は外部 API(GAS/Drive/Firebase)への通信をブロックすることがある。その場合、最終疎通確認はユーザーがローカルで `flutter run` して行う。
 - **Firestore はレガシー**: `FirestoreService` 系に触る指示があった場合のみ、`flutterfire configure` で `firebase_options.dart` を実値に再生成してから作業する。
+- **クラウド環境にFlutter SDK未導入のことがある**: `flutter`コマンドが無い場合、`.metadata`のDart SDK制約(`pubspec.yaml`の`environment.sdk`)を満たすstableリリースを`https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json`から確認し、スクラッチパッド等に展開してPATHに追加する。古すぎるバージョンだと`pub get`がDart SDKバージョン不一致で失敗するので注意。`flutter pub get`で意図せず`pubspec.lock`の無関係な依存バージョンが更新されることがあるため、タスクに無関係な差分は`git checkout`で戻す。
