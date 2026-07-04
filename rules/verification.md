@@ -28,3 +28,5 @@
 - **サンドボックス制限**: エージェントのサンドボックス環境は外部 API(GAS/Drive/Firebase)への通信をブロックすることがある。その場合、最終疎通確認はユーザーがローカルで `flutter run` して行う。
 - **Firestore はレガシー**: `FirestoreService` 系に触る指示があった場合のみ、`flutterfire configure` で `firebase_options.dart` を実値に再生成してから作業する。
 - **クラウド環境にFlutter SDK未導入のことがある**: `flutter`コマンドが無い場合、`.metadata`のDart SDK制約(`pubspec.yaml`の`environment.sdk`)を満たすstableリリースを`https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json`から確認し、スクラッチパッド等に展開してPATHに追加する。古すぎるバージョンだと`pub get`がDart SDKバージョン不一致で失敗するので注意。`flutter pub get`で意図せず`pubspec.lock`の無関係な依存バージョンが更新されることがあるため、タスクに無関係な差分は`git checkout`で戻す。
+- **Flutter Web(CanvasKit)は初回描画時に一部漢字がグリフ未読込でトウフ文字化けすることがある**: 再描画(別画面から戻る等)で正しく表示されれば、フォントグリフの遅延読み込みによる一過性の現象でありコードのバグではない。同じ文字が別画面/別データでも一貫して欠落する場合のみ実バグと判断する。
+- **Chrome拡張のマウスホイールscrollがFlutter Web(CanvasKit)のスクロール可能領域に効かないことがある**: `computer`ツールの`scroll`/`left_click_drag`が反応しない場合、無理に全項目をスクロール確認せず、同一ロジックの代表的な1項目をクリックして遷移・戻りの仕組みを確認すれば十分(特にリスト全件を検証する必要がある画面一覧系のデバッグ画面で発生)。
