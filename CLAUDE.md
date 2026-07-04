@@ -95,7 +95,7 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 **終了条件 — 次のいずれかに達したら必ず停止:**
 1. **タスク完了** — タスク表に定義された終了条件を満たした。
 2. **連続3回失敗** — 検証(`analyze`/`test`/`run`)でエラー。失敗するたび `.claude/loop_failures.txt` を `<当日日付> <回数>` 形式で +1(成功で 0 にリセット。日付が変わると自動的に 0 扱い)。
-3. **当日コストが $1.5 超** / 4. **当日ターン数が 30 到達** — `loop_guard.js` が transcript から算出。**この数値が真実**(自前で数えない)。
+3. **当日コストが $12 超** / 4. **当日ターン数が 30 到達** — `loop_guard.js` が transcript から算出。**この数値が真実**(自前で数えない)。
 
 **ガードレール:** `.claude/hooks/loop_guard.js`(UserPromptSubmit / Stop フック、`.claude/settings.json` で有効化)が毎ターン当日コスト・ターン数を `.claude/loop_state.md` に出力し、しきい値超過時は停止を指示する。
 
