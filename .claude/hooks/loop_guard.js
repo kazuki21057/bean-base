@@ -13,7 +13,7 @@
  *   - Stop 時はファイル更新のみ(サイレント)。
  *
  * 終了条件のしきい値(CLAUDE.md・改修マスタープラン §5 と一致させること):
- *   - 当日コスト > $1.5
+ *   - 当日コスト > $12
  *   - 当日ターン数 >= 30
  *   - 連続失敗 >= 3 (失敗は Claude が .claude/loop_failures.txt に
  *     「<YYYY-MM-DD> <回数>」形式で記録。日付が当日以外なら 0 扱い)
@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 
 // --- しきい値 ---
-const COST_LIMIT = 1.5; // USD
+const COST_LIMIT = 12; // USD
 const TURN_LIMIT = 30;
 const FAIL_LIMIT = 3;
 
