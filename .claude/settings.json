@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Bash",
+      "PowerShell",
       "Bash(flutter analyze *)",
       "Bash(flutter test *)",
       "Bash(flutter pub get)",
@@ -12,6 +14,20 @@
       "Bash(git stash *)",
       "Bash(git check-ignore *)",
       "Bash(node .claude/hooks/loop_guard.js)"
+    ],
+    "ask": [
+      "Bash(rm -rf *)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)",
+      "Bash(git checkout -- *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(git push * --force*)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git clean -f*)",
+      "PowerShell(git branch -D*)"
     ]
   },
   "hooks": {
