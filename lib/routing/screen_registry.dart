@@ -6,6 +6,7 @@ import '../screens/create/filter_create_screen.dart';
 import '../screens/create/grinder_create_screen.dart';
 import '../screens/create/method_create_screen.dart';
 import '../screens/create/brew_evaluation_screen.dart';
+import '../models/pending_brew_info.dart';
 import '../screens/mock/dashboard_mock_screen.dart';
 import '../screens/mock/log_mock_screens.dart';
 import '../screens/mock/bean_mock_screens.dart';
@@ -57,7 +58,7 @@ Widget buildScreenWidget(AppScreen screen) {
     case AppScreen.brewRecipe:
       return const BrewRecipeMockScreen();
     case AppScreen.brewEvaluation:
-      return const BrewEvaluationScreen();
+      return BrewEvaluationScreen(info: PendingBrewInfo.mock());
     case AppScreen.statistics:
       return const StatisticsMockScreen();
     case AppScreen.settings:

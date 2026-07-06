@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
+import '../../models/pending_brew_info.dart';
 import 'create_form_widgets.dart';
 
-/// 031 抽出結果の評価 — UIモック(保存未接続)。
-/// 上部に030から引き継ぐ抽出情報のサマリ、下部に評価入力(CoffeeRecordのscore群)。
-/// 本実装は T2-5a(登録処理)・T1-2b(030からのデータ受け渡し)で行う。
+/// 031 抽出結果の評価。
+///
+/// Cycle 20 T1-2b: 030(抽出レシピ)から実際の抽出情報([PendingBrewInfo])を
+/// 引き継ぎ、サマリに表示する。評価スコア・コメント入力とrecordsへの保存は
+/// 引き続きUIモック(T2-5aで実装)。
 class BrewEvaluationScreen extends StatelessWidget {
-  const BrewEvaluationScreen({super.key});
+  final PendingBrewInfo info;
+
+  const BrewEvaluationScreen({super.key, required this.info});
 
   @override
   Widget build(BuildContext context) {
     return CreateFormScaffold(
       screen: AppScreen.brewEvaluation,
       saveLabel: '評価を登録する',
-      children: const [
-        _BrewSummaryCard(),
-        FormSection(
+      children: [
+        _BrewSummaryCard(info: info),
+        const FormSection(
           icon: Icons.restaurant_outlined,
           title: '味わい',
           children: [
@@ -31,7 +36,7 @@ class BrewEvaluationScreen extends StatelessWidget {
             ),
           ],
         ),
-        FormSection(
+        const FormSection(
           icon: Icons.star_outline,
           title: 'スコア (0〜10)',
           children: [
@@ -45,7 +50,7 @@ class BrewEvaluationScreen extends StatelessWidget {
             MockScoreSlider(label: '総合', initialValue: 7),
           ],
         ),
-        FormSection(
+        const FormSection(
           icon: Icons.edit_note,
           title: 'コメント',
           children: [
@@ -61,12 +66,20 @@ class BrewEvaluationScreen extends StatelessWidget {
   }
 }
 
-/// 030(抽出レシピ)から引き継がれる抽出情報のサマリ表示(モック値)。
+/// 030(抽出レシピ)から引き継がれた実際の抽出情報のサマリ表示。
 class _BrewSummaryCard extends StatelessWidget {
-  const _BrewSummaryCard();
+  final PendingBrewInfo info;
+
+  const _BrewSummaryCard({required this.info});
 
   @override
   Widget build(BuildContext context) {
+    final beanText = info.bean?.name ?? '豆未選択';
+    final methodText = info.method.name;
+    final weightText = '豆 ${info.beanWeight.toStringAsFixed(1)}g / 湯 ${info.totalWater.toStringAsFixed(1)}g';
+    final tempText = info.method.temperature != null ? '${info.method.temperature!.toStringAsFixed(0)}℃' : '温度未設定';
+    final timeText = _formatTime(info.totalTime);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -77,8 +90,8 @@ class _BrewSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               Icon(Icons.coffee_maker_outlined, color: kAccent, size: 20),
               SizedBox(width: 8),
               Text(
@@ -95,22 +108,23 @@ class _BrewSummaryCard extends StatelessWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: const [
-              _SummaryChip(icon: Icons.coffee, text: 'エチオピア イルガチェフェ'),
-              _SummaryChip(icon: Icons.menu_book, text: '4:6メソッド'),
-              _SummaryChip(icon: Icons.scale, text: '豆 20g / 湯 300g'),
-              _SummaryChip(icon: Icons.thermostat, text: '92℃'),
-              _SummaryChip(icon: Icons.timer_outlined, text: '3:30'),
+            children: [
+              _SummaryChip(icon: Icons.coffee, text: beanText),
+              _SummaryChip(icon: Icons.menu_book, text: methodText),
+              _SummaryChip(icon: Icons.scale, text: weightText),
+              _SummaryChip(icon: Icons.thermostat, text: tempText),
+              _SummaryChip(icon: Icons.timer_outlined, text: timeText),
             ],
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '※ モック表示です。実データは 030 抽出レシピ画面から引き継がれます。',
-            style: TextStyle(color: kLatte, fontSize: 11),
           ),
         ],
       ),
     );
+  }
+
+  String _formatTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 }
 

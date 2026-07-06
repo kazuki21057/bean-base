@@ -6,6 +6,7 @@ import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
+import '../models/pending_brew_info.dart';
 import '../widgets/bean_image.dart';
 import 'create/brew_evaluation_screen.dart';
 
@@ -289,13 +290,48 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   }
 
   void _finishAndEvaluate() {
-    if (_selectedMethod == null) {
+    final method = _selectedMethod;
+    if (method == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a method.')));
       return;
     }
 
-    debugPrint('[Antigravity] 030→031 遷移: 抽出情報の引き継ぎは T1-2b で実装、records保存は T2-5a で実装');
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const BrewEvaluationScreen()));
+    final currentWeight = double.tryParse(_beanWeightController.text) ?? 15.0;
+    final baseWeight = method.baseBeanWeight > 0 ? method.baseBeanWeight : 15.0;
+    final factor = currentWeight / baseWeight;
+
+    double totalWater = 0.0;
+    int totalTime = 0;
+    double bloomingWater = 0.0;
+    int bloomingTime = 0;
+
+    for (var i = 0; i < _workingSteps.length; i++) {
+      final s = _workingSteps[i];
+      final amt = (s.waterRatio != null && s.waterRatio! > 0) ? s.waterRatio! * currentWeight : s.waterAmount * factor;
+      totalWater += amt;
+      totalTime += s.duration;
+      if (i == 0) {
+        bloomingWater = amt;
+        bloomingTime = s.duration;
+      }
+    }
+
+    final info = PendingBrewInfo(
+      brewedAt: _brewedAt,
+      method: method,
+      bean: _selectedBean,
+      grinder: _selectedGrinder,
+      dripper: _selectedDripper,
+      filter: _selectedFilter,
+      beanWeight: currentWeight,
+      totalWater: totalWater,
+      totalTime: totalTime,
+      bloomingWater: bloomingWater,
+      bloomingTime: bloomingTime,
+    );
+
+    debugPrint('[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)。records保存は T2-5a で実装');
+    Navigator.push(context, MaterialPageRoute(builder: (_) => BrewEvaluationScreen(info: info)));
   }
 
   @override

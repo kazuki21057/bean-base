@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
 import '../create/brew_evaluation_screen.dart';
 import '../create/create_form_widgets.dart';
+import '../../models/pending_brew_info.dart';
 import 'mock_scaffold.dart';
 
 /// 030 抽出レシピ — UIモック。豆/メソッド選択+タイマー+Pouring Steps+評価ボタン→031。
@@ -106,7 +107,7 @@ class BrewRecipeMockScreen extends StatelessWidget {
             debugPrint('[Antigravity] Mock遷移: 030 → 031 (抽出情報の引き継ぎは T1-2b)');
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BrewEvaluationScreen()),
+              MaterialPageRoute(builder: (_) => BrewEvaluationScreen(info: PendingBrewInfo.mock())),
             );
           },
         ),
