@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import 'log_detail_screen.dart';
 
-import 'calculator_screen.dart';
+import 'brew_recipe_screen.dart';
 import '../widgets/coffee_log_card.dart';
 
 
@@ -71,7 +71,7 @@ class CoffeeLogListScreen extends ConsumerWidget {
                   await Navigator.push(
                     context, 
                     MaterialPageRoute(
-                      builder: (_) => CalculatorScreen(
+                      builder: (_) => BrewRecipeScreen(
                         initialMethodId: log.methodId,
                         initialBeanWeight: log.beanWeight,
                       )

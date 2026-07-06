@@ -4,7 +4,7 @@ import '../routing/app_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/master_list_screen.dart';
 import '../screens/coffee_log_list_screen.dart';
-import '../screens/calculator_screen.dart';
+import '../screens/brew_recipe_screen.dart';
 import '../screens/statistics_screen.dart';
 import '../utils/nav_key.dart';
 
@@ -37,7 +37,7 @@ Widget _screenFor(AppScreen screen) {
     case AppScreen.logList:
       return const CoffeeLogListScreen();
     case AppScreen.brewRecipe:
-      return const CalculatorScreen();
+      return const BrewRecipeScreen();
     case AppScreen.statistics:
       return const StatisticsScreen();
     default:

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import 'coffee_log_list_screen.dart';
 
-import '../screens/calculator_screen.dart';
+import '../screens/brew_recipe_screen.dart';
 import 'master_detail_screen.dart';
 import 'master_add_screen.dart';
 import 'log_detail_screen.dart';
@@ -232,7 +232,7 @@ class HomeScreen extends ConsumerWidget {
                    const SizedBox(height: 16),
                    ElevatedButton.icon(
                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const BrewRecipeScreen()));
                      },
                      icon: const Icon(Icons.add),
                      label: const Text('Brew Coffee'),
@@ -300,7 +300,7 @@ class HomeScreen extends ConsumerWidget {
                           icon: const Icon(Icons.replay, color: Colors.blue),
                           tooltip: 'Reuse Recipe',
                           onPressed: () {
-                             Navigator.push(context, MaterialPageRoute(builder: (_) => CalculatorScreen(
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => BrewRecipeScreen(
                                initialMethodId: log.methodId,
                                initialBeanWeight: log.beanWeight,
                              )));

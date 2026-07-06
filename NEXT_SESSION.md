@@ -1,51 +1,44 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-05（コスト上限超過につき停止 / ユーザー依頼の作成画面UIモック作業後）
+最終更新: 2026-07-06(T1-2a 完了)
 
-## 1. 当日やったこと（2026-07-05）
+## 1. 当日やったこと(2026-07-06)
 
-**Cycle 20 / T1-1c 完了**(コミット済み): `MainLayout` を `AppScreen.topLevelTabs` ベースに再構築。
+**Cycle 20 / T1-2a 完了**: 抽出030の画面骨組みを実装。
 
-**ユーザー依頼: 全22画面のUIモック作成(マスタープランのタスク表とは別枠。コスト上限超過をユーザーが明示的に承認して続行)**
-
-- 対象: **全22画面**。作成系6画面(012/015/018/021/024/031)+既存系16画面(001/002/003/010/011/013/014/016/017/019/020/022/023/030/040/090)
-- 追加ファイル:
-  - `lib/screens/create/` — 共通フォーム部品(`create_form_widgets.dart`: コーヒートーン暫定パレット・セクション・チップ・画像/日付ピッカー・スコアスライダー)+作成系6画面
-  - `lib/screens/mock/` — `mock_scaffold.dart`(一覧/詳細系の共通骨格・瓶ビジュアル・スコアバッジ等)+ `dashboard_mock_screen.dart`(001 黒板風)/`log_mock_screens.dart`(002/003)/`bean_mock_screens.dart`(010カード/011)/`master_mock_screens.dart`(013〜023 の汎用リスト・詳細モック)/`brew_recipe_mock_screen.dart`(030 タイマー+Steps強調)/`stats_settings_mock_screens.dart`(040/090)
-  - `lib/routing/screen_registry.dart`(画面ID→Widget解決テーブル。全22画面登録済み)
-  - `.claude/launch.json`(`flutter run -d web-server --web-port=8123` のプレビュー起動設定)
-- 変更ファイル: `lib/screens/debug/screen_gallery_screen.dart`(遷移先を screen_registry 経由に変更、「UIモック」バッジ表示)
-- モック間遷移を一部実装済み: 010→011/012、各マスターリスト→詳細/新規、030→031、040→090
-- **全画面ともデータ未接続**(保存/編集ボタンはSnackBar+`[Antigravity] MockSave`ログのみ)
-- 検証済み: `flutter analyze`(新規issue 0件、既存84件のまま)、`flutter test`(17件全パス)、`flutter run -d web-server`+ブラウザで主要画面(001/002/003/010/013/020/030/040/090+作成系6画面)の表示・遷移確認、コンソールエラー/オーバーフロー無し
-- `docs/改修マスタープラン.md` に2026-07-05付けの補足注記を更新(各タスクの状態はデータ接続完了まで⬜のまま)
-- **未commit**。commit/pushの可否をユーザーに確認中。
+- 旧 `lib/screens/calculator_screen.dart`(記録画面。メソッド/器具選択・タイマー・Pouring Steps編集・評価スコア・保存が1画面に同居)を、抽出パートのみの `lib/screens/brew_recipe_screen.dart`(`BrewRecipeScreen`)に分離。評価(スコア入力・記録保存)は含めず、完了ボタンから 031(`BrewEvaluationScreen`、現時点ではUIモック)へ遷移するのみ(データ引き継ぎは次の T1-2b、records保存は T2-5a)。
+- `lib/layout/main_layout.dart` の 030 タブ、`lib/screens/home_screen.dart`(Brew Coffee ボタン/Reuse Recipe)、`lib/screens/coffee_log_list_screen.dart`(スワイプ→Copy Recipe)の3箇所を `CalculatorScreen` → `BrewRecipeScreen` に差し替え。
+- 旧 `calculator_screen.dart` は完全に置き換えられたため削除。対応する `test/calculator_test.dart` は `test/brew_recipe_test.dart` にリネームし、`BrewRecipeScreen` を対象にするよう更新。
+- 検証済み: `flutter analyze`(新規issue 0件、既存89→75件に減少)、`flutter test`(全18件パス)、`flutter run -d web-server` + ブラウザで実データ確認 — 030タブへの遷移、Sheetsの実メソッド一覧(13件)がドロップダウンに表示、メソッド選択でPouring Steps(実データ)がテーブルに反映、メソッド未選択時のバリデーションSnackBar、評価画面への遷移ボタン、いずれも正常動作を確認。評価UIが含まれていないこと(分離できていること)も確認。
+- **検証中に発見した既知の問題**(T1-2aの実装バグではなく、`MainLayout`の`NavigationRail`側の潜在バグの可能性): ブラウザのウィンドウリサイズや一部のマウスホイールscrollをきっかけに`NavigationRail`で`RenderFlex overflowed`が発生し、タブの描画が一時的に応答なしになる現象を確認(再読み込みで復旧、データ処理への影響なし)。詳細は `rules/verification.md` の教訓に追記済み。次に030系画面を触る際に再現するか軽く確認し、再現するなら`NavigationRail`のレイアウトを見直す。
+- commit/push 済み。
 
 ## 2. 次回の着手点
 
-1. **最優先**: 上記UIモック作業(`lib/screens/create/`・`lib/screens/mock/`・`lib/routing/screen_registry.dart`・`.claude/launch.json`・screen_gallery_screen.dart変更・マスタープラン注記)をユーザーに確認の上 commit/push する。
-2. その後 Phase 1 — 画面構成・ナビ再編を継続(全画面のUIモックが揃ったので、各タスクは「モックに実データを接続する」作業になる)。
+依存が満たされた次のタスク(`docs/改修マスタープラン.md` §3 Phase 1 参照):
 
 | ID | タスク | 依存 |
 |---|---|---|
-| T1-2a | 抽出030の画面骨組み(既存記録画面から抽出パートを分離) | T1-1c ✅ |
+| T1-2b | 評価031の画面骨組みと 030→031 のデータ受け渡し | T1-2a ✅ |
 | T1-4a | 抽出履歴リスト002(実データ表示) | T1-1c ✅ |
 | T1-3 | ダッシュボード001の骨組み | T1-1c ✅ |
-| T1-5a | 汎用マスター画面テンプレート化 | T1-1c ✅(今回のUIモックが土台に使える) |
+| T1-5a | 汎用マスター画面テンプレート化 | T1-1c ✅ |
+
+推奨: T1-2a の直後なので T1-2b(030→031のデータ受け渡し)から着手すると文脈を活かせる。
 
 ## 2.5 自動ループのセットアップ状況
 
-### ⏸ クラウドルーティン（現在【無効化中】）
+### ⏸ クラウドルーティン(現在【無効化中】)
 - ID: `trig_01W3iqfgRZYaVZvkY8Jc83gg`
 - 再開前に通知手段・完了時の停止運用・GitHub 接続を決めること。
 
-## 3. 日次ループの回し方（毎回）
-1. `\start`（git pull・当日タスク確認）
+## 3. 日次ループの回し方(毎回)
+1. `\start`(git pull・当日タスク確認)
 2. `docs/改修マスタープラン.md` から当日タスクを選ぶ
-3. 実装 → 検証（`flutter analyze`→`test`→`run`）
+3. 実装 → 検証(`flutter analyze`→`test`→`run`)
 4. 判定: OK→commit/push＋進捗表更新 / NG→本書を更新して翌日へ
-5. 失敗するたび `.claude/loop_failures.txt` を+1（成功で0リセット）
+5. 失敗するたび `.claude/loop_failures.txt` を+1(成功で0リセット)
 6. 終了条件に達したら新規着手せず、本書と進捗表を更新して `\end`
 
 ## 4. 開発再開時のプロンプト例
-> 「\start を実行してください。まず未commitの作成画面UIモック(lib/screens/create/)をcommit/pushし、その後 T1-2a から着手します。」
+> 「\start を実行してください。T1-2b(030→031のデータ受け渡し)から着手します。」

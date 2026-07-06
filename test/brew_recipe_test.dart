@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bean_base/screens/calculator_screen.dart';
+import 'package:bean_base/screens/brew_recipe_screen.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/pouring_step.dart';
-import 'package:bean_base/models/coffee_record.dart';
 
 
 void main() {
-  testWidgets('CalculatorScreen displays steps and allows save', (WidgetTester tester) async {
+  testWidgets('BrewRecipeScreen displays steps and allows save', (WidgetTester tester) async {
     final mockMethod = MethodMaster(
       id: 'M1', 
       name: 'V60 Test', 
@@ -38,7 +37,7 @@ void main() {
           coffeeRecordsProvider.overrideWith((ref) async => []), // Mock coffee records (corrected name)
         ],
         child: const MaterialApp(
-          home: CalculatorScreen(),
+          home: BrewRecipeScreen(),
         ),
       ),
     );
