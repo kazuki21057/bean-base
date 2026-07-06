@@ -8,7 +8,7 @@ import 'package:bean_base/layout/main_layout.dart';
 import 'package:bean_base/utils/nav_key.dart';
 
 void main() {
-  testWidgets('App starts and navigates to CoffeeLogListScreen from NavigationRail', (WidgetTester tester) async {
+  testWidgets('App starts and navigates to LogListScreen from NavigationRail', (WidgetTester tester) async {
     // Override provider to return empty list instantly to avoid loading state issues or network
     await tester.pumpWidget(
       ProviderScope(
@@ -45,7 +45,8 @@ void main() {
     await tester.tap(logsIcon);
     await tester.pumpAndSettle();
 
-    // Verify we are on CoffeeLogListScreen
-    expect(find.text('All Coffee Logs'), findsOneWidget);
+    // Verify we are on LogListScreen
+    expect(find.text('抽出履歴(リスト)'), findsOneWidget);
+    expect(find.text('抽出履歴がありません'), findsOneWidget);
   });
 }

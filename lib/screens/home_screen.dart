@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
-import 'coffee_log_list_screen.dart';
+import 'log_list_screen.dart';
 
 import '../screens/brew_recipe_screen.dart';
 import 'master_detail_screen.dart';
@@ -318,7 +318,7 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.all(8.0),
                 child: TextButton(
                   onPressed: () {
-                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CoffeeLogListScreen()));
+                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LogListScreen()));
                   },
                   child: const Text('View All Logs'),
                 ),

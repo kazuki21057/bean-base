@@ -1,20 +1,18 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-07(T1-2b 完了)
+最終更新: 2026-07-07(T1-4a 完了)
 
 ## 1. 当日やったこと(2026-07-07)
 
-**Cycle 20 / T1-2b 完了**: 評価031の画面骨組みと 030→031 のデータ受け渡しを実装。
+**Cycle 20 / T1-2b 完了**(commit 5f8ed87): 評価031の画面骨組みと030→031のデータ受け渡し。詳細は前回セクション参照。
 
-- `lib/models/pending_brew_info.dart` を新規作成。030 で確定した抽出情報(brewedAt/method/bean/grinder/dripper/filter/beanWeight/totalWater/totalTime/bloomingWater/bloomingTime)を保持する `PendingBrewInfo` を定義(Sheetsへの永続化はしない、一時的な受け渡し用)。プレビュー用に `PendingBrewInfo.mock()` も用意。
-- `lib/screens/brew_recipe_screen.dart` の `_finishAndEvaluate()` を、旧 `_logThisBrew()` と同じ計算式(現在の豆量に応じたスケーリング、蒸らし分の抽出)で `PendingBrewInfo` を構築し、`BrewEvaluationScreen(info: ...)` へ渡すように変更。
-- `lib/screens/create/brew_evaluation_screen.dart` を `PendingBrewInfo` を必須引数として受け取るように変更し、`_BrewSummaryCard` のハードコードされたモック値(豆名/メソッド名/豆量/湯量/温度/時間)を実データ表示に置き換え。評価スコア・コメント入力とrecords保存は引き続きUIモック(T2-5aで実装)。
-- `BrewEvaluationScreen()` の呼び出し元(`lib/routing/screen_registry.dart`、UIモック専用の`lib/screens/mock/brew_recipe_mock_screen.dart`)は `PendingBrewInfo.mock()` を渡すよう更新。
-- 検証済み: `flutter analyze`(新規issue 0件、75件のまま)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザで実データ確認 — 030で実メソッド(4:6メソッド)選択→Pouring Steps(実データ6件)反映まで確認。**030→031遷移ボタンのクリックはブラウザ自動操作側の制約(後述)により実クリックでは確認できず、コードレビューと計算ロジックの一致(旧CalculatorScreen._logThisBrewと同一式)で妥当性を確認**。
+**Cycle 20 / T1-4a 完了**: 抽出履歴リスト002(実データ表示)。
+
+- `lib/screens/log_list_screen.dart` を新規作成。UIモック(`LogListMockScreen`)の骨格(`MockScreenScaffold`/`MockListRow`/`MockScoreBadge`)に、実データ(`coffeeRecordsProvider`/`beanMasterProvider`/`methodMasterProvider`)を接続した本実装。旧 `CoffeeLogListScreen` と同じフィルタ(`methodId`が空でない・`totalTime>0`)・ソート(`brewedAt`降順)を踏襲。
+- 行タップは既存の実画面 `LogDetailScreen`(003本実装はT1-4b)へ遷移。**スワイプでの評価継承(T1-4c)は未実装**(旧`CoffeeLogListScreen`にあった「スワイプでレシピ再利用」機能は今回のリニューアルで一旦削除。T1-4cで新しい意味(評価継承)のスワイプとして作り直す想定)。
+- `lib/layout/main_layout.dart`(002タブ)・`lib/screens/home_screen.dart`(「View All Logs」ボタン)の参照先を`LogListScreen`に差し替え。役目を終えた `lib/screens/coffee_log_list_screen.dart` は削除、`test/screen_transition_test.dart` の期待値も新画面のタイトル/空状態文言に更新。
+- 検証済み: `flutter analyze`(新規issue 0件、72件に減少)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザで実データ確認 — 002タブへの遷移、Sheetsの実履歴(豆名・日時・メソッド名・スコア)がリスト表示、行タップで実データを持った003(LogDetailScreen)へ遷移、コンソールに機能に影響するエラー無し(画像読み込み例外は豆マスターのローカルパス起因の既知事象で本タスクと無関係)を確認。
 - commit/push 済み。
-
-### 今回発生したブラウザ自動操作の制約(rules/verification.md 既存の教訓に該当)
-- メソッド選択後にPouring Stepsテーブルが伸び、030画面の最下部(評価へボタン)を表示するにはスクロールが必要になるが、`computer`ツールのマウスホイールscroll/ドラッグがこのFlutter Web画面の該当スクロール位置より先に進まず、ボタンを直接クリックして確認できなかった(既存教訓「Chrome拡張のマウスホイールscrollがFlutter Webのスクロール可能領域に効かないことがある」に合致)。次回この画面を触る際、`flutter run -d chrome`(headed Chrome、web-serverでなく)での手動確認、または`ensureVisible`相当が使えるテストコードでの検証を検討する。
 
 ## 2. 次回の着手点
 
@@ -22,12 +20,12 @@
 
 | ID | タスク | 依存 |
 |---|---|---|
-| T1-4c | 002 のスワイプ→評価継承で 031 へ遷移 | T1-4a, T1-2b ✅(T1-4aが未完了なので実質保留) |
-| T1-4a | 抽出履歴リスト002(実データ表示) | T1-1c ✅ |
+| T1-4b | 抽出履歴詳細003(全情報表示・編集) | T1-4a ✅ |
+| T1-4c | 002 のスワイプ→評価継承で 031 へ遷移 | T1-4a ✅, T1-2b ✅ |
 | T1-3 | ダッシュボード001の骨組み | T1-1c ✅ |
 | T1-5a | 汎用マスター画面テンプレート化 | T1-1c ✅ |
 
-推奨: T1-4a(抽出履歴リスト002)から着手すると、その後 T1-4c(002→031連携)に繋げやすい。
+推奨: T1-4b(抽出履歴詳細003)から着手すると 002→003 の流れが完結する。その後 T1-4c(スワイプ→031)も依存が揃っている。
 
 ## 2.5 自動ループのセットアップ状況
 
@@ -44,4 +42,4 @@
 6. 終了条件に達したら新規着手せず、本書と進捗表を更新して `\end`
 
 ## 4. 開発再開時のプロンプト例
-> 「\start を実行してください。T1-4a(抽出履歴リスト002の実データ表示)から着手します。」
+> 「\start を実行してください。T1-4b(抽出履歴詳細003)から着手します。」
