@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:bean_base/screens/home_screen.dart';
+import 'package:bean_base/screens/dashboard_screen.dart';
 import 'package:bean_base/providers/data_providers.dart';
 
 import 'package:bean_base/layout/main_layout.dart';
@@ -24,7 +24,7 @@ void main() {
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           builder: (context, child) => MainLayout(child: child ?? const SizedBox.shrink()), 
-          home: const HomeScreen(),
+          home: const DashboardScreen(),
         ),
       ),
     );
@@ -32,10 +32,11 @@ void main() {
     // Allow Future to complete
     await tester.pumpAndSettle();
 
-    // Verify HomeScreen is displayed
-    expect(find.text('BeanBase 2.0'), findsOneWidget);
-    expect(find.text('Dashboard'), findsOneWidget);
-    expect(find.text('No recent brews found.'), findsOneWidget);
+    // Verify DashboardScreen (001) is displayed
+    expect(find.text('001'), findsOneWidget);
+    expect(find.text('ダッシュボード'), findsOneWidget);
+    expect(find.text('在庫中の豆はありません'), findsOneWidget);
+    expect(find.text('抽出履歴がありません'), findsOneWidget);
 
     // Find NavigationRail destination for Logs (Icon(Icons.coffee))
     final logsIcon = find.byIcon(Icons.coffee);

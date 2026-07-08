@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../routing/app_screen.dart';
-import '../screens/home_screen.dart';
+import '../screens/dashboard_screen.dart';
 import '../screens/master_list_screen.dart';
 import '../screens/log_list_screen.dart';
 import '../screens/brew_recipe_screen.dart';
@@ -31,7 +31,7 @@ const Map<AppScreen, String> _tabLabels = {
 Widget _screenFor(AppScreen screen) {
   switch (screen) {
     case AppScreen.dashboard:
-      return const HomeScreen();
+      return const DashboardScreen();
     case AppScreen.beanList:
       return const MasterListScreen();
     case AppScreen.logList:
@@ -41,7 +41,7 @@ Widget _screenFor(AppScreen screen) {
     case AppScreen.statistics:
       return const StatisticsScreen();
     default:
-      return const HomeScreen();
+      return const DashboardScreen();
   }
 }
 

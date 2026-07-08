@@ -1,31 +1,31 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-08(T1-4c 完了)
+最終更新: 2026-07-08(T1-3 完了)
 
 ## 1. 当日やったこと(2026-07-08)
 
-**Cycle 20 / T1-4b 完了**(前セクション参照): 抽出履歴詳細003(全情報表示・編集)。
+**Cycle 20 / T1-4b・T1-4c 完了**(前セクション参照): 抽出履歴詳細003、002のスワイプ→評価継承。
 
-**Cycle 20 / T1-4c 完了**: 002のスワイプ→評価継承で031へ遷移。
+**Cycle 20 / T1-3 完了**: ダッシュボード001の骨組み(残豆量・直近5件のプレースホルダ+各遷移)。
 
-- `lib/models/pending_brew_info.dart` に評価値(scoreFragrance〜scoreOverall/taste/concentration/comment、いずれも任意)を追加。031側の初期値としてのみ使用し、保存(records反映)は引き続きT2-5aで実装する。
-- `lib/screens/create/brew_evaluation_screen.dart` を更新し、`PendingBrewInfo` の評価値があればスコアスライダー・テイスト/濃度チップ・コメント欄の初期値に反映(なければ従来のデフォルト値)。
-- `lib/screens/create/create_form_widgets.dart` の `MockTextField` に `initialValue` パラメータを追加(コメント欄の初期値表示用)。
-- `lib/screens/log_list_screen.dart` に `Dismissible`(`DismissDirection.endToStart`、パッケージ追加なし)を実装。`confirmDismiss` 内でスワイプされたログの抽出情報・評価値から `PendingBrewInfo` を構築し、`BrewEvaluationScreen`(031)へ遷移。**常に `false` を返すためリストから行は削除されない**。メソッドが(削除等で)見つからない場合はSnackBarで通知し遷移しない。UIモック(`LogListMockScreen`)にあったスワイプ案内文言を実画面にも追加。
-- 検証済み: `flutter analyze`(新規issue 0件、71件のまま)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザでスワイプ操作を確認 — 031へ遷移し抽出情報(豆量/湯量/温度/時間)と評価値(スコア・テイスト・濃度)が正しく引き継がれる、スワイプ後もリストから行が消えない、コンソールに`[Antigravity]`ログ以外のエラーなしを確認。
+- `lib/screens/dashboard_screen.dart` を新規作成。UIモック(`DashboardMockScreen`)の骨格(黒板風ウェルカムボード+`FormSection`×2)に、「直近の抽出5件」は実データ(`coffeeRecordsProvider`、実装済みの003へ遷移)を接続。「残豆量」は在庫中の豆の実名を表示しつつ、残量%の算出ロジック自体はPhase 2(T2-2b)実装のためプレースホルダ値(50%固定)のまま。
+- 遷移: 直近5件の行タップ→003(`LogDetailScreen`、実データ)、「すべての履歴を見る」→002(`LogListScreen`、実データ)、「在庫一覧を見る」→010相当(既存の実画面`MasterListScreen`)、残豆量の瓶タップ→011(`BeanDetailMockScreen`、モックのまま。実データ接続はT1-6bで実装)。
+- `lib/main.dart`・`lib/layout/main_layout.dart` の初期画面/タブ0を旧`HomeScreen`から`DashboardScreen`に差し替え。旧`HomeScreen`(実データの在庫グリッド+直近ログ+Firestore移行ボタン等)は役目を終えたため削除。`test/screen_transition_test.dart` の期待値も新画面(001バッジ・タイトル・空状態文言)に更新。
+- 検証済み: `flutter analyze`(新規issue 0件、64件に減少 — HomeScreen削除分の警告が減った)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザで001→002/003/010/011の4遷移すべてを実際にクリックして確認。コンソールに新規の機能影響エラーなし(豆マスター画像パス起因の既知事象のみ)。
 - commit/push 済み。
 
 ## 2. 次回の着手点
 
-依存が満たされた次のタスク(`docs/改修マスタープラン.md` §3 Phase 1 参照):
+Phase 1(Cycle 20)の残タスク(`docs/改修マスタープラン.md` §3 参照):
 
-| ID | タスク | 依存 |
-|---|---|---|
-| T1-3 | ダッシュボード001の骨組み | T1-1c ✅ |
-| T1-5a | 汎用マスター画面テンプレート化(リスト/詳細/新規フォームの共通ウィジェット化、Lサイズ) | T1-1c ✅ |
-| T1-6a | 豆管理カード一覧010 | T1-1c ✅ |
+| ID | タスク | 依存 | サイズ |
+|---|---|---|---|
+| T1-5a | 汎用マスター画面テンプレート化(リスト/詳細/新規フォームの共通ウィジェット化) | T1-1c ✅ | L |
+| T1-5b/c/d | テンプレートをフィルター/グラインダー/メソッドへ適用 | T1-5a | S/S/M |
+| T1-6a | 豆管理カード一覧010(カード形式・実データ) | T1-1c ✅ | M |
+| T1-6b | 豆詳細011・新規豆012(テンプレート応用) | T1-6a, T1-5a | M |
 
-推奨: Phase 1の残タスクはT1-3(ダッシュボード)・T1-5a(汎用テンプレート、L)・T1-6a(豆管理カード)。T1-5aはT1-5b/c/d・T1-6bの前提になるため優先度が高いが、Lサイズで1ループでは収まらない可能性がある。当日の残り時間・コストに応じてT1-3(Mサイズ)から着手するのも可。
+推奨: T1-5a(汎用マスターテンプレート、Lサイズ)は残タスクの大半(T1-5b/c/d, T1-6b)の前提になるため優先度が高い。ただしLサイズで1ループに収まらない可能性があるため、当日のコスト・時間に余裕があるときに着手するのが望ましい。余裕がなければT1-6a(Mサイズ、豆管理カード一覧の実データ接続)から。
 
 ## 2.5 自動ループのセットアップ状況
 
@@ -42,4 +42,4 @@
 6. 終了条件に達したら新規着手せず、本書と進捗表を更新して `\end`
 
 ## 4. 開発再開時のプロンプト例
-> 「\start を実行してください。T1-3(ダッシュボード001)から着手します。」
+> 「\start を実行してください。T1-5a(汎用マスター画面テンプレート化)から着手します。」

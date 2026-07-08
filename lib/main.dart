@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/home_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'layout/main_layout.dart';
 import 'utils/nav_key.dart';
 
@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
         // Wrap the navigator in our MainLayout (Sidebar)
         return MainLayout(child: child ?? const SizedBox.shrink());
       },
-      home: const HomeScreen(),
+      home: const DashboardScreen(),
     );
   }
 }
