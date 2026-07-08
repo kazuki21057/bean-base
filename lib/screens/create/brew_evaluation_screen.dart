@@ -13,6 +13,15 @@ class BrewEvaluationScreen extends StatelessWidget {
 
   const BrewEvaluationScreen({super.key, required this.info});
 
+  static const _tasteOptions = ['すっきり', 'バランス', 'コク深い'];
+  static const _concentrationOptions = ['薄い', 'ちょうど良い', '濃い'];
+
+  int? _optionIndex(List<String> options, String? value) {
+    if (value == null || value.isEmpty) return null;
+    final i = options.indexOf(value);
+    return i >= 0 ? i : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return CreateFormScaffold(
@@ -20,37 +29,49 @@ class BrewEvaluationScreen extends StatelessWidget {
       saveLabel: '評価を登録する',
       children: [
         _BrewSummaryCard(info: info),
-        const FormSection(
+        FormSection(
           icon: Icons.restaurant_outlined,
           title: '味わい',
           children: [
             MockChoiceChips(
               label: 'テイスト',
-              options: ['すっきり', 'バランス', 'コク深い'],
-              initialIndex: 1,
+              options: _tasteOptions,
+              initialIndex: _optionIndex(_tasteOptions, info.taste) ?? 1,
             ),
             MockChoiceChips(
               label: '濃度',
-              options: ['薄い', 'ちょうど良い', '濃い'],
-              initialIndex: 1,
+              options: _concentrationOptions,
+              initialIndex:
+                  _optionIndex(_concentrationOptions, info.concentration) ?? 1,
             ),
           ],
         ),
-        const FormSection(
+        FormSection(
           icon: Icons.star_outline,
           title: 'スコア (0〜10)',
           children: [
-            MockScoreSlider(label: '香り'),
-            MockScoreSlider(label: '酸味'),
-            MockScoreSlider(label: '苦味'),
-            MockScoreSlider(label: '甘み'),
-            MockScoreSlider(label: '複雑さ'),
-            MockScoreSlider(label: '風味'),
-            Divider(height: 24),
-            MockScoreSlider(label: '総合', initialValue: 7),
+            MockScoreSlider(
+                label: '香り',
+                initialValue: (info.scoreFragrance ?? 5).toDouble()),
+            MockScoreSlider(
+                label: '酸味', initialValue: (info.scoreAcidity ?? 5).toDouble()),
+            MockScoreSlider(
+                label: '苦味',
+                initialValue: (info.scoreBitterness ?? 5).toDouble()),
+            MockScoreSlider(
+                label: '甘み',
+                initialValue: (info.scoreSweetness ?? 5).toDouble()),
+            MockScoreSlider(
+                label: '複雑さ',
+                initialValue: (info.scoreComplexity ?? 5).toDouble()),
+            MockScoreSlider(
+                label: '風味', initialValue: (info.scoreFlavor ?? 5).toDouble()),
+            const Divider(height: 24),
+            MockScoreSlider(
+                label: '総合', initialValue: (info.scoreOverall ?? 7).toDouble()),
           ],
         ),
-        const FormSection(
+        FormSection(
           icon: Icons.edit_note,
           title: 'コメント',
           children: [
@@ -58,6 +79,7 @@ class BrewEvaluationScreen extends StatelessWidget {
               label: 'メモ',
               hint: '感想・次回への改善点など',
               maxLines: 4,
+              initialValue: info.comment,
             ),
           ],
         ),

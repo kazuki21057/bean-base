@@ -1,15 +1,18 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-08(T1-4b 完了)
+最終更新: 2026-07-08(T1-4c 完了)
 
 ## 1. 当日やったこと(2026-07-08)
 
-**Cycle 20 / T1-4b 完了**: 抽出履歴詳細003(全情報表示・編集)。
+**Cycle 20 / T1-4b 完了**(前セクション参照): 抽出履歴詳細003(全情報表示・編集)。
 
-- `lib/screens/log_detail_screen.dart` を UIモック(`LogDetailMockScreen`)の骨格(`MockScreenScaffold`/`FormSection`/`MockInfoRow`)に実データ(`CoffeeRecord` + 各マスターproviderでの名前解決)を接続した本実装に置き換え。抽出情報(日時/豆(煎り度付き)/メソッド/グラインダー/ドリッパー/フィルター/豆量・湯量/湯温/蒸らし/総時間/挽き目)・評価(香り/酸味・苦味/甘み・複雑さ/風味・総合・テイスト)・コメントの3セクション構成。値が空/0のフィールドは非表示(スコアは0も表示)。
-- 数値フィールドは小数点第1位に丸めて表示(実データに `333.33333333333337` のような循環小数が入っているケースがあり、モック通りの整数表示に寄せるため)。
-- 編集アクション(AppBarの鉛筆アイコン)は既存の `LogEditScreen`(`DataService.updateCoffeeRecord` で保存済み)へ遷移。002→003の呼び出し元(`LogListScreen`, `coffee_log_card.dart`)はコンストラクタ不変のため変更不要。
-- 検証済み: `flutter analyze`(新規issue 0件、71件に減少)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザで実データ確認 — 002→003遷移、全フィールドの実データ表示(小数点丸め込み)、編集画面への遷移と実データのプリフィル確認。実際の保存(Sheets書き込み)は本番データ保護のため未実行(保存ロジック自体は既存のまま無変更)。コンソールエラーは豆マスター画像パス起因の既知事象(T1-4aで既出)のみで、本タスクに影響なし。
+**Cycle 20 / T1-4c 完了**: 002のスワイプ→評価継承で031へ遷移。
+
+- `lib/models/pending_brew_info.dart` に評価値(scoreFragrance〜scoreOverall/taste/concentration/comment、いずれも任意)を追加。031側の初期値としてのみ使用し、保存(records反映)は引き続きT2-5aで実装する。
+- `lib/screens/create/brew_evaluation_screen.dart` を更新し、`PendingBrewInfo` の評価値があればスコアスライダー・テイスト/濃度チップ・コメント欄の初期値に反映(なければ従来のデフォルト値)。
+- `lib/screens/create/create_form_widgets.dart` の `MockTextField` に `initialValue` パラメータを追加(コメント欄の初期値表示用)。
+- `lib/screens/log_list_screen.dart` に `Dismissible`(`DismissDirection.endToStart`、パッケージ追加なし)を実装。`confirmDismiss` 内でスワイプされたログの抽出情報・評価値から `PendingBrewInfo` を構築し、`BrewEvaluationScreen`(031)へ遷移。**常に `false` を返すためリストから行は削除されない**。メソッドが(削除等で)見つからない場合はSnackBarで通知し遷移しない。UIモック(`LogListMockScreen`)にあったスワイプ案内文言を実画面にも追加。
+- 検証済み: `flutter analyze`(新規issue 0件、71件のまま)、`flutter test`(全17件パス)、`flutter run -d web-server` + ブラウザでスワイプ操作を確認 — 031へ遷移し抽出情報(豆量/湯量/温度/時間)と評価値(スコア・テイスト・濃度)が正しく引き継がれる、スワイプ後もリストから行が消えない、コンソールに`[Antigravity]`ログ以外のエラーなしを確認。
 - commit/push 済み。
 
 ## 2. 次回の着手点
@@ -18,11 +21,11 @@
 
 | ID | タスク | 依存 |
 |---|---|---|
-| T1-4c | 002 のスワイプ→評価継承で 031 へ遷移 | T1-4a ✅, T1-2b ✅ |
 | T1-3 | ダッシュボード001の骨組み | T1-1c ✅ |
-| T1-5a | 汎用マスター画面テンプレート化 | T1-1c ✅ |
+| T1-5a | 汎用マスター画面テンプレート化(リスト/詳細/新規フォームの共通ウィジェット化、Lサイズ) | T1-1c ✅ |
+| T1-6a | 豆管理カード一覧010 | T1-1c ✅ |
 
-推奨: T1-4c(スワイプ→031)は既存のLogListScreen(002)とbrewEvaluation(031)の骨組みを繋ぐだけの小タスク(Sサイズ)で着手しやすい。その後T1-3かT1-5a(Lサイズ、汎用テンプレート化)へ。
+推奨: Phase 1の残タスクはT1-3(ダッシュボード)・T1-5a(汎用テンプレート、L)・T1-6a(豆管理カード)。T1-5aはT1-5b/c/d・T1-6bの前提になるため優先度が高いが、Lサイズで1ループでは収まらない可能性がある。当日の残り時間・コストに応じてT1-3(Mサイズ)から着手するのも可。
 
 ## 2.5 自動ループのセットアップ状況
 
@@ -39,4 +42,4 @@
 6. 終了条件に達したら新規着手せず、本書と進捗表を更新して `\end`
 
 ## 4. 開発再開時のプロンプト例
-> 「\start を実行してください。T1-4c(002のスワイプ→031)から着手します。」
+> 「\start を実行してください。T1-3(ダッシュボード001)から着手します。」

@@ -17,6 +17,19 @@ class PendingBrewInfo {
   final double bloomingWater;
   final int bloomingTime;
 
+  /// T1-4c: 002からのスワイプ操作で過去の記録から引き継ぐ評価値(任意)。
+  /// 031画面の初期値としてのみ使用し、保存(records反映)はT2-5aで実装する。
+  final int? scoreFragrance;
+  final int? scoreAcidity;
+  final int? scoreBitterness;
+  final int? scoreSweetness;
+  final int? scoreComplexity;
+  final int? scoreFlavor;
+  final int? scoreOverall;
+  final String? taste;
+  final String? concentration;
+  final String? comment;
+
   const PendingBrewInfo({
     required this.brewedAt,
     required this.method,
@@ -29,6 +42,16 @@ class PendingBrewInfo {
     required this.totalTime,
     required this.bloomingWater,
     required this.bloomingTime,
+    this.scoreFragrance,
+    this.scoreAcidity,
+    this.scoreBitterness,
+    this.scoreSweetness,
+    this.scoreComplexity,
+    this.scoreFlavor,
+    this.scoreOverall,
+    this.taste,
+    this.concentration,
+    this.comment,
   });
 
   /// UIモック/画面ギャラリーでのプレビュー表示専用のダミーデータ。

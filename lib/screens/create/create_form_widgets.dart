@@ -170,6 +170,7 @@ class MockTextField extends StatelessWidget {
   final bool required;
   final int maxLines;
   final TextInputType? keyboardType;
+  final String? initialValue;
 
   const MockTextField({
     super.key,
@@ -179,6 +180,7 @@ class MockTextField extends StatelessWidget {
     this.required = false,
     this.maxLines = 1,
     this.keyboardType,
+    this.initialValue,
   });
 
   @override
@@ -186,6 +188,9 @@ class MockTextField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
+        controller: initialValue == null
+            ? null
+            : TextEditingController(text: initialValue),
         maxLines: maxLines,
         keyboardType: keyboardType,
         decoration: InputDecoration(
