@@ -1,51 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
 import '../create/create_form_widgets.dart';
-import '../create/method_create_screen.dart';
 import 'mock_scaffold.dart';
 
-/// 013/016/019/022 の各マスター管理(リスト)と 014/017/020/023 の各詳細のUIモック。
-/// 本実装は T1-5a〜d の汎用テンプレートで置き換わる予定。
-
-/// 汎用マスター一覧モック(画像左・名前右+＋ボタン)。
-class _MasterListMock extends StatelessWidget {
-  final AppScreen screen;
-  final IconData icon;
-  final List<(String, String)> items; // (名前, サブテキスト)
-  final Widget Function() addDestination;
-  final Widget Function() detailDestination;
-
-  const _MasterListMock({
-    required this.screen,
-    required this.icon,
-    required this.items,
-    required this.addDestination,
-    required this.detailDestination,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MockScreenScaffold(
-      screen: screen,
-      floatingActionButton: MockAddFab(
-        tooltip: '新規追加へ',
-        destinationBuilder: addDestination,
-      ),
-      children: [
-        for (final (name, sub) in items)
-          MockListRow(
-            icon: icon,
-            title: name,
-            subtitle: sub,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => detailDestination()),
-            ),
-          ),
-      ],
-    );
-  }
-}
+/// 014/017/020/023 の各マスター詳細のUIモック(ギャラリー単独遷移用)。
+/// 一覧・新規/編集は T1-5a〜d の汎用テンプレートで本実装済み。
 
 /// 汎用マスター詳細モック(全情報+関連履歴5件)。
 class _MasterDetailMock extends StatelessWidget {
@@ -159,26 +118,7 @@ class FilterDetailMockScreen extends StatelessWidget {
   }
 }
 
-// ---- メソッド 019 / 020 ----
-
-class MethodListMockScreen extends StatelessWidget {
-  const MethodListMockScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _MasterListMock(
-      screen: AppScreen.methodList,
-      icon: Icons.menu_book_outlined,
-      items: const [
-        ('4:6メソッド', '粕谷 哲 ・ 抽出 24回'),
-        ('V60 Standard', 'HARIO ・ 抽出 18回'),
-        ('Hoffmann 1cup', 'James Hoffmann ・ 抽出 6回'),
-      ],
-      addDestination: () => const MethodCreateScreen(),
-      detailDestination: () => const MethodDetailMockScreen(),
-    );
-  }
-}
+// ---- メソッド 020(詳細のみ。019本実装は method_list_screen.dart) ----
 
 class MethodDetailMockScreen extends StatelessWidget {
   const MethodDetailMockScreen({super.key});

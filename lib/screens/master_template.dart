@@ -93,6 +93,7 @@ class MasterDetailTemplate extends ConsumerWidget {
   final bool Function(CoffeeRecord log) relatedLogFilter;
   final VoidCallback onEdit;
   final Future<void> Function() onDelete;
+  final List<Widget> extraSections;
 
   const MasterDetailTemplate({
     super.key,
@@ -104,6 +105,7 @@ class MasterDetailTemplate extends ConsumerWidget {
     required this.onEdit,
     required this.onDelete,
     this.imageUrl,
+    this.extraSections = const [],
   });
 
   @override
@@ -160,6 +162,7 @@ class MasterDetailTemplate extends ConsumerWidget {
             for (final (label, value) in fields) MockInfoRow(label: label, value: value),
           ],
         ),
+        ...extraSections,
         FormSection(
           icon: Icons.history,
           title: '関連する抽出履歴',
