@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
 import '../create/create_form_widgets.dart';
-import '../create/dripper_create_screen.dart';
 import '../create/filter_create_screen.dart';
 import '../create/grinder_create_screen.dart';
 import '../create/method_create_screen.dart';
@@ -124,26 +123,7 @@ class _MasterDetailMock extends StatelessWidget {
   }
 }
 
-// ---- ドリッパー 013 / 014 ----
-
-class DripperListMockScreen extends StatelessWidget {
-  const DripperListMockScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _MasterListMock(
-      screen: AppScreen.dripperList,
-      icon: Icons.filter_alt_outlined,
-      items: const [
-        ('HARIO V60 02', 'セラミック ・ 円錐'),
-        ('KalitaWave 185', 'ステンレス ・ 平底'),
-        ('メリタ アロマフィルター', 'プラスチック ・ 台形'),
-      ],
-      addDestination: () => const DripperCreateScreen(),
-      detailDestination: () => const DripperDetailMockScreen(),
-    );
-  }
-}
+// ---- ドリッパー 014(詳細のみ。013本実装は dripper_list_screen.dart) ----
 
 class DripperDetailMockScreen extends StatelessWidget {
   const DripperDetailMockScreen({super.key});

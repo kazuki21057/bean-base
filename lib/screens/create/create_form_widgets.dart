@@ -19,12 +19,18 @@ class CreateFormScaffold extends StatelessWidget {
   final AppScreen screen;
   final List<Widget> children;
   final String saveLabel;
+  final String? title;
+  final VoidCallback? onSave;
+  final bool disabled;
 
   const CreateFormScaffold({
     super.key,
     required this.screen,
     required this.children,
     this.saveLabel = '保存する',
+    this.title,
+    this.onSave,
+    this.disabled = false,
   });
 
   @override
@@ -53,7 +59,7 @@ class CreateFormScaffold extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(screen.titleJa, style: const TextStyle(fontSize: 18)),
+            Text(title ?? screen.titleJa, style: const TextStyle(fontSize: 18)),
           ],
         ),
       ),
@@ -95,15 +101,18 @@ class CreateFormScaffold extends StatelessWidget {
                   ),
                   icon: const Icon(Icons.check),
                   label: Text(saveLabel),
-                  onPressed: () {
-                    debugPrint(
-                        '[Antigravity] MockSave: ${screen.code} ${screen.titleJa} — UIモックのため保存処理は未実装');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('UIモックです。保存処理は後続タスクで実装されます。'),
-                      ),
-                    );
-                  },
+                  onPressed: disabled
+                      ? null
+                      : onSave ??
+                          () {
+                            debugPrint(
+                                '[Antigravity] MockSave: ${screen.code} ${screen.titleJa} — UIモックのため保存処理は未実装');
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('UIモックです。保存処理は後続タスクで実装されます。'),
+                              ),
+                            );
+                          },
                 ),
               ),
             ],
@@ -171,6 +180,8 @@ class MockTextField extends StatelessWidget {
   final int maxLines;
   final TextInputType? keyboardType;
   final String? initialValue;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
 
   const MockTextField({
     super.key,
@@ -181,6 +192,8 @@ class MockTextField extends StatelessWidget {
     this.maxLines = 1,
     this.keyboardType,
     this.initialValue,
+    this.controller,
+    this.onChanged,
   });
 
   @override
@@ -188,9 +201,9 @@ class MockTextField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
-        controller: initialValue == null
-            ? null
-            : TextEditingController(text: initialValue),
+        controller: controller ??
+            (initialValue == null ? null : TextEditingController(text: initialValue)),
+        onChanged: onChanged,
         maxLines: maxLines,
         keyboardType: keyboardType,
         decoration: InputDecoration(
@@ -227,12 +240,16 @@ class MockChoiceChips extends StatefulWidget {
   final String label;
   final List<String> options;
   final int? initialIndex;
+  final String? initialValue;
+  final ValueChanged<String?>? onChanged;
 
   const MockChoiceChips({
     super.key,
     required this.label,
     required this.options,
     this.initialIndex,
+    this.initialValue,
+    this.onChanged,
   });
 
   @override
@@ -246,6 +263,10 @@ class _MockChoiceChipsState extends State<MockChoiceChips> {
   void initState() {
     super.initState();
     _selected = widget.initialIndex;
+    if (_selected == null && widget.initialValue != null) {
+      final idx = widget.options.indexOf(widget.initialValue!);
+      if (idx >= 0) _selected = idx;
+    }
   }
 
   @override
@@ -267,7 +288,10 @@ class _MockChoiceChipsState extends State<MockChoiceChips> {
                   label: Text(widget.options[i]),
                   selected: _selected == i,
                   selectedColor: kAccent.withValues(alpha: 0.25),
-                  onSelected: (v) => setState(() => _selected = v ? i : null),
+                  onSelected: (v) {
+                    setState(() => _selected = v ? i : null);
+                    widget.onChanged?.call(v ? widget.options[i] : null);
+                  },
                 ),
             ],
           ),

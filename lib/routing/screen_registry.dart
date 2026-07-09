@@ -13,6 +13,7 @@ import '../screens/mock/bean_mock_screens.dart';
 import '../screens/mock/master_mock_screens.dart';
 import '../screens/mock/brew_recipe_mock_screen.dart';
 import '../screens/mock/stats_settings_mock_screens.dart';
+import '../screens/dripper_list_screen.dart';
 
 /// 画面ID → Widget の解決テーブル。
 /// 全22画面がUIモック(見た目のみ・データ未接続)として登録済み。
@@ -32,7 +33,7 @@ Widget buildScreenWidget(AppScreen screen) {
     case AppScreen.beanNew:
       return const BeanCreateScreen();
     case AppScreen.dripperList:
-      return const DripperListMockScreen();
+      return const DripperListScreen();
     case AppScreen.dripperDetail:
       return const DripperDetailMockScreen();
     case AppScreen.dripperNew:

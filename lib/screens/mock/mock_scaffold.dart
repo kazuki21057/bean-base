@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
+import '../../widgets/bean_image.dart';
 import '../create/create_form_widgets.dart';
 
 /// 一覧・詳細・ダッシュボード系画面のUIモック共通骨格。
@@ -96,6 +97,7 @@ class MockListRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
+  final String? imageUrl;
   final Widget? trailing;
   final VoidCallback? onTap;
 
@@ -104,6 +106,7 @@ class MockListRow extends StatelessWidget {
     required this.icon,
     required this.title,
     this.subtitle,
+    this.imageUrl,
     this.trailing,
     this.onTap,
   });
@@ -125,12 +128,15 @@ class MockListRow extends StatelessWidget {
         leading: Container(
           width: 48,
           height: 48,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: kCream,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: kLatte),
           ),
-          child: Icon(icon, color: kMocha),
+          child: (imageUrl != null && imageUrl!.isNotEmpty)
+              ? BeanImage(imagePath: imageUrl, fit: BoxFit.cover, placeholderIcon: icon)
+              : Icon(icon, color: kMocha),
         ),
         title: Text(title,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
