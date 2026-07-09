@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
 import '../create/create_form_widgets.dart';
-import '../create/filter_create_screen.dart';
 import '../create/grinder_create_screen.dart';
 import '../create/method_create_screen.dart';
 import 'mock_scaffold.dart';
@@ -142,26 +141,7 @@ class DripperDetailMockScreen extends StatelessWidget {
   }
 }
 
-// ---- フィルター 016 / 017 ----
-
-class FilterListMockScreen extends StatelessWidget {
-  const FilterListMockScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _MasterListMock(
-      screen: AppScreen.filterList,
-      icon: Icons.layers_outlined,
-      items: const [
-        ('V60ペーパーフィルター 02', 'ペーパー(漂白) ・ 02'),
-        ('Kalitaウェーブフィルター 185', 'ペーパー(漂白) ・ 185'),
-        ('ネルフィルター', '布(ネル)'),
-      ],
-      addDestination: () => const FilterCreateScreen(),
-      detailDestination: () => const FilterDetailMockScreen(),
-    );
-  }
-}
+// ---- フィルター 017(詳細のみ。016本実装は filter_list_screen.dart) ----
 
 class FilterDetailMockScreen extends StatelessWidget {
   const FilterDetailMockScreen({super.key});
