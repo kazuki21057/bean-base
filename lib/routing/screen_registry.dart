@@ -15,6 +15,7 @@ import '../screens/mock/brew_recipe_mock_screen.dart';
 import '../screens/mock/stats_settings_mock_screens.dart';
 import '../screens/dripper_list_screen.dart';
 import '../screens/filter_list_screen.dart';
+import '../screens/grinder_list_screen.dart';
 
 /// 画面ID → Widget の解決テーブル。
 /// 全22画面がUIモック(見た目のみ・データ未接続)として登録済み。
@@ -52,7 +53,7 @@ Widget buildScreenWidget(AppScreen screen) {
     case AppScreen.methodNew:
       return const MethodCreateScreen();
     case AppScreen.grinderList:
-      return const GrinderListMockScreen();
+      return const GrinderListScreen();
     case AppScreen.grinderDetail:
       return const GrinderDetailMockScreen();
     case AppScreen.grinderNew:

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
 import '../create/create_form_widgets.dart';
-import '../create/grinder_create_screen.dart';
 import '../create/method_create_screen.dart';
 import 'mock_scaffold.dart';
 
@@ -227,25 +226,7 @@ class MethodDetailMockScreen extends StatelessWidget {
   }
 }
 
-// ---- グラインダー 022 / 023 ----
-
-class GrinderListMockScreen extends StatelessWidget {
-  const GrinderListMockScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return _MasterListMock(
-      screen: AppScreen.grinderList,
-      icon: Icons.settings_input_component_outlined,
-      items: const [
-        ('コマンダンテ C40', '手挽き ・ 15〜25クリック'),
-        ('Wilfa Svart', '電動 ・ 中挽き常用'),
-      ],
-      addDestination: () => const GrinderCreateScreen(),
-      detailDestination: () => const GrinderDetailMockScreen(),
-    );
-  }
-}
+// ---- グラインダー 023(詳細のみ。022本実装は grinder_list_screen.dart) ----
 
 class GrinderDetailMockScreen extends StatelessWidget {
   const GrinderDetailMockScreen({super.key});
