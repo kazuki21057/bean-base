@@ -1,8 +1,19 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-10(T1-7 完了、Phase 1 完全終了)
+最終更新: 2026-07-11(T2-2a 完了、Phase 2 着手)
 
-## -2. 当日やったこと(2026-07-10、T1-7・最新)
+## -3. 当日やったこと(2026-07-11、T2-2a)
+
+**Cycle 20 / T2-2a 完了**: 瓶ビジュアル・ウィジェット(静的、10%刻み11段階)を新規実装。Phase 2 の最初のタスク(依存なし)。
+
+- `lib/widgets/bean_jar_widget.dart` を新規作成。`BeanJarWidget(percent: ..., label: ...)` で任意の残量%(連続値、範囲外もクランプ)を受け取り、最も近い10%刻みの段階(0/10/…/100の11段階)にスナップして瓶を描画する。`stage` getterでスナップ後の値を公開(テスト・将来の接続で利用)。配色は`create_form_widgets.dart`の共有パレット(kMocha/kLatte/kEspresso)を再利用。
+- 既存の`MockBeanJar`(`lib/screens/mock/mock_scaffold.dart`)は据え置き(ダッシュボード001のプレースホルダ表示で使用中)。**このタスクではどの画面にも接続していない**(単体テストのみで完結、接続はT2-2b/T2-2cの担当)。
+- `test/bean_jar_widget_test.dart` を新規作成。スナップロジックの境界値(0/4/6/10/14/16/49/51/94/96/100/150/-10 → 期待stage)、0%(高さ0)・63%→60%表示・100%(満タン)の描画を検証。
+- 検証: `flutter analyze`(新規issue 0件、50件のまま)、`flutter test` 全件パス(41→57件)、`flutter build web` 成功。画面に未接続のためブラウザ目視確認は対象外(単体テストで完結する旨、タスクの終了条件どおり)。
+- マスタープラン §3 T2-2aを✅に更新。
+- commit/push 済み。
+
+## -2. 当日やったこと(2026-07-10、T1-7)
 
 **Cycle 20 / T1-7 完了**: 本番ナビ「Masters」タブを新画面群へ接続。**これでPhase 1(T1-1a〜T1-7)が全て✅になり、マスタープランのPhase 1終了条件を満たした。**
 
@@ -74,14 +85,18 @@
 
 ## 2. 次回の着手点
 
-**Phase 1(Cycle 20)は T1-7 完了により全タスク✅・終了条件達成。次はPhase 2(Cycle 23〜、`docs/改修マスタープラン.md` §3 Phase 2セクション参照)。**
+Phase 2(Cycle 23〜、`docs/改修マスタープラン.md` §3 Phase 2セクション参照)の残タスク:
 
-推奨候補(依存関係が少ない順):
-- **T2-2a** 瓶ビジュアル・ウィジェット(静的、依存なし、単体テスト付き) — 他タスクと独立して着手しやすい。
-- **T2-1a** 黒板風テーマ(配色・フォント・背景テクスチャ) — T2-1b/T2-6が依存するため早めが良い。
-- T2-2a/T2-2bが終わるとダッシュボード(001)・豆一覧(010)の残量%がプレースホルダ(`isInStock`ベースの100%/0%)から実計算に置き換わる。`bean_list_screen.dart`・`bean_detail_screen.dart`・`dashboard_screen.dart`の該当コメントを参照。
+| ID | タスク | 依存 | サイズ |
+|---|---|---|---|
+| T2-1a | 黒板風テーマ(配色・フォント・背景テクスチャ) | T1-3 ✅ | M |
+| T2-2b | 残豆量の計算ロジック(抽出履歴から豆ごとの残量算出)と瓶(`BeanJarWidget`)への接続 | T2-2a ✅ | M |
+| T2-3a | 抽出レシピ030: 豆名・豆量・メソッド選択フォーム | T1-2a ✅ | M |
+| T2-5a | 評価画面031の本実装 | T1-2b ✅ | M |
 
-**T1-7で変わったUX(引き継ぎ注意)**: 本番ナビの「Masters」タブは旧来の「1画面でタブ切替」ではなく、`MastersHubScreen`(5マスターへのリンク一覧)→各`XxxListScreen`という「ハブ→ドリルダウン」方式になった。旧`master_list_screen.dart`/`master_detail_screen.dart`/`master_add_screen.dart`は削除済み。画像一括インポート機能は設定(090)のDebugセクションに移植済み。
+推奨: T2-2b(残豆量の計算ロジック)。`lib/widgets/bean_jar_widget.dart`(T2-2a、スナップ描画のみ・単体テスト済み)ができたので、次は「抽出履歴からどう残量%を計算するか」のロジックを実装し、`dashboard_screen.dart`の`MockBeanJar`・`bean_list_screen.dart`/`bean_detail_screen.dart`の`isInStock`ベースの暫定表示(100%/0%)を実計算+`BeanJarWidget`へ置き換える。残量計算式(豆の初期量をどう持つか、抽出ごとの使用量をどう引くか)はBeanMaster/CoffeeRecordモデルに現状「量」フィールドが無いため、モデル拡張が必要かどうかも含めて設計が要る(着手前にユーザーへ計算方式を確認するのが安全)。
+
+**T1-7で変わったUX(参考)**: 本番ナビの「Masters」タブは旧来の「1画面でタブ切替」ではなく、`MastersHubScreen`(5マスターへのリンク一覧)→各`XxxListScreen`という「ハブ→ドリルダウン」方式になった。旧`master_list_screen.dart`/`master_detail_screen.dart`/`master_add_screen.dart`は削除済み。画像一括インポート機能は設定(090)のDebugセクションに移植済み。
 
 ## 2.5 自動ループのセットアップ状況
 
