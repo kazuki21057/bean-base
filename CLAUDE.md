@@ -90,7 +90,7 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 
 大規模改修は **1日1回のループ** で進める。全体設計・タスク・進捗・運用詳細は **`docs/改修マスタープラン.md` が単一の真実**。毎日のタスクは同書 §3 の細分化タスク表から「依存が満たされた最上位のタスク」を選ぶ。
 
-**1ループの流れ:** `\start` → マスタープランから当日タスク選択 → 実装 → 検証(`flutter analyze`→`test`→`run`)→ 判定 → OKなら commit/push + 進捗表更新 / NGなら `NEXT_SESSION.md` に引き継ぎ → `\end`。
+**1ループの流れ:** `/start` → マスタープランから当日タスク選択 → 実装 → 検証(`flutter analyze`→`test`→`run`)→ 判定 → OKなら commit/push + 進捗表更新 / NGなら `NEXT_SESSION.md` に引き継ぎ → `/end`。
 
 **終了条件 — 次のいずれかに達したら必ず停止:**
 1. **タスク完了** — タスク表に定義された終了条件を満たした。
@@ -101,7 +101,4 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 
 **停止時の作法:** 新規着手はせず、(a) `NEXT_SESSION.md` 更新、(b) マスタープラン進捗表更新、(c) 可能なら commit/push、の順で締める。
 
-## Session Commands
-
-- `\start` — `git pull` を実行し、`NEXT_SESSION.md` とマスタープランから当日のタスク候補を提示する。
-- `\end` — 次回やることを `NEXT_SESSION.md` にまとめ、`git push` し、新しい教訓があれば `rules/verification.md` に追記し、`docs/` の Cycle 連番が正しいことを確認する。
+セッション開始/終了の具体的な手順は `/start`・`/end` スキル(`.claude/skills/start/`・`.claude/skills/end/`)に定義されている。二重管理を避けるため、ここには詳細を書かない。
