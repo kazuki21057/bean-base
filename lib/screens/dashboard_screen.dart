@@ -18,11 +18,20 @@ import 'settings_screen.dart';
 /// 「直近の抽出5件」は実データ(003へ遷移)。
 /// Cycle 20 T2-2b: 「残豆量」の瓶を`BeanJarWidget`+`calculateBeanRemainingPercent`
 /// で実データ接続(抽出履歴から算出)。010(在庫一覧)・002(履歴一覧)への遷移も接続。
-class DashboardScreen extends ConsumerWidget {
+/// Cycle 20 T2-2c: 010と同じ「残量0%の豆も表示する」トグルを追加し、
+/// フィルタを`isInStock`(旧フラグ)から実計算の残量%ベースに統一。
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _showEmpty = false;
+
+  @override
+  Widget build(BuildContext context) {
     final beansAsync = ref.watch(beanMasterProvider);
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final methodsAsync = ref.watch(methodMasterProvider);
@@ -72,21 +81,37 @@ class DashboardScreen extends ConsumerWidget {
           icon: Icons.inventory_2_outlined,
           title: '残豆量',
           children: [
+            MockSwitchTile(
+              label: '残量0%の豆も表示する',
+              initialValue: _showEmpty,
+              onChanged: (v) => setState(() => _showEmpty = v),
+            ),
+            const SizedBox(height: 4),
             beansAsync.when(
               data: (beans) {
-                final stockBeans = beans.where((b) => b.isInStock).toList();
-                if (stockBeans.isEmpty) {
+                final named = beans.where((b) => b.name != '-' && b.name.isNotEmpty);
+                if (named.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Text('在庫中の豆はありません', style: TextStyle(color: kMocha)),
                   );
                 }
                 final logs = logsAsync.value ?? const [];
+                final withPercent = [
+                  for (final bean in named) (bean, calculateBeanRemainingPercent(bean, logs)),
+                ];
+                final visible = withPercent.where((e) => _showEmpty || e.$2 > 0).toList();
+                if (visible.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('残量のある豆はありません', style: TextStyle(color: kMocha)),
+                  );
+                }
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      for (final bean in stockBeans)
+                      for (final (bean, percent) in visible)
                         Padding(
                           padding: const EdgeInsets.only(right: 12),
                           child: GestureDetector(
@@ -95,7 +120,7 @@ class DashboardScreen extends ConsumerWidget {
                               MaterialPageRoute(builder: (_) => BeanDetailScreen(bean: bean)),
                             ),
                             child: BeanJarWidget(
-                              percent: calculateBeanRemainingPercent(bean, logs),
+                              percent: percent,
                               label: bean.name,
                             ),
                           ),
