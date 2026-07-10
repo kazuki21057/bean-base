@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/bean_master.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
+import '../utils/bean_stock_calculator.dart';
 import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
 import 'bean_detail_screen.dart';
@@ -13,8 +14,8 @@ import 'mock/mock_scaffold.dart';
 /// 010 豆管理(カード)。
 ///
 /// Cycle 20 T1-6a: 焙煎所/豆名/煎り度/画像/残量をカード形式の実データで表示する。
-/// 残量%の算出(抽出履歴からの計算)は Phase 2 T2-2b の担当のため、現時点では
-/// BeanMaster.isInStock を 100%/0% とみなして扱う(0%表示切替もこれに連動)。
+/// Cycle 20 T2-2b: 残量%を `calculateBeanRemainingPercent`(抽出履歴からの算出)
+/// に接続。「初期購入量(g)」未設定の豆(既存データ含む)は0%になる。
 class BeanListScreen extends ConsumerStatefulWidget {
   const BeanListScreen({super.key});
 
@@ -28,6 +29,7 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
   @override
   Widget build(BuildContext context) {
     final beansAsync = ref.watch(beanMasterProvider);
+    final logsAsync = ref.watch(coffeeRecordsProvider);
 
     return MockScreenScaffold(
       screen: AppScreen.beanList,
@@ -44,10 +46,12 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
         const SizedBox(height: 4),
         beansAsync.when(
           data: (beans) {
-            final visible = beans
-                .where((b) => b.name != '-' && b.name.isNotEmpty)
-                .where((b) => _showEmpty || b.isInStock)
-                .toList();
+            final logs = logsAsync.value ?? const [];
+            final named = beans.where((b) => b.name != '-' && b.name.isNotEmpty);
+            final withPercent = [
+              for (final bean in named) (bean, calculateBeanRemainingPercent(bean, logs)),
+            ];
+            final visible = withPercent.where((e) => _showEmpty || e.$2 > 0).toList();
             if (visible.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
@@ -58,7 +62,7 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
               spacing: 12,
               runSpacing: 12,
               children: [
-                for (final bean in visible) _BeanCard(bean: bean),
+                for (final (bean, percent) in visible) _BeanCard(bean: bean, percent: percent),
               ],
             );
           },
@@ -78,12 +82,12 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
 
 class _BeanCard extends StatelessWidget {
   final BeanMaster bean;
+  final int percent;
 
-  const _BeanCard({required this.bean});
+  const _BeanCard({required this.bean, required this.percent});
 
   @override
   Widget build(BuildContext context) {
-    final percent = bean.isInStock ? 100 : 0;
     final imageUrl = ImageUtils.getOptimizedImageUrl(bean.imageUrl);
 
     return InkWell(

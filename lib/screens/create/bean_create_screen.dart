@@ -27,6 +27,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   final _storeController = TextEditingController();
   final _originController = TextEditingController();
   final _typeController = TextEditingController();
+  final _initialQuantityController = TextEditingController();
   late List<String> _roastChoices;
   String? _roastLevel;
   DateTime? _purchaseDate;
@@ -44,6 +45,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _storeController.text = edit?.store ?? '';
     _originController.text = edit?.origin ?? '';
     _typeController.text = edit?.type ?? '';
+    _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(0) ?? '';
     _roastLevel = (edit?.roastLevel.isNotEmpty ?? false) ? edit!.roastLevel : null;
     _purchaseDate = edit?.purchaseDate;
     _isInStock = edit?.isInStock ?? true;
@@ -62,6 +64,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _storeController.dispose();
     _originController.dispose();
     _typeController.dispose();
+    _initialQuantityController.dispose();
     super.dispose();
   }
 
@@ -89,6 +92,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       firstUseDate: edit?.firstUseDate,
       lastUseDate: edit?.lastUseDate,
       isInStock: _isInStock,
+      initialQuantityGrams: double.tryParse(_initialQuantityController.text.trim()),
     );
 
     try {
@@ -169,6 +173,13 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               label: '購入日',
               initialValue: _purchaseDate,
               onChanged: (v) => _purchaseDate = v,
+            ),
+            MockTextField(
+              label: '初期購入量(g)',
+              hint: '例: 200',
+              suffix: 'g',
+              keyboardType: TextInputType.number,
+              controller: _initialQuantityController,
             ),
             MockSwitchTile(
               label: '在庫あり(瓶に表示する)',

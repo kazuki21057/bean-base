@@ -5,6 +5,7 @@ import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
 import '../services/image_service.dart';
+import '../utils/bean_stock_calculator.dart';
 import '../utils/image_utils.dart';
 import 'create/bean_create_screen.dart';
 import 'master_template.dart';
@@ -13,8 +14,8 @@ import 'master_template.dart';
 ///
 /// Cycle 20 T1-6b: 汎用マスターテンプレート(MasterDetailTemplate)を
 /// 適用した本実装。UIモック(BeanDetailMockScreen)を置き換える。
-/// 残量%は Phase 2 T2-2b(抽出履歴からの計算ロジック)が未実装のため、
-/// T1-6a と同様に isInStock を 100%/0% とみなして暫定表示する。
+/// Cycle 20 T2-2b: 残量%を `calculateBeanRemainingPercent`(抽出履歴からの算出)
+/// に接続。「初期購入量(g)」未設定の豆(既存データ含む)は0%になる。
 class BeanDetailScreen extends ConsumerWidget {
   final BeanMaster bean;
 
@@ -22,6 +23,9 @@ class BeanDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final logs = ref.watch(coffeeRecordsProvider).value ?? const [];
+    final percent = calculateBeanRemainingPercent(bean, logs);
+
     return MasterDetailTemplate(
       screen: AppScreen.beanDetail,
       icon: Icons.coffee,
@@ -34,7 +38,8 @@ class BeanDetailScreen extends ConsumerWidget {
         ('品種・精製', bean.type.isEmpty ? '-' : bean.type),
         ('煎り度', bean.roastLevel.isEmpty ? '-' : bean.roastLevel),
         ('購入日', _formatDate(bean.purchaseDate)),
-        ('残量', bean.isInStock ? '100% (在庫あり)' : '0% (在庫なし)'),
+        ('初期購入量', bean.initialQuantityGrams == null ? '未設定' : '${bean.initialQuantityGrams!.toStringAsFixed(0)}g'),
+        ('残量', percent > 0 ? '$percent% (在庫あり)' : '0% (在庫なし)'),
       ],
       relatedLogFilter: (log) => log.beanId == bean.id,
       onEdit: () {

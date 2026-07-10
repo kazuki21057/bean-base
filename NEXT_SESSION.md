@@ -1,6 +1,25 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-11(T2-2a 完了、Phase 2 着手)
+最終更新: 2026-07-11(T2-2b 完了)
+
+## -4. 当日やったこと(2026-07-11、T2-2b・最新)
+
+**Cycle 20 / T2-2b 完了**: 残豆量の計算ロジックを実装し、瓶(`BeanJarWidget`)・豆一覧(010)・豆詳細(011)へ接続。
+
+- **ユーザー指示**: 「初期購入量を追加して。既存の豆はすべて残量を0%にして」。`BeanMaster` に `initialQuantityGrams`(double?, nullable)フィールドを追加。Sheetsの新列 `初期購入量(g)` にマッピング(`sheets_service.dart` の `getBeans`/`_reverseMapBean`)。`dart run build_runner build --delete-conflicting-outputs` で `bean_master.g.dart` を再生成。
+- `lib/utils/bean_stock_calculator.dart` を新規作成。`calculateBeanRemainingPercent(bean, records)`: `initialQuantityGrams` が未設定(null)または0以下の豆は**0%を返す**(既存データは新列が空のため自動的に0%になる。ユーザーの「既存はすべて残量0%に」という指示は、実データへの書き込みではなく計算ロジック側で自然に満たされる形にした)。設定済みなら「初期購入量 − 該当豆の`CoffeeRecord.beanWeight`合計」を初期購入量で割った%を0〜100にクランプして返す。単体テスト6件で境界値を確認。
+- 接続箇所:
+  - `dashboard_screen.dart`: 残豆量セクションの`MockBeanJar(percent: 50)`(プレースホルダ)を`BeanJarWidget(percent: calculateBeanRemainingPercent(...))`に置き換え。タップ先も汎用モックから実データの`BeanDetailScreen(bean: bean)`へ変更。
+  - `bean_list_screen.dart`(010): カードの残量%とWrap内の表示/非表示フィルタ(「残量0%の豆も表示する」トグル)を、`isInStock`ベースから実計算ベースに変更。
+  - `bean_detail_screen.dart`(011): 「残量」フィールドを実計算に接続し、「初期購入量」フィールド(未設定なら「未設定」、設定済みなら「◯◯g」)を新規追加。
+  - `bean_create_screen.dart`(012・新規/編集共通): 「初期購入量(g)」の数値入力フィールドを追加(`MockTextField` + 数値キーボード)。編集時は既存値をプリフィル、保存時は`double.tryParse`。
+- 既存の`test/bean_list_test.dart`・`test/bean_detail_test.dart`のフィクスチャに`initialQuantityGrams`を追加して実計算ベースの新仕様に合わせて修正(4件失敗→修正後全パス)。
+- 検証: `flutter analyze`(新規issue 0件、50件のまま)、`flutter test` 全件パス(57→63件)、`flutter build web` 成功。
+- **ブラウザ目視確認を実施**: ダッシュボード(001)の瓶が実際に**0%**で表示されることを確認(既存豆に初期購入量未設定のため、ユーザー指示どおりの挙動)。010のカードも全豆が残0%(0%表示切替トグルONで表示、OFFで「登録されていません」)。011の「初期購入量: 未設定」「残量: 0%(在庫なし)」表示、012編集フォームの新フィールドのプリフィル(空欄)を確認。実データ(本番Sheets)のため保存・削除は未実行。コンソールエラーなし(既知のImageCodecException〈ローカルファイルパス画像、T1-6a以来の既知事象〉のみ)。
+- マスタープラン §3 T2-2bを✅に更新。
+- commit/push 済み。本日はユーザー承認のもとコスト上限($12)を超過して継続。
+
+**引き継ぎ注意**: Google Sheetsの`bean_master`シートに**新しい列「初期購入量(g)」を追加する必要がある**(まだ存在しない場合、GAS側が空値を返すため計算は0%のままになる。動作に支障はないが、実際に残量%を機能させたい場合はユーザーが手動でシートに列を追加し、既存の豆に値を入力する必要がある)。
 
 ## -3. 当日やったこと(2026-07-11、T2-2a)
 
@@ -90,11 +109,11 @@ Phase 2(Cycle 23〜、`docs/改修マスタープラン.md` §3 Phase 2セクシ
 | ID | タスク | 依存 | サイズ |
 |---|---|---|---|
 | T2-1a | 黒板風テーマ(配色・フォント・背景テクスチャ) | T1-3 ✅ | M |
-| T2-2b | 残豆量の計算ロジック(抽出履歴から豆ごとの残量算出)と瓶(`BeanJarWidget`)への接続 | T2-2a ✅ | M |
+| T2-2c | 空瓶の非表示+チェックボックスでの表示切替(001/010 両方) | T2-2b ✅ | S |
 | T2-3a | 抽出レシピ030: 豆名・豆量・メソッド選択フォーム | T1-2a ✅ | M |
 | T2-5a | 評価画面031の本実装 | T1-2b ✅ | M |
 
-推奨: T2-2b(残豆量の計算ロジック)。`lib/widgets/bean_jar_widget.dart`(T2-2a、スナップ描画のみ・単体テスト済み)ができたので、次は「抽出履歴からどう残量%を計算するか」のロジックを実装し、`dashboard_screen.dart`の`MockBeanJar`・`bean_list_screen.dart`/`bean_detail_screen.dart`の`isInStock`ベースの暫定表示(100%/0%)を実計算+`BeanJarWidget`へ置き換える。残量計算式(豆の初期量をどう持つか、抽出ごとの使用量をどう引くか)はBeanMaster/CoffeeRecordモデルに現状「量」フィールドが無いため、モデル拡張が必要かどうかも含めて設計が要る(着手前にユーザーへ計算方式を確認するのが安全)。
+推奨: T2-2c(空瓶の非表示切替)。T2-2bで010の「残量0%の豆も表示する」トグルは既に実装済みなので、001(ダッシュボード)側にも同様のトグルを追加すれば完了に近い。ただし**Google Sheetsの`bean_master`シートに「初期購入量(g)」列がまだ無いと全豆が0%のままになる**ため、着手前にユーザーへシート側の列追加・既存豆への値入力状況を確認するとよい(残量計算自体は既に動作している)。
 
 **T1-7で変わったUX(参考)**: 本番ナビの「Masters」タブは旧来の「1画面でタブ切替」ではなく、`MastersHubScreen`(5マスターへのリンク一覧)→各`XxxListScreen`という「ハブ→ドリルダウン」方式になった。旧`master_list_screen.dart`/`master_detail_screen.dart`/`master_add_screen.dart`は削除済み。画像一括インポート機能は設定(090)のDebugセクションに移植済み。
 

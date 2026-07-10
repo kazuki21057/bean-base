@@ -100,6 +100,7 @@ void main() {
         origin: 'エチオピア',
         store: '岬の焙煎所',
         isInStock: true,
+        initialQuantityGrams: 200,
       ),
       BeanMaster(
         id: 'b2',
@@ -108,12 +109,13 @@ void main() {
         origin: 'ケニア',
         store: 'Navy',
         isInStock: false,
+        // 初期購入量未設定 → 残量0%(既存データ互換の挙動)
       ),
     ];
     fakeService = _FakeDataService(beans);
   });
 
-  testWidgets('010に実データのカードが表示され、在庫ありの豆のみ既定で表示される', (tester) async {
+  testWidgets('010に実データのカードが表示され、残量0%の豆は既定で非表示', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),
@@ -127,11 +129,11 @@ void main() {
     expect(find.text('浅煎り'), findsOneWidget);
     expect(find.text('残 100%'), findsOneWidget);
 
-    // 在庫なし(残量0%)の豆は既定では非表示。
+    // 初期購入量未設定(残量0%算出)の豆は既定では非表示。
     expect(find.text('ケニア ニエリ'), findsNothing);
   });
 
-  testWidgets('0%表示切替をONにすると在庫なしの豆も表示される', (tester) async {
+  testWidgets('0%表示切替をONにすると残量0%の豆も表示される', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),

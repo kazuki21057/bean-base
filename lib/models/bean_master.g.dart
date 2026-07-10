@@ -20,6 +20,7 @@ BeanMaster _$BeanMasterFromJson(Map<String, dynamic> json) => BeanMaster(
   isInStock: json['isInStock'] == null
       ? false
       : BeanMaster._parseBool(json['isInStock']),
+  initialQuantityGrams: BeanMaster._parseDouble(json['initialQuantityGrams']),
 );
 
 Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
@@ -35,4 +36,5 @@ Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
       'firstUseDate': instance.firstUseDate?.toIso8601String(),
       'lastUseDate': instance.lastUseDate?.toIso8601String(),
       'isInStock': instance.isInStock,
+      'initialQuantityGrams': instance.initialQuantityGrams,
     };

@@ -121,6 +121,7 @@ void main() {
         type: 'ウォッシュド',
         purchaseDate: DateTime(2026, 6, 15),
         isInStock: true,
+        initialQuantityGrams: 200,
       ),
     ];
     fakeService = _FakeDataService(beans);
@@ -164,8 +165,9 @@ void main() {
 
     expect(fakeService.lastUpdated?.name, 'エチオピア イルガチェフェ 改');
     expect(fakeService.lastUpdated?.id, 'b1');
-    // 編集で触れなかった項目(産地)は維持される
+    // 編集で触れなかった項目(産地・初期購入量)は維持される
     expect(fakeService.lastUpdated?.origin, 'エチオピア');
+    expect(fakeService.lastUpdated?.initialQuantityGrams, 200);
   });
 
   testWidgets('011詳細の削除確認→DataService.deleteBeanが呼ばれる', (tester) async {

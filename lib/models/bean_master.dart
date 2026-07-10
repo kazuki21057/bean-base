@@ -27,6 +27,11 @@ class BeanMaster {
   @JsonKey(fromJson: _parseBool, defaultValue: false)
   final bool isInStock;
 
+  /// 購入時の初期量(g)。抽出履歴からの残量%算出(T2-2b)に使用。
+  /// 未設定(既存データ含む)の場合は残量0%として扱う。
+  @JsonKey(fromJson: _parseDouble)
+  final double? initialQuantityGrams;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -39,6 +44,7 @@ class BeanMaster {
     this.firstUseDate,
     this.lastUseDate,
     this.isInStock = false,
+    this.initialQuantityGrams,
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -77,6 +83,16 @@ class BeanMaster {
     return value.toString();
   }
 
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      if (value.trim().isEmpty) return null;
+      return double.tryParse(value.trim());
+    }
+    return null;
+  }
+
   BeanMaster copyWith({
     String? id,
     String? name,
@@ -89,6 +105,7 @@ class BeanMaster {
     DateTime? firstUseDate,
     DateTime? lastUseDate,
     bool? isInStock,
+    double? initialQuantityGrams,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -102,6 +119,7 @@ class BeanMaster {
       firstUseDate: firstUseDate ?? this.firstUseDate,
       lastUseDate: lastUseDate ?? this.lastUseDate,
       isInStock: isInStock ?? this.isInStock,
+      initialQuantityGrams: initialQuantityGrams ?? this.initialQuantityGrams,
     );
   }
 }

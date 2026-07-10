@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
-import '../routing/screen_registry.dart';
+import '../utils/bean_stock_calculator.dart';
+import '../widgets/bean_jar_widget.dart';
 import 'create/create_form_widgets.dart';
+import 'bean_detail_screen.dart';
 import 'bean_list_screen.dart';
 import 'log_detail_screen.dart';
 import 'log_list_screen.dart';
@@ -13,9 +15,9 @@ import 'settings_screen.dart';
 /// 001 ダッシュボード。
 ///
 /// Cycle 20 T1-3: UIモック(DashboardMockScreen)の骨組みに実データを一部接続。
-/// 「直近の抽出5件」は実データ(003へ遷移)。「残豆量」は残量%の算出ロジックが
-/// Phase 2(T2-2b)実装のため、豆名は実データを使いつつ残量表示自体はプレース
-/// ホルダのまま(011へは仮遷移)。010(在庫一覧)・002(履歴一覧)への遷移も接続。
+/// 「直近の抽出5件」は実データ(003へ遷移)。
+/// Cycle 20 T2-2b: 「残豆量」の瓶を`BeanJarWidget`+`calculateBeanRemainingPercent`
+/// で実データ接続(抽出履歴から算出)。010(在庫一覧)・002(履歴一覧)への遷移も接続。
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -79,6 +81,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: Text('在庫中の豆はありません', style: TextStyle(color: kMocha)),
                   );
                 }
+                final logs = logsAsync.value ?? const [];
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -89,10 +92,12 @@ class DashboardScreen extends ConsumerWidget {
                           child: GestureDetector(
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => buildScreenWidget(AppScreen.beanDetail)),
+                              MaterialPageRoute(builder: (_) => BeanDetailScreen(bean: bean)),
                             ),
-                            // 残量%の算出(T2-2b)まではプレースホルダ値を表示
-                            child: MockBeanJar(name: bean.name, percent: 50),
+                            child: BeanJarWidget(
+                              percent: calculateBeanRemainingPercent(bean, logs),
+                              label: bean.name,
+                            ),
                           ),
                         ),
                     ],
