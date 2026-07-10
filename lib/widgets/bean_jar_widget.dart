@@ -12,6 +12,7 @@ class BeanJarWidget extends StatelessWidget {
   final String? label;
   final double width;
   final double height;
+  final Color? textColor;
 
   const BeanJarWidget({
     super.key,
@@ -19,6 +20,7 @@ class BeanJarWidget extends StatelessWidget {
     this.label,
     this.width = 56,
     this.height = 76,
+    this.textColor,
   });
 
   /// percent を最も近い10%刻みの段階(0,10,20,…,100のいずれか)にスナップした値。
@@ -66,8 +68,10 @@ class BeanJarWidget extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '$stage%',
-          style: const TextStyle(
-              fontSize: 12, fontWeight: FontWeight.bold, color: kEspresso),
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: textColor ?? kEspresso),
         ),
         if (label != null)
           SizedBox(
@@ -77,7 +81,7 @@ class BeanJarWidget extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, color: kMocha),
+              style: TextStyle(fontSize: 11, color: textColor ?? kMocha),
             ),
           ),
       ],

@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
+import '../../theme/blackboard_theme.dart';
 import '../../widgets/bean_image.dart';
 import '../create/create_form_widgets.dart';
 
 /// 一覧・詳細・ダッシュボード系画面のUIモック共通骨格。
 /// 作成系の CreateFormScaffold と同じパレット(コーヒートーン)を使い、
 /// 保存バーの代わりに任意のFAB/AppBarアクションを持てる。
+///
+/// `boardTexture: true` にすると本文の背景が黒板風(Cycle 20 T2-1a)になる。
+/// デフォルトは従来どおりのクリーム背景のため、他画面は無変更で動く。
 class MockScreenScaffold extends StatelessWidget {
   final AppScreen screen;
   final List<Widget> children;
   final Widget? floatingActionButton;
   final List<Widget>? actions;
   final double maxWidth;
+  final bool boardTexture;
 
   const MockScreenScaffold({
     super.key,
@@ -20,12 +25,23 @@ class MockScreenScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.actions,
     this.maxWidth = 720,
+    this.boardTexture = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final body = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+          children: children,
+        ),
+      ),
+    );
+
     return Scaffold(
-      backgroundColor: kCream,
+      backgroundColor: boardTexture ? kBoardBg : kCream,
       appBar: AppBar(
         backgroundColor: kEspresso,
         foregroundColor: kCream,
@@ -54,15 +70,7 @@ class MockScreenScaffold extends StatelessWidget {
         ),
       ),
       floatingActionButton: floatingActionButton,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            children: children,
-          ),
-        ),
-      ),
+      body: boardTexture ? BlackboardTexture(child: body) : body,
     );
   }
 }

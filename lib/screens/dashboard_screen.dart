@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
+import '../theme/blackboard_theme.dart';
 import '../utils/bean_stock_calculator.dart';
 import '../widgets/bean_jar_widget.dart';
 import 'create/create_form_widgets.dart';
@@ -20,6 +21,9 @@ import 'settings_screen.dart';
 /// で実データ接続(抽出履歴から算出)。010(在庫一覧)・002(履歴一覧)への遷移も接続。
 /// Cycle 20 T2-2c: 010と同じ「残量0%の豆も表示する」トグルを追加し、
 /// フィルタを`isInStock`(旧フラグ)から実計算の残量%ベースに統一。
+/// Cycle 20 T2-1a: 画面全体を黒板風テーマ(`theme/blackboard_theme.dart`)に統一。
+/// 背景は`MockScreenScaffold(boardTexture: true)`、各セクションは
+/// `FormSection(dark: true)`で共通ウィジェット側にオプションとして追加した。
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -38,6 +42,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return MockScreenScaffold(
       screen: AppScreen.dashboard,
+      boardTexture: true,
       actions: [
         IconButton(
           icon: const Icon(Icons.settings_outlined),
@@ -48,14 +53,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ],
       children: [
-        // 黒板風ウェルカムボード(本テーマ化はT2-1a/T2-1bで実装)
+        // 黒板風ウェルカムボード(Cycle 20 T2-1a: 共通テーマ定数を使用)
         Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF2F3E33),
+            color: kBoardBgLight,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF8D6E63), width: 6),
+            border: Border.all(color: kBoardFrame, width: 6),
           ),
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +68,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Text(
                 "Today's BeanBase ☕",
                 style: TextStyle(
-                  color: Color(0xFFF5F0E1),
+                  color: kChalkWhite,
                   fontSize: 22,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.bold,
@@ -72,7 +77,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               SizedBox(height: 8),
               Text(
                 '今日も一杯、丁寧に。',
-                style: TextStyle(color: Color(0xFFD7CCC8), fontSize: 14, height: 1.6),
+                style: TextStyle(color: kChalkMuted, fontSize: 14, height: 1.6),
               ),
             ],
           ),
@@ -80,10 +85,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         FormSection(
           icon: Icons.inventory_2_outlined,
           title: '残豆量',
+          dark: true,
           children: [
             MockSwitchTile(
               label: '残量0%の豆も表示する',
               initialValue: _showEmpty,
+              labelColor: kChalkWhite,
               onChanged: (v) => setState(() => _showEmpty = v),
             ),
             const SizedBox(height: 4),
@@ -93,7 +100,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (named.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('在庫中の豆はありません', style: TextStyle(color: kMocha)),
+                    child: Text('在庫中の豆はありません', style: TextStyle(color: kChalkMuted)),
                   );
                 }
                 final logs = logsAsync.value ?? const [];
@@ -104,7 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (visible.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('残量のある豆はありません', style: TextStyle(color: kMocha)),
+                    child: Text('残量のある豆はありません', style: TextStyle(color: kChalkMuted)),
                   );
                 }
                 return SingleChildScrollView(
@@ -122,6 +129,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             child: BeanJarWidget(
                               percent: percent,
                               label: bean.name,
+                              textColor: kChalkWhite,
                             ),
                           ),
                         ),
@@ -131,14 +139,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
               loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: CircularProgressIndicator(color: kChalkWhite)),
               ),
-              error: (e, s) => Text('読み込みエラー: $e'),
+              error: (e, s) => Text('読み込みエラー: $e', style: const TextStyle(color: kChalkError)),
             ),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: kChalkAccent),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const BeanListScreen()));
                 },
@@ -151,6 +160,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         FormSection(
           icon: Icons.history,
           title: '直近の抽出 5件',
+          dark: true,
           children: [
             logsAsync.when(
               data: (logs) {
@@ -158,7 +168,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (validLogs.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('抽出履歴がありません', style: TextStyle(color: kMocha)),
+                    child: Text('抽出履歴がありません', style: TextStyle(color: kChalkMuted)),
                   );
                 }
                 validLogs.sort((a, b) => b.brewedAt.compareTo(a.brewedAt));
@@ -195,13 +205,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
               loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: CircularProgressIndicator(color: kChalkWhite)),
               ),
-              error: (e, s) => Text('読み込みエラー: $e'),
+              error: (e, s) => Text('読み込みエラー: $e', style: const TextStyle(color: kChalkError)),
             ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
+                style: TextButton.styleFrom(foregroundColor: kChalkAccent),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const LogListScreen()));
                 },

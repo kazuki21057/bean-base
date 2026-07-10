@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routing/app_screen.dart';
+import '../../theme/blackboard_theme.dart';
 
 /// 作成系画面(012/015/018/021/024/031)のUIモック共通部品。
 ///
@@ -123,17 +124,22 @@ class CreateFormScaffold extends StatelessWidget {
   }
 }
 
-/// セクション見出し付きの白カード。
+/// セクション見出し付きのカード。
+///
+/// `dark: true` で黒板風(Cycle 20 T2-1a)の配色になる。デフォルトは
+/// 従来どおりの白カードのため、既存の呼び出し元(001以外)は無変更で動く。
 class FormSection extends StatelessWidget {
   final IconData icon;
   final String title;
   final List<Widget> children;
+  final bool dark;
 
   const FormSection({
     super.key,
     required this.icon,
     required this.title,
     required this.children,
+    this.dark = false,
   });
 
   @override
@@ -142,23 +148,23 @@ class FormSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: dark ? kBoardBgLight : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kLatte),
+        border: Border.all(color: dark ? kBoardFrame : kLatte, width: dark ? 2 : 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: kMocha),
+              Icon(icon, size: 20, color: dark ? kChalkAccent : kMocha),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: kEspresso,
+                  color: dark ? kChalkWhite : kEspresso,
                 ),
               ),
             ],
@@ -405,12 +411,14 @@ class MockSwitchTile extends StatefulWidget {
   final String label;
   final bool initialValue;
   final ValueChanged<bool>? onChanged;
+  final Color? labelColor;
 
   const MockSwitchTile({
     super.key,
     required this.label,
     this.initialValue = true,
     this.onChanged,
+    this.labelColor,
   });
 
   @override
@@ -432,7 +440,10 @@ class _MockSwitchTileState extends State<MockSwitchTile> {
   Widget build(BuildContext context) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(widget.label, style: const TextStyle(fontSize: 14)),
+      title: Text(
+        widget.label,
+        style: TextStyle(fontSize: 14, color: widget.labelColor),
+      ),
       activeTrackColor: kAccent,
       value: _value,
       onChanged: (v) {
