@@ -394,8 +394,14 @@ class MockImagePicker extends StatelessWidget {
 class MockSwitchTile extends StatefulWidget {
   final String label;
   final bool initialValue;
+  final ValueChanged<bool>? onChanged;
 
-  const MockSwitchTile({super.key, required this.label, this.initialValue = true});
+  const MockSwitchTile({
+    super.key,
+    required this.label,
+    this.initialValue = true,
+    this.onChanged,
+  });
 
   @override
   State<MockSwitchTile> createState() => _MockSwitchTileState();
@@ -405,13 +411,24 @@ class _MockSwitchTileState extends State<MockSwitchTile> {
   late bool _value = widget.initialValue;
 
   @override
+  void didUpdateWidget(MockSwitchTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialValue != oldWidget.initialValue) {
+      _value = widget.initialValue;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(widget.label, style: const TextStyle(fontSize: 14)),
       activeTrackColor: kAccent,
       value: _value,
-      onChanged: (v) => setState(() => _value = v),
+      onChanged: (v) {
+        setState(() => _value = v);
+        widget.onChanged?.call(v);
+      },
     );
   }
 }

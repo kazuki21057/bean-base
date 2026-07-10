@@ -13,6 +13,7 @@ import '../screens/mock/bean_mock_screens.dart';
 import '../screens/mock/master_mock_screens.dart';
 import '../screens/mock/brew_recipe_mock_screen.dart';
 import '../screens/mock/stats_settings_mock_screens.dart';
+import '../screens/bean_list_screen.dart';
 import '../screens/dripper_list_screen.dart';
 import '../screens/filter_list_screen.dart';
 import '../screens/grinder_list_screen.dart';
@@ -30,7 +31,7 @@ Widget buildScreenWidget(AppScreen screen) {
     case AppScreen.logDetail:
       return const LogDetailMockScreen();
     case AppScreen.beanList:
-      return const BeanListMockScreen();
+      return const BeanListScreen();
     case AppScreen.beanDetail:
       return const BeanDetailMockScreen();
     case AppScreen.beanNew:
