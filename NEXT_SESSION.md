@@ -1,8 +1,22 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-10(T1-6b 完了、Phase 1 タスク表は全件✅・ただしT1-7が残存)
+最終更新: 2026-07-10(T1-7 完了、Phase 1 完全終了)
 
-## -1. 当日やったこと(2026-07-10、T1-6b・最新)
+## -2. 当日やったこと(2026-07-10、T1-7・最新)
+
+**Cycle 20 / T1-7 完了**: 本番ナビ「Masters」タブを新画面群へ接続。**これでPhase 1(T1-1a〜T1-7)が全て✅になり、マスタープランのPhase 1終了条件を満たした。**
+
+- ユーザーに確認の上、旧`MasterListScreen`の「画像一括インポート」機能(ファイル名の先頭がマスターIDと一致する画像をまとめてアップロード)は**維持**する方針に決定。`lib/screens/settings_screen.dart`のDebugセクションへ移植(`_handleBulkImageImport`関数として)。`SettingsScreen`を`StatefulWidget`→`ConsumerStatefulWidget`に変更。
+- `lib/screens/masters_hub_screen.dart` を新規作成。新しい各マスター一覧画面(`BeanListScreen`等)はそれぞれ独自AppBarを持つ完結したScaffoldのため、旧実装のようにTabBarViewへ埋め込むと二重AppBarになる。そのため「Masters」タブは5マスター(豆/ドリッパー/フィルター/メソッド/グラインダー)へのシンプルなハブ画面(ListTile一覧→push)にした。UXが「1画面でタブ切替」から「ハブ→ドリルダウン」に変わる点に注意。
+- `lib/layout/main_layout.dart` の `_screenFor(AppScreen.beanList)` を `MasterListScreen()` → `MastersHubScreen()` に変更。
+- `lib/screens/dashboard_screen.dart` の「在庫一覧を見る」ボタンを `MasterListScreen()` → `BeanListScreen()`(010実装済み画面へ直接)に変更。
+- 旧実装 `lib/screens/master_list_screen.dart`・`master_detail_screen.dart`・`master_add_screen.dart` を削除(全機能が新テンプレート系画面で代替済みと確認: 一覧→各`XxxListScreen`、詳細→`MasterDetailTemplate`ベースの各`XxxDetailScreen`、新規/編集→各`XxxCreateScreen`、画像一括インポート→Settings)。削除により`flutter analyze`の警告が61→50件に減少(不要コードの`unused_element`等が解消)。
+- 検証: `flutter analyze`(新規issue 0件)、`flutter test` 全件パス(40→41件。`test/screen_transition_test.dart`に「MastersタブからMastersHubScreenへ遷移し豆一覧(010)まで到達する」テストを追加)、`flutter build web` 成功。
+- **ブラウザ目視確認を実施**: 本番ナビの「Masters」タブから新しいハブ画面が表示され、「豆管理」→010(実データのカード一覧)、「ドリッパー管理」→013(実データの一覧)に正しく遷移することを確認。設定(090)のDebugセクションに「画像一括インポート」項目が追加されていることを確認(実際のファイルピッカーはダイアログブロックのリスクがあるため未実行)。ダッシュボード(001)の「在庫一覧を見る」も010へ直接遷移することを確認。コンソールエラーなし。
+- マスタープラン: §3 T1-7を✅に、Phase 1の節に終了条件達成の注記を追加。
+- commit/push 済み。本日はユーザー承認のもとコスト上限($12)を大幅に超過(最終$70超)して継続。
+
+## -1. 当日やったこと(2026-07-10、T1-6b)
 
 **Cycle 20 / T1-6b 完了**: 豆詳細011・新規豆012を実データ接続。これで `docs/改修マスタープラン.md` §3 の Phase 1 タスク(T1-1a〜T1-6b)は全て✅になったが、後述のT1-7(本番ナビ切替)が未着手のため Phase 1 は実質的にまだ完了していない。
 
@@ -60,20 +74,14 @@
 
 ## 2. 次回の着手点
 
-Phase 1(Cycle 20)の残タスク(`docs/改修マスタープラン.md` §3 参照):
+**Phase 1(Cycle 20)は T1-7 完了により全タスク✅・終了条件達成。次はPhase 2(Cycle 23〜、`docs/改修マスタープラン.md` §3 Phase 2セクション参照)。**
 
-| ID | タスク | 依存 | サイズ |
-|---|---|---|---|
-| T1-7 | 本番ナビ切替: `main_layout.dart`の「Masters」タブを新画面群へ接続 | T1-5a〜d ✅, T1-6a〜b ✅ | M |
+推奨候補(依存関係が少ない順):
+- **T2-2a** 瓶ビジュアル・ウィジェット(静的、依存なし、単体テスト付き) — 他タスクと独立して着手しやすい。
+- **T2-1a** 黒板風テーマ(配色・フォント・背景テクスチャ) — T2-1b/T2-6が依存するため早めが良い。
+- T2-2a/T2-2bが終わるとダッシュボード(001)・豆一覧(010)の残量%がプレースホルダ(`isInStock`ベースの100%/0%)から実計算に置き換わる。`bean_list_screen.dart`・`bean_detail_screen.dart`・`dashboard_screen.dart`の該当コメントを参照。
 
-推奨: T1-6a・T1-6b完了によりベアマスターの010/011/012が実データで動作し、Phase 1のタスク表(T1-1a〜T1-6b)は全て✅になった。しかし**Phase 1の終了条件「22画面すべてにルーティングが通り」はまだ満たされていない**。理由はT1-7(下記)。
-
-**T1-7の要点(着手前に必読)**:
-- `lib/layout/main_layout.dart` の `_screenFor()` が `AppScreen.beanList` を旧実装 `MasterListScreen`(`lib/screens/master_list_screen.dart`)にマッピングしたままで、本番ナビの「Masters」タブから新画面群(`BeanListScreen`/`DripperListScreen`/`FilterListScreen`/`MethodListScreen`/`GrinderListScreen`)へ到達できない。
-- 旧`MasterListScreen`はBeans/Methods/Grinders/Drippers/Filtersのタブ切替UIを内蔵しており、単に`BeanListScreen`へ差し替えるだけでは他4マスターへの導線が失われる。新しい「Masters」タブの中身として、5マスターへのタブ切替(または別のナビ手段)を用意する必要がある。
-- 旧実装(`master_list_screen.dart`)には新テンプレートに未移植の機能(画像一括インポート `_handleImageImport`、`master_add_screen.dart`/`master_detail_screen.dart`)がある。これを捨てるか、新画面群のどこかに機能移行するか判断が必要(ユーザーに確認推奨)。
-- `flutter analyze`の既存warning(`master_list_screen.dart`/`master_add_screen.dart`/`master_detail_screen.dart`の未使用要素)は、旧実装を置き換えた際にファイルごと削除できる可能性が高い。
-- 終了条件案: 本番ナビの「Masters」から5マスター(豆/ドリッパー/フィルター/メソッド/グラインダー)全てへ、新実装の一覧・詳細・新規画面で到達できる。
+**T1-7で変わったUX(引き継ぎ注意)**: 本番ナビの「Masters」タブは旧来の「1画面でタブ切替」ではなく、`MastersHubScreen`(5マスターへのリンク一覧)→各`XxxListScreen`という「ハブ→ドリルダウン」方式になった。旧`master_list_screen.dart`/`master_detail_screen.dart`/`master_add_screen.dart`は削除済み。画像一括インポート機能は設定(090)のDebugセクションに移植済み。
 
 ## 2.5 自動ループのセットアップ状況
 

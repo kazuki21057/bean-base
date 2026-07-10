@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../routing/app_screen.dart';
 import '../screens/dashboard_screen.dart';
-import '../screens/master_list_screen.dart';
+import '../screens/masters_hub_screen.dart';
 import '../screens/log_list_screen.dart';
 import '../screens/brew_recipe_screen.dart';
 import '../screens/statistics_screen.dart';
@@ -33,7 +33,7 @@ Widget _screenFor(AppScreen screen) {
     case AppScreen.dashboard:
       return const DashboardScreen();
     case AppScreen.beanList:
-      return const MasterListScreen();
+      return const MastersHubScreen();
     case AppScreen.logList:
       return const LogListScreen();
     case AppScreen.brewRecipe:

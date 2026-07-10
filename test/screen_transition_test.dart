@@ -50,4 +50,47 @@ void main() {
     expect(find.text('抽出履歴(リスト)'), findsOneWidget);
     expect(find.text('抽出履歴がありません'), findsOneWidget);
   });
+
+  testWidgets('Masters タブから新実装のMastersHubScreenへ遷移する(旧MasterListScreenではない)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          coffeeRecordsProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith((ref) async => []),
+          methodMasterProvider.overrideWith((ref) async => []),
+          grinderMasterProvider.overrideWith((ref) async => []),
+          dripperMasterProvider.overrideWith((ref) async => []),
+          filterMasterProvider.overrideWith((ref) async => []),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          debugShowCheckedModeBanner: false,
+          builder: (context, child) => MainLayout(child: child ?? const SizedBox.shrink()),
+          home: const DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Masters タブのアイコン(Icons.list)をタップ(ダッシュボードの「在庫一覧を見る」ボタンにも
+    // 同じアイコンがあるため、NavigationRail配下に絞り込む)
+    final mastersIcon = find.descendant(
+      of: find.byType(NavigationRail),
+      matching: find.byIcon(Icons.list),
+    );
+    expect(mastersIcon, findsOneWidget);
+    await tester.tap(mastersIcon);
+    await tester.pumpAndSettle();
+
+    // 新しいMastersHubScreen(5マスターへのハブ)が表示され、豆一覧項目をタップすると
+    // 実装済みのBeanListScreen(010)へ遷移する
+    expect(find.text('豆管理'), findsOneWidget);
+    expect(find.text('ドリッパー管理'), findsOneWidget);
+
+    await tester.tap(find.text('豆管理'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('010'), findsOneWidget);
+    expect(find.text('豆管理(カード)'), findsOneWidget);
+  });
 }

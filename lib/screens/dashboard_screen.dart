@@ -4,9 +4,9 @@ import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../routing/screen_registry.dart';
 import 'create/create_form_widgets.dart';
+import 'bean_list_screen.dart';
 import 'log_detail_screen.dart';
 import 'log_list_screen.dart';
-import 'master_list_screen.dart';
 import 'mock/mock_scaffold.dart';
 import 'settings_screen.dart';
 
@@ -110,7 +110,7 @@ class DashboardScreen extends ConsumerWidget {
               alignment: Alignment.centerRight,
               child: TextButton.icon(
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MasterListScreen()));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const BeanListScreen()));
                 },
                 icon: const Icon(Icons.list, size: 18),
                 label: const Text('在庫一覧を見る'),
