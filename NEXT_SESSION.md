@@ -12,9 +12,10 @@
 - カードタップの遷移先は、豆詳細011の実装がまだ(T1-6b)のため、既存の `BeanDetailMockScreen` のまま維持(他マスターで先行タスクが未完のときと同じ扱い)。
 - `lib/screens/mock/bean_mock_screens.dart` から `BeanListMockScreen`/`_BeanCard`(旧モック)を削除。`lib/routing/screen_registry.dart` の `beanList` を `BeanListScreen` に差し替え。
 - 検証: `flutter analyze`(新規issue 0件、61件のまま)、`flutter test` 全件パス(33→36件。`test/bean_list_test.dart` を新規追加し、カード表示・0%表示切替・詳細への遷移を確認)、`flutter build web` 成功(コンパイルエラーなし)。
-- ブラウザでの目視確認はサンドボックス制約のため未実施(前回までと同じ既知の制約)。**次回ユーザーがローカルで `flutter run -d chrome` を実行し、010(豆一覧のカード表示・0%表示切替・詳細へのタップ遷移)を目視確認することを推奨。**
+- **ブラウザ目視確認を実施できた(今回はサンドボックスでcanvasが正常にペイントされた)。** `flutter run -d chrome` → 090設定→「画面一覧」ギャラリー→010で確認。実データ(Sheets経由、豆20件)のカード表示・煎り度バッジ・残量バー・「残量0%の豆も表示する」トグル(OFF→ON切替で在庫なし豆が表示される)・カードタップ→011(モック)遷移、いずれも正常動作。コンソールにエラー/例外/overflowなし。
+- **重要な発見**: `lib/layout/main_layout.dart` の本番ナビ(左レール/ボトムバー「Masters」タブ)は `AppScreen.beanList` を今も旧実装 `MasterListScreen`(タブ切替式、Beans/Methods/Grinders/Drippers/Filters)にマッピングしており、`screen_registry.dart` 経由の新実装(`BeanListScreen`等)は 090→画面一覧ギャラリーからしか辿り着けない。T1-5a〜d・T1-6aはいずれもこの状態(ギャラリー限定で実装・検証)。マスタープラン §3 のPhase 1終了条件「22画面すべてにルーティングが通り」を満たすには、`main_layout.dart` を新画面群へ本線として切り替えるタスクがどこかで必要(現状マスタープランに明示タスクなし)。次回セッションでタスク表への追加を検討すること。
 - マスタープラン進捗表を更新: §3 の T1-6a を ✅、§4 の 010 を ✅ に変更。あわせて前回(T1-5d)完了時に更新漏れだった §4 の 019/020/021 も ✅ に修正。
-- commit/push 予定(このセッション内、T1-6a 単独コミット)。
+- commit/push 済み(T1-6a 単独コミット)。ユーザー依頼によりこのセッション内でブラウザ目視確認も実施(コスト超過を承認の上で続行)。
 
 ## 0.5 前回やったこと(2026-07-10、T1-5d)
 
