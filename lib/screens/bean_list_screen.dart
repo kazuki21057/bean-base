@@ -5,9 +5,9 @@ import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
+import 'bean_detail_screen.dart';
 import 'create/bean_create_screen.dart';
 import 'create/create_form_widgets.dart';
-import 'mock/bean_mock_screens.dart';
 import 'mock/mock_scaffold.dart';
 
 /// 010 豆管理(カード)。
@@ -15,7 +15,6 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T1-6a: 焙煎所/豆名/煎り度/画像/残量をカード形式の実データで表示する。
 /// 残量%の算出(抽出履歴からの計算)は Phase 2 T2-2b の担当のため、現時点では
 /// BeanMaster.isInStock を 100%/0% とみなして扱う(0%表示切替もこれに連動)。
-/// 詳細011・新規登録の実データ接続は T1-6b で行うため、遷移先は当面モックのまま。
 class BeanListScreen extends ConsumerStatefulWidget {
   const BeanListScreen({super.key});
 
@@ -93,7 +92,7 @@ class _BeanCard extends StatelessWidget {
         debugPrint('[Antigravity] Action: 豆一覧010から詳細011へ遷移 (id=${bean.id})');
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const BeanDetailMockScreen()),
+          MaterialPageRoute(builder: (_) => BeanDetailScreen(bean: bean)),
         );
       },
       child: Container(

@@ -301,18 +301,25 @@ class _MockChoiceChipsState extends State<MockChoiceChips> {
   }
 }
 
-/// 日付選択フィールド(ローカル状態のみ)。
+/// 日付選択フィールド。
 class MockDateField extends StatefulWidget {
   final String label;
+  final DateTime? initialValue;
+  final ValueChanged<DateTime?>? onChanged;
 
-  const MockDateField({super.key, required this.label});
+  const MockDateField({
+    super.key,
+    required this.label,
+    this.initialValue,
+    this.onChanged,
+  });
 
   @override
   State<MockDateField> createState() => _MockDateFieldState();
 }
 
 class _MockDateFieldState extends State<MockDateField> {
-  DateTime? _date;
+  late DateTime? _date = widget.initialValue;
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +337,10 @@ class _MockDateFieldState extends State<MockDateField> {
             firstDate: DateTime(2020),
             lastDate: DateTime(2100),
           );
-          if (picked != null) setState(() => _date = picked);
+          if (picked != null) {
+            setState(() => _date = picked);
+            widget.onChanged?.call(picked);
+          }
         },
         child: InputDecorator(
           decoration: InputDecoration(

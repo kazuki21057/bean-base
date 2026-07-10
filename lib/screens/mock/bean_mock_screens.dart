@@ -3,7 +3,11 @@ import '../../routing/app_screen.dart';
 import '../create/create_form_widgets.dart';
 import 'mock_scaffold.dart';
 
-/// 011 豆管理(詳細) — UIモック。全情報・編集・関連履歴5件。本実装は T1-6b。
+/// 011 豆管理(詳細) — UIモック。
+///
+/// Cycle 20 T1-6b で本実装(`BeanDetailScreen`)へ置き換え済み。実データインスタンスが
+/// 必要なため単独遷移できない090ギャラリーからの表示用にこのモックを維持する
+/// (他マスターの XxxDetailMockScreen と同じ扱い)。
 class BeanDetailMockScreen extends StatelessWidget {
   const BeanDetailMockScreen({super.key});
 
