@@ -1,8 +1,25 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-11(T2-2c・T2-1a・T2-1b・T2-3a〜c・T2-4a・T2-4b・T2-5a・T2-5b・T2-6 完了、5時間セッション上限まで継続)
+最終更新: 2026-07-11(T2-2c・T2-1a・T2-1b・T2-3a〜c・T2-4a・T2-4b・T2-5a・T2-5b・T2-6・T2-7 完了、**Phase 2 終了**、5時間セッション上限まで継続)
 
-## -4.13 当日やったこと(2026-07-11、T2-6・最新)
+## -4.14 当日やったこと(2026-07-11、T2-7・最新・Phase 2完了)
+
+**Cycle 20 / T2-7 完了**: 設定090の本実装。**これでPhase 2(T2-1a〜T2-7)が全て✅になり、Phase 2の終了条件を満たした。** 次はPhase 3(Cycle 27〜、軽微な修正・仕上げ)。
+
+- **現状把握**: `lib/screens/settings_screen.dart`は既に存在し、Gemini APIキーの保存・読込(`shared_preferences`、キー`gemini_api_key`)と、画像一括インポート・画面一覧・Firebase Storage Testへの導線は実装済みだった。ただし見た目はデフォルトMaterial(英語ラベル)のままで、モック(`SettingsMockScreen`)にあった「メインカラー」「データ保存先情報」は未実装だった。
+- **メインカラーの設計判断**: このアプリのビジュアル言語のほとんど(黒板風テーマ含む)は`create_form_widgets.dart`の`kEspresso`等の定数がハードコードされており、Material全体を動的に染め替える設計にはなっていない。そのため「メインカラー」を全画面に反映させる大改修は現実的でないと判断し、**Material標準UI(`ThemeData.colorScheme`のシードカラー、NavigationRail等)にのみ反映する**スコープで実装した(090の画面内にもその旨を明記)。
+- `lib/providers/theme_provider.dart`を新規作成。`mainColorProvider`(`StateProvider<Color>`)・5色のプリセット(`mainColorPresets`)・`shared_preferences`への保存/読込関数(`saveMainColor`/`loadSavedMainColor`)を定義。
+- `lib/main.dart`: `MyApp`を`StatelessWidget`→`ConsumerWidget`に変更し、`ThemeData.colorScheme`のシードカラーを`mainColorProvider`から取得するようにした。`main()`関数で起動時に`loadSavedMainColor()`を呼び、保存済みの色があれば`ProviderScope`の`overrides`で初期値として反映する。
+- `lib/screens/settings_screen.dart`を全面書き換え。見た目を`MockScreenScaffold`+`FormSection`に統一し、「メインカラー」(5色プリセットのタップで即座に`mainColorProvider`更新+`shared_preferences`保存)・「データ保存先」(Google Sheets/Google Driveの構成情報を静的表示)セクションを追加。既存のAPIキー保存・Debugセクション(画像一括インポート等)のロジックは維持。
+- `lib/routing/screen_registry.dart`の`AppScreen.settings`を`SettingsMockScreen`→`SettingsScreen`(実装済み本体)に差し替え、不要になった`lib/screens/mock/stats_settings_mock_screens.dart`を削除(030・040と同じパターン)。
+- `test/settings_screen_test.dart`を新規作成。`SharedPreferences.setMockInitialValues({})`でモック化し、メインカラー選択→プロバイダー更新+永続化、APIキー入力→保存→永続化+成功メッセージ表示、をそれぞれ検証。
+- 検証: `flutter analyze`(新規issue 0件、43件のまま)、`flutter test` 全件パス(69件、新規2件追加)。
+- **ブラウザ目視確認を実施**(`flutter run -d chrome --web-port=8773`、本番ナビ「設定」歯車アイコン経由)。090が正しく実装どおり表示され、メインカラーの2色目(黒板グリーン)をタップすると選択チェックマークが移動することを確認。ダッシュボード(001)に戻ると、左上「Home」の選択ハイライト色がメインカラー変更に反応して変化することを確認(黒板風テーマ本体は設計どおり不変)。コンソールエラーなし。**APIキー保存・メインカラー保存はローカルの`SharedPreferences`のみでGoogle Sheetsには影響しないため、安全に実際にクリックして確認した**(030/031とは異なり、この画面の書き込み操作は実データへの影響がないため)。
+- マスタープラン §3 T2-7、§4画面インベントリの090行、§2全体進捗サマリのPhase 2を✅に更新。Phase 2終了条件達成の注記を追加。
+- **本日はユーザーが2回にわたり明示的に続行を承認**(1回目「トークン数で頭打ちになるまで」、2回目「5時間制限にかかるまで続けて、出力は日本語で」)。コストガードレールは本タスク中にも発火($381→$445)したが、事前承認済みの継続指示の範囲内と判断した。
+- commit/push 予定(このセッション内、T2-7単独コミット)。
+
+## -4.13 当日やったこと(2026-07-11、T2-6)
 
 **Cycle 20 / T2-6 完了**: スタッツ040の刷新。Phase 2の残タスクはT2-7(設定090)のみになった。
 
@@ -244,9 +261,16 @@ Phase 2(Cycle 23〜、`docs/改修マスタープラン.md` §3 Phase 2セクシ
 
 | ID | タスク | 依存 | サイズ |
 |---|---|---|---|
-| T2-7 | 設定090(メインカラー・APIキー・データ保存先情報) | T2-1a ✅ | M |
+**Phase 2は本日全タスク完了。次はPhase 3(Cycle 27〜、軽微な修正・仕上げ)。**
 
-推奨: T2-7(設定090)。**これでPhase 2の残タスクが無くなる**(Phase 2完了条件を満たしたら、マスタープラン§2の全体進捗サマリを✅に更新すること)。現状の090はまだUIモック(`SettingsMockScreen`、保存ボタンはシミュレーション)のまま。実際のGemini APIキー保存(`shared_preferences`、キー`gemini_api_key`。`pca_scatter_plot.dart`の`_handleAiAnalysis`が既に同じキーで読み書きしているため、090側の実装と整合させること)、データ保存先情報の表示(GAS Web App URL等)、メインカラー設定(実装するならThemeDataへの反映方法を検討)が中心になる想定。
+| ID | タスク | 依存 | サイズ |
+|---|---|---|---|
+| T3-1 | モバイル実機でのレイアウト確認・調整(**ユーザー実施の確認結果を受けて修正**) | Phase 2完了 ✅ | M |
+| T3-2 | 画像アップロード部品の共通化(DRY) | T1-5a〜d ✅ | M |
+| T3-3 | メソッド詳細020の動画再生(可能なら) | T1-5d ✅ | M |
+| T3-4 | 全体のUIおしゃれ化・微調整 | T3-1 | M |
+
+推奨: T3-1(モバイル実機でのレイアウト確認)。終了条件が「ユーザー確認でNG項目ゼロ」となっており、**ユーザー自身の実機確認結果を受けて修正する**タスクのため、着手前にユーザーへモバイル実機での確認を依頼する必要がある(現状は未実施のはず)。並行してT3-2(画像アップロード部品の共通化)やT3-3(メソッド詳細020の動画再生)はユーザー確認を待たずに着手可能。
 
 **着手前に推奨される確認(未実施が3件累積、優先度は低いがいずれ実施推奨)**:
 1. 030(抽出レシピ)の「新規として保存」→021遷移の実ブラウザ目視確認(widgetテストのみ、4:6メソッド等の実在メソッドで確認。**021の「メソッドを登録する」ボタンは押さないこと**)。

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/dashboard_screen.dart';
 import 'layout/main_layout.dart';
+import 'providers/theme_provider.dart';
 import 'utils/nav_key.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -17,20 +18,32 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase initialization failed: \$e');
   }
-  runApp(const ProviderScope(child: MyApp()));
+
+  // Cycle 20 T2-7: 090で保存したメインカラーがあれば起動時に反映する。
+  final savedColor = await loadSavedMainColor();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        if (savedColor != null) mainColorProvider.overrideWith((ref) => savedColor),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mainColor = ref.watch(mainColorProvider);
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'BeanBase 2.0',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown),
+        colorScheme: ColorScheme.fromSeed(seedColor: mainColor),
         useMaterial3: true,
         textTheme: GoogleFonts.outfitTextTheme(),
       ),
