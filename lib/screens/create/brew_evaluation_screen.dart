@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/bean_master.dart';
 import '../../models/coffee_record.dart';
+import '../../models/equipment_masters.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../models/pending_brew_info.dart';
@@ -21,6 +23,11 @@ import 'create_form_widgets.dart';
 /// 複数件登録すると記録が見分けにくくなるため)。豆残量は`calculateBeanRemainingPercent`
 /// (T2-2b)がCoffeeRecordの`beanWeight`集計から動的に算出する設計のため、
 /// `coffeeRecordsProvider`をinvalidateするだけで001/010の表示に自動反映される。
+/// Cycle 20 T3-5: 豆/グラインダー/ドリッパー/フィルター選択と抽出日時を
+/// 030から移動し、この画面の入力欄にした(030はメソッド・豆量のみを扱う)。
+/// 002からの「評価を継承」(`PendingBrewInfo.bean`等)はこれらの初期値として使う。
+/// 「続けて記録」時は器具・豆選択はそのまま維持し(同じ設定で複数杯淹れることが
+/// 多いため)、抽出日時のみ登録時点の現在時刻へ進める。
 class BrewEvaluationScreen extends ConsumerStatefulWidget {
   final PendingBrewInfo info;
 
@@ -51,6 +58,12 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   final _commentController = TextEditingController();
   bool _isSaving = false;
 
+  late DateTime _brewedAt = widget.info.brewedAt;
+  late BeanMaster? _bean = widget.info.bean;
+  late GrinderMaster? _grinder = widget.info.grinder;
+  late DripperMaster? _dripper = widget.info.dripper;
+  late FilterMaster? _filter = widget.info.filter;
+
   /// 登録済み件数(このセッション内)。0件目は030から引き継いだ`info.brewedAt`を
   /// そのまま使い、2件目以降(「続けて記録」)は登録時点の現在時刻を使う。
   int _recordCount = 0;
@@ -70,6 +83,17 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     return i >= 0 ? i : null;
   }
 
+  /// `DropdownButtonFormField.value`はitems内と同一インスタンスである必要が
+  /// あるため、IDが一致する要素をリストから都度解決して渡す
+  /// (`_bean`等は002からの継承やプロバイダー再取得で別インスタンスになりうる)。
+  static T? _resolveById<T>(List<T> items, String? id, String Function(T) idOf) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (idOf(item) == id) return item;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +110,8 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   /// [_formResetGeneration]をインクリメントし、各ウィジェットのkeyに反映して
   /// 強制的に再構築させることで、MockChoiceChips/MockScoreSlider自身が持つ
   /// 内部状態(タップ済みの選択)もあわせてリセットする。
+  /// 器具・豆選択(_bean/_grinder/_dripper/_filter)は同じ設定で連続記録する
+  /// ことが多いためリセットせず維持する。抽出日時のみ現在時刻へ進める。
   void _resetForm() {
     _formResetGeneration++;
     _taste = _tasteOptions[1];
@@ -98,6 +124,26 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     _scoreFlavor = 5;
     _scoreOverall = 7;
     _commentController.clear();
+    _brewedAt = DateTime.now();
+  }
+
+  Future<void> _pickBrewedAt() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _brewedAt,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (date == null) return;
+    if (!mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_brewedAt),
+    );
+    if (time == null) return;
+    setState(() {
+      _brewedAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
   }
 
   Future<void> _submit() async {
@@ -106,15 +152,15 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     try {
       final record = CoffeeRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        brewedAt: _recordCount == 0 ? info.brewedAt : DateTime.now(),
-        grinderId: info.grinder?.id ?? '',
-        dripperId: info.dripper?.id ?? '',
-        filterId: info.filter?.id ?? '',
-        beanId: info.bean?.id ?? '',
-        roastLevel: info.bean?.roastLevel ?? '',
-        origin: info.bean?.origin ?? '',
+        brewedAt: _brewedAt,
+        grinderId: _grinder?.id ?? '',
+        dripperId: _dripper?.id ?? '',
+        filterId: _filter?.id ?? '',
+        beanId: _bean?.id ?? '',
+        roastLevel: _bean?.roastLevel ?? '',
+        origin: _bean?.origin ?? '',
         beanWeight: info.beanWeight,
-        grindSize: info.grinder?.grindRange ?? '',
+        grindSize: _grinder?.grindRange ?? '',
         methodId: info.method.id,
         taste: _taste ?? '',
         concentration: _concentration ?? '',
@@ -134,7 +180,7 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
         grinderImageUrl: null,
         dripperImageUrl: null,
         filterImageUrl: null,
-        beanImageUrl: info.bean?.imageUrl,
+        beanImageUrl: _bean?.imageUrl,
       );
 
       final service = ref.read(dataServiceProvider);
@@ -165,6 +211,11 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   @override
   Widget build(BuildContext context) {
     final info = widget.info;
+    final beansAsync = ref.watch(beanMasterProvider);
+    final grindersAsync = ref.watch(grinderMasterProvider);
+    final drippersAsync = ref.watch(dripperMasterProvider);
+    final filtersAsync = ref.watch(filterMasterProvider);
+
     return CreateFormScaffold(
       screen: AppScreen.brewEvaluation,
       saveLabel: '評価を登録する',
@@ -172,6 +223,88 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       disabled: _isSaving,
       children: [
         _BrewSummaryCard(info: info),
+        FormSection(
+          icon: Icons.coffee_maker_outlined,
+          title: '抽出情報',
+          children: [
+            beansAsync.when(
+              data: (beans) {
+                final inStock = beans.where((b) => b.isInStock).toList();
+                return DropdownButtonFormField<BeanMaster>(
+                  decoration: const InputDecoration(labelText: '豆'),
+                  value: _resolveById(inStock, _bean?.id, (b) => b.id),
+                  isExpanded: true,
+                  items: [
+                    for (final b in inStock)
+                      DropdownMenuItem(value: b, child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _bean = v),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('豆読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            grindersAsync.when(
+              data: (grinders) => DropdownButtonFormField<GrinderMaster>(
+                decoration: const InputDecoration(labelText: 'グラインダー'),
+                value: _resolveById(grinders, _grinder?.id, (g) => g.id),
+                isExpanded: true,
+                items: [
+                  for (final g in grinders)
+                    DropdownMenuItem(value: g, child: Text(g.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _grinder = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('グラインダー読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            drippersAsync.when(
+              data: (drippers) => DropdownButtonFormField<DripperMaster>(
+                decoration: const InputDecoration(labelText: 'ドリッパー'),
+                value: _resolveById(drippers, _dripper?.id, (d) => d.id),
+                isExpanded: true,
+                items: [
+                  for (final d in drippers)
+                    DropdownMenuItem(value: d, child: Text(d.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _dripper = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('ドリッパー読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            filtersAsync.when(
+              data: (filters) => DropdownButtonFormField<FilterMaster>(
+                decoration: const InputDecoration(labelText: 'フィルター'),
+                value: _resolveById(filters, _filter?.id, (f) => f.id),
+                isExpanded: true,
+                items: [
+                  for (final f in filters)
+                    DropdownMenuItem(value: f, child: Text(f.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _filter = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('フィルター読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _pickBrewedAt,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: '抽出日時',
+                  prefixIcon: Icon(Icons.calendar_today, size: 20),
+                ),
+                child: Text(
+                  '${_brewedAt.year}/${_brewedAt.month.toString().padLeft(2, '0')}/${_brewedAt.day.toString().padLeft(2, '0')} '
+                  '${_brewedAt.hour.toString().padLeft(2, '0')}:${_brewedAt.minute.toString().padLeft(2, '0')}',
+                ),
+              ),
+            ),
+          ],
+        ),
         FormSection(
           icon: Icons.restaurant_outlined,
           title: '味わい',
@@ -259,7 +392,6 @@ class _BrewSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final beanText = info.bean?.name ?? '豆未選択';
     final methodText = info.method.name;
     final weightText = '豆 ${info.beanWeight.toStringAsFixed(1)}g / 湯 ${info.totalWater.toStringAsFixed(1)}g';
     final tempText = info.method.temperature != null ? '${info.method.temperature!.toStringAsFixed(0)}℃' : '温度未設定';
@@ -294,7 +426,6 @@ class _BrewSummaryCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _SummaryChip(icon: Icons.coffee, text: beanText),
               _SummaryChip(icon: Icons.menu_book, text: methodText),
               _SummaryChip(icon: Icons.scale, text: weightText),
               _SummaryChip(icon: Icons.thermostat, text: tempText),

@@ -7,6 +7,7 @@ import 'package:bean_base/models/equipment_masters.dart';
 import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/pending_brew_info.dart';
 import 'package:bean_base/models/pouring_step.dart';
+import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/brew_evaluation_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
@@ -15,6 +16,9 @@ import 'package:bean_base/services/data_service.dart';
 /// 030から引き継いだ抽出情報+評価入力が実際にCoffeeRecordとして
 /// addCoffeeRecordに渡ることを確認する。
 /// Cycle 20 T2-5b: 登録後に031に留まり連続記録できることも検証する。
+/// Cycle 20 T3-5: 豆/グラインダー/ドリッパー/フィルター選択が030から031へ
+/// 移動したため、これらは`PendingBrewInfo`に事前セットせず、031画面上の
+/// ドロップダウンから選択してCoffeeRecordに反映されることを検証する。
 class _FakeDataService implements DataService {
   CoffeeRecord? lastAddedRecord;
   final List<CoffeeRecord> addedRecords = [];
@@ -86,9 +90,16 @@ class _FakeDataService implements DataService {
 }
 
 void main() {
-  testWidgets('BrewEvaluationScreen: 「評価を登録する」で実際にDataService.addCoffeeRecordが呼ばれる',
+  testWidgets(
+      'BrewEvaluationScreen: 030からは豆/グラインダー/ドリッパー/フィルター未選択で引き継ぎ、031で選択して登録するとCoffeeRecordに反映される',
       (WidgetTester tester) async {
     final fakeService = _FakeDataService();
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final grinder = GrinderMaster(id: 'g1', name: 'Kingrinder K6');
+    final dripper = DripperMaster(id: 'd1', name: 'V60');
+    final filter = FilterMaster(id: 'f1', name: 'ペーパー');
+    // T3-5: 030は豆量以外の器具・豆を選択しないため、PendingBrewInfoにはbean/
+    // grinder/dripper/filterを一切セットしない(030→031の実際の引き継ぎ状態)。
     final info = PendingBrewInfo(
       brewedAt: DateTime(2026, 7, 11, 9, 0),
       method: MethodMaster(
@@ -101,10 +112,6 @@ void main() {
         description: '',
         recommendedEquipment: '',
       ),
-      bean: BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア'),
-      grinder: GrinderMaster(id: 'g1', name: 'Kingrinder K6'),
-      dripper: DripperMaster(id: 'd1', name: 'V60'),
-      filter: FilterMaster(id: 'f1', name: 'ペーパー'),
       beanWeight: 20,
       totalWater: 300,
       totalTime: 210,
@@ -114,15 +121,43 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [dataServiceProvider.overrideWithValue(fakeService)],
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => [grinder]),
+          dripperMasterProvider.overrideWith((ref) async => [dripper]),
+          filterMasterProvider.overrideWith((ref) async => [filter]),
+        ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
     );
     await tester.pumpAndSettle();
 
-    // サマリに引き継いだ抽出情報が表示されている
-    expect(find.text('エチオピア'), findsOneWidget);
+    // サマリに引き継いだ抽出情報(メソッド)が表示されている。豆は031で選ぶため
+    // この時点ではまだ未選択(ドロップダウンのラベルのみ表示)。
     expect(find.text('4:6メソッド'), findsOneWidget);
+    expect(find.text('エチオピア'), findsNothing);
+
+    // 031で豆/グラインダー/ドリッパー/フィルターを選択する
+    await tester.tap(find.byType(DropdownButtonFormField<BeanMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('エチオピア').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<GrinderMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kingrinder K6').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<DripperMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('V60').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<FilterMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ペーパー').last);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('評価を登録する'));
     await tester.pumpAndSettle();
@@ -132,6 +167,8 @@ void main() {
     expect(saved!.beanId, 'b1');
     expect(saved.methodId, 'm1');
     expect(saved.grinderId, 'g1');
+    expect(saved.dripperId, 'd1');
+    expect(saved.filterId, 'f1');
     expect(saved.beanWeight, 20.0);
     expect(saved.totalWater, 300.0);
     expect(saved.totalTime, 210);
@@ -142,9 +179,12 @@ void main() {
     expect(find.text('抽出記録を登録しました(1件目)。続けて記録できます'), findsOneWidget);
   });
 
-  testWidgets('BrewEvaluationScreen: 登録後もダッシュボードへ戻らず031に留まり、連続記録できる(T2-5b)',
+  testWidgets('BrewEvaluationScreen: 登録後もダッシュボードへ戻らず031に留まり、連続記録できる(T2-5b)。'
+      '器具・豆選択は維持され、抽出日時のみ進む(T3-5)',
       (WidgetTester tester) async {
     final fakeService = _FakeDataService();
+    // 002からの「評価を継承」を想定し、bean を PendingBrewInfo に事前セットする。
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
     final info = PendingBrewInfo(
       brewedAt: DateTime(2026, 7, 11, 9, 0),
       method: MethodMaster(
@@ -157,7 +197,7 @@ void main() {
         description: '',
         recommendedEquipment: '',
       ),
-      bean: BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア'),
+      bean: bean,
       beanWeight: 20,
       totalWater: 300,
       totalTime: 210,
@@ -167,7 +207,13 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [dataServiceProvider.overrideWithValue(fakeService)],
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
     );
@@ -177,7 +223,7 @@ void main() {
     await tester.tap(find.text('評価を登録する'));
     await tester.pumpAndSettle();
 
-    // ダッシュボードへ遷移せず、031自体(サマリカード)がまだ表示されている
+    // ダッシュボードへ遷移せず、031自体(豆ドロップダウンの選択値)がまだ表示されている
     expect(find.text('エチオピア'), findsOneWidget);
     expect(find.text('評価を登録する'), findsOneWidget);
     expect(fakeService.addedRecords.length, 1);

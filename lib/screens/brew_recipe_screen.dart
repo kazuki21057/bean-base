@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
-import '../models/bean_master.dart';
-import '../models/equipment_masters.dart';
 import '../models/pending_brew_info.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
@@ -30,6 +28,8 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T2-4b: 「新規として保存」は 021(MethodCreateScreen)へ基準値・
 /// Pouring Stepsを引き継いで遷移する方式にした。名前の確定・実際の登録は
 /// 021の通常の新規登録フロー(_submit)で行う。
+/// Cycle 20 T3-5: 豆/グラインダー/ドリッパー/フィルター選択と抽出日時は
+/// 031(評価画面)側の入力欄に移動した。030はメソッド選択と豆量のみを扱う。
 class BrewRecipeScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
   final double? initialBeanWeight;
@@ -47,13 +47,6 @@ class BrewRecipeScreen extends ConsumerStatefulWidget {
 class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   MethodMaster? _selectedMethod;
   final TextEditingController _beanWeightController = TextEditingController();
-
-  BeanMaster? _selectedBean;
-  GrinderMaster? _selectedGrinder;
-  DripperMaster? _selectedDripper;
-  FilterMaster? _selectedFilter;
-
-  DateTime _brewedAt = DateTime.now();
 
   List<PouringStep> _workingSteps = [];
   List<PouringStep> _originalSteps = [];
@@ -177,25 +170,6 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       return s.waterRatio! * _currentWeight;
     }
     return s.waterAmount * _scaleFactor;
-  }
-
-  Future<void> _pickDateTime() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _brewedAt,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-    if (date == null) return;
-    if (!mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_brewedAt),
-    );
-    if (time == null) return;
-    setState(() {
-      _brewedAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    });
   }
 
   Future<void> _showSaveDialog() async {
@@ -374,12 +348,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     }
 
     final info = PendingBrewInfo(
-      brewedAt: _brewedAt,
+      brewedAt: DateTime.now(),
       method: method,
-      bean: _selectedBean,
-      grinder: _selectedGrinder,
-      dripper: _selectedDripper,
-      filter: _selectedFilter,
       beanWeight: currentWeight,
       totalWater: totalWater,
       totalTime: totalTime,
@@ -396,10 +366,6 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   Widget build(BuildContext context) {
     final methodsAsync = ref.watch(methodMasterProvider);
     final stepsAsync = ref.watch(pouringStepsProvider);
-    final beansAsync = ref.watch(beanMasterProvider);
-    final grindersAsync = ref.watch(grinderMasterProvider);
-    final drippersAsync = ref.watch(dripperMasterProvider);
-    final filtersAsync = ref.watch(filterMasterProvider);
 
     return MockScreenScaffold(
       screen: AppScreen.brewRecipe,
@@ -446,82 +412,6 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
               keyboardType: TextInputType.number,
               controller: _beanWeightController,
               onChanged: (_) => setState(() {}),
-            ),
-            beansAsync.when(
-              data: (beans) {
-                final inStock = beans.where((b) => b.isInStock).toList();
-                return DropdownButtonFormField<BeanMaster>(
-                  decoration: const InputDecoration(labelText: '豆'),
-                  value: _selectedBean,
-                  isExpanded: true,
-                  items: [
-                    for (final b in inStock)
-                      DropdownMenuItem(value: b, child: Text(b.name, overflow: TextOverflow.ellipsis)),
-                  ],
-                  onChanged: (v) => setState(() => _selectedBean = v),
-                );
-              },
-              loading: () => const LinearProgressIndicator(),
-              error: (e, s) => Text('豆読み込みエラー: $e'),
-            ),
-            const SizedBox(height: 12),
-            grindersAsync.when(
-              data: (grinders) => DropdownButtonFormField<GrinderMaster>(
-                decoration: const InputDecoration(labelText: 'グラインダー'),
-                value: _selectedGrinder,
-                isExpanded: true,
-                items: [
-                  for (final g in grinders)
-                    DropdownMenuItem(value: g, child: Text(g.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() => _selectedGrinder = v),
-              ),
-              loading: () => const LinearProgressIndicator(),
-              error: (e, s) => Text('グラインダー読み込みエラー: $e'),
-            ),
-            const SizedBox(height: 12),
-            drippersAsync.when(
-              data: (drippers) => DropdownButtonFormField<DripperMaster>(
-                decoration: const InputDecoration(labelText: 'ドリッパー'),
-                value: _selectedDripper,
-                isExpanded: true,
-                items: [
-                  for (final d in drippers)
-                    DropdownMenuItem(value: d, child: Text(d.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() => _selectedDripper = v),
-              ),
-              loading: () => const LinearProgressIndicator(),
-              error: (e, s) => Text('ドリッパー読み込みエラー: $e'),
-            ),
-            const SizedBox(height: 12),
-            filtersAsync.when(
-              data: (filters) => DropdownButtonFormField<FilterMaster>(
-                decoration: const InputDecoration(labelText: 'フィルター'),
-                value: _selectedFilter,
-                isExpanded: true,
-                items: [
-                  for (final f in filters)
-                    DropdownMenuItem(value: f, child: Text(f.name, overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() => _selectedFilter = v),
-              ),
-              loading: () => const LinearProgressIndicator(),
-              error: (e, s) => Text('フィルター読み込みエラー: $e'),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: _pickDateTime,
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: '抽出日時',
-                  prefixIcon: Icon(Icons.calendar_today, size: 20),
-                ),
-                child: Text(
-                  '${_brewedAt.year}/${_brewedAt.month.toString().padLeft(2, '0')}/${_brewedAt.day.toString().padLeft(2, '0')} '
-                  '${_brewedAt.hour.toString().padLeft(2, '0')}:${_brewedAt.minute.toString().padLeft(2, '0')}',
-                ),
-              ),
             ),
           ],
         ),
