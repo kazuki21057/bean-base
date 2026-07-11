@@ -8,6 +8,7 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/pending_brew_info.dart';
 import '../routing/app_screen.dart';
+import '../services/data_service.dart';
 import '../widgets/method_steps_editor.dart';
 import 'create/brew_evaluation_screen.dart';
 import 'create/create_form_widgets.dart';
@@ -22,8 +23,11 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T2-3a: 見た目をPhase2共通ウィジェット(MockScreenScaffold/
 /// FormSection/MethodStepsEditor)に統一。メソッド選択→Pouring Steps読込・
 /// 重量スケーリング・タイマー・ステップハイライト・031への引き継ぎといった
-/// 既存ロジックはそのまま維持した。メソッド保存(上書き/新規)は既存どおり
-/// シミュレーション表示のまま(実際のDataService接続はT2-4a/T2-4bの担当)。
+/// 既存ロジックはそのまま維持した。
+/// Cycle 20 T2-4a: 「上書き保存」を実際の DataService 接続に置き換えた
+/// (021の MethodCreateScreen._submit と同じ add/update/delete 差分パターン)。
+/// 「新規として保存」は引き続きシミュレーションのまま(021への継承遷移は
+/// T2-4b の担当)。
 class BrewRecipeScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
   final double? initialBeanWeight;
@@ -50,7 +54,9 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   DateTime _brewedAt = DateTime.now();
 
   List<PouringStep> _workingSteps = [];
+  List<PouringStep> _originalSteps = [];
   bool _hasInitializedFromArgs = false;
+  bool _isSaving = false;
 
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
@@ -73,6 +79,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       setState(() {
         _selectedMethod = null;
         _workingSteps = [];
+        _originalSteps = [];
       });
       return;
     }
@@ -84,6 +91,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       _selectedMethod = method;
       _beanWeightController.text = method.baseBeanWeight.toString();
       _workingSteps = methodSteps.map(_cloneStep).toList();
+      _originalSteps = methodSteps.map(_cloneStep).toList();
     });
   }
 
@@ -99,13 +107,14 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       );
 
   PouringStep _copyWith(PouringStep s,
-      {int? stepOrder,
+      {String? id,
+      int? stepOrder,
       double? waterAmount,
       int? duration,
       String? description,
       double? waterRatio}) {
     return PouringStep(
-      id: s.id,
+      id: id ?? s.id,
       methodId: s.methodId,
       stepOrder: stepOrder ?? s.stepOrder,
       duration: duration ?? s.duration,
@@ -215,10 +224,10 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       if (!mounted) return;
       final newName = await _promptNewName();
       if (newName != null && newName.trim().isNotEmpty) {
-        _save(overwrite: false, newName: newName.trim());
+        _saveAsNewSimulated(newName.trim());
       }
     } else if (choice == 'overwrite') {
-      _save(overwrite: true);
+      await _saveOverwrite();
     }
   }
 
@@ -237,25 +246,106 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     );
   }
 
-  /// メソッド保存(上書き/新規)。実際のDataService永続化はT2-4a/T2-4bで実装する。
-  void _save({required bool overwrite, String? newName}) {
+  List<PouringStep> _scaledFinalSteps() {
     final currentWeight = _currentWeight;
-    final methodName = overwrite ? _selectedMethod?.name : newName;
-
-    final finalSteps = _workingSteps.map((s) {
+    return _workingSteps.map((s) {
       final amount = _stepAmount(s);
       final ratio = currentWeight > 0 ? amount / currentWeight : 0.0;
       return _copyWith(s, waterAmount: amount, waterRatio: ratio);
     }).toList();
+  }
 
-    debugPrint('[Antigravity] SAVING METHOD (simulated): $methodName, base=$currentWeight g');
+  /// メソッド上書き保存(T2-4a)。021の MethodCreateScreen._submit と同じ
+  /// add/update/delete 差分パターンで PouringStep を反映する。
+  ///
+  /// 保存成功後、`'new_'`プレフィックスの一時IDを確定IDへ差し替えて
+  /// ローカル状態を更新する。差し替えないと、画面を閉じずに連続で保存した
+  /// 場合に同じステップが addPouringStep で二重追加されてしまう
+  /// (021は保存後に画面を閉じるためこの問題が起きないが、030は保存後も
+  /// 画面が開いたままなので対策が必要)。
+  Future<void> _saveOverwrite() async {
+    final original = _selectedMethod;
+    if (original == null) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final currentWeight = _currentWeight;
+      final finalSteps = _scaledFinalSteps();
+      final totalWater = finalSteps.fold<double>(0, (sum, s) => sum + s.waterAmount);
+
+      final method = MethodMaster(
+        id: original.id,
+        name: original.name,
+        author: original.author,
+        baseBeanWeight: currentWeight,
+        baseWaterAmount: totalWater,
+        temperature: original.temperature,
+        grindSize: original.grindSize,
+        description: original.description,
+        recommendedEquipment: original.recommendedEquipment,
+        sourceUrl: original.sourceUrl,
+      );
+
+      final DataService service = ref.read(dataServiceProvider);
+      await service.updateMethod(method);
+      debugPrint('[Antigravity] Action: 030からメソッド更新 (id=${method.id})');
+
+      final persistedSteps = <PouringStep>[];
+      for (var i = 0; i < finalSteps.length; i++) {
+        final s = finalSteps[i];
+        final isNew = s.id.startsWith('new_');
+        final persistedId = isNew ? 'ps_${DateTime.now().microsecondsSinceEpoch}_$i' : s.id;
+        final stepToSave = _copyWith(s, id: persistedId, stepOrder: i + 1);
+        if (isNew) {
+          await service.addPouringStep(stepToSave);
+        } else {
+          await service.updatePouringStep(stepToSave);
+        }
+        persistedSteps.add(stepToSave);
+      }
+
+      final currentIds = persistedSteps.map((s) => s.id).toSet();
+      final removedIds = _originalSteps.map((s) => s.id).where((id) => !currentIds.contains(id));
+      for (final removedId in removedIds) {
+        await service.deletePouringStep(removedId);
+      }
+
+      ref.invalidate(methodMasterProvider);
+      ref.invalidate(pouringStepsProvider);
+
+      if (!mounted) return;
+      setState(() {
+        _selectedMethod = method;
+        _workingSteps = persistedSteps.map(_cloneStep).toList();
+        _originalSteps = persistedSteps.map(_cloneStep).toList();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('「${method.name}」を更新しました')),
+      );
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 030からのメソッド上書き保存に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// 新規メソッドとして保存。021への継承遷移(実際のDataService接続含む)は
+  /// T2-4bのスコープのため、現状はシミュレーション表示のまま。
+  void _saveAsNewSimulated(String newName) {
+    final finalSteps = _scaledFinalSteps();
+    debugPrint('[Antigravity] SAVING AS NEW METHOD (simulated): $newName, base=$_currentWeight g');
     for (final s in finalSteps) {
       debugPrint(
           '[Antigravity] - order ${s.stepOrder}: ${s.duration}s, ${s.waterAmount.toStringAsFixed(1)}ml (ratio ${s.waterRatio?.toStringAsFixed(2)}), "${s.description}"');
     }
-
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('「$methodName」を保存しました(シミュレーション、実装はT2-4a/T2-4b)')),
+      SnackBar(content: Text('「$newName」として保存しました(シミュレーション、021への継承遷移はT2-4bで実装)')),
     );
   }
 
@@ -500,8 +590,14 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton.icon(
-                  onPressed: _showSaveDialog,
-                  icon: const Icon(Icons.save_outlined, size: 18),
+                  onPressed: _isSaving ? null : _showSaveDialog,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined, size: 18),
                   label: const Text('メソッドを保存'),
                 ),
               ),
