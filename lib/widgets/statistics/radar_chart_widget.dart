@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/statistics_service.dart';
 import '../../providers/data_providers.dart';
 import '../../models/coffee_record.dart';
+import '../../screens/create/create_form_widgets.dart';
 
+/// Cycle 20 T2-6: 見た目をPhase2共通パレット(コーヒートーン)・日本語ラベルへ
+/// 統一。レーダーチャートの集計ロジック自体は変更なし。
 class RadarChartWidget extends ConsumerWidget {
   final List<CoffeeRecord> filteredRecords;
   final List<CoffeeRecord> allRecords;
@@ -25,51 +28,49 @@ class RadarChartWidget extends ConsumerWidget {
     final beanMaster = ref.watch(beanMasterProvider);
     final methodMaster = ref.watch(methodMasterProvider);
 
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Controls
-            Row(
-              children: [
-                const Text('Compare: '),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: filter.comparisonTargetType,
-                  hint: const Text('None'),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('None')),
-                    DropdownMenuItem(value: 'Bean', child: Text('Bean')),
-                    DropdownMenuItem(value: 'Method', child: Text('Method')),
-                  ],
-                  onChanged: (val) {
-                    ref.read(statisticsFilterProvider.notifier).state = 
-                        filter.copyWith(comparisonTargetType: val, comparisonTargetId: null); // Reset ID
-                  },
-                ),
-                const SizedBox(width: 16),
-                if (filter.comparisonTargetType != null)
-                  Expanded(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: filter.comparisonTargetId,
-                      hint: Text('Select ${filter.comparisonTargetType}'),
-                      items: _buildDropdownItems(filter.comparisonTargetType!, beanMaster, methodMaster),
-                      onChanged: (val) {
-                         ref.read(statisticsFilterProvider.notifier).state = 
-                            filter.copyWith(comparisonTargetId: val);
-                      },
-                    ),
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          // Controls
+          Row(
+            children: [
+              const Text('比較対象:', style: TextStyle(fontSize: 13, color: kMocha)),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: filter.comparisonTargetType,
+                hint: const Text('なし'),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('なし')),
+                  DropdownMenuItem(value: 'Bean', child: Text('豆')),
+                  DropdownMenuItem(value: 'Method', child: Text('メソッド')),
+                ],
+                onChanged: (val) {
+                  ref.read(statisticsFilterProvider.notifier).state =
+                      filter.copyWith(comparisonTargetType: val, comparisonTargetId: null); // Reset ID
+                },
+              ),
+              const SizedBox(width: 16),
+              if (filter.comparisonTargetType != null)
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: filter.comparisonTargetId,
+                    hint: Text(filter.comparisonTargetType == 'Bean' ? '豆を選択' : 'メソッドを選択'),
+                    items: _buildDropdownItems(filter.comparisonTargetType!, beanMaster, methodMaster),
+                    onChanged: (val) {
+                       ref.read(statisticsFilterProvider.notifier).state =
+                          filter.copyWith(comparisonTargetId: val);
+                    },
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // Chart
-            const Text("Scale: 0 - 10 (Grid: 2, 4, 6, 8, 10)", style: TextStyle(fontSize: 10, color: Colors.grey)),
-            const SizedBox(height: 4),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Chart
+          const Text('目盛り: 0〜10 (2刻み)', style: TextStyle(fontSize: 10, color: kMocha)),
+          const SizedBox(height: 4),
             AspectRatio(
               aspectRatio: 1.3,
               child: RadarChart(
@@ -94,8 +95,8 @@ class RadarChartWidget extends ConsumerWidget {
                      ),
                      // Global Average (Always show)
                      RadarDataSet(
-                       fillColor: Colors.grey.withOpacity(0.2),
-                       borderColor: Colors.grey,
+                       fillColor: kLatte.withValues(alpha: 0.3),
+                       borderColor: kMocha,
                        entryRadius: 2,
                        dataEntries: _mapToEntries(radarData.average),
                        borderWidth: 2,
@@ -103,8 +104,8 @@ class RadarChartWidget extends ConsumerWidget {
                      // Target (If selected)
                      if (radarData.target != null)
                        RadarDataSet(
-                         fillColor: Colors.blue.withOpacity(0.4),
-                         borderColor: Colors.blue,
+                         fillColor: kAccent.withValues(alpha: 0.4),
+                         borderColor: kAccent,
                          entryRadius: 3,
                          dataEntries: _mapToEntries(radarData.target!),
                          borderWidth: 3,
@@ -114,13 +115,13 @@ class RadarChartWidget extends ConsumerWidget {
                   borderData: FlBorderData(show: false),
                   radarBorderData: const BorderSide(color: Colors.transparent),
                   titlePositionPercentageOffset: 0.2,
-                  titleTextStyle: const TextStyle(color: Colors.brown, fontSize: 13, fontWeight: FontWeight.bold),
+                  titleTextStyle: const TextStyle(color: kEspresso, fontSize: 13, fontWeight: FontWeight.bold),
                   tickCount: 5,
-                  ticksTextStyle: const TextStyle(color: Colors.brown, fontSize: 10), // Visible ticks
+                  ticksTextStyle: const TextStyle(color: kMocha, fontSize: 10), // Visible ticks
                   tickBorderData: const BorderSide(color: Colors.transparent),
-                  gridBorderData: BorderSide(color: Colors.brown.withOpacity(0.2), width: 1),
+                  gridBorderData: BorderSide(color: kLatte, width: 1),
                   getTitle: (index, angle) {
-                    const titles = ['Score', 'Fragrance', 'Acidity', 'Bitterness', 'Sweetness', 'Complexity', 'Flavor'];
+                    const titles = ['総合', '香り', '酸味', '苦味', '甘み', '複雑さ', '風味'];
                     if (index < titles.length) {
                        return RadarChartTitle(text: titles[index], angle: angle);
                     }
@@ -129,19 +130,18 @@ class RadarChartWidget extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _legendItem('Avg', Colors.grey),
-                if (radarData.target != null) ...[
-                  const SizedBox(width: 16),
-                  _legendItem('Selected', Colors.blue),
-                ]
-              ],
-            )
-          ],
-        ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _legendItem('平均', kMocha),
+              if (radarData.target != null) ...[
+                const SizedBox(width: 16),
+                _legendItem('選択中', kAccent),
+              ]
+            ],
+          )
+        ],
       ),
     );
   }

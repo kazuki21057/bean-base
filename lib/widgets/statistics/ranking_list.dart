@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/data_providers.dart';
 import '../../models/coffee_record.dart';
+import '../../screens/create/create_form_widgets.dart';
 
+/// Cycle 20 T2-6: 見た目をPhase2共通パレット(コーヒートーン)・日本語ラベルへ
+/// 統一。集計・並べ替えロジック自体は変更なし。
 class RankingList extends ConsumerStatefulWidget {
   final List<CoffeeRecord> records;
 
@@ -41,25 +44,35 @@ class _RankingListState extends ConsumerState<RankingList> {
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: _getRankColor(index),
-                child: Text('${index + 1}', style: const TextStyle(color: Colors.white)),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: kLatte),
               ),
-              title: Text(item.name, overflow: TextOverflow.ellipsis),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                   Text(
-                     _metric == 'Rating' ? item.avgScore.toStringAsFixed(1) : '${item.count} brews',
-                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                   ),
-                   if (_metric == 'Rating')
-                     Text('${item.count} brews', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                   if (_metric == 'Count')
-                     Text('Avg: ${item.avgScore.toStringAsFixed(1)}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                ],
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: _getRankColor(index),
+                  child: Text('${index + 1}', style: const TextStyle(color: Colors.white)),
+                ),
+                title: Text(item.name, overflow: TextOverflow.ellipsis),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                     Text(
+                       _metric == 'Rating' ? item.avgScore.toStringAsFixed(1) : '${item.count}杯',
+                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kEspresso),
+                     ),
+                     if (_metric == 'Rating')
+                       Text('${item.count}杯', style: const TextStyle(fontSize: 10, color: kMocha)),
+                     if (_metric == 'Count')
+                       Text('平均 ${item.avgScore.toStringAsFixed(1)}', style: const TextStyle(fontSize: 10, color: kMocha)),
+                  ],
+                ),
               ),
             );
           },
@@ -71,14 +84,19 @@ class _RankingListState extends ConsumerState<RankingList> {
   Widget _buildTypeToggle() {
     return ToggleButtons(
       isSelected: [_targetType == 'Bean', _targetType == 'Method'],
+      selectedColor: Colors.white,
+      fillColor: kAccent,
+      color: kMocha,
+      borderColor: kLatte,
+      selectedBorderColor: kAccent,
       onPressed: (index) {
         setState(() {
           _targetType = index == 0 ? 'Bean' : 'Method';
         });
       },
       children: const [
-        Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Beans')),
-        Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Methods')),
+        Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('豆')),
+        Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('メソッド')),
       ],
     );
   }
@@ -86,6 +104,11 @@ class _RankingListState extends ConsumerState<RankingList> {
   Widget _buildMetricToggle() {
     return ToggleButtons(
       isSelected: [_metric == 'Rating', _metric == 'Count'],
+      selectedColor: Colors.white,
+      fillColor: kAccent,
+      color: kMocha,
+      borderColor: kLatte,
+      selectedBorderColor: kAccent,
       onPressed: (index) {
         setState(() {
           _metric = index == 0 ? 'Rating' : 'Count';
@@ -99,10 +122,10 @@ class _RankingListState extends ConsumerState<RankingList> {
   }
 
   Color _getRankColor(int index) {
-    if (index == 0) return Colors.amber;
-    if (index == 1) return Colors.grey;
-    if (index == 2) return Colors.brown.shade300;
-    return Colors.blueGrey;
+    if (index == 0) return const Color(0xFFD4AF37);
+    if (index == 1) return kMocha;
+    if (index == 2) return const Color(0xFFA0714F);
+    return kLatte;
   }
 
   List<_RankItem> _processData() {

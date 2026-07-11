@@ -1,13 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
+import '../routing/app_screen.dart';
 import '../services/statistics_service.dart';
 import '../widgets/statistics/statistics_filter_widget.dart';
 import '../widgets/statistics/kpi_cards.dart';
 import '../widgets/statistics/radar_chart_widget.dart';
 import '../widgets/statistics/pca_scatter_plot.dart';
 import '../widgets/statistics/ranking_list.dart';
+import 'create/create_form_widgets.dart';
+import 'mock/mock_scaffold.dart';
+import 'settings_screen.dart';
 
+/// 040 スタッツ(統計情報)画面。
+///
+/// フィルター・KPI・レーダーチャート・PCA散布図・ランキングの実データ接続
+/// ロジック自体は以前から動作していた(グラフ計算は`StatisticsService`に
+/// 分離済み)。
+/// Cycle 20 T2-6: 見た目をPhase2共通ウィジェット(MockScreenScaffold/
+/// FormSection)に統一し、各サブウィジェットのラベル・配色を日本語・
+/// コーヒートーンパレットへ置き換えた。グラフの計算ロジック(PCA/レーダー/
+/// KPI集計)自体は変更していない。
 class StatisticsScreen extends ConsumerWidget {
   const StatisticsScreen({super.key});
 
@@ -17,74 +30,87 @@ class StatisticsScreen extends ConsumerWidget {
     final filter = ref.watch(statisticsFilterProvider);
     final service = ref.watch(statisticsServiceProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Statistics'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.refresh(coffeeRecordsProvider),
-          ),
-        ],
-      ),
-      body: asyncRecords.when(
-        data: (records) {
-          // 1. Filter Records
-          final filteredRecords = service.filterRecords(records, filter);
-          
-          // 2. Calculate KPI
-          final kpi = service.calculateKPI(filteredRecords);
+    return MockScreenScaffold(
+      screen: AppScreen.statistics,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: '更新',
+          onPressed: () => ref.refresh(coffeeRecordsProvider),
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings_outlined),
+          tooltip: '設定',
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+          },
+        ),
+      ],
+      children: [
+        asyncRecords.when(
+          data: (records) {
+            final filteredRecords = service.filterRecords(records, filter);
+            final kpi = service.calculateKPI(filteredRecords);
 
-          if (filteredRecords.isEmpty) {
             return Column(
-              children: [
-                StatisticsFilterWidget(filter: filter),
-                const Expanded(child: Center(child: Text("No records found for the selected period."))),
-              ],
-            );
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Filter
                 StatisticsFilterWidget(filter: filter),
                 const SizedBox(height: 16),
-
-                // KPI
-                KpiCards(kpi: kpi),
-                const SizedBox(height: 24),
-
-                // Radar Chart
-                Text('Flavor Profile', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                RadarChartWidget(
-                  filteredRecords: filteredRecords,
-                  allRecords: records, // For global average comparison
-                  filter: filter,
-                ),
-                const SizedBox(height: 24),
-
-                // PCA Scatter
-                Text('Flavor Analysis (PCA)', style: Theme.of(context).textTheme.titleLarge),
-                const Text('Visualizing flavor similarity (2D Projection)', style: TextStyle(color: Colors.grey)),
-                const SizedBox(height: 8),
-                PcaScatterPlot(records: filteredRecords),
-                const SizedBox(height: 24),
-
-                // Ranking
-                Text('Rankings', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                RankingList(records: filteredRecords),
+                if (filteredRecords.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Text('選択した期間の抽出履歴がありません', style: TextStyle(color: kMocha)),
+                    ),
+                  )
+                else ...[
+                  KpiCards(kpi: kpi),
+                  const SizedBox(height: 8),
+                  FormSection(
+                    icon: Icons.radar_outlined,
+                    title: '味プロファイル',
+                    children: [
+                      RadarChartWidget(
+                        filteredRecords: filteredRecords,
+                        allRecords: records,
+                        filter: filter,
+                      ),
+                    ],
+                  ),
+                  FormSection(
+                    icon: Icons.scatter_plot_outlined,
+                    title: '味の傾向マップ (PCA)',
+                    children: [
+                      const Text(
+                        '抽出記録の味の近さを2次元に可視化します',
+                        style: TextStyle(fontSize: 12, color: kMocha),
+                      ),
+                      const SizedBox(height: 8),
+                      PcaScatterPlot(records: filteredRecords),
+                    ],
+                  ),
+                  FormSection(
+                    icon: Icons.emoji_events_outlined,
+                    title: 'ランキング',
+                    children: [
+                      RankingList(records: filteredRecords),
+                    ],
+                  ),
+                ],
               ],
-            ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-      ),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (err, stack) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: Text('読み込みエラー: $err')),
+          ),
+        ),
+      ],
     );
   }
 }

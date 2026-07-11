@@ -6,7 +6,11 @@ import '../../models/coffee_record.dart';
 import '../../providers/data_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/ai_analysis_service.dart';
+import '../../screens/create/create_form_widgets.dart';
 
+/// Cycle 20 T2-6: 見た目をPhase2共通パレット(コーヒートーン)・日本語ラベルへ
+/// 統一。PCA計算・AI分析ロジック自体は変更なし。スコアの色分け(青〜赤の
+/// グラデーション)は意味を持つ配色のためコーヒートーンパレットに置き換えず維持。
 class PcaScatterPlot extends ConsumerWidget {
   final List<CoffeeRecord> records;
 
@@ -19,7 +23,12 @@ class PcaScatterPlot extends ConsumerWidget {
     final points = result.points;
 
     if (points.isEmpty) {
-      return const Center(child: Text("Not enough data for PCA (need at least 3 distinct beans)."));
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Text('PCAには十分なデータがありません(異なる豆3種類以上が必要です)', style: TextStyle(color: kMocha)),
+        ),
+      );
     }
 
     // Determine bounds
@@ -47,11 +56,9 @@ class PcaScatterPlot extends ConsumerWidget {
       }
     }
 
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
           children: [
             SizedBox(
               height: 300,
@@ -60,11 +67,11 @@ class PcaScatterPlot extends ConsumerWidget {
                   scatterSpots: points.map((p) {
                     final score = (p.metadata['score'] as num?)?.toDouble() ?? 5.0;
                     return ScatterSpot(
-                      p.x, 
+                      p.x,
                       p.y,
                       dotPainter: FlDotCirclePainter(
                         radius: _getScoreRadius(score),
-                        color: _getScoreColor(score).withOpacity(0.8),
+                        color: _getScoreColor(score).withValues(alpha: 0.8),
                         strokeWidth: 1,
                         strokeColor: Colors.black45,
                       ),
@@ -78,17 +85,17 @@ class PcaScatterPlot extends ConsumerWidget {
                     show: true,
                     drawVerticalLine: true,
                     drawHorizontalLine: true,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
-                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
+                    getDrawingHorizontalLine: (value) => FlLine(color: kLatte.withValues(alpha: 0.6), strokeWidth: 1),
+                    getDrawingVerticalLine: (value) => FlLine(color: kLatte.withValues(alpha: 0.6), strokeWidth: 1),
                   ),
-                  borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.5))),
+                  borderData: FlBorderData(show: true, border: Border.all(color: kLatte)),
                   titlesData: FlTitlesData(
                     show: true,
-                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, meta) => const SizedBox.shrink(), reservedSize: 20), axisNameWidget: const Text("PC1", style: TextStyle(fontSize: 10))),
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, meta) => const SizedBox.shrink(), reservedSize: 20), axisNameWidget: const Text("PC2", style: TextStyle(fontSize: 10))),
+                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, meta) => const SizedBox.shrink(), reservedSize: 20), axisNameWidget: const Text('PC1', style: TextStyle(fontSize: 10, color: kMocha))),
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, meta) => const SizedBox.shrink(), reservedSize: 20), axisNameWidget: const Text('PC2', style: TextStyle(fontSize: 10, color: kMocha))),
                     topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ), 
+                  ),
                   scatterTouchData: ScatterTouchData(
                     enabled: true,
                     touchTooltipData: ScatterTouchTooltipData(
@@ -98,7 +105,7 @@ class PcaScatterPlot extends ConsumerWidget {
                         final beanName = beanNames[p.label] ?? p.label;
                         final score = (p.metadata['score'] as num?)?.toDouble() ?? 5.0;
                         return ScatterTooltipItem(
-                          '$beanName\nScore: $score',
+                          '$beanName\nスコア: $score',
                           textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           bottomMargin: 10,
                         );
@@ -110,13 +117,12 @@ class PcaScatterPlot extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             _buildScoreLegend(),
-            const Divider(),
+            const Divider(color: kLatte),
             _buildComponentInfo(result.components),
             const SizedBox(height: 16),
             _buildAiAnalysisSection(context, ref, result.components, ref.watch(aiAnalysisLoadingProvider), ref.watch(aiAnalysisResultProvider)),
           ],
         ),
-      ),
     );
   }
 
@@ -144,7 +150,7 @@ class PcaScatterPlot extends ConsumerWidget {
                   children: [
                     const Icon(Icons.psychology, size: 16, color: Colors.deepPurple),
                     const SizedBox(width: 8),
-                    Text("AI Analysis", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                    Text('AI分析', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -156,7 +162,7 @@ class PcaScatterPlot extends ConsumerWidget {
           child: ElevatedButton.icon(
             onPressed: () => _handleAiAnalysis(context, ref, components),
             icon: const Icon(Icons.psychology),
-            label: Text(result == null ? "AI Analyze Components" : "Re-Analyze"),
+            label: Text(result == null ? 'AIで分析する' : '再分析する'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple.shade50,
               foregroundColor: Colors.deepPurple,
@@ -186,12 +192,12 @@ class PcaScatterPlot extends ConsumerWidget {
   Widget _buildScoreLegend() {
     return Row(
       children: [
-        const Text("Score:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        const Text('スコア:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: kEspresso)),
         const SizedBox(width: 8),
         // Low
         Container(width: _getScoreRadius(0)*2, height: _getScoreRadius(0)*2, decoration: BoxDecoration(color: _getScoreColor(0), shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text("Low", style: TextStyle(fontSize: 10, color: _getScoreColor(0))),
+        Text('低', style: TextStyle(fontSize: 10, color: _getScoreColor(0))),
         // Bar
         Expanded(
           child: Container(
@@ -210,7 +216,7 @@ class PcaScatterPlot extends ConsumerWidget {
           ),
         ),
         // High
-        Text("High", style: TextStyle(fontSize: 10, color: _getScoreColor(10))),
+        Text('高', style: TextStyle(fontSize: 10, color: _getScoreColor(10))),
         const SizedBox(width: 4),
         Container(width: _getScoreRadius(10)*2, height: _getScoreRadius(10)*2, decoration: BoxDecoration(color: _getScoreColor(10), shape: BoxShape.circle)),
       ],
@@ -240,7 +246,7 @@ class PcaScatterPlot extends ConsumerWidget {
       final result = await ref.read(aiAnalysisServiceProvider).analyzeComponents(components, apiKey);
       ref.read(aiAnalysisResultProvider.notifier).state = result;
     } catch (e) {
-      ref.read(aiAnalysisResultProvider.notifier).state = "Error: $e";
+      ref.read(aiAnalysisResultProvider.notifier).state = 'エラー: $e';
     } finally {
       ref.read(aiAnalysisLoadingProvider.notifier).state = false;
     }
@@ -251,21 +257,21 @@ class PcaScatterPlot extends ConsumerWidget {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Enter Gemini API Key"),
+        title: const Text('Gemini APIキーを入力'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
-            labelText: "API Key",
-            hintText: "Enter your Google Gemini API Key",
+            labelText: 'APIキー',
+            hintText: 'Google Gemini のAPIキーを入力してください',
             border: OutlineInputBorder(),
           ),
           obscureText: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text("Save"),
+            child: const Text('保存'),
           ),
         ],
       ),
@@ -288,7 +294,7 @@ class PcaScatterPlot extends ConsumerWidget {
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 2.0),
-          child: Text('${c.name}: $top3', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          child: Text('${c.name}: $top3', style: const TextStyle(fontSize: 11, color: kMocha)),
         );
       }).toList(),
     );
