@@ -14,12 +14,15 @@ import 'package:bean_base/services/data_service.dart';
 /// method_template_test.dart等と同じフェイクDataServiceパターンで、
 /// 030から引き継いだ抽出情報+評価入力が実際にCoffeeRecordとして
 /// addCoffeeRecordに渡ることを確認する。
+/// Cycle 20 T2-5b: 登録後に031に留まり連続記録できることも検証する。
 class _FakeDataService implements DataService {
   CoffeeRecord? lastAddedRecord;
+  final List<CoffeeRecord> addedRecords = [];
 
   @override
   Future<void> addCoffeeRecord(CoffeeRecord record) async {
     lastAddedRecord = record;
+    addedRecords.add(record);
   }
 
   @override
@@ -136,6 +139,63 @@ void main() {
     expect(saved.scoreOverall, 7);
     expect(saved.taste, 'バランス');
     expect(saved.concentration, 'ちょうど良い');
-    expect(find.text('抽出記録を登録しました'), findsOneWidget);
+    expect(find.text('抽出記録を登録しました(1件目)。続けて記録できます'), findsOneWidget);
+  });
+
+  testWidgets('BrewEvaluationScreen: 登録後もダッシュボードへ戻らず031に留まり、連続記録できる(T2-5b)',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 11, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア'),
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [dataServiceProvider.overrideWithValue(fakeService)],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 1件目登録
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    // ダッシュボードへ遷移せず、031自体(サマリカード)がまだ表示されている
+    expect(find.text('エチオピア'), findsOneWidget);
+    expect(find.text('評価を登録する'), findsOneWidget);
+    expect(fakeService.addedRecords.length, 1);
+
+    // 2件目登録(同じ画面のまま、フォームがリセットされた状態で)
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(fakeService.addedRecords.length, 2);
+
+    // 1件目は030で選んだ日時のまま、2件目以降は登録時点の現在時刻を使う
+    final first = fakeService.addedRecords[0];
+    final second = fakeService.addedRecords[1];
+    expect(first.brewedAt, DateTime(2026, 7, 11, 9, 0));
+    expect(second.brewedAt, isNot(equals(first.brewedAt)));
+    // 豆・メソッド等の抽出情報は2件目も引き継がれている
+    expect(second.beanId, 'b1');
+    expect(second.methodId, 'm1');
   });
 }

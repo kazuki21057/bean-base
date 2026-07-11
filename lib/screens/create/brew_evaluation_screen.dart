@@ -13,9 +13,14 @@ import 'create_form_widgets.dart';
 /// 引き継ぎ、サマリに表示する。
 /// Cycle 20 T2-5a: 評価スコア・コメント入力を状態として保持し、「登録する」で
 /// 実際に`CoffeeRecord`を組み立てて`DataService.addCoffeeRecord`に保存する
-/// 本実装へ置き換えた。登録後はダッシュボード(001)まで戻る(030の古い
-/// レシピ・タイマー状態には戻らない)。評価登録時の豆残量自動計算・031への
-/// 復帰フローはT2-5bのスコープ。
+/// 本実装へ置き換えた。
+/// Cycle 20 T2-5b: 原設計(`docs/Beanbase改修案.md`)の「登録が完了したら
+/// この画面031に戻ってくる」という記述どおり、登録成功後はダッシュボードへ
+/// popせず031に留まり、評価フォームをリセットして連続記録できるようにした。
+/// 2件目以降の`brewedAt`は登録時点の現在時刻を使う(030で選んだ日時のまま
+/// 複数件登録すると記録が見分けにくくなるため)。豆残量は`calculateBeanRemainingPercent`
+/// (T2-2b)がCoffeeRecordの`beanWeight`集計から動的に算出する設計のため、
+/// `coffeeRecordsProvider`をinvalidateするだけで001/010の表示に自動反映される。
 class BrewEvaluationScreen extends ConsumerStatefulWidget {
   final PendingBrewInfo info;
 
@@ -46,6 +51,14 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   final _commentController = TextEditingController();
   bool _isSaving = false;
 
+  /// 登録済み件数(このセッション内)。0件目は030から引き継いだ`info.brewedAt`を
+  /// そのまま使い、2件目以降(「続けて記録」)は登録時点の現在時刻を使う。
+  int _recordCount = 0;
+
+  /// フォームリセット時にインクリメントし、MockChoiceChips/MockScoreSliderの
+  /// keyへ反映することでウィジェットを強制的に再構築(初期値へ戻す)する。
+  int _formResetGeneration = 0;
+
   static String? _optionOrNull(List<String> options, String? value) {
     if (value == null || value.isEmpty) return null;
     return options.contains(value) ? value : null;
@@ -69,13 +82,31 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     super.dispose();
   }
 
+  /// 評価入力欄をデフォルト値に戻す(`setState`内で呼ぶこと)。
+  /// [_formResetGeneration]をインクリメントし、各ウィジェットのkeyに反映して
+  /// 強制的に再構築させることで、MockChoiceChips/MockScoreSlider自身が持つ
+  /// 内部状態(タップ済みの選択)もあわせてリセットする。
+  void _resetForm() {
+    _formResetGeneration++;
+    _taste = _tasteOptions[1];
+    _concentration = _concentrationOptions[1];
+    _scoreFragrance = 5;
+    _scoreAcidity = 5;
+    _scoreBitterness = 5;
+    _scoreSweetness = 5;
+    _scoreComplexity = 5;
+    _scoreFlavor = 5;
+    _scoreOverall = 7;
+    _commentController.clear();
+  }
+
   Future<void> _submit() async {
     final info = widget.info;
     setState(() => _isSaving = true);
     try {
       final record = CoffeeRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        brewedAt: info.brewedAt,
+        brewedAt: _recordCount == 0 ? info.brewedAt : DateTime.now(),
         grinderId: info.grinder?.id ?? '',
         dripperId: info.dripper?.id ?? '',
         filterId: info.filter?.id ?? '',
@@ -112,10 +143,13 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       ref.invalidate(coffeeRecordsProvider);
 
       if (!mounted) return;
+      setState(() {
+        _recordCount++;
+        _resetForm();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('抽出記録を登録しました')),
+        SnackBar(content: Text('抽出記録を登録しました($_recordCount件目)。続けて記録できます')),
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       debugPrint('[Antigravity] Error: 031からの抽出記録登録に失敗 $e');
       if (mounted) {
@@ -143,12 +177,14 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
           title: '味わい',
           children: [
             MockChoiceChips(
+              key: ValueKey('taste_$_formResetGeneration'),
               label: 'テイスト',
               options: _tasteOptions,
               initialIndex: _optionIndex(_tasteOptions, _taste) ?? 1,
               onChanged: (v) => setState(() => _taste = v),
             ),
             MockChoiceChips(
+              key: ValueKey('concentration_$_formResetGeneration'),
               label: '濃度',
               options: _concentrationOptions,
               initialIndex: _optionIndex(_concentrationOptions, _concentration) ?? 1,
@@ -161,31 +197,38 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
           title: 'スコア (0〜10)',
           children: [
             MockScoreSlider(
+                key: ValueKey('fragrance_$_formResetGeneration'),
                 label: '香り',
                 initialValue: _scoreFragrance,
                 onChanged: (v) => _scoreFragrance = v),
             MockScoreSlider(
+                key: ValueKey('acidity_$_formResetGeneration'),
                 label: '酸味',
                 initialValue: _scoreAcidity,
                 onChanged: (v) => _scoreAcidity = v),
             MockScoreSlider(
+                key: ValueKey('bitterness_$_formResetGeneration'),
                 label: '苦味',
                 initialValue: _scoreBitterness,
                 onChanged: (v) => _scoreBitterness = v),
             MockScoreSlider(
+                key: ValueKey('sweetness_$_formResetGeneration'),
                 label: '甘み',
                 initialValue: _scoreSweetness,
                 onChanged: (v) => _scoreSweetness = v),
             MockScoreSlider(
+                key: ValueKey('complexity_$_formResetGeneration'),
                 label: '複雑さ',
                 initialValue: _scoreComplexity,
                 onChanged: (v) => _scoreComplexity = v),
             MockScoreSlider(
+                key: ValueKey('flavor_$_formResetGeneration'),
                 label: '風味',
                 initialValue: _scoreFlavor,
                 onChanged: (v) => _scoreFlavor = v),
             const Divider(height: 24),
             MockScoreSlider(
+                key: ValueKey('overall_$_formResetGeneration'),
                 label: '総合',
                 initialValue: _scoreOverall,
                 onChanged: (v) => _scoreOverall = v),
