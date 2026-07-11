@@ -12,6 +12,7 @@ import '../services/data_service.dart';
 import '../widgets/method_steps_editor.dart';
 import 'create/brew_evaluation_screen.dart';
 import 'create/create_form_widgets.dart';
+import 'create/method_create_screen.dart';
 import 'mock/mock_scaffold.dart';
 
 /// 030 抽出レシピ画面。
@@ -26,8 +27,9 @@ import 'mock/mock_scaffold.dart';
 /// 既存ロジックはそのまま維持した。
 /// Cycle 20 T2-4a: 「上書き保存」を実際の DataService 接続に置き換えた
 /// (021の MethodCreateScreen._submit と同じ add/update/delete 差分パターン)。
-/// 「新規として保存」は引き続きシミュレーションのまま(021への継承遷移は
-/// T2-4b の担当)。
+/// Cycle 20 T2-4b: 「新規として保存」は 021(MethodCreateScreen)へ基準値・
+/// Pouring Stepsを引き継いで遷移する方式にした。名前の確定・実際の登録は
+/// 021の通常の新規登録フロー(_submit)で行う。
 class BrewRecipeScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
   final double? initialBeanWeight;
@@ -221,27 +223,38 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     );
 
     if (choice == 'new') {
-      if (!mounted) return;
-      final newName = await _promptNewName();
-      if (newName != null && newName.trim().isNotEmpty) {
-        _saveAsNewSimulated(newName.trim());
-      }
+      _goToSaveAsNew();
     } else if (choice == 'overwrite') {
       await _saveOverwrite();
     }
   }
 
-  Future<String?> _promptNewName() async {
-    final controller = TextEditingController(text: '${_selectedMethod?.name ?? ''} (コピー)');
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('新しいメソッド名'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
-          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('保存')),
-        ],
+  /// 新規メソッドとして保存(T2-4b)。021(MethodCreateScreen)へ現在の
+  /// 基準値・Pouring Stepsを引き継いで遷移し、名前の確定・最終保存は021側で
+  /// 行う(030内で完結する簡易実装ではなく、021の通常の新規登録フローに合流)。
+  void _goToSaveAsNew() {
+    final original = _selectedMethod;
+    if (original == null) return;
+
+    final finalSteps = _scaledFinalSteps();
+    final prefillMethod = MethodMaster(
+      id: '',
+      name: '${original.name} (コピー)',
+      author: original.author,
+      baseBeanWeight: _currentWeight,
+      baseWaterAmount: finalSteps.fold<double>(0, (sum, s) => sum + s.waterAmount),
+      temperature: original.temperature,
+      grindSize: original.grindSize,
+      description: original.description,
+      recommendedEquipment: original.recommendedEquipment,
+      sourceUrl: original.sourceUrl,
+    );
+
+    debugPrint('[Antigravity] Action: 030から021へ新規メソッドとして継承遷移 (元id=${original.id})');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MethodCreateScreen(prefillFrom: prefillMethod, prefillSteps: finalSteps),
       ),
     );
   }
@@ -333,20 +346,6 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
-  }
-
-  /// 新規メソッドとして保存。021への継承遷移(実際のDataService接続含む)は
-  /// T2-4bのスコープのため、現状はシミュレーション表示のまま。
-  void _saveAsNewSimulated(String newName) {
-    final finalSteps = _scaledFinalSteps();
-    debugPrint('[Antigravity] SAVING AS NEW METHOD (simulated): $newName, base=$_currentWeight g');
-    for (final s in finalSteps) {
-      debugPrint(
-          '[Antigravity] - order ${s.stepOrder}: ${s.duration}s, ${s.waterAmount.toStringAsFixed(1)}ml (ratio ${s.waterRatio?.toStringAsFixed(2)}), "${s.description}"');
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('「$newName」として保存しました(シミュレーション、021への継承遷移はT2-4bで実装)')),
-    );
   }
 
   void _finishAndEvaluate() {

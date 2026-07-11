@@ -240,4 +240,61 @@ void main() {
     expect(updatedStep.waterAmount, closeTo(60.0, 0.1));
     expect(find.text('「V60 Test」を更新しました'), findsOneWidget);
   });
+
+  testWidgets('BrewRecipeScreen: 「新規として保存」で021へ基準値・Pouring Stepsを引き継いで遷移する',
+      (WidgetTester tester) async {
+    final method = MethodMaster(
+      id: 'M1',
+      name: 'V60 Test',
+      author: 'Test',
+      baseBeanWeight: 15.0,
+      baseWaterAmount: 250.0,
+      description: 'Desc',
+      recommendedEquipment: 'V60',
+    );
+    final steps = [
+      PouringStep(id: 'S1', methodId: 'M1', stepOrder: 1, duration: 30, waterAmount: 30, waterReference: 15.0, description: 'Bloom'),
+    ];
+    final fakeService = _FakeDataService(methods: [method], steps: steps);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) => fakeService.getMethods()),
+          pouringStepsProvider.overrideWith((ref) => fakeService.getPouringSteps()),
+          beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
+        ],
+        child: const MaterialApp(home: BrewRecipeScreen()),
+      ),
+    );
+    final listView = find.byType(ListView);
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<MethodMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('V60 Test').last);
+    await tester.pumpAndSettle();
+
+    await tester.drag(listView, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('メソッドを保存'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新規として保存'));
+    await tester.pumpAndSettle();
+
+    // 021(MethodCreateScreen)へ遷移し、名前とPouring Stepsが引き継がれている
+    expect(find.widgetWithText(TextField, 'V60 Test (コピー)'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    expect(find.text('Bloom'), findsOneWidget);
+
+    // 元のメソッド(M1)自体は上書きされていない
+    expect(fakeService.lastUpdatedMethod, isNull);
+  });
 }

@@ -14,10 +14,21 @@ import 'create_form_widgets.dart';
 /// 置き換え。[editData] を渡すと編集モードになり、既存の注湯ステップも
 /// MethodStepsEditor で読み込んで編集できる(旧 method_detail_screen.dart の
 /// インライン編集をやめ、他マスターと同じ「詳細→編集画面へ遷移」方式に統一)。
+/// Cycle 20 T2-4b: [prefillFrom]/[prefillSteps] を渡すと、030(抽出レシピ)の
+/// 「新規として保存」から基準値・Pouring Stepsを引き継いだ新規登録フォーム
+/// になる。[editData]と異なり常に新規メソッドとして登録される(既存メソッドの
+/// 上書きにはならない)。
 class MethodCreateScreen extends ConsumerStatefulWidget {
   final MethodMaster? editData;
+  final MethodMaster? prefillFrom;
+  final List<PouringStep>? prefillSteps;
 
-  const MethodCreateScreen({super.key, this.editData});
+  const MethodCreateScreen({
+    super.key,
+    this.editData,
+    this.prefillFrom,
+    this.prefillSteps,
+  });
 
   @override
   ConsumerState<MethodCreateScreen> createState() => _MethodCreateScreenState();
@@ -44,7 +55,7 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
   @override
   void initState() {
     super.initState();
-    final edit = widget.editData;
+    final edit = widget.editData ?? widget.prefillFrom;
     _nameController.text = edit?.name ?? '';
     _authorController.text = edit?.author ?? '';
     _urlController.text = edit?.sourceUrl ?? '';
@@ -57,7 +68,29 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
         (edit?.temperature == null || edit!.temperature == 0) ? '' : edit.temperature.toString();
     _grindSizeController.text = edit?.grindSize ?? '';
     _equipmentController.text = edit?.recommendedEquipment ?? '';
-    if (!_isEdit) _stepsLoaded = true;
+    if (!_isEdit) {
+      // prefillSteps は永続化済みの他メソッドのステップを複製したものなので、
+      // 元のIDのまま _submit() に渡すと updatePouringStep で元メソッド側の
+      // データを書き換えてしまう。必ず 'new_' プレフィックスの未保存IDに
+      // 差し替えてから複製する。
+      final prefill = widget.prefillSteps;
+      if (prefill != null && prefill.isNotEmpty) {
+        _steps = [
+          for (var i = 0; i < prefill.length; i++)
+            PouringStep(
+              id: 'new_${DateTime.now().microsecondsSinceEpoch}_$i',
+              methodId: 'temp',
+              stepOrder: prefill[i].stepOrder,
+              duration: prefill[i].duration,
+              waterAmount: prefill[i].waterAmount,
+              waterReference: prefill[i].waterReference,
+              waterRatio: prefill[i].waterRatio,
+              description: prefill[i].description,
+            ),
+        ];
+      }
+      _stepsLoaded = true;
+    }
   }
 
   @override
