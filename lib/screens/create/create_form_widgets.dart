@@ -460,9 +460,10 @@ class _MockSwitchTileState extends State<MockSwitchTile> {
 class MockScoreSlider extends StatefulWidget {
   final String label;
   final double initialValue;
+  final ValueChanged<double>? onChanged;
 
   const MockScoreSlider(
-      {super.key, required this.label, this.initialValue = 5});
+      {super.key, required this.label, this.initialValue = 5, this.onChanged});
 
   @override
   State<MockScoreSlider> createState() => _MockScoreSliderState();
@@ -487,7 +488,10 @@ class _MockScoreSliderState extends State<MockScoreSlider> {
             divisions: 10,
             activeColor: kAccent,
             label: _value.toInt().toString(),
-            onChanged: (v) => setState(() => _value = v),
+            onChanged: (v) {
+              setState(() => _value = v);
+              widget.onChanged?.call(v);
+            },
           ),
         ),
         SizedBox(
