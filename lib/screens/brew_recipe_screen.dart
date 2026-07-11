@@ -7,16 +7,23 @@ import '../models/pouring_step.dart';
 import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/pending_brew_info.dart';
-import '../widgets/bean_image.dart';
+import '../routing/app_screen.dart';
+import '../widgets/method_steps_editor.dart';
 import 'create/brew_evaluation_screen.dart';
+import 'create/create_form_widgets.dart';
+import 'mock/mock_scaffold.dart';
 
 /// 030 抽出レシピ画面。
 ///
 /// Cycle 20 T1-2a: 旧 CalculatorScreen(記録画面)から評価パート(スコア入力・
 /// 記録の保存)を切り離し、抽出パート(メソッド/器具選択・湯量計算・タイマー・
 /// Pouring Steps編集)のみを扱う単独画面として分離した。
-/// 抽出完了後は 031(評価画面)へ遷移する。実データの引き継ぎは T1-2b、
-/// records への保存処理は T2-5a で実装する。
+/// 抽出完了後は 031(評価画面)へ遷移する。
+/// Cycle 20 T2-3a: 見た目をPhase2共通ウィジェット(MockScreenScaffold/
+/// FormSection/MethodStepsEditor)に統一。メソッド選択→Pouring Steps読込・
+/// 重量スケーリング・タイマー・ステップハイライト・031への引き継ぎといった
+/// 既存ロジックはそのまま維持した。メソッド保存(上書き/新規)は既存どおり
+/// シミュレーション表示のまま(実際のDataService接続はT2-4a/T2-4bの担当)。
 class BrewRecipeScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
   final double? initialBeanWeight;
@@ -35,20 +42,16 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   MethodMaster? _selectedMethod;
   final TextEditingController _beanWeightController = TextEditingController();
 
-  // Equipment
   BeanMaster? _selectedBean;
   GrinderMaster? _selectedGrinder;
   DripperMaster? _selectedDripper;
   FilterMaster? _selectedFilter;
 
-  // Brew Date
   DateTime _brewedAt = DateTime.now();
 
-  // Working copy of steps for editing
   List<PouringStep> _workingSteps = [];
   bool _hasInitializedFromArgs = false;
 
-  // Timer
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
 
@@ -74,66 +77,26 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       return;
     }
 
-    final methodSteps = allSteps.where((s) => s.methodId == method.id).toList();
-    methodSteps.sort((a, b) => a.stepOrder.compareTo(b.stepOrder));
+    final methodSteps = allSteps.where((s) => s.methodId == method.id).toList()
+      ..sort((a, b) => a.stepOrder.compareTo(b.stepOrder));
 
     setState(() {
       _selectedMethod = method;
       _beanWeightController.text = method.baseBeanWeight.toString();
-      // Clone steps to isolate from provider
-      _workingSteps = methodSteps
-          .map((s) => PouringStep(
-                id: s.id,
-                methodId: s.methodId,
-                stepOrder: s.stepOrder,
-                duration: s.duration,
-                waterAmount: s.waterAmount,
-                waterReference: s.waterReference,
-                waterRatio: s.waterRatio,
-                description: s.description,
-              ))
-          .toList();
+      _workingSteps = methodSteps.map(_cloneStep).toList();
     });
   }
 
-  void _addStep() {
-    setState(() {
-      _workingSteps.add(PouringStep(
-        id: 'new_${DateTime.now().millisecondsSinceEpoch}',
-        methodId: _selectedMethod?.id ?? 'temp',
-        stepOrder: _workingSteps.length + 1,
-        duration: 0,
-        waterAmount: 0,
-        waterReference: _selectedMethod?.baseBeanWeight ?? 15.0,
-        description: '',
-      ));
-    });
-  }
-
-  void _removeStep(int index) {
-    setState(() {
-      _workingSteps.removeAt(index);
-      _reindexSteps();
-    });
-  }
-
-  void _moveStep(int index, int direction) {
-    final newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= _workingSteps.length) return;
-
-    setState(() {
-      final temp = _workingSteps[index];
-      _workingSteps[index] = _workingSteps[newIndex];
-      _workingSteps[newIndex] = temp;
-      _reindexSteps();
-    });
-  }
-
-  void _reindexSteps() {
-    for (var i = 0; i < _workingSteps.length; i++) {
-      _workingSteps[i] = _copyWith(_workingSteps[i], stepOrder: i + 1);
-    }
-  }
+  PouringStep _cloneStep(PouringStep s) => PouringStep(
+        id: s.id,
+        methodId: s.methodId,
+        stepOrder: s.stepOrder,
+        duration: s.duration,
+        waterAmount: s.waterAmount,
+        waterReference: s.waterReference,
+        waterRatio: s.waterRatio,
+        description: s.description,
+      );
 
   PouringStep _copyWith(PouringStep s,
       {int? stepOrder,
@@ -153,7 +116,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     );
   }
 
-  // Timer Methods
+  // --- Timer ---
   void _toggleTimer() {
     setState(() {
       if (_stopwatch.isRunning) {
@@ -178,94 +141,31 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     });
   }
 
-  Future<void> _showSaveDialog() async {
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save Method'),
-        content: const Text('Do you want to overwrite the current method or save as a new one?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'Overwrite'),
-            child: const Text('Overwrite'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'New'),
-            child: const Text('Save as New'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'Cancel'),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-
-    if (choice == 'New') {
-      if (!mounted) return;
-      final newName = await _promptNewName();
-      if (newName != null && newName.isNotEmpty) {
-        _save(overwrite: false, newName: newName);
-      }
-    } else if (choice == 'Overwrite') {
-      _save(overwrite: true);
+  /// T2-3c: 経過時間から現在のステップindexを求める(タイマー未動作時はnull)。
+  int? get _activeStepIndex {
+    if (!_stopwatch.isRunning) return null;
+    final elapsedSec = _stopwatch.elapsedMilliseconds / 1000;
+    int cumulative = 0;
+    for (var i = 0; i < _workingSteps.length; i++) {
+      final start = cumulative;
+      cumulative += _workingSteps[i].duration;
+      if (elapsedSec >= start && elapsedSec < cumulative) return i;
     }
+    return null;
   }
 
-  Future<String?> _promptNewName() async {
-    String name = '';
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Method Name'),
-        content: TextField(
-          onChanged: (v) => name = v,
-          decoration: const InputDecoration(hintText: 'Enter name'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, name), child: const Text('OK')),
-        ],
-      ),
-    );
+  double get _currentWeight => double.tryParse(_beanWeightController.text) ?? 15.0;
+
+  double get _scaleFactor {
+    final base = _selectedMethod?.baseBeanWeight ?? 0;
+    return base > 0 ? (_currentWeight / base) : 1.0;
   }
 
-  void _save({required bool overwrite, String? newName}) {
-    // Determine new Method Details
-    final currentWeight = double.tryParse(_beanWeightController.text) ?? 15.0;
-
-    final methodId = overwrite ? _selectedMethod?.id : 'NEW_${DateTime.now().millisecondsSinceEpoch}';
-    final methodName = overwrite ? _selectedMethod?.name : newName;
-
-    // Normalize steps to the Current Weight (which becomes the new Base Weight)
-    final oldBase = _selectedMethod?.baseBeanWeight ?? 15.0;
-    final factor = oldBase > 0 ? (currentWeight / oldBase) : 1.0;
-
-    final finalSteps = _workingSteps.map((s) {
-      double actualAmount = 0.0;
-      if (s.waterRatio != null && s.waterRatio! > 0) {
-        actualAmount = s.waterRatio! * currentWeight;
-      } else {
-        // If no ratio, it was scaling by factor
-        actualAmount = s.waterAmount * factor;
-      }
-
-      // Calculate new Ratio (User requester: Register Ratio)
-      final newRatio = currentWeight > 0 ? (actualAmount / currentWeight) : 0.0;
-
-      return _copyWith(s, waterAmount: actualAmount, waterRatio: newRatio);
-    }).toList();
-
-    debugPrint('[Antigravity] SAVING METHOD: $methodName ($methodId)');
-    debugPrint('[Antigravity] NEW BASE WEIGHT: $currentWeight');
-    for (var s in finalSteps) {
-      debugPrint(
-          '[Antigravity] - Order ${s.stepOrder}: ${s.duration}s, ${s.waterAmount.toStringAsFixed(1)}ml (Ratio: ${s.waterRatio?.toStringAsFixed(2)}), "${s.description}"');
+  double _stepAmount(PouringStep s) {
+    if (s.waterRatio != null && s.waterRatio! > 0) {
+      return s.waterRatio! * _currentWeight;
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Method "$methodName" saved (Simulated) with Base $currentWeight. Check logs.')),
-    );
+    return s.waterAmount * _scaleFactor;
   }
 
   Future<void> _pickDateTime() async {
@@ -275,31 +175,99 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (date != null) {
+    if (date == null) return;
+    if (!mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_brewedAt),
+    );
+    if (time == null) return;
+    setState(() {
+      _brewedAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  Future<void> _showSaveDialog() async {
+    if (_selectedMethod == null) return;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('メソッドを保存'),
+        content: Text('「${_selectedMethod!.name}」を上書きしますか、新規メソッドとして保存しますか?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'overwrite'),
+            child: const Text('上書き'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'new'),
+            child: const Text('新規として保存'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == 'new') {
       if (!mounted) return;
-      final time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_brewedAt),
-      );
-      if (time != null) {
-        setState(() {
-          _brewedAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-        });
+      final newName = await _promptNewName();
+      if (newName != null && newName.trim().isNotEmpty) {
+        _save(overwrite: false, newName: newName.trim());
       }
+    } else if (choice == 'overwrite') {
+      _save(overwrite: true);
     }
+  }
+
+  Future<String?> _promptNewName() async {
+    final controller = TextEditingController(text: '${_selectedMethod?.name ?? ''} (コピー)');
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('新しいメソッド名'),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('保存')),
+        ],
+      ),
+    );
+  }
+
+  /// メソッド保存(上書き/新規)。実際のDataService永続化はT2-4a/T2-4bで実装する。
+  void _save({required bool overwrite, String? newName}) {
+    final currentWeight = _currentWeight;
+    final methodName = overwrite ? _selectedMethod?.name : newName;
+
+    final finalSteps = _workingSteps.map((s) {
+      final amount = _stepAmount(s);
+      final ratio = currentWeight > 0 ? amount / currentWeight : 0.0;
+      return _copyWith(s, waterAmount: amount, waterRatio: ratio);
+    }).toList();
+
+    debugPrint('[Antigravity] SAVING METHOD (simulated): $methodName, base=$currentWeight g');
+    for (final s in finalSteps) {
+      debugPrint(
+          '[Antigravity] - order ${s.stepOrder}: ${s.duration}s, ${s.waterAmount.toStringAsFixed(1)}ml (ratio ${s.waterRatio?.toStringAsFixed(2)}), "${s.description}"');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('「$methodName」を保存しました(シミュレーション、実装はT2-4a/T2-4b)')),
+    );
   }
 
   void _finishAndEvaluate() {
     final method = _selectedMethod;
     if (method == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a method.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('メソッドを選択してください')));
       return;
     }
 
-    final currentWeight = double.tryParse(_beanWeightController.text) ?? 15.0;
-    final baseWeight = method.baseBeanWeight > 0 ? method.baseBeanWeight : 15.0;
-    final factor = currentWeight / baseWeight;
-
+    final currentWeight = _currentWeight;
     double totalWater = 0.0;
     int totalTime = 0;
     double bloomingWater = 0.0;
@@ -307,7 +275,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
 
     for (var i = 0; i < _workingSteps.length; i++) {
       final s = _workingSteps[i];
-      final amt = (s.waterRatio != null && s.waterRatio! > 0) ? s.waterRatio! * currentWeight : s.waterAmount * factor;
+      final amt = _stepAmount(s);
       totalWater += amt;
       totalTime += s.duration;
       if (i == 0) {
@@ -330,7 +298,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       bloomingTime: bloomingTime,
     );
 
-    debugPrint('[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)。records保存は T2-5a で実装');
+    debugPrint(
+        '[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)');
     Navigator.push(context, MaterialPageRoute(builder: (_) => BrewEvaluationScreen(info: info)));
   }
 
@@ -338,396 +307,227 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   Widget build(BuildContext context) {
     final methodsAsync = ref.watch(methodMasterProvider);
     final stepsAsync = ref.watch(pouringStepsProvider);
+    final beansAsync = ref.watch(beanMasterProvider);
+    final grindersAsync = ref.watch(grinderMasterProvider);
+    final drippersAsync = ref.watch(dripperMasterProvider);
+    final filtersAsync = ref.watch(filterMasterProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('抽出レシピ (030)')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+    return MockScreenScaffold(
+      screen: AppScreen.brewRecipe,
+      maxWidth: 560,
+      children: [
+        FormSection(
+          icon: Icons.tune,
+          title: 'レシピ選択',
           children: [
-            // Method Selector
             methodsAsync.when(
               data: (methods) {
-                // Initial load from args
-                if (!_hasInitializedFromArgs && widget.initialMethodId != null && stepsAsync.hasValue) {
-                  final target = methods.firstWhere(
-                    (m) => m.id == widget.initialMethodId,
-                    orElse: () => methods.first,
-                  );
-                  if (target.id == widget.initialMethodId) {
+                if (!_hasInitializedFromArgs &&
+                    widget.initialMethodId != null &&
+                    stepsAsync.hasValue) {
+                  final target = methods.where((m) => m.id == widget.initialMethodId);
+                  if (target.isNotEmpty) {
                     _hasInitializedFromArgs = true;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _onMethodChanged(target, stepsAsync.value!);
+                      if (mounted) _onMethodChanged(target.first, stepsAsync.value!);
                     });
                   }
                 }
-
-                return DropdownButton<MethodMaster>(
-                  hint: const Text('Select Method'),
+                return DropdownButtonFormField<MethodMaster>(
+                  decoration: const InputDecoration(labelText: 'メソッド'),
                   value: _selectedMethod,
                   isExpanded: true,
-                  items: methods.map((m) {
-                    return DropdownMenuItem(
-                      value: m,
-                      child: Text(m.name),
-                    );
-                  }).toList(),
+                  items: [
+                    for (final m in methods)
+                      DropdownMenuItem(value: m, child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                  ],
                   onChanged: (val) {
-                    stepsAsync.whenData((allSteps) {
-                      _onMethodChanged(val, allSteps);
-                    });
+                    stepsAsync.whenData((allSteps) => _onMethodChanged(val, allSteps));
                   },
                 );
               },
               loading: () => const LinearProgressIndicator(),
-              error: (e, s) => Text('Error loading methods: $e'),
+              error: (e, s) => Text('メソッド読み込みエラー: $e'),
             ),
-            const SizedBox(height: 16),
-
-            // Bean Weight Input
-            TextField(
-              controller: _beanWeightController,
-              decoration: const InputDecoration(
-                labelText: 'Bean Weight (g)',
-                border: OutlineInputBorder(),
-                suffixText: 'g',
-              ),
+            const SizedBox(height: 12),
+            MockTextField(
+              label: '豆量',
+              suffix: 'g',
+              hint: '20',
               keyboardType: TextInputType.number,
+              controller: _beanWeightController,
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 16),
-
-            // Timer (Inline)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.brown.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.brown.shade200),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    _formatTimerUI(_stopwatch.elapsedMilliseconds),
-                    style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.brown),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: _toggleTimer,
-                        style: ElevatedButton.styleFrom(backgroundColor: _stopwatch.isRunning ? Colors.orange : Colors.green),
-                        child: Text(_stopwatch.isRunning ? 'Stop' : 'Start'),
-                      ),
-                      const SizedBox(width: 16),
-                      OutlinedButton(
-                        onPressed: _resetTimer,
-                        child: const Text('Reset'),
-                      ),
-                    ],
-                  ),
+            beansAsync.when(
+              data: (beans) {
+                final inStock = beans.where((b) => b.isInStock).toList();
+                return DropdownButtonFormField<BeanMaster>(
+                  decoration: const InputDecoration(labelText: '豆'),
+                  value: _selectedBean,
+                  isExpanded: true,
+                  items: [
+                    for (final b in inStock)
+                      DropdownMenuItem(value: b, child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => setState(() => _selectedBean = v),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('豆読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            grindersAsync.when(
+              data: (grinders) => DropdownButtonFormField<GrinderMaster>(
+                decoration: const InputDecoration(labelText: 'グラインダー'),
+                value: _selectedGrinder,
+                isExpanded: true,
+                items: [
+                  for (final g in grinders)
+                    DropdownMenuItem(value: g, child: Text(g.name, overflow: TextOverflow.ellipsis)),
                 ],
+                onChanged: (v) => setState(() => _selectedGrinder = v),
               ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('グラインダー読み込みエラー: $e'),
             ),
-            const SizedBox(height: 16),
-
-            // Collapsible Table
-            ExpansionTile(
-              title: const Text('Pouring Steps', style: TextStyle(fontWeight: FontWeight.bold)),
-              initiallyExpanded: true,
-              children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('#')),
-                      DataColumn(label: Text('Time (Start)')),
-                      DataColumn(label: Text('Total Weight (g)')),
-                      DataColumn(label: Text('Description')),
-                      DataColumn(label: Text('Action')),
-                    ],
-                    rows: _buildRows(),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _addStep,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Step'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: _workingSteps.isEmpty ? null : _showSaveDialog,
-                        icon: const Icon(Icons.save),
-                        label: const Text('Save'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const SizedBox(height: 12),
+            drippersAsync.when(
+              data: (drippers) => DropdownButtonFormField<DripperMaster>(
+                decoration: const InputDecoration(labelText: 'ドリッパー'),
+                value: _selectedDripper,
+                isExpanded: true,
+                items: [
+                  for (final d in drippers)
+                    DropdownMenuItem(value: d, child: Text(d.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _selectedDripper = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('ドリッパー読み込みエラー: $e'),
             ),
-            const Divider(height: 32, thickness: 2),
-
-            // Brew Setup Section
-            Text('Brew Setup', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            // Date Picker
+            const SizedBox(height: 12),
+            filtersAsync.when(
+              data: (filters) => DropdownButtonFormField<FilterMaster>(
+                decoration: const InputDecoration(labelText: 'フィルター'),
+                value: _selectedFilter,
+                isExpanded: true,
+                items: [
+                  for (final f in filters)
+                    DropdownMenuItem(value: f, child: Text(f.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _selectedFilter = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('フィルター読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
             InkWell(
               onTap: _pickDateTime,
               child: InputDecorator(
                 decoration: const InputDecoration(
-                  labelText: 'Brewed At',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.calendar_today),
+                  labelText: '抽出日時',
+                  prefixIcon: Icon(Icons.calendar_today, size: 20),
                 ),
                 child: Text(
-                  '${_brewedAt.year}/${_brewedAt.month}/${_brewedAt.day} ${_brewedAt.hour}:${_brewedAt.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildEquipmentSection(ref),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _finishAndEvaluate,
-                icon: const Icon(Icons.star),
-                label: const Text('抽出を終えて評価へ (031)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.brown,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  '${_brewedAt.year}/${_brewedAt.month.toString().padLeft(2, '0')}/${_brewedAt.day.toString().padLeft(2, '0')} '
+                  '${_brewedAt.hour.toString().padLeft(2, '0')}:${_brewedAt.minute.toString().padLeft(2, '0')}',
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  List<DataRow> _buildRows() {
-    final currentWeight = double.tryParse(_beanWeightController.text) ?? 15.0;
-    final baseWeight = _selectedMethod?.baseBeanWeight ?? 15.0;
-    final factor = baseWeight > 0 ? (currentWeight / baseWeight) : 1.0;
-
-    int cumulativeTime = 0;
-    double cumulativeTotal = 0.0;
-    final elapsedSec = _stopwatch.elapsedMilliseconds / 1000;
-
-    return _workingSteps.asMap().entries.map((entry) {
-      final index = entry.key;
-      final step = entry.value;
-
-      // Start Time (Prior cumulative)
-      final startTime = cumulativeTime;
-
-      // Calculate
-      double stepAmount = 0.0;
-      if (step.waterRatio != null && step.waterRatio! > 0) {
-        stepAmount = step.waterRatio! * currentWeight;
-      } else {
-        stepAmount = step.waterAmount * factor;
-      }
-      cumulativeTotal += stepAmount;
-      final currentTotal = cumulativeTotal;
-
-      cumulativeTime += step.duration;
-      final endTime = cumulativeTime;
-
-      // Highlighting Logic: Current time is between startTime and endTime
-      final isActive = _stopwatch.isRunning && elapsedSec >= startTime && elapsedSec < endTime;
-
-      return DataRow(
-        color: MaterialStateProperty.resolveWith((states) {
-          return isActive ? Colors.yellow.shade100 : null;
-        }),
-        cells: [
-          DataCell(Text(step.stepOrder.toString())),
-          // Time (Start Time)
-          DataCell(TextFormField(
-            initialValue: _formatTime(startTime),
-            keyboardType: TextInputType.datetime,
-            onFieldSubmitted: (v) {
-              // Edit Start Time logic
-              if (index == 0) return;
-
-              final val = _parseTime(v);
-              if (val != null) {
-                // Get previous step's start time
-                int prevStepStartTime = 0;
-                for (int i = 0; i < index - 1; i++) {
-                  prevStepStartTime += _workingSteps[i].duration;
-                }
-
-                // New duration for Step N-1 = New Start Time of N - Start Time of N-1
-                final newDurationPrevStep = val - prevStepStartTime;
-
-                if (newDurationPrevStep >= 0) {
-                  setState(() {
-                    _workingSteps[index - 1] = _copyWith(_workingSteps[index - 1], duration: newDurationPrevStep);
-                  });
-                }
-              }
-            },
-          )),
-          // Total Weight Cell
-          DataCell(TextFormField(
-            key: ValueKey('weight_${index}_$currentTotal'), // Force rebuild on value change
-            initialValue: currentTotal.toStringAsFixed(1),
-            keyboardType: TextInputType.number,
-            onFieldSubmitted: (v) {
-              final val = double.tryParse(v);
-              if (val != null) {
-                double prevTotal = 0.0;
-                for (int i = 0; i < index; i++) {
-                  final s = _workingSteps[i];
-                  double amt = 0.0;
-                  if (s.waterRatio != null && s.waterRatio! > 0) {
-                    amt = s.waterRatio! * currentWeight;
-                  } else {
-                    amt = s.waterAmount * factor;
-                  }
-                  prevTotal += amt;
-                }
-                final newStepAmount = val - prevTotal;
-                if (newStepAmount >= 0) {
-                  final newBaseAmount = newStepAmount / factor;
-                  setState(() {
-                    _workingSteps[index] = _copyWith(step, waterAmount: newBaseAmount, waterRatio: 0.0);
-                  });
-                }
-              }
-            },
-          )),
-          DataCell(TextFormField(
-            initialValue: step.description,
-            onChanged: (v) {
-              _workingSteps[index] = _copyWith(step, description: v);
-            },
-          )),
-          DataCell(Row(
-            mainAxisSize: MainAxisSize.min,
+        // タイマー(T2-3b)
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+            color: kEspresso,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_upward, size: 20),
-                onPressed: index > 0 ? () => _moveStep(index, -1) : null,
+              Text(
+                _formatTimerUI(_stopwatch.elapsedMilliseconds),
+                style: const TextStyle(
+                  color: kCream,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.arrow_downward, size: 20),
-                onPressed: index < _workingSteps.length - 1 ? () => _moveStep(index, 1) : null,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                onPressed: () => _removeStep(index),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    iconSize: 44,
+                    color: kAccent,
+                    icon: Icon(_stopwatch.isRunning
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_fill),
+                    onPressed: _toggleTimer,
+                  ),
+                  IconButton(
+                    iconSize: 36,
+                    color: kLatte,
+                    icon: const Icon(Icons.replay),
+                    onPressed: _resetTimer,
+                  ),
+                ],
               ),
             ],
-          )),
-        ],
-      );
-    }).toList();
-  }
-
-  Widget _buildEquipmentSection(WidgetRef ref) {
-    final grinders = ref.watch(grinderMasterProvider).valueOrNull ?? [];
-    final drippers = ref.watch(dripperMasterProvider).valueOrNull ?? [];
-    final filters = ref.watch(filterMasterProvider).valueOrNull ?? [];
-    final beans = ref.watch(beanMasterProvider).valueOrNull ?? [];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonFormField<BeanMaster>(
-          decoration: const InputDecoration(labelText: 'Bean'),
-          value: _selectedBean,
-          isExpanded: true,
-          items: beans
-              .where((b) => b.isInStock)
-              .map((e) => DropdownMenuItem(value: e, child: Text(e.name, overflow: TextOverflow.ellipsis)))
-              .toList(),
-          onChanged: (v) => setState(() => _selectedBean = v),
+          ),
         ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<GrinderMaster>(
-          decoration: const InputDecoration(labelText: 'Grinder'),
-          value: _selectedGrinder,
-          items: grinders
-              .map((e) => DropdownMenuItem(
-                  value: e,
-                  child: Row(children: [
-                    if (e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                      Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
-                    Text(e.name)
-                  ])))
-              .toList(),
-          onChanged: (v) => setState(() => _selectedGrinder = v),
+        FormSection(
+          icon: Icons.water_drop_outlined,
+          title: 'Pouring Steps (経過時間で現在のステップを強調)',
+          children: [
+            if (_selectedMethod == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('メソッドを選択してください', style: TextStyle(color: kMocha)),
+              )
+            else
+              MethodStepsEditor(
+                initialSteps: _workingSteps,
+                isEditing: true,
+                baseBeanWeight: _currentWeight,
+                activeStepIndex: _activeStepIndex,
+                onStepsChanged: (newSteps) => _workingSteps = newSteps,
+              ),
+            if (_selectedMethod != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: _showSaveDialog,
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('メソッドを保存'),
+                ),
+              ),
+            ],
+          ],
         ),
-        DropdownButtonFormField<DripperMaster>(
-          decoration: const InputDecoration(labelText: 'Dripper'),
-          value: _selectedDripper,
-          items: drippers
-              .map((e) => DropdownMenuItem(
-                  value: e,
-                  child: Row(children: [
-                    if (e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                      Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
-                    Text(e.name)
-                  ])))
-              .toList(),
-          onChanged: (v) => setState(() => _selectedDripper = v),
-        ),
-        DropdownButtonFormField<FilterMaster>(
-          decoration: const InputDecoration(labelText: 'Filter'),
-          value: _selectedFilter,
-          items: filters
-              .map((e) => DropdownMenuItem(
-                  value: e,
-                  child: Row(children: [
-                    if (e.imageUrl != null && e.imageUrl!.isNotEmpty)
-                      Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: BeanImage(imagePath: e.imageUrl!, width: 24, height: 24, fit: BoxFit.cover, placeholderIcon: Icons.broken_image)),
-                    Text(e.name)
-                  ])))
-              .toList(),
-          onChanged: (v) => setState(() => _selectedFilter = v),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _finishAndEvaluate,
+            icon: const Icon(Icons.star),
+            label: const Text('抽出を終えて評価へ (031)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
         ),
       ],
     );
-  }
-
-  String _formatTime(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   String _formatTimerUI(int milliseconds) {
     final minutes = (milliseconds ~/ 60000).toString().padLeft(2, '0');
     final seconds = ((milliseconds % 60000) ~/ 1000).toString().padLeft(2, '0');
     return '$minutes:$seconds';
-  }
-
-  int? _parseTime(String value) {
-    if (value.contains(':')) {
-      final parts = value.split(':');
-      if (parts.length == 2) {
-        final m = int.tryParse(parts[0]);
-        final s = int.tryParse(parts[1]);
-        if (m != null && s != null) return m * 60 + s;
-      }
-    }
-    return int.tryParse(value);
   }
 }

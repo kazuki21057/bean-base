@@ -7,12 +7,17 @@ class MethodStepsEditor extends StatefulWidget {
   final double baseBeanWeight;
   final Function(List<PouringStep>) onStepsChanged;
 
+  /// タイマー連動のハイライト対象ステップ(0始まりindex)。
+  /// Cycle 20 T2-3c: null(デフォルト)なら従来どおりハイライトなし。
+  final int? activeStepIndex;
+
   const MethodStepsEditor({
     super.key,
     required this.initialSteps,
     required this.isEditing,
     this.baseBeanWeight = 15.0,
     required this.onStepsChanged,
+    this.activeStepIndex,
   });
 
   @override
@@ -67,7 +72,11 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
       final stepEndTime = cumulativeTime;
       final stepEndWater = cumulativeWater;
 
-      rows.add(DataRow(cells: [
+      rows.add(DataRow(
+        color: WidgetStateProperty.resolveWith((states) {
+          return i == widget.activeStepIndex ? Colors.amber.shade100 : null;
+        }),
+        cells: [
          DataCell(Text(s.stepOrder.toString())),
          // Time Column
          DataCell(widget.isEditing 

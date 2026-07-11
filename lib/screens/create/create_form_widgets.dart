@@ -159,12 +159,14 @@ class FormSection extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: dark ? kChalkAccent : kMocha),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: dark ? kChalkWhite : kEspresso,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: dark ? kChalkWhite : kEspresso,
+                  ),
                 ),
               ),
             ],
