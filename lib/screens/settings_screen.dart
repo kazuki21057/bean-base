@@ -133,6 +133,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return MockScreenScaffold(
       screen: AppScreen.settings,
       maxWidth: 560,
+      showSettingsAction: false,
       children: [
         FormSection(
           icon: Icons.palette_outlined,

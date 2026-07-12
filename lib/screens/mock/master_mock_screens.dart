@@ -24,6 +24,7 @@ class _MasterDetailMock extends StatelessWidget {
   Widget build(BuildContext context) {
     return MockScreenScaffold(
       screen: screen,
+      showSettingsAction: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.edit_outlined),

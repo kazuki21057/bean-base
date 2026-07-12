@@ -53,6 +53,7 @@ class LogDetailMockScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MockScreenScaffold(
       screen: AppScreen.logDetail,
+      showSettingsAction: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.edit_outlined),

@@ -62,6 +62,7 @@ class LogDetailScreen extends ConsumerWidget {
 
     return MockScreenScaffold(
       screen: AppScreen.logDetail,
+      showSettingsAction: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.edit_outlined),

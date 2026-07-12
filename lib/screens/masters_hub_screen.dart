@@ -4,6 +4,7 @@ import 'dripper_list_screen.dart';
 import 'filter_list_screen.dart';
 import 'grinder_list_screen.dart';
 import 'method_list_screen.dart';
+import 'settings_screen.dart';
 
 /// 「Masters」ナビタブの入り口。
 ///
@@ -26,7 +27,18 @@ class MastersHubScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Masters')),
+      appBar: AppBar(
+        title: const Text('Masters'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '設定',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [

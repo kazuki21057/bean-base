@@ -11,7 +11,6 @@ import 'bean_list_screen.dart';
 import 'log_detail_screen.dart';
 import 'log_list_screen.dart';
 import 'mock/mock_scaffold.dart';
-import 'settings_screen.dart';
 
 /// 001 ダッシュボード。
 ///
@@ -43,15 +42,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return MockScreenScaffold(
       screen: AppScreen.dashboard,
       boardTexture: true,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          tooltip: '設定',
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-          },
-        ),
-      ],
       children: [
         // 黒板風ウェルカムボード(Cycle 20 T2-1a: 共通テーマ定数を使用)
         Container(

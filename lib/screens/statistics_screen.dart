@@ -10,7 +10,6 @@ import '../widgets/statistics/pca_scatter_plot.dart';
 import '../widgets/statistics/ranking_list.dart';
 import 'create/create_form_widgets.dart';
 import 'mock/mock_scaffold.dart';
-import 'settings_screen.dart';
 
 /// 040 スタッツ(統計情報)画面。
 ///
@@ -37,13 +36,6 @@ class StatisticsScreen extends ConsumerWidget {
           icon: const Icon(Icons.refresh),
           tooltip: '更新',
           onPressed: () => ref.refresh(coffeeRecordsProvider),
-        ),
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          tooltip: '設定',
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-          },
         ),
       ],
       children: [

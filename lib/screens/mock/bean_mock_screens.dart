@@ -15,6 +15,7 @@ class BeanDetailMockScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MockScreenScaffold(
       screen: AppScreen.beanDetail,
+      showSettingsAction: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.edit_outlined),

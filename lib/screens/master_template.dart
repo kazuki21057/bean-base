@@ -129,6 +129,7 @@ class MasterDetailTemplate extends ConsumerWidget {
 
     return MockScreenScaffold(
       screen: screen,
+      showSettingsAction: false,
       actions: [
         IconButton(
           icon: const Icon(Icons.edit_outlined),

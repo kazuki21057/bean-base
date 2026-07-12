@@ -3,6 +3,7 @@ import '../../routing/app_screen.dart';
 import '../../theme/blackboard_theme.dart';
 import '../../widgets/bean_image.dart';
 import '../create/create_form_widgets.dart';
+import '../settings_screen.dart';
 
 /// 一覧・詳細・ダッシュボード系画面のUIモック共通骨格。
 /// 作成系の CreateFormScaffold と同じパレット(コーヒートーン)を使い、
@@ -10,6 +11,11 @@ import '../create/create_form_widgets.dart';
 ///
 /// `boardTexture: true` にすると本文の背景が黒板風(Cycle 20 T2-1a)になる。
 /// デフォルトは従来どおりのクリーム背景のため、他画面は無変更で動く。
+///
+/// Cycle 20 T3-7: `showSettingsAction`(デフォルトtrue)で設定(090)への
+/// 導線をAppBarに自動追加する。新規登録画面(CreateFormScaffold)・詳細画面
+/// (MasterDetailTemplate)はこの骨格を使わないため対象外。この骨格を使う
+/// 画面のうち詳細画面に相当するもの(003等)・設定画面自身は明示的にfalseにする。
 class MockScreenScaffold extends StatelessWidget {
   final AppScreen screen;
   final List<Widget> children;
@@ -17,6 +23,7 @@ class MockScreenScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final double maxWidth;
   final bool boardTexture;
+  final bool showSettingsAction;
 
   const MockScreenScaffold({
     super.key,
@@ -26,6 +33,7 @@ class MockScreenScaffold extends StatelessWidget {
     this.actions,
     this.maxWidth = 720,
     this.boardTexture = false,
+    this.showSettingsAction = true,
   });
 
   @override
@@ -45,7 +53,17 @@ class MockScreenScaffold extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: kEspresso,
         foregroundColor: kCream,
-        actions: actions,
+        actions: [
+          ...?actions,
+          if (showSettingsAction)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: '設定',
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              },
+            ),
+        ],
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
