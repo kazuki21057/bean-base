@@ -48,9 +48,9 @@ class MethodDetailScreen extends ConsumerWidget {
       fields: [
         ('メソッド名', method.name),
         ('発案者', method.author.isEmpty ? '-' : method.author),
-        ('基準豆量', '${method.baseBeanWeight}g'),
-        ('基準湯量', '${method.baseWaterAmount}g'),
-        ('湯温', (method.temperature == null || method.temperature == 0) ? '-' : '${method.temperature}℃'),
+        ('基準豆量', '${method.baseBeanWeight.toStringAsFixed(1)}g'),
+        ('基準湯量', '${method.baseWaterAmount.toStringAsFixed(1)}g'),
+        ('湯温', (method.temperature == null || method.temperature == 0) ? '-' : '${method.temperature!.toStringAsFixed(1)}℃'),
         ('推奨挽き目', method.grindSize ?? '-'),
         ('推奨器具', method.recommendedEquipment.isEmpty ? '-' : method.recommendedEquipment),
         ('説明', method.description.isEmpty ? '-' : method.description),

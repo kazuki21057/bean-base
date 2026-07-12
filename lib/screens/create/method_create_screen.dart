@@ -61,11 +61,11 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
     _urlController.text = edit?.sourceUrl ?? '';
     _descController.text = edit?.description ?? '';
     _beanWeightController.text =
-        (edit == null || edit.baseBeanWeight == 0) ? '' : edit.baseBeanWeight.toString();
+        (edit == null || edit.baseBeanWeight == 0) ? '' : edit.baseBeanWeight.toStringAsFixed(1);
     _waterAmountController.text =
-        (edit == null || edit.baseWaterAmount == 0) ? '' : edit.baseWaterAmount.toString();
+        (edit == null || edit.baseWaterAmount == 0) ? '' : edit.baseWaterAmount.toStringAsFixed(1);
     _temperatureController.text =
-        (edit?.temperature == null || edit!.temperature == 0) ? '' : edit.temperature.toString();
+        (edit?.temperature == null || edit!.temperature == 0) ? '' : edit.temperature!.toStringAsFixed(1);
     _grindSizeController.text = edit?.grindSize ?? '';
     _equipmentController.text = edit?.recommendedEquipment ?? '';
     if (!_isEdit) {

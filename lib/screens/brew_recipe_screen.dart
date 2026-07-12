@@ -59,7 +59,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   @override
   void initState() {
     super.initState();
-    _beanWeightController.text = (widget.initialBeanWeight ?? 15).toString();
+    _beanWeightController.text = (widget.initialBeanWeight ?? 15).toStringAsFixed(1);
   }
 
   @override
@@ -84,7 +84,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
 
     setState(() {
       _selectedMethod = method;
-      _beanWeightController.text = method.baseBeanWeight.toString();
+      _beanWeightController.text = method.baseBeanWeight.toStringAsFixed(1);
       _workingSteps = methodSteps.map(_cloneStep).toList();
       _originalSteps = methodSteps.map(_cloneStep).toList();
     });

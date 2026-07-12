@@ -394,7 +394,7 @@ class _BrewSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final methodText = info.method.name;
     final weightText = '豆 ${info.beanWeight.toStringAsFixed(1)}g / 湯 ${info.totalWater.toStringAsFixed(1)}g';
-    final tempText = info.method.temperature != null ? '${info.method.temperature!.toStringAsFixed(0)}℃' : '温度未設定';
+    final tempText = info.method.temperature != null ? '${info.method.temperature!.toStringAsFixed(1)}℃' : '温度未設定';
     final timeText = _formatTime(info.totalTime);
 
     return Container(

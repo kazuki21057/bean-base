@@ -173,8 +173,5 @@ class LogDetailScreen extends ConsumerWidget {
     return '$m:${s.toString().padLeft(2, '0')}';
   }
 
-  String _fmtNum(double v) {
-    if (v == v.roundToDouble()) return v.toInt().toString();
-    return v.toStringAsFixed(1);
-  }
+  String _fmtNum(double v) => v.toStringAsFixed(1);
 }

@@ -38,9 +38,9 @@ class _LogEditScreenState extends ConsumerState<LogEditScreen> {
     super.initState();
     final log = widget.log;
     _brewedAt = log.brewedAt;
-    _beanWeightController = TextEditingController(text: log.beanWeight.toString());
-    _waterAmountController = TextEditingController(text: log.totalWater.toString());
-    _tempController = TextEditingController(text: log.temperature.toString());
+    _beanWeightController = TextEditingController(text: log.beanWeight.toStringAsFixed(1));
+    _waterAmountController = TextEditingController(text: log.totalWater.toStringAsFixed(1));
+    _tempController = TextEditingController(text: log.temperature.toStringAsFixed(1));
     _timeController = TextEditingController(text: log.totalTime.toString());
     _grindSizeController = TextEditingController(text: log.grindSize);
     _commentController = TextEditingController(text: log.comment);

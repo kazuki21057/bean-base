@@ -38,7 +38,7 @@ class BeanDetailScreen extends ConsumerWidget {
         ('品種・精製', bean.type.isEmpty ? '-' : bean.type),
         ('煎り度', bean.roastLevel.isEmpty ? '-' : bean.roastLevel),
         ('購入日', _formatDate(bean.purchaseDate)),
-        ('初期購入量', bean.initialQuantityGrams == null ? '未設定' : '${bean.initialQuantityGrams!.toStringAsFixed(0)}g'),
+        ('初期購入量', bean.initialQuantityGrams == null ? '未設定' : '${bean.initialQuantityGrams!.toStringAsFixed(1)}g'),
         ('残量', percent > 0 ? '$percent% (在庫あり)' : '0% (在庫なし)'),
       ],
       relatedLogFilter: (log) => log.beanId == bean.id,

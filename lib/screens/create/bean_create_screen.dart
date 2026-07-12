@@ -45,7 +45,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _storeController.text = edit?.store ?? '';
     _originController.text = edit?.origin ?? '';
     _typeController.text = edit?.type ?? '';
-    _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(0) ?? '';
+    _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(1) ?? '';
     _roastLevel = (edit?.roastLevel.isNotEmpty ?? false) ? edit!.roastLevel : null;
     _purchaseDate = edit?.purchaseDate;
     _isInStock = edit?.isInStock ?? true;
