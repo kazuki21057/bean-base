@@ -4,10 +4,10 @@
 /// ここではその画面IDを型安全に扱うための enum とルートパスのみを定義する。
 /// 各画面Widgetの実装・登録は T1-1b（プレースホルダ生成）以降で行う。
 ///
-/// ナビ再編方針（T1-1a決定事項）:
+/// ナビ再編方針（T1-1a決定事項、T3-8でMasters/Logsの並びを入替）:
 /// - `navIndexProvider`（lib/layout/main_layout.dart）は NavigationRail/Bar の
 ///   トップレベルタブ選択にのみ用い、対応するルートタブは
-///   [AppScreen.topLevelTabs] の並び（001 → 010 → 002 → 030 → 040）とする。
+///   [AppScreen.topLevelTabs] の並び（001 → 002 → 010 → 030 → 040）とする。
 /// - 090(設定)は歯車アイコン等からの遷移のみで、ボトムナビ/レールには含めない。
 /// - 詳細・編集・新規画面（011/012/014/015/017/018/020/021/023/024/003/031 等）は
 ///   トップレベルタブに属さず、既存の `navigatorKey`（lib/utils/nav_key.dart）経由の
@@ -48,8 +48,8 @@ enum AppScreen {
   /// index は `navIndexProvider` の値と一致する。
   static const List<AppScreen> topLevelTabs = [
     dashboard, // 0: Home
-    beanList, // 1: Masters
-    logList, // 2: Logs
+    logList, // 1: Logs
+    beanList, // 2: Masters
     brewRecipe, // 3: Calc/抽出
     statistics, // 4: Stats
   ];

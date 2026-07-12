@@ -11,7 +11,7 @@ import '../utils/nav_key.dart';
 final navIndexProvider = StateProvider<int>((ref) => 0);
 
 /// トップレベルタブのアイコン・ラベル・遷移先画面。
-/// 並びは [AppScreen.topLevelTabs]（001→010→002→030→040）と一致させる。
+/// 並びは [AppScreen.topLevelTabs]（001→002→010→030→040、T3-8でMasters/Logs入替）と一致させる。
 const Map<AppScreen, IconData> _tabIcons = {
   AppScreen.dashboard: Icons.dashboard,
   AppScreen.beanList: Icons.list,
