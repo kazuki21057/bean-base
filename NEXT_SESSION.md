@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-18(T3-10 完了)
+最終更新: 2026-07-18(T3-10 完了、未コミット分の整理、コストガードレール超過により終了)
 
 ## -4.15 当日やったこと(2026-07-18、T3-10・最新)
 
@@ -12,7 +12,9 @@
 - 検証: `flutter analyze`(新規issue 0件、43件のまま。web/配下はlint対象外)。`flutter build web`成功、ビルド後の`build/web/manifest.json`・`build/web/icons/`に変更が反映されていることを確認。
 - **ブラウザ目視確認を実施**(Chrome拡張が今回未接続だったため、Playwright MCPで代替。`python -m http.server`で`build/web`をローカル配信)。ページタイトルが「BeanBase」(Flutter起動後は`MaterialApp`側の設定で「BeanBase 2.0」に上書き、これは意図通り)、`<link rel=manifest>`/`<link rel=icon>`が正しいパスを指していること、コンソールエラー0件(WebGLのパフォーマンス系警告のみ、既知の無害な事象)、実データ(本番Sheets)でダッシュボードが正常表示されることを確認。
 - マスタープラン §3 T3-10を✅に更新。
-- commit/push 予定(このセッション内、T3-10単独コミット。`lib/models/*.g.dart`の差分・`.playwright-mcp`削除は本タスクと無関係な既存の未コミット差分のため、今回のコミットには含めない)。
+- commit/push 済み(T3-10単独コミット `83917cb`)。
+- **後続の片付け(同日、ユーザー指示)**: T3-10のコミットから意図的に除外していた既存の未コミット差分を整理。`lib/models/*.g.dart` 4件は`git diff`で内容差分ゼロ(改行コードのみ、`core.autocrlf=true`起因)と確認できたため`git checkout --`で復元。`.playwright-mcp/page-2026-06-28T03-31-04-269Z.yml`はCycle 19完了コミットで誤って追跡されていたPlaywrightの一時スナップショットだったため削除を確定し、再発防止で`.gitignore`に`.playwright-mcp/`を追加。commit/push 済み(`f733a48`)。
+- **本日はコストガードレール(`.claude/loop_state.md`)が$12上限を超過($14.982)して発火。** 新規タスク(T3-9等)には着手せず、本エントリの更新とマスタープラン進捗表更新のみで本日のセッションを終了する。
 
 ## -4.14 当日やったこと(2026-07-11、T2-7・Phase 2完了)
 
