@@ -1,11 +1,11 @@
 {
-    "name": "bean_base",
-    "short_name": "bean_base",
+    "name": "BeanBase",
+    "short_name": "BeanBase",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#D7CCC8",
+    "theme_color": "#3E2723",
+    "description": "コーヒー抽出ログ・器具管理・味覚データ分析のためのパーソナルアプリ",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
