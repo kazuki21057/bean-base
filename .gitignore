@@ -51,3 +51,6 @@ pictures/
 
 # Playwright MCP のスクリーンショット・スナップショット(実行のたびに生成される一時ファイル)
 .playwright-mcp/
+
+# Firebase CLI のデプロイキャッシュ
+.firebase/
