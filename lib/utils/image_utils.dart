@@ -24,7 +24,11 @@ class ImageUtils {
       }
 
       if (id != null) {
-        return 'https://drive.google.com/uc?export=view&id=$id';
+        // 'uc?export=view' はCORSヘッダーを返さないため、Flutter Web(CanvasKit)の
+        // Image.network がバイト取得時にCORSエラーで失敗し画像が表示されない
+        // (placeholderにフォールバックするため一見エラーが出ないように見える)。
+        // lh3.googleusercontent.com のサムネイル配信はCORS対応済みのため代替する。
+        return 'https://lh3.googleusercontent.com/d/$id';
       }
     }
     

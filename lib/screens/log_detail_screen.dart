@@ -124,19 +124,13 @@ class LogDetailScreen extends ConsumerWidget {
           icon: Icons.star_outline,
           title: '評価',
           children: [
-            MockInfoRow(
-              label: '香り / 酸味',
-              value: '${log.scoreFragrance} / ${log.scoreAcidity}',
-            ),
-            MockInfoRow(
-              label: '苦味 / 甘み',
-              value: '${log.scoreBitterness} / ${log.scoreSweetness}',
-            ),
-            MockInfoRow(
-              label: '複雑さ / 風味',
-              value: '${log.scoreComplexity} / ${log.scoreFlavor}',
-            ),
-            MockInfoRow(label: '総合', value: '${log.scoreOverall}'),
+            MockInfoRow(label: '香り', value: '${log.scoreFragrance}/10'),
+            MockInfoRow(label: '酸味', value: '${log.scoreAcidity}/10'),
+            MockInfoRow(label: '苦味', value: '${log.scoreBitterness}/10'),
+            MockInfoRow(label: '甘み', value: '${log.scoreSweetness}/10'),
+            MockInfoRow(label: '複雑さ', value: '${log.scoreComplexity}/10'),
+            MockInfoRow(label: '風味', value: '${log.scoreFlavor}/10'),
+            MockInfoRow(label: '総合', value: '${log.scoreOverall}/10'),
             if (log.taste.isNotEmpty || log.concentration.isNotEmpty)
               MockInfoRow(
                 label: 'テイスト',

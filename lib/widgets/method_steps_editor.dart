@@ -77,7 +77,6 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
           return i == widget.activeStepIndex ? Colors.amber.shade100 : null;
         }),
         cells: [
-         DataCell(Text(s.stepOrder.toString())),
          // Time Column
          DataCell(widget.isEditing 
            ? TextFormField(
@@ -142,8 +141,9 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
+            columnSpacing: 16,
+            horizontalMargin: 8,
             columns: [
-              const DataColumn(label: Text('#')),
               DataColumn(label: Text(widget.isEditing ? 'End Time' : 'End Time')),
               DataColumn(label: Text(widget.isEditing ? 'Total Water' : 'Total Water')),
               const DataColumn(label: Text('Description')),

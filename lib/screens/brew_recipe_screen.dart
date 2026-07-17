@@ -146,14 +146,31 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
   }
 
   /// T2-3c: 経過時間から現在のステップindexを求める(タイマー未動作時はnull)。
+  ///
+  /// 「加算時間(秒)」が0のステップ(例: 蒸らし開始などの瞬間アクション)は
+  /// それ自体の待機区間を持たず、実際の待機時間は直後の非ゼロステップ側に
+  /// 記録されている(このアプリのPouring Steps入力慣習)。そのため単純に
+  /// 区間 [start, cumulative) だけで判定すると、説明文が付いている0秒ステップ
+  /// ではなく1つ後ろの(説明文が空のことが多い)ステップが常にハイライトされて
+  /// しまう。0秒ステップが連続する先頭indexをグループとして憶えておき、
+  /// そのグループの直後の非ゼロ区間がヒットした場合はグループ先頭を返す。
   int? get _activeStepIndex {
     if (!_stopwatch.isRunning) return null;
     final elapsedSec = _stopwatch.elapsedMilliseconds / 1000;
     int cumulative = 0;
+    int? zeroGroupStart;
     for (var i = 0; i < _workingSteps.length; i++) {
       final start = cumulative;
-      cumulative += _workingSteps[i].duration;
-      if (elapsedSec >= start && elapsedSec < cumulative) return i;
+      final duration = _workingSteps[i].duration;
+      if (duration == 0) {
+        zeroGroupStart ??= i;
+        continue;
+      }
+      cumulative += duration;
+      if (elapsedSec >= start && elapsedSec < cumulative) {
+        return zeroGroupStart ?? i;
+      }
+      zeroGroupStart = null;
     }
     return null;
   }

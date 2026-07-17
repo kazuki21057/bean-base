@@ -58,12 +58,23 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
                 child: Center(child: Text('登録されていません')),
               );
             }
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final (bean, percent) in visible) _BeanCard(bean: bean, percent: percent),
-              ],
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 12.0;
+                // モバイル幅では220px固定だと1列しか入らないため、
+                // 狭い画面では2列に収まる幅を算出する(広い画面は220px固定のまま多列)。
+                final cardWidth = constraints.maxWidth < 460
+                    ? (constraints.maxWidth - spacing) / 2
+                    : 220.0;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final (bean, percent) in visible)
+                      _BeanCard(bean: bean, percent: percent, width: cardWidth),
+                  ],
+                );
+              },
             );
           },
           loading: () => const Padding(
@@ -83,8 +94,9 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
 class _BeanCard extends StatelessWidget {
   final BeanMaster bean;
   final int percent;
+  final double width;
 
-  const _BeanCard({required this.bean, required this.percent});
+  const _BeanCard({required this.bean, required this.percent, required this.width});
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +112,7 @@ class _BeanCard extends StatelessWidget {
         );
       },
       child: Container(
-        width: 220,
+        width: width,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
