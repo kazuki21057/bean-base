@@ -48,3 +48,6 @@ pictures/
 # 日次ループの transient 状態ファイル
 .claude/loop_state.md
 .claude/loop_failures.txt
+
+# Playwright MCP のスクリーンショット・スナップショット(実行のたびに生成される一時ファイル)
+.playwright-mcp/
