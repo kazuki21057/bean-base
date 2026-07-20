@@ -18,6 +18,9 @@ import 'mock/mock_scaffold.dart';
 /// 接続した本実装。行タップは既存の LogDetailScreen(003本実装はT1-4b)へ。
 /// Cycle 20 T1-4c: 行を左にスワイプすると、そのログの抽出情報・評価値を
 /// 引き継いだ 031(評価画面)を開ける(スワイプでの削除は行わない)。
+/// Cycle 20 T3-14: 各行左側のアイコンを、該当する豆のマスター画像(未設定なら
+/// プレースホルダアイコン)に変更した。`MockListRow`が既に対応していた
+/// `imageUrl`引数を渡すだけで実現できた。
 class LogListScreen extends ConsumerWidget {
   const LogListScreen({super.key});
 
@@ -58,9 +61,11 @@ class LogListScreen extends ConsumerWidget {
             }
 
             final beanNames = <String, String>{};
+            final beanImages = <String, String?>{};
             beansAsync.whenData((beans) {
               for (final b in beans) {
                 beanNames[b.id] = b.name;
+                beanImages[b.id] = b.imageUrl;
               }
             });
             final methodNames = <String, String>{};
@@ -104,6 +109,7 @@ class LogListScreen extends ConsumerWidget {
                     ),
                     child: MockListRow(
                       icon: Icons.coffee,
+                      imageUrl: beanImages[log.beanId],
                       title: beanNames[log.beanId] ?? log.beanId,
                       subtitle: '${_formatDateTime(log.brewedAt)} ・ ${methodNames[log.methodId] ?? log.methodId}',
                       trailing: MockScoreBadge(score: log.scoreOverall),
