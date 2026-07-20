@@ -285,4 +285,33 @@ void main() {
     // 元のメソッド(M1)自体は上書きされていない
     expect(fakeService.lastUpdatedMethod, isNull);
   });
+
+  testWidgets('BrewRecipeScreen: メソッド未選択のままでも「抽出を終えて評価へ」で031へ進める(T3-15)',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
+          pouringStepsProvider.overrideWith((ref) async => <PouringStep>[]),
+          coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
+          beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: const MaterialApp(home: BrewRecipeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    // メソッドを選択しないまま「抽出を終えて評価へ」をタップしても、
+    // 以前のようにブロックされず031へ遷移する。
+    await tester.tap(find.text('抽出を終えて評価へ (031)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('メソッドを選択してください'), findsNothing);
+    expect(find.text('メソッド未選択'), findsOneWidget);
+  });
 }

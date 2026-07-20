@@ -6,7 +6,10 @@ import 'method_master.dart';
 /// Sheetsへの永続化は行わない(CoffeeRecordとしての保存はT2-5aで実装)。
 class PendingBrewInfo {
   final DateTime brewedAt;
-  final MethodMaster method;
+
+  /// T3-15: 030でメソッドを選ばずに031へ進めるよう、必須ではなくした
+  /// (031側でメソッドを選択・変更できる。T3-17参照)。
+  final MethodMaster? method;
   final BeanMaster? bean;
   final GrinderMaster? grinder;
   final DripperMaster? dripper;
@@ -32,7 +35,7 @@ class PendingBrewInfo {
 
   const PendingBrewInfo({
     required this.brewedAt,
-    required this.method,
+    this.method,
     this.bean,
     this.grinder,
     this.dripper,

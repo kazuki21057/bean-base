@@ -339,14 +339,11 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     }
   }
 
+  /// T3-15: メソッド未選択でも031(評価画面)へ進めるようにする。
+  /// 未選択の場合、Pouring Stepsが無いため湯量・時間は0のまま031へ引き継がれ、
+  /// メソッドは031側で選択できる(T3-17)。
   void _finishAndEvaluate() {
     final method = _selectedMethod;
-    if (method == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('メソッドを選択してください')));
-      return;
-    }
-
     final currentWeight = _currentWeight;
     double totalWater = 0.0;
     int totalTime = 0;
@@ -375,7 +372,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     );
 
     debugPrint(
-        '[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)');
+        '[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (method=${method?.name ?? "未選択"}, ${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)');
     Navigator.push(context, MaterialPageRoute(builder: (_) => BrewEvaluationScreen(info: info)));
   }
 

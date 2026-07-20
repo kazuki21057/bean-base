@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/bean_master.dart';
 import '../../models/coffee_record.dart';
 import '../../models/equipment_masters.dart';
+import '../../models/method_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../models/pending_brew_info.dart';
 import '../../services/data_service.dart';
+import '../../widgets/bean_image.dart';
 import 'create_form_widgets.dart';
 
 /// 031 抽出結果の評価。
@@ -28,6 +30,14 @@ import 'create_form_widgets.dart';
 /// 002からの「評価を継承」(`PendingBrewInfo.bean`等)はこれらの初期値として使う。
 /// 「続けて記録」時は器具・豆選択はそのまま維持し(同じ設定で複数杯淹れることが
 /// 多いため)、抽出日時のみ登録時点の現在時刻へ進める。
+/// Cycle 20 T3-15/T3-17: 030でメソッド未選択でもこの画面へ進めるようにし、
+/// メソッド・豆量・総湯量も030からの引き継ぎ値をこの画面で編集できるようにした。
+/// 湯温は030から引き継がず(元々メソッドの既定値を無条件に使っていた)、この画面で
+/// 都度入力する運用に変更した。
+/// Cycle 20 T3-16: 豆/グラインダー/ドリッパー/フィルターの選択リストの各項目に
+/// マスター画像のサムネイルを表示するようにした。
+/// Cycle 20 T3-18: 「味わい」(テイスト/濃度)入力欄は4:6メソッド選択時のみ表示・
+/// 保存する(他メソッドでは非表示かつCoffeeRecordへ空文字で保存)。
 class BrewEvaluationScreen extends ConsumerStatefulWidget {
   final PendingBrewInfo info;
 
@@ -63,6 +73,20 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   late GrinderMaster? _grinder = widget.info.grinder;
   late DripperMaster? _dripper = widget.info.dripper;
   late FilterMaster? _filter = widget.info.filter;
+
+  /// T3-17: メソッド・豆量・総湯量も030からの引き継ぎ値をここで編集できる。
+  late MethodMaster? _method = widget.info.method;
+  late final TextEditingController _beanWeightController =
+      TextEditingController(text: widget.info.beanWeight.toStringAsFixed(1));
+  late final TextEditingController _totalWaterController =
+      TextEditingController(text: widget.info.totalWater.toStringAsFixed(1));
+
+  /// T3-17: 湯温は030から引き継がず、この画面で毎回入力する運用にしたため
+  /// 空欄で初期化する。
+  final _temperatureController = TextEditingController();
+
+  /// T3-18: 「味わい」欄は4:6メソッド選択時のみ表示・保存する。
+  bool get _isTasteApplicable => _method?.name.contains('4:6') ?? false;
 
   /// 登録済み件数(このセッション内)。0件目は030から引き継いだ`info.brewedAt`を
   /// そのまま使い、2件目以降(「続けて記録」)は登録時点の現在時刻を使う。
@@ -103,6 +127,9 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   @override
   void dispose() {
     _commentController.dispose();
+    _beanWeightController.dispose();
+    _totalWaterController.dispose();
+    _temperatureController.dispose();
     super.dispose();
   }
 
@@ -110,8 +137,9 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   /// [_formResetGeneration]をインクリメントし、各ウィジェットのkeyに反映して
   /// 強制的に再構築させることで、MockChoiceChips/MockScoreSlider自身が持つ
   /// 内部状態(タップ済みの選択)もあわせてリセットする。
-  /// 器具・豆選択(_bean/_grinder/_dripper/_filter)は同じ設定で連続記録する
-  /// ことが多いためリセットせず維持する。抽出日時のみ現在時刻へ進める。
+  /// 器具・豆選択(_bean/_grinder/_dripper/_filter)、メソッド・豆量・総湯量・
+  /// 湯温(_method/_beanWeightController等)は同じ設定で連続記録することが
+  /// 多いためリセットせず維持する。抽出日時のみ現在時刻へ進める。
   void _resetForm() {
     _formResetGeneration++;
     _taste = _tasteOptions[1];
@@ -148,6 +176,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
 
   Future<void> _submit() async {
     final info = widget.info;
+    final beanWeight = double.tryParse(_beanWeightController.text) ?? info.beanWeight;
+    final totalWater = double.tryParse(_totalWaterController.text) ?? info.totalWater;
+    final temperature = double.tryParse(_temperatureController.text) ?? 0.0;
+    final isTasteApplicable = _isTasteApplicable;
     setState(() => _isSaving = true);
     try {
       final record = CoffeeRecord(
@@ -159,14 +191,15 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
         beanId: _bean?.id ?? '',
         roastLevel: _bean?.roastLevel ?? '',
         origin: _bean?.origin ?? '',
-        beanWeight: info.beanWeight,
+        beanWeight: beanWeight,
         grindSize: _grinder?.grindRange ?? '',
-        methodId: info.method.id,
-        taste: _taste ?? '',
-        concentration: _concentration ?? '',
-        temperature: info.method.temperature ?? 0,
+        methodId: _method?.id ?? '',
+        // T3-18: 4:6メソッド以外では味わい入力欄が非表示のため空文字で保存する。
+        taste: isTasteApplicable ? (_taste ?? '') : '',
+        concentration: isTasteApplicable ? (_concentration ?? '') : '',
+        temperature: temperature,
         bloomingWater: info.bloomingWater,
-        totalWater: info.totalWater,
+        totalWater: totalWater,
         bloomingTime: info.bloomingTime,
         totalTime: info.totalTime,
         scoreFragrance: _scoreFragrance.round(),
@@ -208,9 +241,33 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     }
   }
 
+  /// T3-16: 選択リストの各項目にマスター画像のサムネイルを表示する。
+  Widget _thumbnailLabel(String? imageUrl, IconData icon, String text) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: kCream,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: kLatte),
+          ),
+          child: (imageUrl != null && imageUrl.isNotEmpty)
+              ? BeanImage(imagePath: imageUrl, fit: BoxFit.cover, placeholderIcon: icon)
+              : Icon(icon, size: 16, color: kMocha),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, overflow: TextOverflow.ellipsis)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final info = widget.info;
+    final methodsAsync = ref.watch(methodMasterProvider);
     final beansAsync = ref.watch(beanMasterProvider);
     final grindersAsync = ref.watch(grinderMasterProvider);
     final drippersAsync = ref.watch(dripperMasterProvider);
@@ -222,11 +279,57 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       onSave: _submit,
       disabled: _isSaving,
       children: [
-        _BrewSummaryCard(info: info),
+        _BrewSummaryCard(
+          method: _method,
+          beanWeight: double.tryParse(_beanWeightController.text) ?? info.beanWeight,
+          totalWater: double.tryParse(_totalWaterController.text) ?? info.totalWater,
+          totalTime: info.totalTime,
+        ),
         FormSection(
           icon: Icons.coffee_maker_outlined,
           title: '抽出情報',
           children: [
+            // T3-17: メソッドも030からの引き継ぎ値をここで編集できる。
+            methodsAsync.when(
+              data: (methods) => DropdownButtonFormField<MethodMaster>(
+                decoration: const InputDecoration(labelText: 'メソッド'),
+                value: _resolveById(methods, _method?.id, (m) => m.id),
+                isExpanded: true,
+                items: [
+                  for (final m in methods)
+                    DropdownMenuItem(value: m, child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _method = v),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('メソッド読み込みエラー: $e'),
+            ),
+            const SizedBox(height: 12),
+            MockTextField(
+              label: '豆量',
+              suffix: 'g',
+              keyboardType: TextInputType.number,
+              controller: _beanWeightController,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            MockTextField(
+              label: '総湯量',
+              suffix: 'g',
+              keyboardType: TextInputType.number,
+              controller: _totalWaterController,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            MockTextField(
+              label: '湯温',
+              suffix: '℃',
+              hint: '92',
+              keyboardType: TextInputType.number,
+              controller: _temperatureController,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
             beansAsync.when(
               data: (beans) {
                 final inStock = beans.where((b) => b.isInStock).toList();
@@ -236,7 +339,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
                   isExpanded: true,
                   items: [
                     for (final b in inStock)
-                      DropdownMenuItem(value: b, child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                      DropdownMenuItem(
+                        value: b,
+                        child: _thumbnailLabel(b.imageUrl, Icons.coffee, b.name),
+                      ),
                   ],
                   onChanged: (v) => setState(() => _bean = v),
                 );
@@ -252,7 +358,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
                 isExpanded: true,
                 items: [
                   for (final g in grinders)
-                    DropdownMenuItem(value: g, child: Text(g.name, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(
+                      value: g,
+                      child: _thumbnailLabel(g.imageUrl, Icons.settings, g.name),
+                    ),
                 ],
                 onChanged: (v) => setState(() => _grinder = v),
               ),
@@ -267,7 +376,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
                 isExpanded: true,
                 items: [
                   for (final d in drippers)
-                    DropdownMenuItem(value: d, child: Text(d.name, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(
+                      value: d,
+                      child: _thumbnailLabel(d.imageUrl, Icons.filter_alt_outlined, d.name),
+                    ),
                 ],
                 onChanged: (v) => setState(() => _dripper = v),
               ),
@@ -282,7 +394,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
                 isExpanded: true,
                 items: [
                   for (final f in filters)
-                    DropdownMenuItem(value: f, child: Text(f.name, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(
+                      value: f,
+                      child: _thumbnailLabel(f.imageUrl, Icons.filter_frames_outlined, f.name),
+                    ),
                 ],
                 onChanged: (v) => setState(() => _filter = v),
               ),
@@ -305,26 +420,28 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
             ),
           ],
         ),
-        FormSection(
-          icon: Icons.restaurant_outlined,
-          title: '味わい',
-          children: [
-            MockChoiceChips(
-              key: ValueKey('taste_$_formResetGeneration'),
-              label: 'テイスト',
-              options: _tasteOptions,
-              initialIndex: _optionIndex(_tasteOptions, _taste) ?? 1,
-              onChanged: (v) => setState(() => _taste = v),
-            ),
-            MockChoiceChips(
-              key: ValueKey('concentration_$_formResetGeneration'),
-              label: '濃度',
-              options: _concentrationOptions,
-              initialIndex: _optionIndex(_concentrationOptions, _concentration) ?? 1,
-              onChanged: (v) => setState(() => _concentration = v),
-            ),
-          ],
-        ),
+        // T3-18: 4:6メソッド選択時のみ「味わい」欄を表示する。
+        if (_isTasteApplicable)
+          FormSection(
+            icon: Icons.restaurant_outlined,
+            title: '味わい',
+            children: [
+              MockChoiceChips(
+                key: ValueKey('taste_$_formResetGeneration'),
+                label: 'テイスト',
+                options: _tasteOptions,
+                initialIndex: _optionIndex(_tasteOptions, _taste) ?? 1,
+                onChanged: (v) => setState(() => _taste = v),
+              ),
+              MockChoiceChips(
+                key: ValueKey('concentration_$_formResetGeneration'),
+                label: '濃度',
+                options: _concentrationOptions,
+                initialIndex: _optionIndex(_concentrationOptions, _concentration) ?? 1,
+                onChanged: (v) => setState(() => _concentration = v),
+              ),
+            ],
+          ),
         FormSection(
           icon: Icons.star_outline,
           title: 'スコア (0〜10)',
@@ -384,18 +501,30 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   }
 }
 
-/// 030(抽出レシピ)から引き継がれた実際の抽出情報のサマリ表示。
+/// 030(抽出レシピ)から引き継いだ抽出情報のサマリ表示。
+/// T3-17: メソッド・豆量・総湯量はこの画面で編集可能になったため、030の
+/// 引き継ぎ値そのものではなく、呼び出し元([_BrewEvaluationScreenState.build])
+/// が現在の入力値を渡す(編集すると即座にサマリへ反映される)。
+/// 湯温は030から引き継がずこの画面で新規入力する運用(T3-17)のため、
+/// このサマリには含めない(下の「抽出情報」セクションの入力欄で確認できる)。
 class _BrewSummaryCard extends StatelessWidget {
-  final PendingBrewInfo info;
+  final MethodMaster? method;
+  final double beanWeight;
+  final double totalWater;
+  final int totalTime;
 
-  const _BrewSummaryCard({required this.info});
+  const _BrewSummaryCard({
+    required this.method,
+    required this.beanWeight,
+    required this.totalWater,
+    required this.totalTime,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final methodText = info.method.name;
-    final weightText = '豆 ${info.beanWeight.toStringAsFixed(1)}g / 湯 ${info.totalWater.toStringAsFixed(1)}g';
-    final tempText = info.method.temperature != null ? '${info.method.temperature!.toStringAsFixed(1)}℃' : '温度未設定';
-    final timeText = _formatTime(info.totalTime);
+    final methodText = method?.name ?? 'メソッド未選択';
+    final weightText = '豆 ${beanWeight.toStringAsFixed(1)}g / 湯 ${totalWater.toStringAsFixed(1)}g';
+    final timeText = _formatTime(totalTime);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -428,7 +557,6 @@ class _BrewSummaryCard extends StatelessWidget {
             children: [
               _SummaryChip(icon: Icons.menu_book, text: methodText),
               _SummaryChip(icon: Icons.scale, text: weightText),
-              _SummaryChip(icon: Icons.thermostat, text: tempText),
               _SummaryChip(icon: Icons.timer_outlined, text: timeText),
             ],
           ),

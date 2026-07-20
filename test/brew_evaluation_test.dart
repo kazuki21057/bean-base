@@ -123,6 +123,7 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
           beanMasterProvider.overrideWith((ref) async => [bean]),
           grinderMasterProvider.overrideWith((ref) async => [grinder]),
           dripperMasterProvider.overrideWith((ref) async => [dripper]),
@@ -133,12 +134,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // サマリに引き継いだ抽出情報(メソッド)が表示されている。豆は031で選ぶため
-    // この時点ではまだ未選択(ドロップダウンのラベルのみ表示)。
-    expect(find.text('4:6メソッド'), findsOneWidget);
+    // サマリ・メソッド選択欄の両方に引き継いだメソッドが表示されている(T3-17)。
+    // 豆は031で選ぶためこの時点ではまだ未選択(ドロップダウンのラベルのみ表示)。
+    expect(find.text('4:6メソッド'), findsNWidgets(2));
     expect(find.text('エチオピア'), findsNothing);
 
-    // 031で豆/グラインダー/ドリッパー/フィルターを選択する
+    // 031で豆/グラインダー/ドリッパー/フィルターを選択する。
+    // T3-17でメソッド・豆量・総湯量・湯温の入力欄が追加されたため、下にある
+    // ドロップダウンは画面外になりうる(下方向にスクロールしてからタップする。
+    // brew_recipe_test.dartと同じパターン)。
+    final listView = find.byType(ListView);
+    await tester.drag(listView, const Offset(0, -300));
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byType(DropdownButtonFormField<BeanMaster>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('エチオピア').last);
@@ -209,6 +217,7 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
           beanMasterProvider.overrideWith((ref) async => [bean]),
           grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
           dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
@@ -243,5 +252,76 @@ void main() {
     // 豆・メソッド等の抽出情報は2件目も引き継がれている
     expect(second.beanId, 'b1');
     expect(second.methodId, 'm1');
+  });
+
+  testWidgets(
+      'BrewEvaluationScreen: 030でメソッド未選択(T3-15)でも表示・登録でき、この画面でメソッド・豆量・総湯量を編集できる(T3-17)。'
+      '4:6メソッド以外では「味わい」欄が非表示・非保存になる(T3-18)',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final v60Method = MethodMaster(
+      id: 'm2',
+      name: 'V60 Test',
+      author: 'Test',
+      baseBeanWeight: 15,
+      baseWaterAmount: 250,
+      description: '',
+      recommendedEquipment: '',
+    );
+    // T3-15: 030でメソッドを選ばずに031へ進んだ状態を再現(method: null)。
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 20, 9, 0),
+      method: null,
+      beanWeight: 20,
+      totalWater: 0,
+      totalTime: 0,
+      bloomingWater: 0,
+      bloomingTime: 0,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [v60Method]),
+          beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // メソッド未選択のままでも表示され、味わい欄は非表示(4:6メソッドではないため)。
+    expect(find.text('メソッド未選択'), findsOneWidget);
+    expect(find.text('テイスト'), findsNothing);
+
+    // この画面でメソッドを選択できる(T3-17)。
+    await tester.tap(find.byType(DropdownButtonFormField<MethodMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('V60 Test').last);
+    await tester.pumpAndSettle();
+
+    // V60 Testも4:6メソッドではないため、選択後も味わい欄は表示されない。
+    expect(find.text('テイスト'), findsNothing);
+
+    // 豆量・総湯量もこの画面で編集できる(T3-17)。
+    await tester.enterText(find.widgetWithText(TextField, '豆量'), '25');
+    await tester.enterText(find.widgetWithText(TextField, '総湯量'), '400');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    final saved = fakeService.lastAddedRecord;
+    expect(saved, isNotNull);
+    expect(saved!.methodId, 'm2');
+    expect(saved.beanWeight, 25.0);
+    expect(saved.totalWater, 400.0);
+    // 4:6メソッドではないため、味わい入力は空文字で保存される(T3-18)。
+    expect(saved.taste, '');
+    expect(saved.concentration, '');
   });
 }
