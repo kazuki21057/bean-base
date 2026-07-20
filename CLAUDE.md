@@ -120,7 +120,7 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 - サービス: regression_service.dart / preference_service.dart / suggestion_service.dart / gp_service.dart / migration_service.dart。statistics_service.dart は PCA を相関行列ベースに改修
 - モデル追加: origin_master.dart / analysis_snapshot.dart / recipe_suggestion.dart。BeanMaster に originId・roastDate、CoffeeRecord に originId と `brewRatio` getter (保存しない)
 - シート追加: origin_master / analysis_history / recipe_suggestions。GAS は `gas/Code.gs` としてリポジトリ管理 (clasp)、シート名ホワイトリスト `ALLOWED_SHEETS` 必須
-- UI: 統計画面に regression_section / pca_detail_panel / preference_section / gp_explorer_section を追加。F3 のみダッシュボード (recipe_suggestion_card)
+- UI 配置 (決定事項、設計書§1.2.1): F1/F2/F5 (regression_section / pca_detail_panel / preference_section) は統計画面。F3 (recipe_suggestion_card) はダッシュボード。F4 (gp_explorer_section) は統計画面ではなく**抽出画面(030)**
 
 ### データ規則
 
