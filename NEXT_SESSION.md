@@ -1,6 +1,25 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-1a・T4-1b・T4-1d・T4-1e・T4-1fをまとめて実装完了。T4-1c1/c2はコードのみ完成しclasp login待ち。次回はユーザーのclasp login実施→scriptId記入→Claude Codeがclasp push/deploy、その後実データでの最終確認)
+最終更新: 2026-07-21(T4-1(F6データ基盤)完了。GASデプロイ+実データ検証済み、検証中にoriginId/roastDateが保存されない重大バグを発見・修正。T4-1fのみユーザーによる実データ移行実行待ち)
+
+## -4.33 当日やったこと(2026-07-21、T4-1c1/c2完了・GASデプロイ・重大バグ修正)
+
+**-4.32に続けて、ユーザーから「T4-1c1/c2(GAS改修)の指示をして」との依頼。手順を案内しながらユーザーがPC作業(npm/clasp login/Apps Script API有効化/scriptId確認)を実施し、Claude Codeがclasp push/deployを実行してT4-1c1/c2を完了させた。さらに実データでの動作確認中に、T4-1b/T4-1eで実装した`originId`/`roastDate`が実際には一切保存されていない重大バグを発見・修正した。コストガードレール($12/日上限、実績$130超)をユーザーが複数回明示的に承認した上で対応した。**
+
+- **ユーザー作業(このセッション内で順に実施)**: (1) `npm i -g @google/clasp`(このPCに既存のnpmでインストール)。(2) `clasp login`(ブラウザOAuth、`kazuki21057@gmail.com`で認可)。(3) `https://script.google.com/home/usersettings`でApps Script APIを有効化(初回は反映に数分かかった)。(4) 対象GASプロジェクトのscriptId(`1HIQ2fwz9UALrpmfg8Qzy9ZOxx0Sf-ED6Onf_1kyZ5Fpg8RPz2Nc5_2mW`)を確認・共有。
+- **Claude Code側の作業**: `gas/.clasp.json`にscriptIdを記入 → `clasp push`(`Code.gs`/`appsscript.json`を反映) → `clasp deployments`で既存デプロイ一覧を確認し、`kGoogleSheetsApiUrl`に埋め込まれたデプロイID(`AKfycbxqhFoge1C2jYwoyPcS3BDRypCyOjc7rV6qd3FwwMaPBQ42MyrtMv8-NdcAIlvpl0Ao`)を特定 → `clasp deploy --deploymentId <そのID>`で更新(URLは変わらず)。curlで(a)`origin_master`/`analysis_history`/`recipe_suggestions`が空リスト`[]`で自動生成されていること(`ensureSheet_`が動作)、(b)`?sheet=some_random_sheet`が`{"error":"Sheet not allowed"}`で拒否されること(ホワイトリスト動作)、(c)既存`bean_master`が引き続き取得できること(既存機能に影響なし)、を確認。これでT4-1c1・T4-1c2が完了した。
+- **初期データ投入**: `dart run tools/seed_origin_masters.dart`を実行。1回目は`_postOrigin`がGASの302リダイレクトをJSONとしてパースしようとして`FormatException`で例外終了(POSTは`package:http`が自動追従しないため。GETは追従する)。実際にはorigin_1の書き込み自体はGAS側で成功していた(冪等な再実行で確認)。`Location`ヘッダへ手動でGETし直すよう修正し、再実行して全15件の投入を確認(curlでも直接確認)。
+- **重大バグの発見と修正**: ブラウザ(`flutter build web`→静的配信)で実際に012(新規豆追加)から「エチオピア」選択・焙煎日入力・登録を行い、GAS経由でSheetsの実データを確認したところ、**`産地`(自由入力欄への後方互換コピー)は保存されていたが、`originId`・`roastDate`はどこにも保存されていなかった**。原因は`lib/services/sheets_service.dart`の`getBeans()`の`keyMap`と`_reverseMapBean()`の`reverseMap`に、T4-1bで追加したはずの`originId`/`roastDate`のマッピングを追加し忘れていたこと(モデル側のフィールド追加だけで満足し、SheetsServiceの読み書きマッピングへの追加を怠っていた)。加えて、たとえDart側を直しても**実際のGoogle Sheets `bean_master`シートには「産地ID」「焙煎日」という列自体が存在しない**(GASの`addRow`は既存ヘッダー列にしか書き込まず、新規列を自動追加しない)ため、そのままでは値が送信されても静かに欠落する状態だった。
+  - 修正1: `sheets_service.dart`の`keyMap`/`reverseMap`に`'産地ID': 'originId'`・`'焙煎日': 'roastDate'`を追加。
+  - 修正2: `gas/Code.gs`に`ensureColumns_(sheet, sheetName)`(`EXISTING_SHEET_EXTRA_COLUMNS`定義に基づき、既存シートに不足している列ヘッダーを冪等に追記する汎用ヘルパー、`bean_master`→`['産地ID','焙煎日']`を登録)を追加し、`handleRequest`内で`ensureSheet_`の直後に呼び出すようにした。`clasp push`→`clasp deploy`で再反映。
+  - `flutter build web`で再ビルドし、サービスワーカーキャッシュをクリアしてから再度012で豆を登録 → 今度は`産地ID: "origin_1"`・`焙煎日: "2026-07-09T07:00:00.000Z"`が正しくSheetsに保存されていることをcurlで確認。
+  - 検証用に作成した豆2件(「検証用テスト豆」「検証用テスト豆2」)はGASの`delete`アクション(curl経由、アプリの削除経路と同じ`action:delete`)で削除済み。実データに残存していない。
+- 検証: `flutter analyze`(新規issue 0件、48件のまま)。`flutter test`全件パス(108件)。ブラウザでの実データ確認(産地ドロップダウン表示・選択・登録・保存内容)を今回実施し、上記バグを発見・修正まで完了させた。
+- commit/push はこのエントリ直後に実施。マスタープランのT4-1c1・T4-1c2・T4-1d・T4-1eを✅に更新済み(実データ確認済みのため)。T4-1fのみ、実際のデータ移行実行がユーザー作業(Phase 1完了条件)として残っている。
+- **次回への申し送り**:
+  1. T4-1f: 設定画面(090)の「データ移行」セクションから「産地データ移行を実行」ボタンを押してもらう(実データのbean_masterのorigin文字列をoriginAliasMapで自動突合。未突合が出たら画面上でドロップダウンから選んで確定)。これが完了すればPhase 1(F6)が完全に終了し、設計書§0のPhase順厳守によりT4-2a(design_matrix.dart、F1重回帰分析)へ進める。
+  2. **今回のバグ(モデルにフィールドを追加しただけでSheetsServiceの読み書きマッピング追加を忘れる)は再発しやすいパターン**。今後同様に既存モデルへフィールド追加する際は、`lib/services/sheets_service.dart`の該当`keyMap`/`_reverseMapXxx`両方への追加を忘れずに行うこと。可能であれば追加直後に実際にブラウザ経由で保存→GAS curlで内容確認、まで一気通貫でやると今回のような欠落に早く気づける。
+  3. `gas/`ディレクトリは今後Claude Codeが`clasp push`/`clasp deploy`で管理する(README.md参照)。ユーザーの`clasp login`は既に完了済みなので、次回以降のGAS改修はClaude Codeが単独で反映できる。
 
 ## -4.32 当日やったこと(2026-07-21、T4-1(F6データ基盤)を一括実装)
 

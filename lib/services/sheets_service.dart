@@ -211,6 +211,8 @@ class SheetsService implements DataService {
       '使い切り日': 'lastUseDate',
       '在庫': 'isInStock',
       '初期購入量(g)': 'initialQuantityGrams',
+      '産地ID': 'originId',
+      '焙煎日': 'roastDate',
     };
     return _fetchData('bean_master', (map) => BeanMaster.fromJson(_remapKeys(map, keyMap)));
   }
@@ -564,6 +566,7 @@ class SheetsService implements DataService {
       'store': '購入店舗', 'type': '豆の種類', 'imageUrl': '豆画像URL',
       'purchaseDate': '購入日', 'firstUseDate': '開封日', 'lastUseDate': '使い切り日', 'isInStock': '在庫',
       'initialQuantityGrams': '初期購入量(g)',
+      'originId': '産地ID', 'roastDate': '焙煎日',
     };
     return _mapToJson(bean.toJson(), reverseMap);
   }

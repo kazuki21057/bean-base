@@ -54,12 +54,24 @@ Future<void> _postOrigin(http.Client client, String apiUrl, OriginMaster origin)
     '産地名(英)': origin.nameEn,
     '地域': origin.region,
   };
-  final response = await client.post(
+  var response = await client.post(
     Uri.parse(apiUrl),
     headers: {'Content-Type': 'text/plain'},
     body: json.encode({'sheet': 'origin_master', 'action': 'add', 'data': data}),
   );
-  if (response.statusCode != 200 && response.statusCode != 302) {
+
+  // package:http はPOSTの302リダイレクトを自動追従しないため、GASが返す
+  // Locationヘッダ(script.googleusercontent.com/macros/echo)へ手動でGETし直す
+  // (curl -Lと同じ挙動)。
+  if (response.statusCode == 302) {
+    final location = response.headers['location'];
+    if (location == null) {
+      throw Exception('Failed to add ${origin.id}: 302 but no Location header');
+    }
+    response = await client.get(Uri.parse(location));
+  }
+
+  if (response.statusCode != 200) {
     throw Exception('Failed to add ${origin.id}: ${response.statusCode} ${response.body}');
   }
   final decoded = json.decode(response.body);

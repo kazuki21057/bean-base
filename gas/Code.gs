@@ -47,6 +47,23 @@ function ensureSheet_(ss, name) {
   return sheet;
 }
 
+// 既存シートへの新規列追加 (冪等)。T4-1b: bean_master に産地ID/焙煎日列を追加。
+const EXISTING_SHEET_EXTRA_COLUMNS = {
+  'bean_master': ['産地ID', '焙煎日'],
+};
+
+function ensureColumns_(sheet, sheetName) {
+  var extra = EXISTING_SHEET_EXTRA_COLUMNS[sheetName];
+  if (!extra) return;
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var toAdd = extra.filter(function (h) { return headers.indexOf(h) === -1; });
+  if (toAdd.length === 0) return;
+
+  var startCol = sheet.getLastColumn() + 1;
+  sheet.getRange(1, startCol, 1, toAdd.length).setValues([toAdd]);
+}
+
 // GETリクエスト: データの読み込み
 function doGet(e) {
   const sheetName = e.parameter.sheet;
@@ -140,6 +157,7 @@ function handleRequest(params) {
   if (!sheet) {
     return createJsonResponse({ error: "Sheet not found: " + sheetName });
   }
+  ensureColumns_(sheet, sheetName);
 
   try {
     if (action === "add") {
