@@ -9,6 +9,7 @@ import '../widgets/bean_image.dart';
 import 'bean_detail_screen.dart';
 import 'create/bean_create_screen.dart';
 import 'create/create_form_widgets.dart';
+import 'master_template.dart';
 import 'mock/mock_scaffold.dart';
 
 /// 010 豆管理(カード)。
@@ -16,6 +17,8 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T1-6a: 焙煎所/豆名/煎り度/画像/残量をカード形式の実データで表示する。
 /// Cycle 20 T2-2b: 残量%を `calculateBeanRemainingPercent`(抽出履歴からの算出)
 /// に接続。「初期購入量(g)」未設定の豆(既存データ含む)は0%になる。
+/// Cycle 20 T3-19: AppBarに`MasterSwitcherButton`を追加し、他マスターの
+/// 一覧へ直接遷移できるようにした。
 class BeanListScreen extends ConsumerStatefulWidget {
   const BeanListScreen({super.key});
 
@@ -33,6 +36,7 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
 
     return MockScreenScaffold(
       screen: AppScreen.beanList,
+      actions: const [MasterSwitcherButton(current: AppScreen.beanList)],
       floatingActionButton: MockAddFab(
         tooltip: '新規豆追加(012)へ',
         destinationBuilder: () => const BeanCreateScreen(),

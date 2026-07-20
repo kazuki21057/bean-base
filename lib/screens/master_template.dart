@@ -3,8 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
+import 'bean_list_screen.dart';
 import 'create/create_form_widgets.dart';
+import 'dripper_list_screen.dart';
+import 'filter_list_screen.dart';
+import 'grinder_list_screen.dart';
 import 'log_detail_screen.dart';
+import 'method_list_screen.dart';
 import 'mock/mock_scaffold.dart';
 
 /// Cycle 20 T1-5a: 汎用マスター画面テンプレート。
@@ -12,6 +17,78 @@ import 'mock/mock_scaffold.dart';
 /// ドリッパー/フィルター/グラインダー/メソッドなど、構造が共通する
 /// マスター種別の「一覧」「詳細」画面をここに集約する。各マスター種別側は
 /// フィールドの取り出し方・遷移先・保存/削除処理を渡すだけで画面が組める。
+/// Cycle 20 T3-19: 一覧・詳細どちらのAppBarにも`MasterSwitcherButton`を
+/// 自動的に追加し、他マスターの一覧へ直接遷移できるようにした
+/// (`MasterListTemplate`/`MasterDetailTemplate`を使う画面は個別対応不要)。
+
+/// Cycle 20 T3-19: 各マスター管理画面(一覧/詳細)から、他マスターの一覧へ
+/// 直接遷移できるようにするAppBarアクション。従来は`MastersHubScreen`を
+/// 経由しないと他マスターへ移動できなかった。
+class MasterSwitcherButton extends StatelessWidget {
+  final AppScreen current;
+
+  const MasterSwitcherButton({super.key, required this.current});
+
+  static final List<(AppScreen, IconData, String, WidgetBuilder)> _entries = [
+    (AppScreen.beanList, Icons.coffee, '豆管理', (_) => const BeanListScreen()),
+    (AppScreen.dripperList, Icons.filter_alt_outlined, 'ドリッパー管理', (_) => const DripperListScreen()),
+    (AppScreen.filterList, Icons.filter_frames_outlined, 'フィルター管理', (_) => const FilterListScreen()),
+    (AppScreen.methodList, Icons.receipt_long_outlined, 'メソッド管理', (_) => const MethodListScreen()),
+    (AppScreen.grinderList, Icons.settings_input_component_outlined, 'グラインダー管理', (_) => const GrinderListScreen()),
+  ];
+
+  /// 詳細画面(例: `AppScreen.beanDetail`)は対応する一覧(`AppScreen.beanList`)
+  /// と同一種別として扱い、メニューから自分自身の種別を除外する。
+  static AppScreen _categoryOf(AppScreen screen) {
+    switch (screen) {
+      case AppScreen.beanList:
+      case AppScreen.beanDetail:
+        return AppScreen.beanList;
+      case AppScreen.dripperList:
+      case AppScreen.dripperDetail:
+        return AppScreen.dripperList;
+      case AppScreen.filterList:
+      case AppScreen.filterDetail:
+        return AppScreen.filterList;
+      case AppScreen.methodList:
+      case AppScreen.methodDetail:
+        return AppScreen.methodList;
+      case AppScreen.grinderList:
+      case AppScreen.grinderDetail:
+        return AppScreen.grinderList;
+      default:
+        return screen;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentCategory = _categoryOf(current);
+    return PopupMenuButton<int>(
+      icon: const Icon(Icons.swap_horiz),
+      tooltip: '他のマスターへ切り替え',
+      onSelected: (index) {
+        final entry = _entries[index];
+        debugPrint('[Antigravity] Action: マスター切り替え → ${entry.$3}');
+        Navigator.push(context, MaterialPageRoute(builder: entry.$4));
+      },
+      itemBuilder: (context) => [
+        for (var i = 0; i < _entries.length; i++)
+          if (_entries[i].$1 != currentCategory)
+            PopupMenuItem(
+              value: i,
+              child: Row(
+                children: [
+                  Icon(_entries[i].$2, size: 20, color: kMocha),
+                  const SizedBox(width: 12),
+                  Text(_entries[i].$3),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+}
 
 /// 汎用マスター一覧(画像左・名前右+＋ボタン)。
 class MasterListTemplate<T> extends StatelessWidget {
@@ -42,6 +119,7 @@ class MasterListTemplate<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return MockScreenScaffold(
       screen: screen,
+      actions: [MasterSwitcherButton(current: screen)],
       floatingActionButton: MockAddFab(
         tooltip: '新規追加へ',
         destinationBuilder: createScreenBuilder,
@@ -131,6 +209,7 @@ class MasterDetailTemplate extends ConsumerWidget {
       screen: screen,
       showSettingsAction: false,
       actions: [
+        MasterSwitcherButton(current: screen),
         IconButton(
           icon: const Icon(Icons.edit_outlined),
           tooltip: '編集',

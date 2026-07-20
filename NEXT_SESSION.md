@@ -1,6 +1,19 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-20(T3-14完了: 抽出履歴一覧アイコンの豆画像化)
+最終更新: 2026-07-20(T3-19完了: マスター管理画面間の相互遷移。ユーザー要望6件(T3-14〜T3-19)すべて完了)
+
+## -4.26 当日やったこと(2026-07-20、T3-19完了)
+
+**T3-14完了後、続けてT3-19(マスター管理画面間の相互遷移)を実装。これでユーザーが直接要望した6件(T3-14〜T3-19)がすべて完了した。**
+
+- **現状把握**: 豆(010)・ドリッパー(013)・フィルター(016)・メソッド(019)・グラインダー(022)の一覧、およびそれぞれの詳細(011/014/017/020/023)は、`MastersHubScreen`を経由しないと他マスターへ移動できなかった(各画面から`Navigator.push`で個別に遷移する導線がなかった)。ドリッパー/フィルター/グラインダー/メソッドの一覧・詳細は共通の`MasterListTemplate`/`MasterDetailTemplate`(`lib/screens/master_template.dart`)を使っており、豆の詳細(011)も同テンプレート使用だが、豆の一覧(010、`bean_list_screen.dart`)だけは2列カードグリッド表示のため独自の`MockScreenScaffold`実装だった。
+- **実装**: `lib/screens/master_template.dart`に`MasterSwitcherButton`(AppBarアイコン→他4マスターの一覧へのポップアップメニュー)を新規実装。詳細画面(`AppScreen.beanDetail`等)は対応する一覧種別(`AppScreen.beanList`等)にマッピングし、自分自身の種別はメニューから除外する。`MasterListTemplate`/`MasterDetailTemplate`のAppBar(`actions`)へ自動的に組み込んだため、**ドリッパー/フィルター/グラインダー/メソッドの一覧・詳細と豆の詳細は個別のコード変更なしで対応済みになった**。テンプレートを使わない`bean_list_screen.dart`(豆一覧010)だけ、`actions: const [MasterSwitcherButton(current: AppScreen.beanList)]`を1行追加。
+- **循環import**: `master_template.dart`が5つの一覧画面(`bean_list_screen.dart`等)をimportし、そのうち4つ(dripper/filter/grinder/method)は元々`master_template.dart`をimportしていたため、ファイル間の循環importになる。Dartはクラス定義のみの循環import(トップレベルの循環初期化を伴わないもの)を問題なく解決できるため、`flutter analyze`・`flutter build web`とも問題なくビルドできることを確認済み(懸念して事前に調査したが実害なし)。
+- テスト: `test/master_switcher_test.dart`を新規作成。テンプレート経由の`DripperListScreen`と、独自実装の`BeanListScreen`の両方で、切り替えメニューに自分自身が出ないこと・他マスターへ実際に遷移できることを検証。
+- 検証: `flutter analyze`(新規issue0件、44件のまま。実装直後に`final (_, __, title, builder) = ...`のレコードパターン分割代入で`__`という識別子命名のlint警告が2件出たため、`entry.$3`/`entry.$4`のフィールドアクセスに書き換えて解消した)。`flutter test`全件パス(72→74件、新規2件追加)。
+- **ブラウザでの実データ確認**: `flutter build web`→`python -m http.server`で確認。010(豆管理)のAppBarに新しい切り替えアイコン(⇄)が表示され、タップすると「ドリッパー管理/フィルター管理/メソッド管理/グラインダー管理」の4件(自分自身の「豆管理」は出ない)がメニュー表示されることを確認。「ドリッパー管理」を選択すると実際に013(ドリッパー管理、実データ7件)へ遷移することを確認。検証後、静的配信サーバーは終了済み。
+- commit/push予定(このセッション内、T3-19単独コミット)。マスタープランのT3-19を✅に更新済み。
+- **本日はコストガードレール($12/日上限)を複数回($48.306→$73.681→$90.451)超過した状態で、ユーザーが各タスク着手前に都度明示的に「コスト超過しても続けて」と承認**した上で、T3-15〜18・T3-14・T3-19の3セット連続で対応した。
 
 ## -4.25 当日やったこと(2026-07-20、T3-14完了)
 
