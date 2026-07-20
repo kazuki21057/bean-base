@@ -1,6 +1,18 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-20(統計解析・予測機能の設計書を版1.2まで更新。UI配置決定+運用方針4点を追加。次はPhase 4 / T4-0aから着手)
+最終更新: 2026-07-21(Phase 4 / T4-0a完了。次はT4-0b(linear_solve.dart)またはT4-0cから着手)
+
+## -4.30 当日やったこと(2026-07-21、T4-0a完了)
+
+**Phase 4着手。設計書§9.1に従い`lib/services/math/eigen.dart`の`eigenSymmetric`(古典的巡回Jacobi法)を新規実装した。**
+
+- **実装**: `EigenResult`(`eigenvalues`降順・`eigenvectors[i]`が対応する単位ベクトル)+`eigenSymmetric(a, {maxSweeps=50, tol=1e-12})`。設計書§4.1のアルゴリズム仕様(Golub & Van Loan §8.5、数値安定な回転角計算、該当行・列のみを陽に更新)通りに実装。対称性チェックで非対称行列は`ArgumentError`。
+- **Python検証(設計書§12②の運用方針に従う)**: `tools/verify_eigen.py`を新規作成(numpyがローカルに無かったため`pip install numpy`実施)。同一アルゴリズムをPython側にも移植し、(a)§9.1の解析的期待値(`[[2,1],[1,2]]`→固有値`[3,1]`、対角行列→対角成分)がnumpy.linalg.eighと一致すること、(b)複数シードのランダム対称6x6でAv=λv・直交性・trace保存の性質が成り立つこと、を実装前に確認してから`test/math/eigen_test.dart`を作成した(スクリプトはコミット済み、§9のテスト期待値の再現に再利用可能)。
+- **テスト**: `test/math/eigen_test.dart`新規作成、設計書§9.1の4ケース(2x2解析解・3x3対角+単位行列固有ベクトル・ランダム対称6x6の性質検証(`Random(42)`シード)・非対称行列での`ArgumentError`)全パス。
+- 検証: `flutter analyze`(新規issue0件、既存44件のまま)。`flutter test`全件パス(74→78件、新規4件追加)。
+- **`flutter run`でのブラウザ確認は対象外**: 本タスクは新規ファイル追加のみで、既存の`statistics_service.dart`(`_jacobiEigenvalueAlgorithm`)への結線・画面への表示は行っていない(結線はT4-3aで実施予定、設計書の記述通り)。画面上の見た目変化が無いため、ロジック層のテストのみで検証完了と判断した。
+- commit/push はこのエントリ直後に実施。マスタープランのT4-0aを✅に、Phase 4サマリを🟦(進行中)に更新済み。
+- **次回への申し送り**: T4-0b(`linear_solve.dart`、Cholesky系)・T4-0c(`distributions.dart`、確率分布関数)はいずれも依存なしで着手可能(設計書§9.2/§9.3に期待値あり)。設計書のPhase順厳守(§0絶対規則)により、F0(数値基盤)完了まで(T4-0a〜0c全て✅)はT4-1a以降(データ基盤)へ進めない。
 
 ## -4.29 当日やったこと(2026-07-20、統計解析・予測機能の運用方針追加(版1.2))
 
