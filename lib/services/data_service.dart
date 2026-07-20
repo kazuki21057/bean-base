@@ -4,6 +4,9 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
+import '../models/origin_master.dart';
+import '../models/analysis_snapshot.dart';
+import '../models/recipe_suggestion.dart';
 import 'sheets_service.dart';
 
 /// Abstract data-access contract shared by all storage backends.
@@ -54,6 +57,19 @@ abstract class DataService {
   Future<void> addFilter(FilterMaster filter);
   Future<void> updateFilter(FilterMaster filter);
   Future<void> deleteFilter(String id);
+
+  // --- Origin Masters (T4-1d, 設計書§3.4.3) ---
+  Future<List<OriginMaster>> fetchOriginMasters();
+  Future<void> saveOriginMaster(OriginMaster origin);
+
+  // --- Analysis Snapshots (T4-1d, 設計書§3.4.3) ---
+  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type});
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot);
+
+  // --- Recipe Suggestions (T4-1d, 設計書§3.4.3) ---
+  Future<List<RecipeSuggestion>> fetchRecipeSuggestions();
+  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion);
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion);
 }
 
 /// Single source of truth for the active data backend.

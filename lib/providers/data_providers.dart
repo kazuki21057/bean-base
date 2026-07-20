@@ -5,6 +5,7 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
+import '../models/origin_master.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
@@ -34,6 +35,11 @@ final filterMasterProvider = FutureProvider<List<FilterMaster>>((ref) async {
 
 final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {
   return ref.watch(dataServiceProvider).getPouringSteps();
+});
+
+/// T4-1e(設計書§3.2): 産地マスタ選択ドロップダウン用。
+final originMasterProvider = FutureProvider<List<OriginMaster>>((ref) async {
+  return ref.watch(dataServiceProvider).fetchOriginMasters();
 });
 
 // AI Analysis State

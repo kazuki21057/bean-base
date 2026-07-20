@@ -11,28 +11,34 @@ import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/providers/data_providers.dart';
-import 'package:bean_base/screens/bean_list_screen.dart';
+import 'package:bean_base/screens/create/bean_create_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
-/// Cycle 20 T1-6a: 豆管理カード一覧(010)の本実装(実データ表示)の検証。
-/// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
-/// DataServiceをフェイクに差し替えたwidgetテストでカード表示・0%表示切替・
-/// 詳細への遷移を確認する。
+/// T4-1e: 012(新規豆追加)の産地マスタ選択ドロップダウン・新規産地追加・
+/// 焙煎日入力の検証。
 class _FakeDataService implements DataService {
-  final List<BeanMaster> beans;
+  final List<OriginMaster> origins;
+  BeanMaster? lastAdded;
+  OriginMaster? lastSavedOrigin;
 
-  _FakeDataService(this.beans);
+  _FakeDataService(this.origins);
 
   @override
-  Future<List<BeanMaster>> getBeans() async => beans;
-
-  // --- Unused by this test: minimal stubs to satisfy the interface ---
+  Future<List<OriginMaster>> fetchOriginMasters() async => origins;
   @override
-  Future<void> addBean(BeanMaster bean) async {}
+  Future<void> saveOriginMaster(OriginMaster origin) async {
+    lastSavedOrigin = origin;
+    origins.add(origin);
+  }
+
+  @override
+  Future<void> addBean(BeanMaster bean) async => lastAdded = bean;
   @override
   Future<void> updateBean(BeanMaster bean) async {}
   @override
   Future<void> deleteBean(String id) async {}
+  @override
+  Future<List<BeanMaster>> getBeans() async => [];
   @override
   Future<void> addCoffeeRecord(CoffeeRecord record) async {}
   @override
@@ -83,11 +89,6 @@ class _FakeDataService implements DataService {
   Future<void> deletePouringStepsForMethod(String methodId) async {}
   @override
   Future<List<PouringStep>> getPouringSteps() async => [];
-
-  @override
-  Future<List<OriginMaster>> fetchOriginMasters() async => [];
-  @override
-  Future<void> saveOriginMaster(OriginMaster origin) async {}
   @override
   Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) async => [];
   @override
@@ -101,88 +102,82 @@ class _FakeDataService implements DataService {
 }
 
 void main() {
-  late List<BeanMaster> beans;
   late _FakeDataService fakeService;
 
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
-        beanMasterProvider.overrideWith((ref) => service.getBeans()),
+        originMasterProvider.overrideWith((ref) => service.fetchOriginMasters()),
       ];
 
   setUp(() {
-    beans = [
-      BeanMaster(
-        id: 'b1',
-        name: 'エチオピア イルガチェフェ',
-        roastLevel: '浅煎り',
-        origin: 'エチオピア',
-        store: '岬の焙煎所',
-        isInStock: true,
-        initialQuantityGrams: 200,
-      ),
-      BeanMaster(
-        id: 'b2',
-        name: 'ケニア ニエリ',
-        roastLevel: '中煎り',
-        origin: 'ケニア',
-        store: 'Navy',
-        isInStock: false,
-        // 初期購入量未設定 → 残量0%(既存データ互換の挙動)
-      ),
-    ];
-    fakeService = _FakeDataService(beans);
+    fakeService = _FakeDataService([
+      OriginMaster(id: 'origin_1', countryCode: 'ET', nameJa: 'エチオピア', nameEn: 'Ethiopia', region: 'アフリカ'),
+      OriginMaster(id: 'origin_5', countryCode: 'BR', nameJa: 'ブラジル', nameEn: 'Brazil', region: '中南米'),
+    ]);
   });
 
-  testWidgets('010に実データのカードが表示され、残量0%の豆は既定で非表示', (tester) async {
+  testWidgets('産地ドロップダウンで選択→登録するとoriginId・originが正しく保存される', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),
-        child: const MaterialApp(home: BeanListScreen()),
+        child: const MaterialApp(home: BeanCreateScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('エチオピア イルガチェフェ'), findsOneWidget);
-    expect(find.text('岬の焙煎所'), findsOneWidget);
-    expect(find.text('浅煎り'), findsOneWidget);
-    expect(find.text('残 100%'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆A');
 
-    // 初期購入量未設定(残量0%算出)の豆は既定では非表示。
-    expect(find.text('ケニア ニエリ'), findsNothing);
+    await tester.tap(find.byType(DropdownButtonFormField<OriginMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ブラジル').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded?.originId, 'origin_5');
+    expect(fakeService.lastAdded?.origin, 'ブラジル');
   });
 
-  testWidgets('0%表示切替をONにすると残量0%の豆も表示される', (tester) async {
+  testWidgets('新規産地追加ダイアログで追加するとDataService.saveOriginMasterが呼ばれ選択状態になる', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),
-        child: const MaterialApp(home: BeanListScreen()),
+        child: const MaterialApp(home: BeanCreateScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('ケニア ニエリ'), findsNothing);
-
-    await tester.tap(find.byType(Switch));
+    await tester.tap(find.byTooltip('新規産地追加'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ケニア ニエリ'), findsOneWidget);
-    expect(find.text('残 0%'), findsOneWidget);
+    expect(find.text('新規産地追加'), findsWidgets);
+    await tester.enterText(find.widgetWithText(TextField, '産地名(必須、例: エチオピア)'), 'ケニア');
+    await tester.tap(find.text('追加'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastSavedOrigin?.nameJa, 'ケニア');
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆B');
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded?.origin, 'ケニア');
   });
 
-  testWidgets('カードをタップすると豆詳細(011)へ遷移する', (tester) async {
+  testWidgets('焙煎日を入力せずに登録してもroastDateはnullのまま', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),
-        child: const MaterialApp(home: BeanListScreen()),
+        child: const MaterialApp(home: BeanCreateScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('エチオピア イルガチェフェ'));
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆C');
+    await tester.tap(find.text('豆を登録する'));
     await tester.pumpAndSettle();
 
-    // 011詳細(本実装)の基本情報セクションへ遷移する
-    expect(find.text('基本情報'), findsOneWidget);
-    expect(find.text('岬の焙煎所'), findsOneWidget);
+    expect(fakeService.lastAdded?.roastDate, isNull);
   });
 }

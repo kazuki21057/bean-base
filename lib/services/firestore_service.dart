@@ -5,6 +5,9 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
+import '../models/origin_master.dart';
+import '../models/analysis_snapshot.dart';
+import '../models/recipe_suggestion.dart';
 import 'data_service.dart';
 
 class FirestoreService implements DataService {
@@ -189,6 +192,37 @@ class FirestoreService implements DataService {
   Future<void> deleteFilter(String id) async {
     await _userDoc.collection('filters').doc(id).delete();
   }
+
+  // --- T4-1d: FirestoreServiceはレガシー(未使用)のため未実装 ---
+  // CLAUDE.md「Legacy (do not extend without explicit instruction)」参照。
+
+  @override
+  Future<List<OriginMaster>> fetchOriginMasters() =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> saveOriginMaster(OriginMaster origin) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<List<RecipeSuggestion>> fetchRecipeSuggestions() =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
 }
 
 final firestoreServiceProvider = Provider<FirestoreService>((ref) {

@@ -32,6 +32,17 @@ class BeanMaster {
   @JsonKey(fromJson: _parseDouble)
   final double? initialQuantityGrams;
 
+  /// T4-1b(設計書§3.2): 選択されたOriginMasterのid。`origin`(自由入力文字列)は
+  /// 後方互換のため残し、保存時に同時コピーする(brew_evaluation_screen.dart等の
+  /// 既存originコピー処理を壊さないため)。
+  @JsonKey(defaultValue: '', fromJson: _parseString)
+  final String originId;
+
+  /// T4-1b(設計書§3.2): 焙煎日(任意入力)。豆の鮮度(経過日数)は保存せず、
+  /// 表示・計算時に`brewedAt.difference(roastDate).inDays`で導出する。
+  @JsonKey(fromJson: _parseDate)
+  final DateTime? roastDate;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -45,6 +56,8 @@ class BeanMaster {
     this.lastUseDate,
     this.isInStock = false,
     this.initialQuantityGrams,
+    this.originId = '',
+    this.roastDate,
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -106,6 +119,8 @@ class BeanMaster {
     DateTime? lastUseDate,
     bool? isInStock,
     double? initialQuantityGrams,
+    String? originId,
+    DateTime? roastDate,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -120,6 +135,8 @@ class BeanMaster {
       lastUseDate: lastUseDate ?? this.lastUseDate,
       isInStock: isInStock ?? this.isInStock,
       initialQuantityGrams: initialQuantityGrams ?? this.initialQuantityGrams,
+      originId: originId ?? this.originId,
+      roastDate: roastDate ?? this.roastDate,
     );
   }
 }

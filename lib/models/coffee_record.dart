@@ -61,6 +61,11 @@ class CoffeeRecord {
   final String? filterImageUrl;
   final String? beanImageUrl;
 
+  /// T4-1b(設計書§3.2): 保存時にBeanMaster.originIdをコピー(既存originコピー
+  /// 処理の隣、brew_evaluation_screen.dartに追記)。
+  @JsonKey(defaultValue: '')
+  final String originId;
+
   CoffeeRecord({
     required this.id,
     required this.brewedAt,
@@ -92,12 +97,19 @@ class CoffeeRecord {
     this.dripperImageUrl,
     this.filterImageUrl,
     this.beanImageUrl,
+    this.originId = '',
   });
 
   factory CoffeeRecord.fromJson(Map<String, dynamic> json) =>
       _$CoffeeRecordFromJson(json);
 
   Map<String, dynamic> toJson() => _$CoffeeRecordToJson(this);
+
+  /// 湯量/豆量の比 (設計書§3.2)。導出プロパティのため保存しない
+  /// (json_serializableはgetterを自動シリアライズしないため、toJson/fromJsonの
+  /// 対象に含まれないことをtest/math配下のround-tripテストで確認済み)。
+  /// 豆量0または欠測時は統計処理で欠測行として除外するためnullを返す。
+  double? get brewRatio => beanWeight > 0 ? totalWater / beanWeight : null;
 
   static DateTime _parseDateTime(dynamic value) {
     if (value == null) return DateTime.now();
@@ -198,6 +210,7 @@ class CoffeeRecord {
     String? dripperImageUrl,
     String? filterImageUrl,
     String? beanImageUrl,
+    String? originId,
   }) {
     return CoffeeRecord(
       id: id ?? this.id,
@@ -230,6 +243,7 @@ class CoffeeRecord {
       dripperImageUrl: dripperImageUrl ?? this.dripperImageUrl,
       filterImageUrl: filterImageUrl ?? this.filterImageUrl,
       beanImageUrl: beanImageUrl ?? this.beanImageUrl,
+      originId: originId ?? this.originId,
     );
   }
 }

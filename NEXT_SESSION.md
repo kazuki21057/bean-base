@@ -1,6 +1,26 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(Phase 4 / T4-0b・T4-0c完了。F0(数値基盤)が全て完了したため、次はT4-1a(OriginMasterモデル新規)から着手)
+最終更新: 2026-07-21(T4-1a・T4-1b・T4-1d・T4-1e・T4-1fをまとめて実装完了。T4-1c1/c2はコードのみ完成しclasp login待ち。次回はユーザーのclasp login実施→scriptId記入→Claude Codeがclasp push/deploy、その後実データでの最終確認)
+
+## -4.32 当日やったこと(2026-07-21、T4-1(F6データ基盤)を一括実装)
+
+**ユーザーから「F1(重回帰分析)を一括で進めて」との依頼。マスタープランのID番号はサブPhase番号に対応するため、F1は実際にはT4-2(依存: T4-1完了)に当たると確認したところ、ユーザーは実際にはT4-1(データ基盤/F6)を指していたと判明し、そちらを一括実装した。コスト超過($27台)をユーザーが2度明示的に承認した上で対応した。**
+
+- **T4-1a完了**: `lib/models/origin_master.dart`(`OriginMaster`+初期15件`kInitialOriginMasters`、固定ID`origin_1`〜`origin_15`)。投入方針: `gas/`デプロイ完了後に`tools/seed_origin_masters.dart`を一度だけ実行。
+- **T4-1b完了**: `BeanMaster.originId`/`roastDate`、`CoffeeRecord.originId`+`brewRatio`(導出プロパティ、非保存、`json_serializable`がgetterを自動シリアライズしないことを`test/models/coffee_record_test.dart`で確認)。あわせて設計書§3.5の`lib/services/math/encoding.dart`(`roastOrdinalMap`)も実装(マスタープランに明示タスクは無いがF6スコープのため前倒し)。`original-data/coffee_data - coffee_data.csv`の実データ確認済み(焙煎度は{浅煎り,中浅煎り,中煎り,中深煎り,深煎り}の5値のみで設計書のマップで全カバー、追記不要)。
+- **T4-1c1/c2はコード完成・デプロイ未実施**: `gas/Code.gs`(既存`tools/gas_complete.js`をベースに`ALLOWED_SHEETS`ホワイトリスト+`ensureSheet_`自動生成ヘルパーを追加、`DRIVE_FOLDER_ID`は本番と同じ実値を設定)・`gas/appsscript.json`・`gas/.clasp.json`(scriptIdはplaceholder)・`gas/README.md`(デプロイ手順)を新規作成。**`clasp login`はブラウザOAuthのためClaude Codeは代行不可と判明、ユーザーに確認したところスマホ単体でも困難**(Node.js CLIが必要、Androidなら`Termux`で理論上可能だが煩雑)。そのためこの2タスクは実際のデプロイまで進められず、コードのみ完成の状態で止めた。
+- **T4-1d完了(コード+単体テスト)**: `DataService`に7メソッド追加(`fetchOriginMasters`/`saveOriginMaster`/`fetchAnalysisSnapshots`/`saveAnalysisSnapshot`/`fetchRecipeSuggestions`/`saveRecipeSuggestion`/`updateRecipeSuggestion`、設計書§3.4.3の命名をそのまま採用、既存の`getXxx`/`addXxx`規則とは異なるが設計書優先)。`SheetsService`に実装(汎用GASエンドポイントへの`?sheet=`ベースの読み書き、既存パターン踏襲)。`FirestoreService`は7件とも`UnimplementedError`。**設計書§3.4.3のシグネチャが`AnalysisSnapshot`/`RecipeSuggestion`型を要求するため、本来T4-4b/T4-5bで作成予定だった`lib/models/analysis_snapshot.dart`/`recipe_suggestion.dart`(§7.2/§7.4のフィールド定義)をここで前倒しして作成**(マスタープランのT4-4b/T4-5bの説明文を「モデルは既に完了、残りはフック/UI配線のみ」に更新済み)。既存の`_FakeDataService`(8つのテストファイル)全てに新規7メソッドのスタブを追加し、コンパイルを維持。
+- **T4-1e完了(コード+widgetテスト)**: `bean_create_screen.dart`(012)の「産地」自由入力欄を`OriginMaster`選択ドロップダウン+「新規産地追加」ダイアログに置換。焙煎日`MockDateField`を追加(030から引き継がず新規入力、設計書通り)。保存時は選択した`OriginMaster.nameJa`を`origin`欄に同時コピー(既存の後方互換処理を維持)。`originMasterProvider`を`data_providers.dart`に新規追加。`test/bean_create_screen_test.dart`新規作成(3ケース)。
+- **T4-1f完了(コード+テスト)**: `lib/services/migration_service.dart`(`originAliasMap`による正規化突合、冪等、`MigrationService.runAutoMigration`/`confirmManualMapping`)。設定画面(090)に「データ移行」セクション追加(実行ボタン→結果表示→未突合ごとに産地マスタ選択ドロップダウン+確定ボタン)。`test/migration_service_test.dart`(単体4ケース)・`test/settings_screen_test.dart`に統合テスト追加。**ユーザーが実データで移行を実行することがPhase 1完了条件**(設計書明記)のため、GAS未デプロイの現状ではまだ実施できない。
+- **事故: `tools/seed_origin_masters.dart`が本番GASへ誤って書き込みリクエストを送信**: 当初`SheetsService`を再利用する実装にしたが、`SheetsService`が`flutter_riverpod`(→Flutter→`dart:ui`)に依存しており素の`dart run`では実行できないと判明(`Error: Dart library 'dart:ui' is not available on this platform`)。スタンドアロンなhttp直接呼び出しに書き直し、**コンパイル確認のつもりで`dart run`したところ実際に`main()`が実行され、本番GAS(`kGoogleSheetsApiUrl`と同じURL)へ15件分のPOSTリクエストを送信してしまった**。curlで確認した結果、`origin_master`シートは本番にまだ存在しない(GAS未デプロイのため)ため全リクエストが`{"error":"Sheet not found: origin_master"}`で失敗しており、**実データへの書き込みは発生していない**ことを確認済み。ただし当初のスクリプトはHTTPステータスコード(200/302)のみで成否判定しておりこのエラー本文を見ていなかったため「Added: ...」と誤表示するバグがあった(GASは失敗時もHTTP 200/302を返すため)。レスポンス本文の`error`キーを検査し、シート未検出時は明確なエラーメッセージで停止するよう修正済み。**教訓: 本番外部サービスに書き込むスクリプトは、インポート解決の確認だけのつもりでも実行(`main()`呼び出し)してはいけない。`flutter analyze`等の静的チェックのみで確認すべきだった。**
+- 検証: `flutter analyze`(新規issue 0件、既存44件+新規4件(bean_create_screen.dart/settings_screen.dartの`value:`非推奨警告2件+`tools/seed_origin_masters.dart`の`avoid_print` 2件、いずれも既存パターンと同種)。48件)。`flutter test`全件パス(85→108件、新規23件: models 15・bean_create_screen 3・migration_service 4・settings_screen 1)。
+- **ブラウザでの実データ確認は未実施**: 上記の通り本番のGoogle SheetsにはOrigin Master関連の新シートがまだ存在せず(GAS未デプロイ)、`bean_create_screen.dart`の産地ドロップダウンや設定画面のデータ移行機能を実データで動かして確認することができない状態。widgetテスト(フェイクDataService)でのロジック確認に留めた。
+- commit/push はこのエントリ直後に実施。マスタープランのT4-1a・T4-1bを✅に、T4-1c1/c2/1d/1e/1fを🟦(進行中、コード完成・実データ検証待ち)に更新済み。T4-4b・T4-5bの説明文もモデル前倒し作成を反映して更新。
+- **次回への申し送り**:
+  1. **最優先**: ユーザーがPCで`clasp login`を実施し、`gas/.clasp.json`のscriptIdを記入する(`gas/README.md`参照)。完了後、Claude Codeが`clasp push`→`clasp deploy --deploymentId <既存ID>`を実行して初めてT4-1c1/c2が完了する。
+  2. デプロイ完了後、`dart run tools/seed_origin_masters.dart`で初期15件を投入(冪等、再実行しても安全)。
+  3. その後、実データで012(産地ドロップダウン・焙煎日)・090(データ移行)を`flutter run`/ブラウザで確認し、T4-1d/e/fを✅に更新する。特にT4-1fは「ユーザーが実データ移行を実行」がPhase 1完了条件そのものなので、ユーザーに設定画面から実行してもらう必要がある。
+  4. Phase順厳守(設計書§0)により、T4-1完了(実データ確認含む)後にT4-2a(design_matrix.dart)へ進む。
 
 ## -4.31 当日やったこと(2026-07-21、T4-0b・T4-0c完了、F0完了)
 

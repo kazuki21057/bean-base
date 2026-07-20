@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/bean_master.dart';
+import '../../models/origin_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../services/data_service.dart';
 import '../../widgets/image_upload_field.dart';
 import 'create_form_widgets.dart';
+
+/// T4-1e(設計書§3.2): 産地マスタの地域選択肢(OriginMaster.region、固定4種)。
+const _originRegionOptions = ['アフリカ', '中南米', 'アジア・太平洋', 'その他'];
 
 /// 012 新規豆追加 / 011 詳細からの編集フォーム。
 ///
@@ -25,15 +29,18 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
 
   final _nameController = TextEditingController();
   final _storeController = TextEditingController();
-  final _originController = TextEditingController();
   final _typeController = TextEditingController();
   final _initialQuantityController = TextEditingController();
   late List<String> _roastChoices;
   String? _roastLevel;
   DateTime? _purchaseDate;
+  DateTime? _roastDate;
   bool _isInStock = true;
   String? _imageUrl;
   bool _isSaving = false;
+
+  /// T4-1e(設計書§3.2): 産地はOriginMaster選択に置換(自由入力の`_originController`は廃止)。
+  String? _selectedOriginId;
 
   bool get _isEdit => widget.editData != null;
 
@@ -43,14 +50,23 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     final edit = widget.editData;
     _nameController.text = edit?.name ?? '';
     _storeController.text = edit?.store ?? '';
-    _originController.text = edit?.origin ?? '';
     _typeController.text = edit?.type ?? '';
     _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(1) ?? '';
     _roastLevel = (edit?.roastLevel.isNotEmpty ?? false) ? edit!.roastLevel : null;
     _purchaseDate = edit?.purchaseDate;
+    _roastDate = edit?.roastDate;
     _isInStock = edit?.isInStock ?? true;
     _imageUrl = edit?.imageUrl;
+    _selectedOriginId = (edit?.originId.isNotEmpty ?? false) ? edit!.originId : null;
     _roastChoices = _withCurrentValue(_roastOptions, _roastLevel);
+  }
+
+  static T? _resolveById<T>(List<T> items, String? id, String Function(T) idOf) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (idOf(item) == id) return item;
+    }
+    return null;
   }
 
   static List<String> _withCurrentValue(List<String> base, String? current) {
@@ -62,10 +78,91 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   void dispose() {
     _nameController.dispose();
     _storeController.dispose();
-    _originController.dispose();
     _typeController.dispose();
     _initialQuantityController.dispose();
     super.dispose();
+  }
+
+  Future<void> _addNewOrigin() async {
+    final nameJaController = TextEditingController();
+    final nameEnController = TextEditingController();
+    final countryCodeController = TextEditingController();
+    String region = _originRegionOptions.first;
+
+    final created = await showDialog<OriginMaster>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('新規産地追加'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameJaController,
+                    decoration: const InputDecoration(labelText: '産地名(必須、例: エチオピア)'),
+                  ),
+                  TextField(
+                    controller: nameEnController,
+                    decoration: const InputDecoration(labelText: '産地名(英、任意)'),
+                  ),
+                  TextField(
+                    controller: countryCodeController,
+                    decoration: const InputDecoration(labelText: '国コード(任意、例: ET)'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: '地域'),
+                    initialValue: region,
+                    items: [
+                      for (final r in _originRegionOptions) DropdownMenuItem(value: r, child: Text(r)),
+                    ],
+                    onChanged: (v) => setDialogState(() => region = v ?? region),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final nameJa = nameJaController.text.trim();
+                    if (nameJa.isEmpty) return;
+                    Navigator.of(dialogContext).pop(
+                      OriginMaster(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        countryCode: countryCodeController.text.trim(),
+                        nameJa: nameJa,
+                        nameEn: nameEnController.text.trim(),
+                        region: region,
+                      ),
+                    );
+                  },
+                  child: const Text('追加'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (created == null) return;
+    try {
+      await ref.read(dataServiceProvider).saveOriginMaster(created);
+      debugPrint('[Antigravity] Action: 産地マスタ追加 (id=${created.id})');
+      ref.invalidate(originMasterProvider);
+      setState(() => _selectedOriginId = created.id);
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 産地マスタ追加に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('産地の追加に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -80,11 +177,17 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     setState(() => _isSaving = true);
 
     final edit = widget.editData;
+    // T4-1e(設計書§3.2): 選択されたOriginMasterのnameJaをoriginへ同時コピーする
+    // (既存のCoffeeRecord.originコピー処理・後方互換を壊さないため)。
+    final origins = ref.read(originMasterProvider).value ?? const [];
+    final selectedOrigin = _resolveById(origins, _selectedOriginId, (o) => o.id);
     final bean = BeanMaster(
       id: _isEdit ? edit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       roastLevel: _roastLevel ?? '',
-      origin: _originController.text.trim(),
+      origin: selectedOrigin?.nameJa ?? edit?.origin ?? '',
+      originId: _selectedOriginId ?? '',
+      roastDate: _roastDate,
       store: _storeController.text.trim(),
       type: _typeController.text.trim(),
       imageUrl: _imageUrl,
@@ -147,10 +250,31 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               hint: '例: 〇〇コーヒーロースターズ',
               controller: _storeController,
             ),
-            MockTextField(
-              label: '産地',
-              hint: '例: エチオピア',
-              controller: _originController,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ref.watch(originMasterProvider).when(
+                        data: (origins) => DropdownButtonFormField<OriginMaster>(
+                          decoration: const InputDecoration(labelText: '産地'),
+                          value: _resolveById(origins, _selectedOriginId, (o) => o.id),
+                          isExpanded: true,
+                          items: [
+                            for (final o in origins)
+                              DropdownMenuItem(value: o, child: Text(o.nameJa)),
+                          ],
+                          onChanged: (v) => setState(() => _selectedOriginId = v?.id),
+                        ),
+                        loading: () => const LinearProgressIndicator(),
+                        error: (e, s) => Text('産地読み込みエラー: $e'),
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  tooltip: '新規産地追加',
+                  onPressed: _addNewOrigin,
+                ),
+              ],
             ),
             MockTextField(
               label: '品種・精製',
@@ -173,6 +297,11 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               label: '購入日',
               initialValue: _purchaseDate,
               onChanged: (v) => _purchaseDate = v,
+            ),
+            MockDateField(
+              label: '焙煎日(任意)',
+              initialValue: _roastDate,
+              onChanged: (v) => _roastDate = v,
             ),
             MockTextField(
               label: '初期購入量(g)',

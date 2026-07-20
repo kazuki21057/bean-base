@@ -6,6 +6,9 @@ import '../models/bean_master.dart';
 import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
+import '../models/origin_master.dart';
+import '../models/analysis_snapshot.dart';
+import '../models/recipe_suggestion.dart';
 import 'data_service.dart';
 
 // URL Placeholder - User needs to provide this
@@ -378,6 +381,106 @@ class SheetsService implements DataService {
   Future<void> updateFilter(FilterMaster filter) async {
     final data = _reverseMapFilter(filter);
     await _postData('filter_master', 'update', data);
+  }
+
+  // --- Origin Masters (T4-1d) ---
+
+  @override
+  Future<List<OriginMaster>> fetchOriginMasters() async {
+    final keyMap = {
+      '産地ID': 'id',
+      '国コード': 'countryCode',
+      '産地名': 'nameJa',
+      '産地名(英)': 'nameEn',
+      '地域': 'region',
+    };
+    return _fetchData(
+        'origin_master', (map) => OriginMaster.fromJson(_remapKeys(map, keyMap)));
+  }
+
+  @override
+  Future<void> saveOriginMaster(OriginMaster origin) async {
+    final reverseMap = {
+      'id': '産地ID',
+      'countryCode': '国コード',
+      'nameJa': '産地名',
+      'nameEn': '産地名(英)',
+      'region': '地域',
+    };
+    final data = _mapToJson(origin.toJson(), reverseMap);
+    await _postData('origin_master', 'add', data);
+  }
+
+  // --- Analysis Snapshots (T4-1d) ---
+
+  @override
+  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) async {
+    final keyMap = {
+      '履歴ID': 'id',
+      '作成日時': 'createdAt',
+      '種別': 'type',
+      'データ件数': 'dataCount',
+      '本文JSON': 'payloadJson',
+    };
+    final all = await _fetchData('analysis_history',
+        (map) => AnalysisSnapshot.fromJson(_remapKeys(map, keyMap)));
+    if (type == null) return all;
+    return all.where((s) => s.type == type).toList();
+  }
+
+  @override
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) async {
+    final reverseMap = {
+      'id': '履歴ID',
+      'createdAt': '作成日時',
+      'type': '種別',
+      'dataCount': 'データ件数',
+      'payloadJson': '本文JSON',
+    };
+    final data = _mapToJson(snapshot.toJson(), reverseMap);
+    await _postData('analysis_history', 'add', data);
+  }
+
+  // --- Recipe Suggestions (T4-1d) ---
+
+  Map<String, String> get _recipeSuggestionKeyMap => {
+        '提案ID': 'id',
+        '作成日時': 'createdAt',
+        '豆ID': 'beanId',
+        '産地ID': 'originId',
+        '焙煎度': 'roastLevel',
+        '湯温': 'temperature',
+        '湯豆比': 'brewRatio',
+        '抽出時間': 'totalTimeSec',
+        '提案根拠': 'rationale',
+        '採否': 'accepted',
+        '結果記録ID': 'resultRecordId',
+      };
+
+  @override
+  Future<List<RecipeSuggestion>> fetchRecipeSuggestions() async {
+    final keyMap = _recipeSuggestionKeyMap;
+    return _fetchData('recipe_suggestions',
+        (map) => RecipeSuggestion.fromJson(_remapKeys(map, keyMap)));
+  }
+
+  Map<String, dynamic> _reverseMapRecipeSuggestion(RecipeSuggestion suggestion) {
+    final reverseMap = {
+      for (final entry in _recipeSuggestionKeyMap.entries) entry.value: entry.key,
+    };
+    return _mapToJson(suggestion.toJson(), reverseMap);
+  }
+
+  @override
+  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) async {
+    final data = _reverseMapRecipeSuggestion(suggestion);
+    await _postData('recipe_suggestions', 'add', data);
+  }
+
+  @override
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) async {
+    final data = _reverseMapRecipeSuggestion(suggestion);
+    await _postData('recipe_suggestions', 'update', data);
   }
 
   @override

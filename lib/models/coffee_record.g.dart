@@ -37,6 +37,7 @@ CoffeeRecord _$CoffeeRecordFromJson(Map<String, dynamic> json) => CoffeeRecord(
   dripperImageUrl: json['dripperImageUrl'] as String?,
   filterImageUrl: json['filterImageUrl'] as String?,
   beanImageUrl: json['beanImageUrl'] as String?,
+  originId: json['originId'] as String? ?? '',
 );
 
 Map<String, dynamic> _$CoffeeRecordToJson(CoffeeRecord instance) =>
@@ -71,4 +72,5 @@ Map<String, dynamic> _$CoffeeRecordToJson(CoffeeRecord instance) =>
       'dripperImageUrl': instance.dripperImageUrl,
       'filterImageUrl': instance.filterImageUrl,
       'beanImageUrl': instance.beanImageUrl,
+      'originId': instance.originId,
     };

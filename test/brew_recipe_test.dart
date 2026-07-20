@@ -8,6 +8,9 @@ import 'package:bean_base/screens/brew_recipe_screen.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/pouring_step.dart';
+import 'package:bean_base/models/origin_master.dart';
+import 'package:bean_base/models/analysis_snapshot.dart';
+import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/services/data_service.dart';
 
 /// Cycle 20 T2-3a: 030(抽出レシピ)を実データ接続の新デザインへ移植した際の
@@ -100,6 +103,20 @@ class _FakeDataService implements DataService {
   Future<void> updateFilter(FilterMaster filter) async {}
   @override
   Future<void> updateGrinder(GrinderMaster grinder) async {}
+  @override
+  Future<List<OriginMaster>> fetchOriginMasters() async => [];
+  @override
+  Future<void> saveOriginMaster(OriginMaster origin) async {}
+  @override
+  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) async => [];
+  @override
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) async {}
+  @override
+  Future<List<RecipeSuggestion>> fetchRecipeSuggestions() async => [];
+  @override
+  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) async {}
+  @override
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) async {}
 }
 
 void main() {

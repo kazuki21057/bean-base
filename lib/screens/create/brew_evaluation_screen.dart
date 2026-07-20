@@ -191,6 +191,7 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
         beanId: _bean?.id ?? '',
         roastLevel: _bean?.roastLevel ?? '',
         origin: _bean?.origin ?? '',
+        originId: _bean?.originId ?? '',
         beanWeight: beanWeight,
         grindSize: _grinder?.grindRange ?? '',
         methodId: _method?.id ?? '',
