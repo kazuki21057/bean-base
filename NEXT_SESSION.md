@@ -11,8 +11,11 @@
 - **修正**: `ref.read(xxxProvider.future)`で確実にデータ取得を待つように変更(`lib/services/image_service.dart`)。修正前は再現手順で「Skipped: 1」、修正後は同じ手順で「Failed: 1」(DRIVE_FOLDER_ID未修正が原因、-4.19で特定済み・ユーザー対応待ち)に変化することを確認し、マッチング自体が直ったことを確認した。アップロード失敗のため実データへの書き込みは発生していない。
 - **副次的な学び**: このテスト中、Flutter Webの`flutter_service_worker.js`のキャッシュが原因でビルドし直したJSが反映されない事象に遭遇(`navigator.serviceWorker.getRegistrations()`で解除・`caches.delete`でキャッシュクリアして解決)。今後同様の「コードを直したのに動作が変わらない」ケースではまずサービスワーカーのキャッシュを疑うこと。
 - 検証: `flutter analyze`(新規issue無し)、`flutter test`全件パス(69件)。
-- commit済み(`aadc2fc`、-4.18の引き継ぎ内容も合わせて含まれる)。**まだpush・`flutter build web`→`firebase deploy`は未実施**(このエントリ記述時点)。
+- commit済み(`aadc2fc`、-4.18の引き継ぎ内容も合わせて含まれる)。
 - **本日はユーザーがコスト超過を明示的に承認**(「コスト超過しても続けて」)して対応を継続した。
+
+**追記(同日): ユーザーがDRIVE_FOLDER_ID修正・GAS再デプロイを実施し、Gemini APIによるAI分析動作も確認済みとのこと(T3-12完了)。** 最終確認のためcurlで両方のデプロイURLを疎通確認したところ、**実際に権限・フォルダIDの修正が反映されていたのは新しく作成したデプロイ側のURL(`AKfycbxqhFoge1C2jYwoyPcS3BDRypCyOjc7rV6qd3FwwMaPBQ42MyrtMv8-NdcAIlvpl0Ao`)のみ**で、`kGoogleSheetsApiUrl`が指していた元のURL(`AKfycbxrFRw-RzPq916...`)は`DriveApp.getFolderById`のエラーのままだった(ユーザーが実際に編集・再デプロイしたのは新規作成した方のデプロイだったため)。`lib/services/sheets_service.dart`の`kGoogleSheetsApiUrl`を新URLに更新し、`flutter analyze`(新規issue無し)・`flutter test`(69件パス)を確認のうえcommit・push・`flutter build web`→`firebase deploy --only hosting`まで完了。**画像一括インポート・個別編集画面からの画像アップロードとも、本番で正常に動作する状態になったはず**(次回、実際に豆/器具の画像を登録して最終確認することを推奨)。
+マスタープラン: T3-12を✅に更新済み。
 ## -4.19 当日やったこと(2026-07-20、画像一括インポート不具合の継続調査)
 
 **前回(-4.18)からの続き。GAS側のDrive権限問題は解消。残るはコード内`DRIVE_FOLDER_ID`の値が誤っている点のみで、修正手順は提示済み・ユーザーの再デプロイ待ち。**
