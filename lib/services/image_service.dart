@@ -87,10 +87,14 @@ class ImageService {
   /// Uploads to Google Drive via GAS and updates Master data.
   /// Returns a summary string.
   Future<String> importMasterImages(List<PlatformFile> files) async {
-    final beanMaster = ref.read(beanMasterProvider).value ?? [];
-    final grinderMaster = ref.read(grinderMasterProvider).value ?? [];
-    final dripperMaster = ref.read(dripperMasterProvider).value ?? [];
-    final filterMaster = ref.read(filterMasterProvider).value ?? [];
+    // ref.read(xxxProvider).value は、そのProviderが一度もfetch完了していない場合
+    // (例: 設定画面に直接遷移し、豆/グラインダー/ドリッパー/フィルター一覧画面を
+    // 一度も開いていない場合)nullのまま返ってしまい、該当マスターの画像が
+    // 常にスキップされる不具合があった。.future で確実にデータ取得を待つ。
+    final beanMaster = await ref.read(beanMasterProvider.future);
+    final grinderMaster = await ref.read(grinderMasterProvider.future);
+    final dripperMaster = await ref.read(dripperMasterProvider.future);
+    final filterMaster = await ref.read(filterMasterProvider.future);
 
     if (beanMaster.isEmpty && grinderMaster.isEmpty && dripperMaster.isEmpty && filterMaster.isEmpty) {
       return 'Error: No master data loaded.';
