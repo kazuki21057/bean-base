@@ -1,6 +1,20 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-20(画像一括インポート、ユーザーが実際に試して成功を確認。追加要望6件(T3-14〜T3-19)をマスタープランに記録。コストガードレール超過のため本日はここで終了)
+最終更新: 2026-07-20(Ubuntu環境での並行開発に必要な情報がGitHubに揃っているか調査。追加pushは不要、Ubuntu側ローカル設定のみT3-20として記録)
+
+## -4.23 当日やったこと(2026-07-20、Ubuntu環境並行作業のための情報確認)
+
+**ユーザーからUbuntu環境でも並行して作業したいとの相談。リポジトリ調査の結果、プロジェクトルール・運用ルールは元々すべてコミット済みで追加pushは不要と判明。Ubuntu側で必要なローカル環境構築のみをマスタープランT3-20として記録した。**
+
+- 確認した内容: `git status`はclean(push漏れなし)。`CLAUDE.md`・`rules/verification.md`・`docs/改修マスタープラン.md`・`NEXT_SESSION.md`・`.claude/settings.json`・`.claude/hooks/loop_guard.js`・`.claude/skills/{start,end}/SKILL.md`はすべてリポジトリにコミット済み。GAS Web AppのURL(`kGoogleSheetsApiUrl`)は`lib/services/sheets_service.dart`にハードコードされコミット済みのため、Ubuntu側でも追加設定なしでSheets/Driveと疎通できる。`lib/firebase_options.dart`はレガシー・ダミー値でコミット済み(未使用のため問題なし)。
+- **Ubuntu側で追加が必要と判明したもの(コミット不可・マシンローカルな設定、T3-20として記録)**:
+  1. Flutter/Dart SDK・Chrome(またはChromium、`flutter run -d chrome`用)・Node.js(`.claude/hooks/loop_guard.js`用)の導入。
+  2. GitHubリモートが`git@github.com:...`のSSH URLのため、Ubuntu機で新規SSH鍵を発行しGitHubアカウントに登録する必要がある(またはHTTPS+`gh auth login`に切替)。
+  3. `gh` CLIの導入・認証(PR操作等で使用)。
+  4. Gemini APIキーは`shared_preferences`(ブラウザのlocalStorage相当、マシン/ブラウザごとに独立)保存のため、Ubuntu初回起動時に設定画面(090)で再入力が必要(git経由では同期されない)。
+  5. `.claude/settings.local.json`(コマンド許可リストのグローバルgitignore対象、ユーザー個人設定)はUbuntu側には存在しないため、Claude Codeの権限確認が最初は再度発生する(想定内・特に対応不要)。
+- コード変更なし(マスタープランへのタスク追加のみ)。`flutter analyze`/`flutter test`は前回から変化なし。
+- commit/push予定(このセッション内、ドキュメント更新のみの単独コミット)。
 
 ## -4.22 当日やったこと(2026-07-20、画像一括インポート成功確認・追加要望6件の記録)
 
