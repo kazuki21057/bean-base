@@ -9,7 +9,7 @@ import '../models/pouring_step.dart';
 import 'data_service.dart';
 
 // URL Placeholder - User needs to provide this
-const String kGoogleSheetsApiUrl = 'https://script.google.com/macros/s/AKfycbxrFRw-RzPq916DEzHMpiSpoKP3ikALv53MDHIQS37JCLE06Zg7hVArMNoRG87kAMzA/exec';
+const String kGoogleSheetsApiUrl = 'https://script.google.com/macros/s/AKfycbxqhFoge1C2jYwoyPcS3BDRypCyOjc7rV6qd3FwwMaPBQ42MyrtMv8-NdcAIlvpl0Ao/exec';
 
 class SheetsService implements DataService {
   final http.Client _client;
