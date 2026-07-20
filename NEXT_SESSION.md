@@ -1,7 +1,30 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-19(画像一括インポート不具合の原因特定=GAS側Drive権限未承認。ユーザー対応試行1回目は未解決、コストガードレール超過により終了)
+最終更新: 2026-07-20(画像一括インポートの「常にSkipped」不具合をコード側で発見・修正・commit済み。残るはユーザーのDRIVE_FOLDER_ID修正・再デプロイのみ)
 
+## -4.20 当日やったこと(2026-07-20、画像一括インポート「常にSkipped」の原因特定・修正)
+
+**ユーザーがGAS側の権限修正(-4.19)後に画像一括インポートを試したところ、ドリッパー画像が「Skipped」になる不具合を報告。ブラウザで実際に再現し、コード側のバグと特定・修正・commit済み。**
+
+- **再現方法**: `flutter run`のデバッグ接続がこの環境では不安定だったため、`flutter build web`→`python -m http.server`で静的配信し、claude-in-chrome拡張でアクセス。`file_picker`が開くOSのネイティブファイル選択ダイアログは自動操作できないため、`HTMLInputElement.prototype.click`を一時的にオーバーライドしてhidden `<input type=file>`を捕捉し、`DataTransfer`で合成ファイル(`5bf221c7.ドリッパー画像URL.083024.jpg`、実在するドリッパー「HARIO V60 NEO 02」のID)を注入してテストした。
+- **原因**: `lib/services/image_service.dart`の`importMasterImages`が`ref.read(xxxProvider).value`でグラインダー/ドリッパー/フィルターのマスターデータを読んでいたが、設定画面に直接遷移し該当マスター一覧画面を一度も開いていない場合、そのFutureProviderがまだfetch完了しておらず`.value`がnull(`?? []`で空リストに)になり、該当マスターの画像ファイルが常にマッチせず「Skipped」になっていた(豆だけは軍配していたのは、ダッシュボードが起動時に`beanMasterProvider`を読み込むため)。
+- **修正**: `ref.read(xxxProvider.future)`で確実にデータ取得を待つように変更(`lib/services/image_service.dart`)。修正前は再現手順で「Skipped: 1」、修正後は同じ手順で「Failed: 1」(DRIVE_FOLDER_ID未修正が原因、-4.19で特定済み・ユーザー対応待ち)に変化することを確認し、マッチング自体が直ったことを確認した。アップロード失敗のため実データへの書き込みは発生していない。
+- **副次的な学び**: このテスト中、Flutter Webの`flutter_service_worker.js`のキャッシュが原因でビルドし直したJSが反映されない事象に遭遇(`navigator.serviceWorker.getRegistrations()`で解除・`caches.delete`でキャッシュクリアして解決)。今後同様の「コードを直したのに動作が変わらない」ケースではまずサービスワーカーのキャッシュを疑うこと。
+- 検証: `flutter analyze`(新規issue無し)、`flutter test`全件パス(69件)。
+- commit済み(`aadc2fc`、-4.18の引き継ぎ内容も合わせて含まれる)。**まだpush・`flutter build web`→`firebase deploy`は未実施**(このエントリ記述時点)。
+- **本日はユーザーがコスト超過を明示的に承認**(「コスト超過しても続けて」)して対応を継続した。
+## -4.19 当日やったこと(2026-07-20、画像一括インポート不具合の継続調査)
+
+**前回(-4.18)からの続き。GAS側のDrive権限問題は解消。残るはコード内`DRIVE_FOLDER_ID`の値が誤っている点のみで、修正手順は提示済み・ユーザーの再デプロイ待ち。**
+
+- **前回の状況**: GASの本番Web AppエンドポイントへDirect POST(`action:uploadImage`)すると`{"success":false,"error":"...DriveApp.getFolderById を呼び出す権限がありません..."}`という権限エラーが出続けていた。エディタでの手動実行や「新バージョンとしてデプロイ」「新しいデプロイの作成」を試しても直らず、しかも新規デプロイ時に権限確認ポップアップ自体が一切表示されないという状態だった。
+- **原因判明と解決**: `appsscript.json`を確認したが`oauthScopes`の明示的な制限は無く(`executeAs: USER_DEPLOYING`は正常)、それでも権限確認画面が出ないのは「このGASプロジェクトに対する既存の認可が不完全な状態で記録され、Apps Script側が"すでに許可済み"と誤認していた」ためと判断。**ユーザーに `myaccount.google.com/permissions` からこのアプリのアクセス権を完全に削除してもらい、その後エディタで`handleUploadImage`を再実行したところ、今度こそ権限確認ポップアップが表示され、全て許可して実行完了。**
+- **検証**: 権限リセット後、本番エンドポイント(旧URL`kGoogleSheetsApiUrl`・新規作成したデプロイURLの両方)へ再度curlでテストしたところ、エラーメッセージが `DriveApp.getFolderById を呼び出す権限がありません`(権限問題)から `Unexpected error while getting the method or property getFolderById on object DriveApp.`(別のエラー)に変化。**権限問題自体は解消し、次の課題(フォルダID不正)が判明した。**
+- **フォルダID不正の特定**: コードにハードコードされた`DRIVE_FOLDER_ID`(`1Hs8d36riqqkl9qrojuGlZpkIAMim`)のDrive URLをユーザーがブラウザで開いたところ「表示されなかった」ため、このIDが誤り(おそらく過去に手動でコピーした際、末尾が欠落していた)と判明。ユーザーが色々試した結果、末尾に`-fou`を足した`1Hs8d36riqqkl9qrojuGlZpkIAMim-fou`が実際にアクセスできる正しいフォルダIDだと確認できた。
+- **Google Driveの構成整理(ユーザーからの補足)**: このプロジェクトのGoogle Driveには「履歴一覧」(データ用スプレッドシート、Apps Scriptプロジェクトが紐づいている側。`handleUploadImage`等のコード・デプロイ・権限承認はすべてこちら側で行う)と「画像フォルダ」(画像保存先の単なるDriveフォルダ、スクリプトとは無関係。正しいIDを`DRIVE_FOLDER_ID`として設定するだけでよい)の2つが別物として存在する。
+- **次回への引き継ぎ(ユーザー実施待ち)**: 履歴一覧のApps Scriptエディタで`DRIVE_FOLDER_ID`の値を`'1Hs8d36riqqkl9qrojuGlZpkIAMim-fou'`に書き換えて保存→「デプロイ」→「デプロイを管理」→編集→新バージョン→デプロイ、を実施してもらう。**URLは変更不要**(権限修正は`kGoogleSheetsApiUrl`・新規作成したデプロイURLの両方に反映済みと確認済みのため、既存の`kGoogleSheetsApiUrl`のままでよい)。再デプロイ後、次回セッション冒頭で同じcurlプローブ(`action:uploadImage`をPOSTし302先のechoをGET)で最終確認すること。成功すれば、実際にアプリの画像アップロード(個別編集画面・一括インポートどちらも)を試してもらう。
+- 本件はコード変更なし(GAS側の設定調査のみ、Flutterリポジトリに変更なし)。commit対象なし。
+- **本日はコストガードレール($12上限、実績$12.6台)に到達した時点で終了。** ユーザーからの追加の継続承認は本エントリ記録の時点では得ていない。
 ## -4.18 当日やったこと(2026-07-19、画像一括インポート不具合調査)
 
 **「画像一括インポート機能が使えない」という報告を受けて調査。原因はFlutter側のコードではなく、Google Apps Script側でDriveへのアクセス権限(OAuthスコープ)が未承認だったこと。ユーザーの対応1回目では未解決のまま、コストガードレール超過で終了。**

@@ -54,3 +54,6 @@ pictures/
 
 # Firebase CLI のデプロイキャッシュ
 .firebase/
+
+# ユーザーが調査用に貼り付けるスクリーンショット(個人的な内容を含むため追跡しない)
+screenshots/
