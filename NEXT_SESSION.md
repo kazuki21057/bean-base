@@ -1,6 +1,21 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-20(画像一括インポートの「常にSkipped」不具合をコード側で発見・修正・commit済み。残るはユーザーのDRIVE_FOLDER_ID修正・再デプロイのみ)
+最終更新: 2026-07-20(T3-12完了後、画像一括インポートが「全件Failed」に悪化していた別バグ(CORSプリフライト)を発見・修正・実データで動作確認・commit済み)
+
+## -4.21 当日やったこと(2026-07-20、画像一括インポート「全件Failed」の原因特定・修正)
+
+**ユーザーからT3-12完了後の再報告: 「これまではSkippedだったが、現在はすべてFailedになる」(証拠スクショを`screenshots/202607201419.png`に保存済み、9件全Failed)。原因を特定・修正・実データでの動作確認まで完了。**
+
+- **調査の起点**: エラーメッセージが`Failed to upload <filename>`のみで具体的なGAS側エラー内容が無かった(`image_service.dart`の`uploadImage`が`result['error']`をdebugPrintするだけでUIには渡していないため)。まず`curl`でGASエンドポイントへ直接`action:uploadImage`をPOSTしたところ、小さいテスト画像・3MBの大きいテスト画像とも`{"success":true,...}`で問題なく成功し、GAS側(DRIVE_FOLDER_ID・権限とも)は正常と判明。バックエンドが正常なのにアプリ経由だと必ず失敗する、という矛盾から「`curl`では再現しないブラウザ固有の問題」を疑った。
+- **原因特定**: `sheets_service.dart`の`_postData`には`// Use text/plain to avoid CORS preflight OPTIONS request which GAS doesn't handle well`という明示コメント付きの既存対策があったが、`image_service.dart`の`uploadImage`/`deleteImage`だけは`Content-Type: application/json`のままだった。`application/json`は「シンプルでないリクエスト」としてブラウザのCORSプリフライト(OPTIONS)を発生させるが、GAS Web Appは`doOptions`を実装しておらずプリフライトに正しく応答しないため、実ブラウザの`fetch`は`TypeError: Failed to fetch`で失敗する(`curl`はプリフライトをしないため再現しない)。GASの`doPost`(`tools/gas_complete.js`参照実装)は`Content-Type`に関わらず`e.postData.contents`を`JSON.parse`するため、送信側を`text/plain`にしても実害はない。
+- **検証方法**: `javascript_tool`でローカルサーバー上のページから直接`fetch(gasUrl, {headers:{'Content-Type':'application/json'}})`を実行し実際に`TypeError: Failed to fetch`を再現、同じリクエストを`text/plain`+`redirect:'manual'`にすると`type:'opaqueredirect'`(プリフライトを回避しリクエスト自体は成功)になることを確認し、仮説を先に実験で裏付けてから修正した。
+- **修正**: `lib/services/image_service.dart`の`uploadImage`・`deleteImage`のPOSTヘッダを`Content-Type: text/plain`に変更(`sheets_service.dart`と同じパターンに統一)。
+- **実データでの動作確認**: `flutter build web`→ローカル配信し、`HTMLInputElement.prototype.click`オーバーライド+`DataTransfer`(前回セッション-4.20と同じ手法)で実際に3MBのテスト画像(ファイル名`5bf221c7.テスト.999999.jpg`、実在するドリッパー「HARIO V60 NEO 02」)をインポート操作し、**修正前は同じ手順で失敗していたところ、修正後は`Success: 1, Failed: 0, Skipped: 0`**になることを確認。さらに`curl`でSheetsの`dripper_master`シートを直接確認し、`ドリッパー画像URL`が実際に`https://drive.google.com/uc?export=view&id=...`のDrive URLへ更新されていることも確認済み(実データへの書き込みが正しく完走している)。
+- 検証: `flutter analyze`(新規issue無し、既存43件のまま)、`flutter test`全件パス(69件)。
+- `rules/verification.md`に本件の教訓(GAS WebAppへの新規POST実装では必ず`text/plain`を使う旨、`curl`だけでの疎通確認はブラウザ限定のCORS不具合を見逃す旨)を追記。マスタープランにも本件の経緯を追記。
+- **後片付け**: 検証用に作成した`5bf221c7.テスト.999999.jpg`(スクラッチパッド)・`build/web/testimg.jpg`(ビルド成果物、gitignore対象)は削除済み。テスト用に作成したローカルHTTPサーバー(python)は終了済み。テストアップロードで実際にDriveへ画像が1枚保存され、Sheetsの該当行が更新された(意図した検証目的の書き込みで、実害はない)。
+- commit予定(このセッション内、単独コミット)。
+- **次回への申し送り**: 今回は`5bf221c7`(ドリッパー)のみ実データで検証。ユーザーが元々インポートしようとしていた残り8件(75c37dc4・c4de20b2・c31836bd×2・D001・120aa2f8・D002×2)も含め、実際のローカル画像ファイルで再度一括インポートを試してもらい、全件成功することを確認してもらうのが望ましい。
 
 ## -4.20 当日やったこと(2026-07-20、画像一括インポート「常にSkipped」の原因特定・修正)
 

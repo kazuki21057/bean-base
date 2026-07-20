@@ -58,7 +58,11 @@ class ImageService {
       debugPrint('[Antigravity] Action: Uploading image to Drive via GAS: $filename');
       final response = await http.post(
         Uri.parse(kGoogleSheetsApiUrl),
-        headers: {'Content-Type': 'application/json'},
+        // text/plain を使うことで CORS プリフライト(OPTIONS)を回避する。
+        // GAS の doPost は Content-Type に関わらず postData.contents を
+        // JSON.parse するため、送信側は text/plain のままで問題ない
+        // (sheets_service.dart の _postData と同じ対策)。
+        headers: {'Content-Type': 'text/plain'},
         body: body,
       );
 
@@ -196,7 +200,7 @@ class ImageService {
       final body = jsonEncode({'action': 'deleteImage', 'fileId': fileId});
       final response = await http.post(
         Uri.parse(kGoogleSheetsApiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'text/plain'},
         body: body,
       );
 
