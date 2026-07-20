@@ -1,6 +1,20 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(Phase 4 / T4-0a完了。次はT4-0b(linear_solve.dart)またはT4-0cから着手)
+最終更新: 2026-07-21(Phase 4 / T4-0b・T4-0c完了。F0(数値基盤)が全て完了したため、次はT4-1a(OriginMasterモデル新規)から着手)
+
+## -4.31 当日やったこと(2026-07-21、T4-0b・T4-0c完了、F0完了)
+
+**T4-0aに続けて、ユーザーから「T4-0bとT4-0cをまとめて実施」との指示。コストガードレール($12/日上限)を超過($13.974→$14.538台)した状態でユーザーが明示的に「コスト超過してもいいから検証まで実施して」と承認した上で対応した。**
+
+- **T4-0b実装**: `lib/services/math/linear_solve.dart`に設計書§4.2通り`cholesky`(Cholesky-Banachiewicz、正定値でなければ`StateError`)・`choleskySolve`(前進・後退代入)・`choleskyInverse`(単位ベクトルごとに`choleskySolve`)・`choleskyLogDet`(`2·Σlog(Lᵢᵢ)`)を実装。
+- **T4-0c実装**: `lib/services/math/distributions.dart`に設計書§4.3通り`normalPdf`/`normalCdf`・`erf`(Abramowitz-Stegun 7.1.26近似)・`studentTCdf`(正則化不完全ベータ関数経由)・`regularizedIncompleteBeta`(Numerical Recipesの連分数展開、Lentz法、最大200項・tol1e-12。内部でLanczos近似のlogGammaを使用、設計書に明記は無いが不完全ベータ関数の標準的な実装に必須な私的ヘルパーとして追加)・`tQuantile`(studentTCdfの二分法、区間[-50,50]・tol1e-9)を実装。
+- **Python検証(設計書§12②)**: `tools/verify_linear_solve.py`(numpy)・`tools/verify_distributions.py`(scipy)を新規作成し、実装前に同一アルゴリズムをPython側に移植してnumpy/scipyと突き合わせた。
+- **設計書の誤記を発見・訂正**: 検証の過程で、設計書§9.3の`tQuantile(0.975, 138)=1.977431`という期待値が、実際は**df=137の値**(scipy `t.ppf(0.975,137)=1.977431`)であり、df=138の正しい値は`1.977304`(`scipy t.ppf(0.975,138)`と自実装が両方とも一致)と判明。オフバイワンの誤記と判断し、**`statistics_feature_design.md`(正本)・`test/math/distributions_test.dart`とも訂正済み**(設計書側は取り消し線ではなく訂正コメント付きで書き換え、経緯を残した)。念のためnormalCdf(0)の期待値(1e-12精度)も検証したところ、Abramowitz-Stegun近似のerf(0)がそのままだと多項式係数の丸めで~1e-9の残差が出て精度不足になることが分かったため、`erf(0)`を厳密値0として特別扱いする実装にした(これは近似式からの逸脱ではなく、erfが奇関数で真値が0であることを利用した標準的な最適化)。
+- テスト: `test/math/linear_solve_test.dart`(3ケース: Cholesky分解+解+logDet、非正定値エラー、逆行列がA·A⁻¹=Iを満たすことの検証)・`test/math/distributions_test.dart`(4ケース: normalCdf、studentTCdf(df=10)、tQuantile(df=10)、tQuantile(df=138、訂正値使用))を新規作成、全パス。
+- 検証: `flutter analyze`(新規issue0件、既存44件のまま)。`flutter test`全件パス(78→85件、新規7件追加)。
+- **`flutter run`でのブラウザ確認は対象外**: T4-0aと同様、新規ファイル追加のみで既存コード(regression_service.dart等、T4-2b以降で使用予定)への結線が無いため、ロジック層のテストのみで検証完了と判断した(`rules/verification.md`に追記済みの教訓通り)。
+- commit/push はこのエントリ直後に実施。マスタープランのT4-0b・T4-0cを✅に更新済み。**これでF0(数値基盤、T4-0a〜0c)が全て完了**、設計書§0のPhase順厳守によりT4-1a(データ基盤、OriginMasterモデル)から着手可能になった。
+- **次回への申し送り**: T4-1aは依存なしで着手可能。設計書§3.1(OriginMasterのフィールド定義・初期15件データ)を参照して実装すること。また、今回発見した設計書の誤記訂正(tQuantile)は影響範囲がこの1箇所のみであることを確認済みだが、念のため他のテスト期待値(§9.4以降、回帰・PCA・GP等)についても、実装時に同様のPython検証スクリプトで事前にクロスチェックする運用を徹底すること(§12②の運用方針通り)。
 
 ## -4.30 当日やったこと(2026-07-21、T4-0a完了)
 
