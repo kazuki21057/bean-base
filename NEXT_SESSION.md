@@ -1,6 +1,21 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-4b・T4-4c完了(F5好みプロファイルの自動保存フック+UI)。サブPhase4(F5)完了。次はT4-5a(F3提案、在庫豆定義の実コード調査+suggestion_service.dart)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要)**)
+最終更新: 2026-07-21(T4-5a完了(F3提案、suggestion_service.dartのgroup_bestロジック)。次はT4-5b(recipe_suggestion_card.dart、ダッシュボード)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要)。本日は複数回にわたりユーザーが明示的にコスト超過継続を承認しており、この承認パターンはセッション終了まで継続する前提で動いている**)
+
+## -4.42 当日やったこと(2026-07-21続き、「続けて」の指示でT4-5aを実装)
+
+**T4-4b・T4-4c完了報告後、ユーザーから「続けて」の指示。本セッション内で複数回明示的にコスト超過継続の承認を得ている流れを踏まえ、都度のAskUserQuestionは行わずT4-5a(在庫豆定義の実コード調査+suggestion_service.dart)に着手した。**
+
+- **在庫豆定義の実コード調査(設計書§7.4の前提確認)**: `lib/utils/bean_stock_calculator.dart`の`calculateBeanRemainingPercent(BeanMaster bean, List<CoffeeRecord> records)`が既存の残量%算出ロジックとして存在することを確認(`BeanMaster.initialQuantityGrams`からCoffeeRecord.beanWeightの合計を差し引く方式、001/010で既に使用中)。設計書の代替定義(直近30日に抽出記録がある豆)を使うまでもなく、「残量>0の豆」という設計書の第一希望どおりの定義がそのまま実コードで特定できた。
+- **T4-5a完了**: `lib/services/suggestion_service.dart`新規作成(`SuggestionService.suggestFor(bean, records, originById)`)。
+  - **T4-5a時点ではGP推薦エンジン(F4、T4-6a〜c)が未接続のため、常にフォールバック経路(rationale='group_best')のみを実装**(設計書§7.4手順2「n_eff<10なら同グループの過去最高スコア記録の条件をそのまま提案。それも無ければ提案しない」)。手順1(GP、n_eff≥10でμ最大点提案)は次のGP実装時(T4-6c)に本サービスへ追加する。
+  - グルーピングは`bean.originId`と`roastOrdinalMap`(焙煎順序値)の一致で判定(F5の`preference_service.dart`が産地名の解決後の文字列でグループ化していたのとは異なり、F3/F4はGPモデル(§7.5)のシグネチャに合わせて`originId`直接一致で判定する設計書の方針に従った)。
+  - `brewRatio`(CoffeeRecord.brewRatio getter)が算出不能(豆量0)な記録は候補から除外。同点スコアは直近の記録を優先。
+  - **設計書のシグネチャ`suggestFor(bean)`から拡張**: 実際にはrecords/originByIdが無いと計算できないため、`RegressionService.fit`/`PreferenceService.build`と同じ「records+originByIdを明示的に渡す」既存パターンに合わせて引数を追加した(コード内コメントに明記)。`originById`は現時点のロジックでは未使用だが、将来GP接続時に同名関数のインターフェースを揃えるため受け取っている。
+- **テスト**: `test/suggestion_service_test.dart`新規(7ケース: 最高スコア記録の提案、同点時は直近優先、異なる産地/焙煎度は別グループ扱い、brewRatio算出不能記録の除外、該当記録無しでnull、originId未設定でnull、焙煎度未解決でnull)。
+- 検証: `flutter analyze`(新規issueなし、44件のまま)。`flutter test`全件パス(138→145件)。`flutter build web`成功(UI未接続のためロジック層のみ、`rules/verification.md`記載の既存教訓通りブラウザ確認は対象外)。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-5aを✅に更新済み。
+- **次回への申し送り**: T4-5b(`recipe_suggestion_card.dart`、ダッシュボード001)に進める。終了条件は「手動E2E: 提案→淹れる→記録→resultRecordId紐付けを確認」。モデル・DataService保存/更新は既にT4-1dで実装済みのため、UIとフロー配線が中心になる。カードの表示対象豆(在庫豆のうちどれを選ぶか、複数ある場合の優先順位)は設計書に明記が無いため、着手時に方針を決める必要がある(例: 直近抽出日が古い豆を優先、または在庫豆全件をカルーセル表示、等)。
 
 ## -4.41 当日やったこと(2026-07-21続き、「T4-4の残りタスクすべて一括で」の指示でT4-4b・T4-4cを実装)
 
