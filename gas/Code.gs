@@ -48,8 +48,11 @@ function ensureSheet_(ss, name) {
 }
 
 // 既存シートへの新規列追加 (冪等)。T4-1b: bean_master に産地ID/焙煎日列を追加。
+// T4-2d: coffee_data にも産地ID列を追加(CoffeeRecord.originIdの保存先。
+// SheetsServiceのkeyMap/reverseMapに対応するマッピング追加とセット)。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
   'bean_master': ['産地ID', '焙煎日'],
+  'coffee_data': ['産地ID'],
 };
 
 function ensureColumns_(sheet, sheetName) {

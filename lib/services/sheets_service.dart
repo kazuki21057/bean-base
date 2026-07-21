@@ -160,6 +160,7 @@ class SheetsService implements DataService {
       '豆名': 'beanId',
       '焙煎度': 'roastLevel',
       '産地': 'origin',
+      '産地ID': 'originId',
       '豆の量(g)': 'beanWeight',
       '挽き目': 'grindSize',
       '抽出方法': 'methodId', // Changed from 'メソッド'
@@ -332,6 +333,7 @@ class SheetsService implements DataService {
       'beanId': '豆名',
       'roastLevel': '焙煎度',
       'origin': '産地',
+      'originId': '産地ID',
       'beanWeight': '豆の量(g)',
       'grindSize': '挽き目',
       'methodId': '抽出方法',

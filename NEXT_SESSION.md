@@ -1,6 +1,24 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-2c1・T4-2c2完了(F1回帰UI全体)。サブPhase2(F1重回帰)完了。次はT4-3a(F2 PCA拡張、statistics_service.calculatePca改修)、またはT4-2d(originIdバックフィル、実データでF1を動かすのに必要)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**要検討: 実データのCoffeeRecord.originIdが空でF1が実データで機能しない件→T4-2dとして登録済み**)
+最終更新: 2026-07-21(T4-2d完了(coffee_dataのoriginIdバックフィル)。F1回帰分析が実データで機能する状態になった。次はT4-3a(F2 PCA拡張、statistics_service.calculatePca改修)、またはPhase 3追加修正6件(T3-21〜T3-26)から)
+
+## -4.37 当日やったこと(2026-07-21、/start→T4-2dを選択・実装、coffee_dataのoriginIdバックフィル完了)
+
+**`/start`実行後、マスタープラン表の依存充足最上位タスクT4-3aと、実データでF1回帰を機能させるT4-2d(originIdバックフィル)を両論併記して提示。ユーザーがT4-2dを選択。本番Sheetsへの書き込みを伴うため、事前調査結果(解決可能件数)を示してから実行の承認を得た。**
+
+- **根本原因の再発**: `coffee_data`のSheetsService `keyMap`/`_reverseMapCoffeeRecord`の`reverseMap`に`'産地ID': 'originId'`が無く、`CoffeeRecord.originId`(T4-1b/`brew_evaluation_screen.dart`で既にセットされていた)が読み書きどちらでも一切反映されていなかった。**T4-1b/d/eで発覚した`bean_master`と全く同じ「モデルにフィールドを追加してもSheetsServiceのマッピング追加を忘れる」バグパターンの再発**(NEXT_SESSION.md -4.33の教訓通り、今後も新規フィールド追加時は必ずこのマッピング2箇所を確認すること)。
+- **実装**:
+  1. `gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS`に`'coffee_data': ['産地ID']`を追加(既存の`ensureColumns_`ヘルパーが冪等に列追加、`bean_master`と同じ仕組みを再利用)。`clasp push`→`clasp deploy --deploymentId <既存ID>`(URL維持)で本番反映。curlで既存`bean_master`取得に影響が無いことを確認。
+  2. `lib/services/sheets_service.dart`の`getCoffeeRecords()`の`keyMap`と`_reverseMapCoffeeRecord()`の`reverseMap`に`'産地ID': 'originId'`を追加。
+  3. `tools/backfill_coffee_origin_ids.dart`新規作成(`tools/seed_origin_masters.dart`と同じスタンドアロンhttp直接呼び出しパターン。SheetsServiceは`dart:ui`依存のため素の`dart run`から使えないため)。`bean_master`から`beanId→originId`マップを構築し、`coffee_data`の各記録について`産地ID`が未設定かつ`beanId`が解決可能なものだけ`action:update`でPOST(既存の他列は`updateRow`側の仕様により保持される)。既に設定済みの行はスキップ(冪等)。
+- **本番実行前の事前調査(読み取りのみ)**: curlで`coffee_data`(145件)・`bean_master`(22件、うちoriginId設定済み13件、T4-1f時点の未突合9件は未確定のまま残存)を取得し、Pythonで事前シミュレーション。解決可能77件・未解決68件(beanId無し2件+参照先beanのoriginId未設定66件)、`焙煎度`欠測はわずか3件(想定より少なく、追加調査は不要と判断)と判明。この結果をユーザーに提示し、実行の承認を得てから本番実行した。
+- **本番実行結果**: `dart run tools/backfill_coffee_origin_ids.dart`を実行、`backfilled=77, alreadySet=0, skippedNoBeanId=2, skippedBeanHasNoOriginId=66`(事前シミュレーションと完全一致)。curlで`coffee_data`を再取得し、77件に`産地ID`が実際に反映されていることを確認。
+- **F1回帰の実データ動作確認**: バックフィル後のデータで、design_matrix.dartの行フィルタ(産地ID/焙煎度/scoreOverall/温度/湯量/時間が揃っている行)を通過する件数をPythonで再計算したところ**77件**(originId解決済みの77件は他の必須列も元から揃っていた)。最小データ条件`n < max(30, 5p)`を安全に上回るため、040の回帰セクションは今後サマリ/係数/散布図をフル表示できる状態になった。
+- **ブラウザでの実データ確認は部分的**: `flutter build web`→`python -m http.server`静的配信で001(ダッシュボード)が実データで例外なく描画されること(コンソールエラー0件)を確認したが、040(統計画面)へのナビゲーションはこの環境のFlutter Web上でのクリック操作が不安定(Playwright経由の合成PointerEventがナビゲーションレールの選択状態を再現できず、`rules/verification.md`記載済みの既知の制約と同種)なため到達できなかった。上記のPythonでの行フィルタ再計算による数値確認と、既存のwidgetテスト(`test/regression_section_test.dart`、フル表示分岐を担保済み)で代替した。
+- **未突合9件(産地の手動確定)は今回も対応せず**: T4-1fから持ち越しのまま。設定画面(090)からユーザーが任意のタイミングで確定すれば、対応する`coffee_data`記録もいずれ再バックフィル(スクリプト再実行、冪等)で解決可能になる。
+- 検証: `flutter analyze`(新規issue3件、いずれも新規ファイル`tools/backfill_coffee_origin_ids.dart`の`avoid_print`、既存の`seed_origin_masters.dart`と同種。48→51件)。`flutter test`全件パス(122件、変更なし。今回はSheetsServiceのマッピング追加+スタンドアロンスクリプトのみで既存ロジックへの変更が無いため新規テストは追加していない)。`flutter build web`成功。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-2dを✅に更新済み。
+- **次回への申し送り**: Phase順厳守によりT4-3a(`statistics_service.dart`の`calculatePca()`改修)に進める。または、ユーザー要望のPhase3追加修正6件(T3-21〜T3-26)を先に片付ける選択も可(依存なし)。
 
 ## -4.36b 当日やったこと(2026-07-21続き、コスト超過許容の指示でT4-2c2(F1回帰UI後半)実装)
 
