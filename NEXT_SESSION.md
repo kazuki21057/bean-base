@@ -1,6 +1,26 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-3a完了(F2 PCA拡張、相関行列ベース化)。サブPhase3(F2)開始・T4-3a単体は完了。次はT4-3b(pca_detail_panel.dart、寄与率バー・負荷量テーブル・AI深掘り)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)**)
+最終更新: 2026-07-21(T4-3b完了(F2 PCA拡張のUI、pca_detail_panel.dart)。サブPhase3(F2、T4-3a・T4-3b)完了。次はT4-4a(F5好みプロファイル、preference_service.dart)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)**)
+
+## -4.39 当日やったこと(2026-07-21続き、コスト超過無視継続の指示でT4-3b実装)
+
+**T4-3a完了報告の直後、ユーザーから「進めて」の指示。loop_guardのコスト超過停止指示(当日$58.776、新上限$24の2倍超)が出たため、`AskUserQuestion`で続行可否を確認したところユーザーが「進める(コスト無視を継続)」を選択。それを受けてT4-3bを実装した。**
+
+- **T4-3b完了**: `lib/widgets/statistics/pca_detail_panel.dart`新規作成(設計書§6.2の3項目)。
+  1. 寄与率バー: PC1〜PC6(標準偏差0で除外した軸を除く)の寄与率+累積寄与率のバー表示、Kaiser基準線(固有値1⇔寄与率1/m)を赤線で重畳。
+  2. 負荷量テーブル: 全軸×PC1/PC2、`|L|≥0.5`の値を太字+アクセント色で強調。
+  3. 「AIで深掘り解釈する」ボタン: `AiAnalysisService.analyzeComponentsDeep`(新設)を呼び、設計書§8.2のプロンプトテンプレートをそのまま使用。既存の`_RegressionAiSection`と同じ操作感(APIキーはshared_preferences、ローディング/結果表示は紫カード)。
+  - 設計書§6.2項目3の「v1.1: 分析方法を相関行列ベースに改善しました」の一行注記もこのウィジェットに追加(T4-3a時点では新ウィジェット未作成のため見送っていたもの)。
+  - 除外軸がある場合は「除外された軸(全件同値のため計算不可): {軸名}」も表示。
+- **`analyzeComponentsDeep`(§8.2)の実体**: `topPc1Summary`/`bottomPc1Summary`(PC1スコア上位/下位5件の産地/焙煎度/湯温の要約文字列)はDart側(`_summarizePc1Extremes`)で計算し、Geminiには計算済み文字列のみ渡す(CLAUDE.md絶対規則)。`records`と`PcaResult.points`は`calculatePca`内で同一順序で構築されるため、インデックスで対応させて元の`CoffeeRecord`のorigin/roastLevel/temperatureを引いている。
+- **統計画面(040)への結線**: `statistics_screen.dart`の「味の傾向マップ (PCA)」`FormSection`内、既存`PcaScatterPlot`の直後に`PcaDetailPanel(records: filteredRecords)`を追加。既存`PcaScatterPlot`側は表示をPC1/PC2のみに保つ変更をT4-3aで既に済ませてあるため、本タスクでの変更は不要だった。
+- **テスト**: `test/pca_detail_panel_test.dart`新規(3ケース: データ不足で非表示、十分なデータで寄与率バー/負荷量テーブル/AIボタン表示、標準偏差0の軸がある場合の除外メッセージ表示)。すべての描画分岐をカバー。フィクスチャは6軸それぞれ異なる変動パターンを持つ非縮退データ(T4-3aの`statistics_service_test.dart`用フィクスチャがランク1縮退データだったため、こちらは別に用意した)。
+  - **ハマった点**: `PcaDetailPanel`が`ConsumerWidget`のため、テストで`ProviderScope`を省略すると`Bad state: No ProviderScope found`で例外になった。`regression_section_test.dart`と同様`ProviderScope`でラップして解決。
+- 検証: `flutter analyze`(新規issueなし、44件のまま)。`flutter test`全件パス(123→126件、新規3件)。`flutter build web`成功。
+- **ブラウザでの040画面到達確認は今回も断念**: Playwrightでのクリック座標特定を複数の方法(座標推定・セマンティクスツリー有効化+aria-label検索・テキストノード検索)で試みたが、CanvasKitレンダラーはNavigationRailの各destinationに個別のDOM要素/aria-labelを露出しないらしく(セマンティクスを有効化しても該当要素が見つからなかった)、確実な特定ができなかった。**座標推定によるクリックが当たらなかった根本原因も判明**: スクリーンショットは実ページ(1920×889 CSS px)と同じピクセル数のはずだが、チャット上に表示される縮小プレビュー画像を目視で読み取った座標を使っていたため、実際の座標とズレていた(次回以降、目視ではなく`browser_evaluate`で要素のbounding rectを直接取得してから座標を決めるべき)。widgetテストで全描画分岐(データ不足/フル表示/除外軸/AIボタン)を担保済みのため、ロジック面の検証は十分と判断した。
+- **サブPhase3(F2 PCA拡張、T4-3a・T4-3b)がこれで完了。** 設計書§0のPhase順によりサブPhase4(F5好みプロファイル、T4-4a `preference_service.dart`)へ進める。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-3bを✅に更新済み。
+- **次回への申し送り**: ブラウザでのFlutter Web画面遷移確認が必要な場面では、座標を目視推定せず`browser_evaluate`で対象要素のbounding rectを取得してから`elementFromPoint`/クリックする方式を試すこと(今回はNavigationRailのdestinationがDOMに現れず断念したが、他の通常のMaterialボタン等では有効な可能性がある)。それでも特定できない場合は、今回同様widgetテストでの担保を優先し、時間をかけすぎないこと。
 
 ## -4.38 当日やったこと(2026-07-21続き、コスト超過無視の指示でT4-3a実装+コスト上限変更)
 

@@ -82,6 +82,59 @@ class AiAnalysisService {
     return "AI Analysis Failed (Unknown Error).";
   }
 
+  /// F2拡張: PCA深掘り解釈(設計書§8.2、T4-3b)。既存`analyzeComponents`(簡易版)を
+  /// 置換せず別メソッドとして追加。負荷量・寄与率に加え、PC1スコア上位/下位5件の
+  /// 産地/焙煎度/湯温の要約(Dart側で集計済み)をプロンプトに含めることで、
+  /// 主成分と実際の抽出条件を結びつけた解釈をGeminiに求める。
+  Future<String> analyzeComponentsDeep({
+    required PcaComponent pc1,
+    required PcaComponent pc2,
+    required String topPc1Summary,
+    required String bottomPc1Summary,
+    required String apiKey,
+  }) async {
+    if (apiKey.isEmpty) return 'APIキーが設定されていません。';
+
+    final prompt = _buildDeepPrompt(pc1, pc2, topPc1Summary, bottomPc1Summary);
+
+    for (final modelName in _kGeminiModels) {
+      try {
+        final model = GenerativeModel(model: modelName, apiKey: apiKey);
+        final response = await model.generateContent([Content.text(prompt)]);
+        return response.text ?? '解釈結果が生成されませんでした。';
+      } catch (e) {
+        debugPrint('[Antigravity] Gemini Model $modelName failed (analyzeComponentsDeep): $e');
+        if (modelName == _kGeminiModels.last) {
+          return 'AI解釈に失敗しました。\nエラー: $e\n\n'
+              'APIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
+        }
+      }
+    }
+    return 'AI解釈に失敗しました (原因不明)。';
+  }
+
+  String _buildDeepPrompt(
+    PcaComponent pc1,
+    PcaComponent pc2,
+    String topPc1Summary,
+    String bottomPc1Summary,
+  ) {
+    String loadingsText(PcaComponent c) => c.contributions.entries
+        .map((e) => '${e.key}:${e.value.toStringAsFixed(2)}')
+        .join(', ');
+
+    // 設計書§8.2のテンプレートを固定使用 (数値・要約はDart側で埋め込む)。
+    return 'あなたはコーヒーの官能評価と多変量解析の専門家です。味覚6軸(香り/酸味/苦味/甘味/複雑さ/フレーバー)の\n'
+        '主成分分析結果です(相関行列ベース、計算済み)。\n'
+        'PC1: 寄与率${(pc1.contributionRatio * 100).toStringAsFixed(1)}%, 負荷量: ${loadingsText(pc1)}\n'
+        'PC2: 寄与率${(pc2.contributionRatio * 100).toStringAsFixed(1)}%, 負荷量: ${loadingsText(pc2)}\n'
+        '高PC1スコアの抽出記録の特徴(上位5件の産地/焙煎度/湯温の要約): $topPc1Summary\n'
+        '低PC1スコア側の同要約: $bottomPc1Summary\n'
+        '出力: (1)PC1とPC2それぞれの軸の意味を一言で命名し根拠を負荷量から説明\n'
+        '(2)このユーザーの味覚空間の構造について言えること (3)散布図の見方のアドバイス。\n'
+        '日本語、各項目3文以内。負荷量の絶対値0.5未満の変数を主要根拠にしないこと。';
+  }
+
   String _buildPrompt(List<PcaComponent> components) {
     final buffer = StringBuffer();
     buffer.writeln("You are a coffee flavor expert data analyst.");

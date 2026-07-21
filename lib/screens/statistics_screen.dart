@@ -7,6 +7,7 @@ import '../widgets/statistics/statistics_filter_widget.dart';
 import '../widgets/statistics/kpi_cards.dart';
 import '../widgets/statistics/radar_chart_widget.dart';
 import '../widgets/statistics/pca_scatter_plot.dart';
+import '../widgets/statistics/pca_detail_panel.dart';
 import '../widgets/statistics/ranking_list.dart';
 import '../widgets/statistics/regression_section.dart';
 import 'create/create_form_widgets.dart';
@@ -81,6 +82,7 @@ class StatisticsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       PcaScatterPlot(records: filteredRecords),
+                      PcaDetailPanel(records: filteredRecords),
                     ],
                   ),
                   FormSection(
