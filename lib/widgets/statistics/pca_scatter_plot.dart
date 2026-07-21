@@ -118,9 +118,12 @@ class PcaScatterPlot extends ConsumerWidget {
             const SizedBox(height: 8),
             _buildScoreLegend(),
             const Divider(color: kLatte),
-            _buildComponentInfo(result.components),
+            // T4-3a: calculatePca()は全主成分(最大6件)を返すようになったが、
+            // このウィジェットの表示は従来どおりPC1/PC2のみ(設計書§6.1)。
+            // 全成分の寄与率バー・負荷量テーブルはT4-3b(pca_detail_panel.dart)で追加予定。
+            _buildComponentInfo(result.components.take(2).toList()),
             const SizedBox(height: 16),
-            _buildAiAnalysisSection(context, ref, result.components, ref.watch(aiAnalysisLoadingProvider), ref.watch(aiAnalysisResultProvider)),
+            _buildAiAnalysisSection(context, ref, result.components.take(2).toList(), ref.watch(aiAnalysisLoadingProvider), ref.watch(aiAnalysisResultProvider)),
           ],
         ),
     );

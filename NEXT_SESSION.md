@@ -1,6 +1,26 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-2d完了(coffee_dataのoriginIdバックフィル)。F1回帰分析が実データで機能する状態になった。次はT4-3a(F2 PCA拡張、statistics_service.calculatePca改修)、またはPhase 3追加修正6件(T3-21〜T3-26)から)
+最終更新: 2026-07-21(T4-3a完了(F2 PCA拡張、相関行列ベース化)。サブPhase3(F2)開始・T4-3a単体は完了。次はT4-3b(pca_detail_panel.dart、寄与率バー・負荷量テーブル・AI深掘り)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)**)
+
+## -4.38 当日やったこと(2026-07-21続き、コスト超過無視の指示でT4-3a実装+コスト上限変更)
+
+**T4-2d完了報告の直後、ユーザーから「T4-3aに進んで。このセッションではコスト超過は無視して。また、コスト上限を2倍に増やして」との指示。まずコスト上限変更(durable設定変更)を先に反映し、続けてT4-3aを実装した。**
+
+- **コスト上限変更**: `.claude/hooks/loop_guard.js`の`COST_LIMIT`を12→24に変更。整合性のため`CLAUDE.md`(日次改修ループ運用ルール§3)と`docs/改修マスタープラン.md`(§5・§5.1)の該当箇所も$12→$24に更新。単独commit/push済み。
+- **T4-3a完了**: `lib/services/statistics_service.dart`の`calculatePca()`を設計書§6.1どおり改修。
+  1. 固有値分解を独自の`_jacobiEigenvalueAlgorithm`(215-334行、コメントアウトの試行錯誤跡が残ったままの旧実装)から`eigenSymmetric()`(T4-0aで実装済み)に差し替え、旧関数・`_EigenResult`/`_EigenPair`を削除。`ml_linalg`への依存もこの関数から排除(他箇所で未使用だったため実質全廃、importを削除)。
+  2. 共分散行列→相関行列に変更(中心化後に各列を不偏標準偏差(n-1)で割ってZを作り、R=ZᵀZ/(n-1))。標準偏差0(全件同値)の列は相関行列から除外し、除外軸名を`PcaResult.excludedFeatures`(新設)に保持。
+  3. `PcaComponent`に`eigenvalue`・`contributionRatio`(T-13)・`cumulativeRatio`(T-14)を追加。負荷量(`contributions`)はT-15(固有ベクトル×√固有値、相関行列ベースでは元変数との相関係数に一致)で再定義。
+  4. `PcaResult.components`は全主成分(標準偏差0の除外軸を除いた最大6件)を保持するよう変更(従来はPC1/PC2の2件のみ)。**既存の`pca_scatter_plot.dart`は表示を従来どおりPC1/PC2のみに保つため、呼び出し側で`result.components.take(2).toList()`に変更**(全6件表示の拡張UIはT4-3bの`pca_detail_panel.dart`で対応予定、設計書§6.2)。
+- **テスト期待値の検証(設計書§12②の運用方針)**: `tools/verify_pca.py`新規作成。既存の`mockRecords`(3件フィクスチャ)がFragrance/Acidity/Sweetness/Complexity/Flavorの5軸が完全に同一パターン(7,8,6)でBitternessだけ逆相関(7,6,8)という**ランク1の縮退データ**だと判明(numpy.linalg.eighで確認)。固有値は`[6,0,0,0,0,0]`に決定的に定まるが、2番目以降の固有値が5重に縮退しているためPC2以降の固有ベクトルの向きは不定(実装依存、numpyとJacobi法で一致する保証がない)。そのため`test/statistics_service_test.dart`の新テストは、符号に依存しない量(固有値・寄与率・累積寄与率・負荷量の絶対値・符号の相対関係・スコアの絶対値)のみを検証する方針にした(`eigen_test.dart`のランダム対称行列テストと同じ考え方)。実際にDart実装を走らせた結果はnumpy側の数値(固有値6.0、寄与率1.0、スコア±√6)と一致した。
+  - 除外ロジック用に2件目のテスト(`scoreFlavor`を全件同値にすると`excludedFeatures`が`['Flavor']`になり残り5軸でPCAが行われること)も追加。
+  - `test/statistics_service_test.dart`の冒頭にあった未使用import(`ml_linalg/linalg.dart`・`ml_linalg/dtype.dart`、既存の`flutter analyze`警告2件)もこの機会に削除。
+- 検証: `flutter analyze`(新規issueなし、既存issueが51→44件に減少。`_jacobiEigenvalueAlgorithm`削除に伴う`unused_local_variable 'theta'`等の解消と、上記未使用import削除による)。`flutter test`全件パス(122→123件)。`flutter build web`成功。
+- **ブラウザでの040画面到達確認は断念**: `flutter build web`→`python -m http.server`静的配信でPlaywright経由のクリックを試みたが、`NavigationRail`が選択状態に応じてレイアウトを変える(選択中タブのみラベル表示で高さが変わる)ため、固定ピクセル座標でのクリックが再現性なく別のタブに当たってしまう事象を複数回確認した(T4-2dで遭遇した同種の制約が悪化した形。`rules/verification.md`に追記を検討する価値あり)。`pca_scatter_plot.dart`への変更は`result.components.take(2).toList()`という型・構造を変えない最小限の呼び出し変更のみのため、実行時リスクは低いと判断し、widgetレベルでの直接確認は次回以降(pca_detail_panel実装時のT4-3b)に委ねた。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-3aを✅に更新済み。
+- **次回への申し送り**:
+  1. T4-3b(`pca_detail_panel.dart`)着手時に、`PcaResult.components`(全6件)を使った寄与率バー・負荷量テーブル・Kaiser基準線・「AIで深掘り解釈」ボタン(既存動作変更の「v1.1」注記込み、設計書§6.2)を実装する。
+  2. `NavigationRail`のクリック座標が選択状態で不安定な件は、今後Playwright/claude-in-chromeでこの画面群を検証する際に毎回同じ問題に当たる可能性が高い。可能なら`flutter_test`のwidgetテストでナビゲーション遷移を検証する方が確実(既存の`master_switcher_test.dart`等と同じアプローチ)。
 
 ## -4.37 当日やったこと(2026-07-21、/start→T4-2dを選択・実装、coffee_dataのoriginIdバックフィル完了)
 
