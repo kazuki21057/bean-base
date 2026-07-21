@@ -10,6 +10,7 @@ import '../../models/method_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../models/pending_brew_info.dart';
+import '../../models/recipe_suggestion.dart';
 import '../../services/data_service.dart';
 import '../../services/preference_service.dart';
 import '../../widgets/bean_image.dart';
@@ -45,7 +46,13 @@ import 'create_form_widgets.dart';
 class BrewEvaluationScreen extends ConsumerStatefulWidget {
   final PendingBrewInfo info;
 
-  const BrewEvaluationScreen({super.key, required this.info});
+  /// T4-5b(設計書§7.4): F3レシピ提案から遷移した場合の採用済み提案。
+  /// 最初の記録保存が成功したとき、その記録IDを`resultRecordId`として
+  /// `updateRecipeSuggestion`で書き戻す(提案→淹れる→記録の紐付け)。
+  /// 通常フローではnull。
+  final RecipeSuggestion? pendingSuggestion;
+
+  const BrewEvaluationScreen({super.key, required this.info, this.pendingSuggestion});
 
   @override
   ConsumerState<BrewEvaluationScreen> createState() => _BrewEvaluationScreenState();
@@ -96,6 +103,10 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   /// そのまま使い、2件目以降(「続けて記録」)は登録時点の現在時刻を使う。
   int _recordCount = 0;
 
+  /// T4-5b: F3提案からの遷移時、最初の記録にのみresultRecordIdを書き戻す
+  /// (「続けて記録」で2件目以降が紐付けを上書きしないようにするフラグ)。
+  bool _suggestionLinked = false;
+
   /// フォームリセット時にインクリメントし、MockChoiceChips/MockScoreSliderの
   /// keyへ反映することでウィジェットを強制的に再構築(初期値へ戻す)する。
   int _formResetGeneration = 0;
@@ -126,6 +137,9 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
   void initState() {
     super.initState();
     _commentController.text = widget.info.comment ?? '';
+    // T4-5b: F3提案からの遷移時は湯温をプリフィルする(通常フローでは空欄)。
+    final t = widget.info.temperature;
+    if (t != null) _temperatureController.text = t.toStringAsFixed(0);
   }
 
   @override
@@ -229,6 +243,7 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       debugPrint('[Antigravity] Action: 031から抽出記録を登録 (id=${record.id}, bean=${record.beanId}, method=${record.methodId})');
       ref.invalidate(coffeeRecordsProvider);
 
+      await _linkSuggestionResult(record, service);
       await _saveAutoPreferenceSnapshot(record, existingRecords, service);
 
       if (!mounted) return;
@@ -248,6 +263,22 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// 設計書§7.4(T4-5b): F3提案から遷移した場合、最初の記録保存が成功したときに
+  /// その記録IDを提案の`resultRecordId`として書き戻す。書き戻し失敗は記録本体の
+  /// 保存を妨げない(try-catchで握るのみ)。
+  Future<void> _linkSuggestionResult(CoffeeRecord record, DataService service) async {
+    final suggestion = widget.pendingSuggestion;
+    if (suggestion == null || _suggestionLinked) return;
+    try {
+      await service.updateRecipeSuggestion(suggestion.copyWith(resultRecordId: record.id));
+      _suggestionLinked = true;
+      debugPrint('[Antigravity] Action: レシピ提案に結果記録を紐付け '
+          '(suggestion=${suggestion.id}, record=${record.id})');
+    } catch (e) {
+      debugPrint('[Antigravity] Error: レシピ提案への結果紐付けに失敗 $e');
     }
   }
 

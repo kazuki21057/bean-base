@@ -20,6 +20,10 @@ class PendingBrewInfo {
   final double bloomingWater;
   final int bloomingTime;
 
+  /// T4-5b(設計書§7.4): F3レシピ提案から031へ湯温をプリフィルするための任意値。
+  /// 通常の030→031フローでは湯温は031で都度入力するためnull。
+  final double? temperature;
+
   /// T1-4c: 002からのスワイプ操作で過去の記録から引き継ぐ評価値(任意)。
   /// 031画面の初期値としてのみ使用し、保存(records反映)はT2-5aで実装する。
   final int? scoreFragrance;
@@ -45,6 +49,7 @@ class PendingBrewInfo {
     required this.totalTime,
     required this.bloomingWater,
     required this.bloomingTime,
+    this.temperature,
     this.scoreFragrance,
     this.scoreAcidity,
     this.scoreBitterness,

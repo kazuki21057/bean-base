@@ -26,6 +26,7 @@ class _FakeDataService implements DataService {
   CoffeeRecord? lastAddedRecord;
   final List<CoffeeRecord> addedRecords = [];
   final List<AnalysisSnapshot> savedSnapshots = [];
+  final List<RecipeSuggestion> updatedSuggestions = [];
   bool throwOnSaveAnalysisSnapshot = false;
 
   @override
@@ -110,7 +111,9 @@ class _FakeDataService implements DataService {
   @override
   Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) async {}
   @override
-  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) async {}
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) async {
+    updatedSuggestions.add(suggestion);
+  }
 }
 
 void main() {
@@ -449,5 +452,83 @@ void main() {
     // (両SnackBarの同時表示有無はタイミング依存で不安定なため対象外)。
     expect(fakeService.addedRecords.length, 1);
     expect(fakeService.savedSnapshots, isEmpty);
+  });
+
+  testWidgets(
+      'BrewEvaluationScreen: F3提案から遷移した場合、最初の記録保存でresultRecordIdが書き戻される。'
+      '連続記録の2件目は紐付けを上書きしない(T4-5b)',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 21, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '',
+        baseBeanWeight: 15,
+        baseWaterAmount: 225,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: bean,
+      beanWeight: 15,
+      totalWater: 225,
+      totalTime: 150,
+      bloomingWater: 0,
+      bloomingTime: 0,
+      temperature: 93,
+    );
+    final suggestion = RecipeSuggestion(
+      id: 'sugg_1',
+      createdAt: DateTime(2026, 7, 21, 8, 0),
+      beanId: 'b1',
+      originId: 'origin_1',
+      roastLevel: '浅煎り',
+      temperature: 93,
+      brewRatio: 15,
+      totalTimeSec: 150,
+      rationale: 'group_best',
+      accepted: 'yes',
+      resultRecordId: '',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: MaterialApp(
+          home: BrewEvaluationScreen(info: info, pendingSuggestion: suggestion),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 湯温が提案値(93℃)でプリフィルされている。
+    expect(find.widgetWithText(TextField, '93'), findsOneWidget);
+
+    // 1件目登録 → resultRecordIdが最初の記録IDで書き戻される。
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.updatedSuggestions.length, 1);
+    final linked = fakeService.updatedSuggestions.single;
+    expect(linked.id, 'sugg_1');
+    expect(linked.resultRecordId, fakeService.addedRecords.first.id);
+
+    // 2件目登録(連続記録) → 紐付けは1件目のまま増えない。
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(fakeService.addedRecords.length, 2);
+    expect(fakeService.updatedSuggestions.length, 1);
   });
 }

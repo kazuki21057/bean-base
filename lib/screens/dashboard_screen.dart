@@ -5,6 +5,7 @@ import '../routing/app_screen.dart';
 import '../theme/blackboard_theme.dart';
 import '../utils/bean_stock_calculator.dart';
 import '../widgets/bean_jar_widget.dart';
+import '../widgets/dashboard/recipe_suggestion_card.dart';
 import 'create/create_form_widgets.dart';
 import 'bean_detail_screen.dart';
 import 'bean_list_screen.dart';
@@ -72,6 +73,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
         ),
+        // F3レシピ提案(設計書§7.4、T4-5b)。「今から淹れる」意思決定を助けるため
+        // 残豆量・直近抽出より前に配置する。
+        const RecipeSuggestionCard(),
         FormSection(
           icon: Icons.inventory_2_outlined,
           title: '残豆量',
