@@ -18,13 +18,15 @@ import '../../utils/bean_stock_calculator.dart';
 
 /// F3: レシピ提案カード (設計書§7.4)。ダッシュボード(001)に配置する。
 ///
-/// 在庫豆(残量% > 0)のうち`SuggestionService.suggestFor`が提案を返せる豆を、
+/// 在庫豆(残量% > 0)のうち`SuggestionService.suggestWithGp`が提案を返せる豆を、
 /// 最終使用日が古い順(放置ぎみの在庫豆を優先)に最大[_maxCards]件カード表示する。
 /// 各カードは湯温/比率/時間と、F5好みプロファイルから引いた推奨焙煎度(§7.4後半)を
 /// 表示し、[この条件で淹れる](accepted='yes'で保存し031へプリフィル遷移)と
 /// [今回はパス](accepted='no'で保存し当該カードを非表示)のボタンを持つ。
 ///
-/// T4-5a時点ではGP未接続のため提案根拠は常にgroup_best(予測スコア・区間は無し)。
+/// T4-6cでGP(F4)に接続。n_eff≥10の豆はGP予測(gp_mean)を予測スコア+区間つきで
+/// 表示し、提案履歴が7件たまるごとに1件はEI提案(gp_ei、「実験的な提案です」)に
+/// 切り替える(`SuggestionService.shouldExplore`)。n_eff<10はgroup_bestに落ちる。
 class RecipeSuggestionCard extends ConsumerStatefulWidget {
   const RecipeSuggestionCard({super.key});
 
@@ -44,7 +46,10 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     final beansAsync = ref.watch(beanMasterProvider);
     final logs = ref.watch(coffeeRecordsProvider).value ?? const <CoffeeRecord>[];
     final origins = ref.watch(originMasterProvider).value ?? const <OriginMaster>[];
+    final history = ref.watch(recipeSuggestionsProvider).value ?? const <RecipeSuggestion>[];
     final originById = {for (final o in origins) o.id: o};
+    // 設計書§7.4手順1: GP提案7件に1件をEI(探索)提案に切り替える。
+    final explore = SuggestionService.shouldExplore(history);
 
     return FormSection(
       icon: Icons.auto_awesome_outlined,
@@ -53,7 +58,7 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
       children: [
         beansAsync.when(
           data: (beans) {
-            final candidates = _buildCandidates(beans, logs, originById);
+            final candidates = _buildCandidates(beans, logs, originById, explore);
             if (candidates.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -71,10 +76,10 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _SuggestionTile(
                       bean: c.bean,
-                      suggestion: c.suggestion,
+                      result: c.result,
                       recommendedRoast: _recommendedRoastFor(c.bean, originById, profile),
-                      onBrew: () => _onBrew(c.bean, c.suggestion),
-                      onPass: () => _onPass(c.bean, c.suggestion),
+                      onBrew: () => _onBrew(c.bean, c.result.suggestion),
+                      onPass: () => _onPass(c.bean, c.result.suggestion),
                     ),
                   ),
               ],
@@ -95,6 +100,7 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     List<BeanMaster> beans,
     List<CoffeeRecord> logs,
     Map<String, OriginMaster> originById,
+    bool explore,
   ) {
     final service = SuggestionService();
     final result = <_Candidate>[];
@@ -102,7 +108,7 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
       if (bean.name.isEmpty || bean.name == '-') continue;
       if (_handledBeanIds.contains(bean.id)) continue;
       if (calculateBeanRemainingPercent(bean, logs) <= 0) continue;
-      final suggestion = service.suggestFor(bean, logs, originById);
+      final suggestion = service.suggestWithGp(bean, logs, originById, explore: explore);
       if (suggestion == null) continue;
       result.add(_Candidate(bean, suggestion));
     }
@@ -198,24 +204,26 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
 
 class _Candidate {
   final BeanMaster bean;
-  final RecipeSuggestion suggestion;
-  _Candidate(this.bean, this.suggestion);
+  final SuggestionResult result;
+  _Candidate(this.bean, this.result);
 }
 
 class _SuggestionTile extends StatelessWidget {
   final BeanMaster bean;
-  final RecipeSuggestion suggestion;
+  final SuggestionResult result;
   final String? recommendedRoast;
   final VoidCallback onBrew;
   final VoidCallback onPass;
 
   const _SuggestionTile({
     required this.bean,
-    required this.suggestion,
+    required this.result,
     required this.recommendedRoast,
     required this.onBrew,
     required this.onPass,
   });
+
+  RecipeSuggestion get suggestion => result.suggestion;
 
   bool get _roastMatches {
     if (recommendedRoast == null) return false;
@@ -251,9 +259,27 @@ class _SuggestionTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          const Text(
-            '今日はこのレシピはいかが?',
-            style: TextStyle(color: kChalkMuted, fontSize: 12),
+          Row(
+            children: [
+              const Text(
+                '今日はこのレシピはいかが?',
+                style: TextStyle(color: kChalkMuted, fontSize: 12),
+              ),
+              if (suggestion.rationale == 'gp_ei') ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: kChalkAccent.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    '実験的な提案です',
+                    style: TextStyle(color: kChalkAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -265,6 +291,14 @@ class _SuggestionTile extends StatelessWidget {
               _chip(Icons.timer_outlined, _formatTime(suggestion.totalTimeSec)),
             ],
           ),
+          if (result.predMean != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '予測スコア ${result.predMean!.toStringAsFixed(1)} '
+              '[${result.predLower!.toStringAsFixed(1)}, ${result.predUpper!.toStringAsFixed(1)}]',
+              style: const TextStyle(color: kChalkMuted, fontSize: 11),
+            ),
+          ],
           if (recommendedRoast != null) ...[
             const SizedBox(height: 10),
             Row(

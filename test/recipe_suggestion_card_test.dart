@@ -149,6 +149,7 @@ Future<void> _pump(
   required List<BeanMaster> beans,
   required List<CoffeeRecord> records,
   List<OriginMaster> origins = const [],
+  List<RecipeSuggestion> history = const [],
   DataService? service,
 }) async {
   await tester.pumpWidget(
@@ -158,6 +159,7 @@ Future<void> _pump(
         beanMasterProvider.overrideWith((ref) async => beans),
         coffeeRecordsProvider.overrideWith((ref) async => records),
         originMasterProvider.overrideWith((ref) async => origins),
+        recipeSuggestionsProvider.overrideWith((ref) async => history),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -239,6 +241,59 @@ void main() {
 
       expect(find.textContaining('この産地は浅煎りが高評価です'), findsOneWidget);
       expect(find.text('おすすめ焙煎度と一致'), findsOneWidget);
+    });
+
+    // --- T4-6c: GP接続 ---
+
+    final stockBean = BeanMaster(
+      id: 'b1',
+      name: 'エチオピア ゲイシャ',
+      roastLevel: '浅煎り',
+      origin: 'エチオピア',
+      originId: 'origin_1',
+      initialQuantityGrams: 500,
+      isInStock: true,
+    );
+    // origin_1×浅煎りで12件 → n_eff=12 ≥ 10 でGP経路に入る。
+    final gpRecords = () {
+      final temps = [84.0, 86.0, 88.0, 90.0, 92.0, 94.0];
+      final waters = [225.0, 240.0, 210.0, 225.0, 255.0, 210.0];
+      final times = [150, 165, 135, 180, 150, 195];
+      final scores = [7, 8, 6, 9, 7, 8];
+      return [
+        for (var i = 0; i < 12; i++)
+          _record('g$i',
+              beanId: 'b1',
+              originId: 'origin_1',
+              roastLevel: '浅煎り',
+              score: scores[i % 6],
+              temperature: temps[i % 6],
+              totalWater: waters[i % 6],
+              totalTime: times[i % 6]),
+      ];
+    }();
+
+    testWidgets('n_eff≥10の在庫豆はGP予測スコア付きのカードを表示する', (tester) async {
+      await _pump(tester, beans: [stockBean], records: gpRecords);
+
+      expect(find.text('エチオピア ゲイシャ'), findsOneWidget);
+      expect(find.textContaining('予測スコア'), findsOneWidget);
+      // 通常はgp_meanなので「実験的な提案です」バッジは出ない。
+      expect(find.text('実験的な提案です'), findsNothing);
+    });
+
+    testWidgets('GP提案履歴が6件たまると7件目はEI提案(実験的な提案です)になる', (tester) async {
+      final history = [
+        for (var i = 0; i < 6; i++)
+          RecipeSuggestion(
+            id: 'h$i', createdAt: DateTime(2026, 7, 1), beanId: 'b1', originId: 'origin_1',
+            roastLevel: '浅煎り', temperature: 90, brewRatio: 15, totalTimeSec: 150,
+            rationale: 'gp_mean', accepted: '', resultRecordId: ''),
+      ];
+      await _pump(tester, beans: [stockBean], records: gpRecords, history: history);
+
+      expect(find.text('実験的な提案です'), findsOneWidget);
+      expect(find.textContaining('予測スコア'), findsOneWidget);
     });
   });
 }

@@ -7,6 +7,7 @@ import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
+import '../models/recipe_suggestion.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
@@ -46,6 +47,12 @@ final originMasterProvider = FutureProvider<List<OriginMaster>>((ref) async {
 /// T4-4c(設計書§7.3): 好みプロファイルの履歴(preference_section.dartの履歴タブ用)。
 final preferenceSnapshotsProvider = FutureProvider<List<AnalysisSnapshot>>((ref) async {
   return ref.watch(dataServiceProvider).fetchAnalysisSnapshots(type: 'preference');
+});
+
+/// T4-6c(設計書§7.4手順1): レシピ提案の履歴。GP提案7件に1件をEI提案に
+/// 切り替える`SuggestionService.shouldExplore`判定に使う。
+final recipeSuggestionsProvider = FutureProvider<List<RecipeSuggestion>>((ref) async {
+  return ref.watch(dataServiceProvider).fetchRecipeSuggestions();
 });
 
 // AI Analysis State
