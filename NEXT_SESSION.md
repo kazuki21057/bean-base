@@ -1,6 +1,25 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-5a完了(F3提案、suggestion_service.dartのgroup_bestロジック)を最後に本日のループを`/end`で終了。**次回の最初の判断: T4-5b(recipe_suggestion_card.dart、ダッシュボード001への新規UI追加)は設計書§12①の運用方針(画面デザインの新規検討は上位モデルで実施)に該当するため、着手前にユーザーへ「Sonnet 5のまま進めるか、Opus等へ切り替えるか」を確認すること(今回のセッション終了時点で未回答のまま停止)**。それ以外の選択肢としてPhase 3追加修正6件(T3-21〜T3-26、依存なし)にも着手可能。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5)。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要、`statistics_feature_design.md`§12⑤に明記済み)。本日は複数回にわたりユーザーが明示的にコスト超過継続を承認した(最終的に当日コスト$156超まで到達)**)
+最終更新: 2026-07-21(`/start`→ユーザーがT4-5bへの着手を選択(現在Opus 4.8で動作中のため設計書§12①のモデル方針は実質クリア)→T4-5b(F3レシピ提案カード)を実装完了し`/end`で終了。**次回の最初の判断: 設計書§0のPhase順によりT4-6a(`gp_service.dart`、F4 GP推薦エンジン、依存T4-5b✅)に進める。T4-6aは数値計算層(fit/predict、Cholesky経由、固定グリッドハイパラ探索)でサイズL、UIではないため通常モデルで着手可。テスト期待値は設計書§9.5をそのまま使う**。それ以外の選択肢としてPhase 3追加修正6件(T3-21〜T3-26、依存なし)にも着手可能。**日次ループのコスト上限は$24(loop_guard.js/CLAUDE.md/改修マスタープラン§5)。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要、`statistics_feature_design.md`§12⑤に明記済み)。**)
+
+## -4.43 当日やったこと(2026-07-21、/start→ユーザーがT4-5bを選択・実装完了)
+
+**`/start`後、依存充足の最上位タスクT4-5b(F3レシピ提案カード)と代替のT3-21〜26を提示。前回申し送りの「T4-5bはUI新規検討タスクなのでモデル方針を要確認」に従い`AskUserQuestion`で確認したところ、現在Opus 4.8で動作中(=最上位モデル)であることを踏まえユーザーが「T4-5bに着手」を選択。実装した。当日コスト$11.5/ターン4で完了(しきい値内)。**
+
+- **T4-5b完了**: `lib/widgets/dashboard/recipe_suggestion_card.dart`新規作成(設計書§7.4)。
+  - **表示対象豆の選定方針(設計書に明記が無く着手時に決定した)**: 在庫豆(`calculateBeanRemainingPercent`>0)のうち`SuggestionService.suggestFor`が提案を返せる豆を、**最終使用日(`bean.lastUseDate`)が古い順**(未設定はさらに古い扱い、放置ぎみの在庫豆を優先)に並べ、**最大3件**をカード表示する。カルーセルではなく縦積みカードにした(各カードに[淹れる]/[パス]ボタンがあり、パスで当該カードのみ消す挙動と相性が良いため)。
+  - カード内容(§7.4手順3): 豆名+「今日はこのレシピはいかが?」+ 湯温/湯:豆比/時間のチップ + 推奨焙煎度(§7.4後半、F5 `PreferenceProfile`から当該産地で最も平均が高くn≥3のグループの焙煎ラベル)+ 豆の焙煎度が一致すれば「おすすめ焙煎度と一致」バッジ。GP未接続のため予測スコア・区間は表示しない(group_bestのみ)。
+  - `[この条件で淹れる]`: 提案を`accepted='yes'`で`saveRecipeSuggestion`保存→031(`BrewEvaluationScreen`)へプリフィル遷移。`[今回はパス]`: `accepted='no'`で保存→当該豆をセッション内の`_handledBeanIds`に加えてカード非表示(設計書手順4「カード表示自体は保存しないが操作した提案は保存」)。
+  - ダッシュボード(001)の残豆量セクションより**前**に配置(「今から淹れる」意思決定の導線を優先)。
+- **提案→淹れる→記録→resultRecordId紐付け(§7.4手順4)の配線**:
+  - `PendingBrewInfo`に`temperature`(任意)を追加。F3提案からの遷移時のみ031の湯温をプリフィルする(通常の030→031フローでは湯温は031で都度入力するためnull)。
+  - `BrewEvaluationScreen`に`pendingSuggestion`(任意)を追加。initStateで湯温プリフィル、`_submit()`の記録保存成功後に`_linkSuggestionResult`を呼び、**最初の記録**の`id`を`resultRecordId`として`updateRecipeSuggestion`で書き戻す。`_suggestionLinked`フラグで連続記録(2件目以降)が紐付けを上書きしないようにした。書き戻し失敗は記録本体の保存を妨げない(try-catchで握るのみ)。
+- **テスト**: `test/recipe_suggestion_card_test.dart`新規4件(提案カードの湯温/比率/時間表示、パスでaccepted='no'保存+カード消失、記録が無い在庫豆で案内文、推奨焙煎度表示+一致バッジ)。`test/brew_evaluation_test.dart`に1件追加(F3提案から遷移→最初の記録でresultRecordIdが書き戻される+連続記録の2件目は非上書き)。これで**終了条件のE2E経路(提案→淹れる→記録→resultRecordId紐付け)をwidgetテストで担保**した。
+  - **ハマった点(教訓化)**: 推奨焙煎度テストで最初失敗した。`_originNameOf`(豆側)は`originId`→`OriginMaster.nameJa`、無ければ`bean.origin`で解決する一方、`PreferenceService`のグループ化(記録側)は`originId`→nameJa、無ければ`record.origin`で解決する。テストの記録は`originId='origin_1'`だが`origin=''`かつOriginMaster未提供だったため記録側だけが'不明'にグループ化され、豆側の'エチオピア'と一致しなかった。OriginMasterを渡して両者を`originId`経由で同じ産地名に解決させて解決。
+- 検証: `flutter analyze`(新規issueなし、既存44件のまま)。`flutter test`全件パス(**145→149件**、+4カード、brew_evaluationは既存5→6件で計+5)。`flutter build web`成功。
+- **ブラウザでの実データE2Eは今回もサンドボックスでは実施せず**: RecipeSuggestionCardはダッシュボード(001、エントリ画面)に配置され画面遷移の問題は無いが、カードが実際に提案を出すには在庫豆+同グループの過去記録という実データが必要で、サンドボックスからGASへ到達できない(CLAUDE.md記載の制約)。終了条件のE2E経路はwidgetテストで代替担保済み。実データでの実ブラウザ手動E2E(提案→淹れる→記録→紐付け)は`flutter run -d chrome`でのユーザーローカル確認に委ねる。
+- commit/push済み(`b5def6c`)。マスタープランのT4-5bを✅に更新済み。**これでサブPhase5(F3レシピ提案、T4-5a・T4-5b)が完了。**
+- **次回への申し送り**: 設計書§0のPhase順により次はサブPhase6(F4 GP推薦)のT4-6a(`gp_service.dart`、fit/predict、Cholesky経由、固定グリッドハイパラ探索、サイズL)。終了条件は`test/gp_service_test.dart`(§9.5)全パス。数値計算層でUIではないため通常モデルで着手可。T4-6c(GP接続)時に`suggestion_service.dart`のsuggestForへGP経路(n_eff≥10でμ最大点、rationale='gp_mean'/'gp_ei')を追加し、RecipeSuggestionCardにも予測スコア・区間表示を足すことになる(現状のカードはgroup_best専用の作りなので、その拡張余地をコメントで残してある)。
 
 ## -4.42 当日やったこと(2026-07-21続き、「続けて」の指示でT4-5aを実装)
 
