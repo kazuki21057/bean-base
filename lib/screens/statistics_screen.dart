@@ -8,6 +8,7 @@ import '../widgets/statistics/kpi_cards.dart';
 import '../widgets/statistics/radar_chart_widget.dart';
 import '../widgets/statistics/pca_scatter_plot.dart';
 import '../widgets/statistics/ranking_list.dart';
+import '../widgets/statistics/regression_section.dart';
 import 'create/create_form_widgets.dart';
 import 'mock/mock_scaffold.dart';
 
@@ -87,6 +88,13 @@ class StatisticsScreen extends ConsumerWidget {
                     title: 'ランキング',
                     children: [
                       RankingList(records: filteredRecords),
+                    ],
+                  ),
+                  FormSection(
+                    icon: Icons.insights_outlined,
+                    title: '回帰分析: 何が総合評価を動かすか',
+                    children: [
+                      RegressionSection(records: filteredRecords),
                     ],
                   ),
                 ],
