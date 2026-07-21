@@ -24,6 +24,14 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T2-1a: 画面全体を黒板風テーマ(`theme/blackboard_theme.dart`)に統一。
 /// 背景は`MockScreenScaffold(boardTexture: true)`、各セクションは
 /// `FormSection(dark: true)`で共通ウィジェット側にオプションとして追加した。
+/// T3-21: ウェルカムボードの見出しが英語("Today's BeanBase")だったため
+/// 日本語表記に修正(2026-07-21)。「直近の抽出」セクション自体には
+/// コード上のハードコードされた非日本語文字列は無く、実データで確認した
+/// 非日本語表記(豆銘柄・メソッド名に含まれる"Navy"/"ORIGAMI"等)はユーザーが
+/// 登録したマスタデータの固有名詞のため対象外と判断した。
+/// T3-22: 「直近の抽出」各行左側のアイコンを、該当する豆のマスター画像
+/// (未設定ならプレースホルダ)に変更(T3-14の002への対応と同じ、
+/// `MockListRow`の`imageUrl`引数を渡すだけで実現)。
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -57,7 +65,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Today's BeanBase ☕",
+                '今日のBeanBase ☕',
                 style: TextStyle(
                   color: kChalkWhite,
                   fontSize: 22,
@@ -169,9 +177,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 final recentLogs = validLogs.take(5).toList();
 
                 final beanNames = <String, String>{};
+                final beanImages = <String, String?>{};
                 beansAsync.whenData((beans) {
                   for (final b in beans) {
                     beanNames[b.id] = b.name;
+                    beanImages[b.id] = b.imageUrl;
                   }
                 });
                 final methodNames = <String, String>{};
@@ -186,6 +196,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     for (final log in recentLogs)
                       MockListRow(
                         icon: Icons.coffee,
+                        imageUrl: beanImages[log.beanId],
                         title: beanNames[log.beanId] ?? log.beanId,
                         subtitle: '${_formatDateTime(log.brewedAt)} ・ ${methodNames[log.methodId] ?? log.methodId}',
                         trailing: MockScoreBadge(score: log.scoreOverall),

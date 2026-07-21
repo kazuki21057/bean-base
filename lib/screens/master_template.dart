@@ -162,6 +162,11 @@ class MasterListTemplate<T> extends StatelessWidget {
 }
 
 /// 汎用マスター詳細(全情報+関連する抽出履歴5件)。
+///
+/// T3-25: 「関連する抽出履歴」各行左側のアイコンを、該当する豆のマスター画像
+/// (未設定ならプレースホルダ)に変更(T3-14の002への対応と同じ、
+/// `MockListRow`の`imageUrl`引数を渡すだけで実現。共通実装1箇所の修正で
+/// 011/014/017/020/023の全マスター詳細画面に反映される)。
 class MasterDetailTemplate extends ConsumerWidget {
   final AppScreen screen;
   final IconData icon;
@@ -193,9 +198,11 @@ class MasterDetailTemplate extends ConsumerWidget {
     final methodsAsync = ref.watch(methodMasterProvider);
 
     final beanNames = <String, String>{};
+    final beanImages = <String, String?>{};
     beansAsync.whenData((beans) {
       for (final b in beans) {
         beanNames[b.id] = b.name;
+        beanImages[b.id] = b.imageUrl;
       }
     });
     final methodNames = <String, String>{};
@@ -260,6 +267,7 @@ class MasterDetailTemplate extends ConsumerWidget {
                     for (final log in top5)
                       MockListRow(
                         icon: Icons.coffee,
+                        imageUrl: beanImages[log.beanId],
                         title: '${_formatDate(log.brewedAt)} ${beanNames[log.beanId] ?? log.beanId}',
                         subtitle: methodNames[log.methodId] ?? log.methodId,
                         trailing: MockScoreBadge(score: log.scoreOverall),
