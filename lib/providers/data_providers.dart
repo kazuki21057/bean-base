@@ -6,6 +6,7 @@ import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
+import '../models/analysis_snapshot.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
@@ -40,6 +41,11 @@ final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {
 /// T4-1e(設計書§3.2): 産地マスタ選択ドロップダウン用。
 final originMasterProvider = FutureProvider<List<OriginMaster>>((ref) async {
   return ref.watch(dataServiceProvider).fetchOriginMasters();
+});
+
+/// T4-4c(設計書§7.3): 好みプロファイルの履歴(preference_section.dartの履歴タブ用)。
+final preferenceSnapshotsProvider = FutureProvider<List<AnalysisSnapshot>>((ref) async {
+  return ref.watch(dataServiceProvider).fetchAnalysisSnapshots(type: 'preference');
 });
 
 // AI Analysis State

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/analysis_snapshot.dart';
 import '../../models/bean_master.dart';
 import '../../models/coffee_record.dart';
 import '../../models/equipment_masters.dart';
@@ -8,6 +11,7 @@ import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../models/pending_brew_info.dart';
 import '../../services/data_service.dart';
+import '../../services/preference_service.dart';
 import '../../widgets/bean_image.dart';
 import 'create_form_widgets.dart';
 
@@ -180,6 +184,9 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     final totalWater = double.tryParse(_totalWaterController.text) ?? info.totalWater;
     final temperature = double.tryParse(_temperatureController.text) ?? 0.0;
     final isTasteApplicable = _isTasteApplicable;
+    // ref.invalidate(coffeeRecordsProvider)後は再取得中(loading)になり得るため、
+    // 好みプロファイル自動更新(T4-4b)用に保存前の記録一覧を先に確保しておく。
+    final existingRecords = ref.read(coffeeRecordsProvider).valueOrNull ?? [];
     setState(() => _isSaving = true);
     try {
       final record = CoffeeRecord(
@@ -222,6 +229,8 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       debugPrint('[Antigravity] Action: 031から抽出記録を登録 (id=${record.id}, bean=${record.beanId}, method=${record.methodId})');
       ref.invalidate(coffeeRecordsProvider);
 
+      await _saveAutoPreferenceSnapshot(record, existingRecords, service);
+
       if (!mounted) return;
       setState(() {
         _recordCount++;
@@ -239,6 +248,40 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// 設計書§7.1(Q-B、T4-4b): 抽出記録の保存成功後にPreferenceService.build()を
+  /// 実行し、AnalysisSnapshot(type: 'preference')として自動保存する。
+  /// 保存失敗は記録本体の保存を妨げない(try-catchで握り、SnackBarで軽く通知のみ)。
+  Future<void> _saveAutoPreferenceSnapshot(
+    CoffeeRecord newRecord,
+    List<CoffeeRecord> existingRecords,
+    DataService service,
+  ) async {
+    try {
+      final origins = ref.read(originMasterProvider).valueOrNull ?? [];
+      final originById = {for (final o in origins) o.id: o};
+      final allRecords = [...existingRecords, newRecord];
+
+      final profile = PreferenceService().build(allRecords, originById);
+      final snapshot = AnalysisSnapshot(
+        id: 'snap_${DateTime.now().millisecondsSinceEpoch}',
+        createdAt: profile.createdAt,
+        type: 'preference',
+        dataCount: profile.totalRecords,
+        payloadJson: jsonEncode(profile.toJson()),
+      );
+      await service.saveAnalysisSnapshot(snapshot);
+      debugPrint('[Antigravity] Action: 好みプロファイルの自動スナップショットを保存 '
+          '(dataCount=${profile.totalRecords})');
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 好みプロファイルの自動保存に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('好みプロファイルの自動更新に失敗しました(記録自体は保存済みです): $e')),
+        );
+      }
     }
   }
 

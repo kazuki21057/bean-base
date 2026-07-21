@@ -10,6 +10,7 @@ import '../widgets/statistics/pca_scatter_plot.dart';
 import '../widgets/statistics/pca_detail_panel.dart';
 import '../widgets/statistics/ranking_list.dart';
 import '../widgets/statistics/regression_section.dart';
+import '../widgets/statistics/preference_section.dart';
 import 'create/create_form_widgets.dart';
 import 'mock/mock_scaffold.dart';
 
@@ -97,6 +98,13 @@ class StatisticsScreen extends ConsumerWidget {
                     title: '回帰分析: 何が総合評価を動かすか',
                     children: [
                       RegressionSection(records: filteredRecords),
+                    ],
+                  ),
+                  FormSection(
+                    icon: Icons.favorite_outline,
+                    title: '好みの傾向',
+                    children: [
+                      PreferenceSection(records: filteredRecords),
                     ],
                   ),
                 ],

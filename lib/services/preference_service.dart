@@ -30,6 +30,21 @@ class PreferenceGroupStat {
     required this.welchP,
     required this.significant,
   });
+
+  // 設計書§7.2: AnalysisSnapshot.payloadJsonへの要約保存(T4-4b)のため、
+  // 設計書のクラス定義には無いが直列化用にtoJson()を追加している。
+  Map<String, dynamic> toJson() => {
+        'originLevel': originLevel,
+        'roastLabel': roastLabel,
+        'n': n,
+        'mean': mean,
+        'sd': sd,
+        'ciLower': ciLower,
+        'ciUpper': ciUpper,
+        'welchT': welchT,
+        'welchP': welchP,
+        'significant': significant,
+      };
 }
 
 class PreferenceProfile {
@@ -44,6 +59,14 @@ class PreferenceProfile {
     required this.groups,
     required this.statements,
   });
+
+  // 設計書§7.2の「PreferenceProfileの要約をjsonEncode」を満たすため追加(T4-4b)。
+  Map<String, dynamic> toJson() => {
+        'createdAt': createdAt.toIso8601String(),
+        'totalRecords': totalRecords,
+        'groups': groups.map((g) => g.toJson()).toList(),
+        'statements': statements,
+      };
 }
 
 class _GroupEntry {

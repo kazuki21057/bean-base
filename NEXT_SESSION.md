@@ -1,6 +1,31 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-4a完了(F5好みプロファイル、preference_service.dart)。次はT4-4b(評価登録後の自動更新フック)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)。設計書§9.6のWelch検定期待値の誤記を発見・訂正済み(下記参照)**)
+最終更新: 2026-07-21(T4-4b・T4-4c完了(F5好みプロファイルの自動保存フック+UI)。サブPhase4(F5)完了。次はT4-5a(F3提案、在庫豆定義の実コード調査+suggestion_service.dart)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要)**)
+
+## -4.41 当日やったこと(2026-07-21続き、「T4-4の残りタスクすべて一括で」の指示でT4-4b・T4-4cを実装)
+
+**T4-4a完了報告後、ユーザーから「T4-4の残りタスクすべて一括でして。コスト超過を許容する。設計書の検証値とpythonの検証値が違う場合pythonの値を採用して」との指示。T4-4b(自動更新フック)とT4-4c(UI)をまとめて実装した。**
+
+- **T4-4b完了**: `brew_evaluation_screen.dart`の`_submit()`(評価登録処理)に、記録保存成功後の好みプロファイル自動更新フックを追加。
+  - `ref.invalidate(coffeeRecordsProvider)`の直後に`_saveAutoPreferenceSnapshot()`を呼び、`PreferenceService().build()`の結果を`AnalysisSnapshot(type: 'preference')`として`DataService.saveAnalysisSnapshot`に保存する。
+  - **`coffeeRecordsProvider`をinvalidateした直後に読むと再取得中(loading)になり得るため**、`_submit()`冒頭で保存前の記録一覧(`existingRecords`)を先に確保しておき、それに新規記録を加えた配列で`PreferenceService.build()`を呼ぶ設計にした(余分なネットワーク再取得も避けられる)。
+  - 保存失敗はtry-catchで握り、SnackBarで軽く通知するのみで記録本体の保存自体には影響しない(設計書§7.1のQ-B方針どおり)。
+  - **設計書に無い追加**: `PreferenceProfile`/`PreferenceGroupStat`に`toJson()`を追加した(設計書のクラス定義には無いが、`AnalysisSnapshot.payloadJson`へ`jsonEncode`する要件を満たすために構造上必須。T4-2aの`DesignMatrixResult`拡張と同じ理由づけ)。
+  - `test/brew_evaluation_test.dart`に2ケース追加(登録後にtype='preference'のスナップショットが保存されpayloadJsonにgroups/statementsが含まれること、スナップショット保存が失敗しても記録自体は保存されること)。SnackBarの同時表示有無はタイミング依存で不安定なため、その部分のアサーションは意図的に含めていない。
+- **T4-4c完了**: `lib/widgets/statistics/preference_section.dart`新規作成(設計書§7.3の3項目)。
+  1. 最新プロファイルのstatementsをカード表示(固定テンプレート文言、Gemini不使用)。
+  2. グループ統計テーブル: 産地×焙煎/n/平均[95%CI]/p/判定バッジ(n<5は「n不足」、有意なら「有意」、それ以外は「有意差なし」)。
+  3. 履歴タブ: `preferenceSnapshotsProvider`(新設、`data_providers.dart`に追加。`DataService.fetchAnalysisSnapshots(type:'preference')`をラップ)で取得したスナップショット群から、ドロップダウンで選択した産地×焙煎グループの平均推移を`fl_chart`の`LineChart`+`betweenBarsData`(95%CI帯の塗りつぶし)で表示。履歴が無い/選択グループの履歴が2件未満の場合はそれぞれ案内文を表示。
+  - 統計画面(040)の回帰分析セクションの後ろに`FormSection`(タイトル「好みの傾向」)で結線。
+- **テスト**: `test/preference_section_test.dart`新規(4ケース: statements/グループ統計テーブル表示、有意グループ無しでも統計テーブル自体は表示されること(n不足バッジ込み)、履歴無しの案内文、履歴2件以上でのドロップダウン+LineChart表示)。
+  - **ハマった点**: 「有意なグループが無い場合はグループ統計テーブルも出ない」という誤った前提でテストを書いてしまい失敗した。実際にはn<5で検定対象外のグループも`profile.groups`には含まれる(「グループが1件でもあればテーブルを出す」という実装のため)。テストを実態に合わせて修正した。またstatementsカードは箇条書き(「・」プレフィックス)で描画するため、`find.text(完全一致)`ではなく`find.textContaining`を使う必要があった。
+- 検証: `flutter analyze`(新規issueなし、44件のまま)。`flutter test`全件パス(132→138件)。`flutter build web`成功。
+- **ブラウザでの040画面到達確認は今回も見送り**: 前回(T4-3b)で判明した「CanvasKitのNavigationRailにDOM/aria-labelが露出せずPlaywrightでの画面遷移特定が困難」という制約が解消していないため、widgetテストでの担保を優先した。
+- **これでサブPhase4(F5好みプロファイル、T4-4a〜c)が完了。** 設計書§0のPhase順によりサブPhase5(F3レシピ提案、T4-5a〜b)へ進める。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-4b・T4-4cを✅に更新済み。
+- **次回への申し送り**:
+  1. T4-5a(在庫豆定義の実コード調査+`suggestion_service.dart`のgroup_bestロジックのみ、GP未接続)から着手できる。設計書§7.4に「在庫概念は既存(bean_stock_calculator_test.dartの存在から在庫計算ロジックあり)。実装時に在庫残量取得APIを実コードで特定し、特定できない場合は代替定義でユーザーに確認」との注記があるため、着手時にまず`bean_stock_calculator`関連の実装を調査すること。
+  2. ユーザーから「設計書の検証値とpythonの検証値が食い違う場合はpythonの値を採用する」との運用方針が明示されたため、今後同様の食い違いを見つけた場合はAskUserQuestionで都度確認せず、python(numpy/scipy)側の値を採用し、設計書に訂正コメントを付けて進めてよい(発見した旨はNEXT_SESSION.mdに記録すること)。
 
 ## -4.40 当日やったこと(2026-07-21続き、コスト超過無視継続の指示でT4-4a実装+設計書§9.6の誤記訂正)
 

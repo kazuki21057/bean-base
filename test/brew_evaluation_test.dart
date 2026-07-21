@@ -25,6 +25,8 @@ import 'package:bean_base/services/data_service.dart';
 class _FakeDataService implements DataService {
   CoffeeRecord? lastAddedRecord;
   final List<CoffeeRecord> addedRecords = [];
+  final List<AnalysisSnapshot> savedSnapshots = [];
+  bool throwOnSaveAnalysisSnapshot = false;
 
   @override
   Future<void> addCoffeeRecord(CoffeeRecord record) async {
@@ -97,7 +99,12 @@ class _FakeDataService implements DataService {
   @override
   Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) async => [];
   @override
-  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) async {}
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) async {
+    if (throwOnSaveAnalysisSnapshot) {
+      throw Exception('保存エラー(テスト用)');
+    }
+    savedSnapshots.add(snapshot);
+  }
   @override
   Future<List<RecipeSuggestion>> fetchRecipeSuggestions() async => [];
   @override
@@ -340,5 +347,107 @@ void main() {
     // 4:6メソッドではないため、味わい入力は空文字で保存される(T3-18)。
     expect(saved.taste, '');
     expect(saved.concentration, '');
+  });
+
+  testWidgets(
+      'BrewEvaluationScreen: 抽出記録の登録後、好みプロファイルのAnalysisSnapshot(type=preference)が自動保存される(T4-4b)',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 11, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: bean,
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.savedSnapshots.length, 1);
+    final snapshot = fakeService.savedSnapshots.single;
+    expect(snapshot.type, 'preference');
+    expect(snapshot.dataCount, 1);
+    expect(snapshot.payloadJson, contains('groups'));
+    expect(snapshot.payloadJson, contains('statements'));
+  });
+
+  testWidgets(
+      'BrewEvaluationScreen: 好みプロファイルの自動保存が失敗しても抽出記録自体は保存される(T4-4b)',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService()..throwOnSaveAnalysisSnapshot = true;
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 11, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: bean,
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    // 記録本体は保存されている(スナップショット失敗の影響を受けない)。
+    // SnackBarは先着のもの以外キューイングされ順に表示されるため、ここでは
+    // 「記録が失われていないこと」という本質的な契約のみを検証する
+    // (両SnackBarの同時表示有無はタイミング依存で不安定なため対象外)。
+    expect(fakeService.addedRecords.length, 1);
+    expect(fakeService.savedSnapshots, isEmpty);
   });
 }
