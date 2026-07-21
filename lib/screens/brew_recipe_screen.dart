@@ -7,6 +7,7 @@ import '../models/pouring_step.dart';
 import '../models/pending_brew_info.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
+import '../widgets/brew/gp_explorer_section.dart';
 import '../widgets/method_steps_editor.dart';
 import 'create/brew_evaluation_screen.dart';
 import 'create/create_form_widgets.dart';
@@ -507,6 +508,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
             ],
           ],
         ),
+        // レシピ探索(F4 GP推薦、設計書§7.5/§1.2.1決定事項でこの030画面に配置)。
+        const GpExplorerSection(),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
