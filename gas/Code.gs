@@ -50,8 +50,13 @@ function ensureSheet_(ss, name) {
 // 既存シートへの新規列追加 (冪等)。T4-1b: bean_master に産地ID/焙煎日列を追加。
 // T4-2d: coffee_data にも産地ID列を追加(CoffeeRecord.originIdの保存先。
 // SheetsServiceのkeyMap/reverseMapに対応するマッピング追加とセット)。
+// T3-23: bean_master に 初期購入量(g) 列を追加。Cycle 20 T2-2b で
+// BeanMaster.initialQuantityGrams と SheetsService の reverseMap('初期購入量(g)')は
+// 実装済みだったが、本番シートへの列プロビジョニングが漏れており、残量%計算
+// (calculateBeanRemainingPercent)が常に0を返していた(全豆で初期量が未保存だった)。
+// ここに列を追加することで初期購入量が保存・取得できるようになる。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
-  'bean_master': ['産地ID', '焙煎日'],
+  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)'],
   'coffee_data': ['産地ID'],
 };
 
