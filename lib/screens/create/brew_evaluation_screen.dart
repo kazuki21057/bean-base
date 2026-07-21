@@ -339,6 +339,46 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     );
   }
 
+  /// T3-29: 評価記録時の注意点をダイアログ表示する(専用ページは設けない)。
+  void _showEvaluationNotesDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('評価記録時の注意点'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _EvaluationNoteBullet(
+                '総合評価は初期値が7です。未編集のまま保存すると統計分析にバイアスが出るため、'
+                '必ず自分の評価に調整してから登録してください。',
+              ),
+              SizedBox(height: 12),
+              _EvaluationNoteBullet(
+                'スコア(0〜10)は主観評価です。他の記録と比較できるよう、自分の中の基準を'
+                '一定に保つと分析の精度が上がります。',
+              ),
+              SizedBox(height: 12),
+              _EvaluationNoteBullet(
+                'できるだけ同じ環境・タイミング(淹れた直後など)で評価すると、'
+                '条件比較の信頼性が高まります。',
+              ),
+              SizedBox(height: 12),
+              _EvaluationNoteBullet(
+                '好みプロファイルは記録の保存ごとに自動更新されます。仮の値で保存すると'
+                '傾向分析がゆがむ点に注意してください。',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final info = widget.info;
@@ -520,6 +560,13 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
         FormSection(
           icon: Icons.star_outline,
           title: 'スコア (0〜10)',
+          trailing: IconButton(
+            icon: const Icon(Icons.info_outline, size: 20, color: kAccent),
+            tooltip: '評価記録時の注意点',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () => _showEvaluationNotesDialog(context),
+          ),
           children: [
             MockScoreSlider(
                 key: ValueKey('fragrance_$_formResetGeneration'),
@@ -669,6 +716,23 @@ class _SummaryChip extends StatelessWidget {
           Text(text, style: const TextStyle(color: kCream, fontSize: 12)),
         ],
       ),
+    );
+  }
+}
+
+/// T3-29: 注意点ダイアログの箇条書き1項目。
+class _EvaluationNoteBullet extends StatelessWidget {
+  final String text;
+  const _EvaluationNoteBullet(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('• ', style: TextStyle(fontSize: 13)),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+      ],
     );
   }
 }

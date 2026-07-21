@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/dashboard_screen.dart';
@@ -42,6 +43,15 @@ class MyApp extends ConsumerWidget {
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'BeanBase 2.0',
+      // T3-28: ロケールを日本語に固定。CanvasKit の Han統合フォント選択が
+      // 中国語字形(Noto Sans SC)ではなく日本語字形(Noto Sans JP)を優先する。
+      locale: const Locale('ja'),
+      supportedLocales: const [Locale('ja'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: mainColor),
         useMaterial3: true,

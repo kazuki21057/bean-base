@@ -531,4 +531,68 @@ void main() {
     expect(fakeService.addedRecords.length, 2);
     expect(fakeService.updatedSuggestions.length, 1);
   });
+
+  testWidgets('BrewEvaluationScreen: スコアセクションの情報アイコンをタップすると'
+      '評価記録時の注意点ダイアログが表示される(T3-29)', (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 7, 22, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: bean,
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith((ref) async => [info.method!]),
+          beanMasterProvider.overrideWith((ref) async => [bean]),
+          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
+          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
+          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // タップ前はダイアログは出ていない。
+    expect(find.text('評価記録時の注意点'), findsNothing);
+
+    // スコアセクションはListView下方にあり遅延生成のため、まずスクロールして
+    // 情報アイコン(tooltip='評価記録時の注意点')を出現させる。
+    final infoButton = find.byTooltip('評価記録時の注意点');
+    await tester.scrollUntilVisible(
+      infoButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(infoButton);
+    await tester.pumpAndSettle();
+
+    // ダイアログのタイトルと、初期値7バイアスに触れる注意点が表示される。
+    expect(find.text('評価記録時の注意点'), findsOneWidget);
+    expect(find.textContaining('総合評価は初期値が7'), findsOneWidget);
+
+    // 閉じるでダイアログが消える。
+    await tester.tap(find.text('閉じる'));
+    await tester.pumpAndSettle();
+    expect(find.text('評価記録時の注意点'), findsNothing);
+  });
 }

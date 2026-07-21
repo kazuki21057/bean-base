@@ -1,6 +1,26 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(ユーザー指示「T3-23をやって。ついでにデプロイして。本番書き込みOK。コスト超過OK。本番環境で新規実装したページや機能の確認もして。終わったら/end」に基づき **T3-23を完了**。本番Sheetsへダミーデータ登録+GAS列プロビジョニング漏れ修正+Firebase Hostingデプロイ+本番ビルドでの新機能確認まで実施。詳細は直下の-4.46節。**残タスク**は依存なしで **T3-24(020のYouTube再生再検討、追加パッケージ導入の是非含め要ユーザー相談、サイズS)/T3-20(Ubuntu並行開発のマシンローカル環境構築、ユーザー作業主体)** のみ。**Phase 4(統計解析・予測機能拡張)は全完了済み。** マスタープラン§4以降の画面インベントリ・Phase進捗も参照し、大規模改修の次フェーズがあるかは`docs/改修マスタープラン.md`で確認すること。**日次ループのコスト上限は$24(loop_guard.js/CLAUDE.md/改修マスタープラン§5)。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要、`statistics_feature_design.md`§12⑤に明記済み)。**)
+最終更新: 2026-07-22(ユーザー指示「下記を修正点として加えて」で追加要望4件をT3-27〜T3-30としてマスタープランに記録後、続く指示「T3-29(S)→T3-28(M)からよろしく。/endまでして」で **T3-29(評価記録時の注意点ダイアログ)とT3-28(非日本語=中国語字形の漢字修正)を実装完了**。詳細は直下の-4.47節。**残タスク**は依存なしで **T3-27(統計理論説明ページ、上位モデルで内容検討、サイズL)/T3-30(画像から豆情報抽出、Gemini Vision、サイズL)/T3-24(020のYouTube再生再検討、要相談)/T3-20(Ubuntu環境構築、ユーザー作業)** 。日次ループのコスト上限は$24。)
+
+## -4.47 当日やったこと(2026-07-22、追加要望4件を記録→T3-29・T3-28を実装)
+
+**指示: 「下記を修正点として加えて」で①統計処理の理論説明ページ②非日本語の漢字修正③評価記録時の注意点ダイアログ④豆の説明カード画像からの豆情報抽出、の4件を提示。まずマスタープラン§3にT3-27〜T3-30として記録(実装せず記録のみ)。続けて「T3-29(S)→T3-28(M)からよろしく。/endまでして」の指示でこの2件を実装した。**
+
+- **T3-29完了(評価記録時の注意点ダイアログ)**:
+  - `create_form_widgets.dart`の共通`FormSection`にオプションの`trailing`(Widget?)引数を新設(タイトル行右端に任意ウィジェットを置ける。既存呼び出しは全て無影響の後方互換追加)。
+  - `brew_evaluation_screen.dart`(031)の「スコア (0〜10)」FormSectionの`trailing`に情報アイコン(`Icons.info_outline`、tooltip='評価記録時の注意点')を置き、タップで`_showEvaluationNotesDialog`→AlertDialogを表示。**専用ページは作らない**要件どおり。
+  - 注意点の文面は**AskUserQuestionでユーザー承認済みの4点**: ①総合評価の初期値7を未編集保存するとバイアス→必ず自分の評価に調整 ②スコアは主観、基準を一定に保つと精度向上 ③同じ環境・タイミングで評価すると条件比較の信頼性向上 ④好みプロファイルは保存ごとに自動更新、仮値保存で傾向分析がゆがむ。既存の回帰「分析上の注意」ダイアログと同型(`_EvaluationNoteBullet`もローカルに新設)。
+  - `test/brew_evaluation_test.dart`に1ケース追加(情報アイコンをscrollUntilVisibleで出してタップ→ダイアログ表示→閉じるで消える)。**ハマった点**: スコアセクションはListView下方で遅延生成のため`find.byTooltip`が最初「No element」。`ensureVisible`ではなく`scrollUntilVisible`で辿る必要があった(教訓化)。
+- **T3-28完了(非日本語=中国語字形の漢字修正)**:
+  - **原因特定**: `main.dart`が`textTheme: GoogleFonts.outfitTextTheme()`(Outfitはラテン専用フォント)を使い、かつ`MaterialApp`に`locale`/`supportedLocales`/`localizationsDelegates`が一切未設定だった。日本語漢字はCJKフォントにフォールバックするが、ロケールがjaでないためCanvasKitのHan統合フォント選択が**中国語字形(Noto Sans SC)を優先**していた(=「漢字が日本語ではない」の正体。ソース中の誤字ではなくフォント/ロケール起因の(b)ケースだった)。
+  - **修正**: `pubspec.yaml`に`flutter_localizations`(sdk)を追加、`intl`を`^0.19.0`→`^0.20.2`にバンプ(flutter_localizationsが0.20.2をピン留めするため必須)。`main.dart`で`flutter_localizations`をimportし、`MaterialApp`に`locale: const Locale('ja')`・`supportedLocales: [ja, en]`・`localizationsDelegates: [GlobalMaterial/Widgets/CupertinoLocalizations.delegate]`を追加。これでNoto Sans JP字形が優先される(公式に推奨される直し方)。
+  - **検証**: `flutter analyze`44件で不変(新規0)。`flutter test`166件全パス(+1、T3-29分)。`flutter build web`成功(ローカライゼーションデリゲートが本番ビルドでも通る)。`widget_test.dart`のApp launch smoke testが**実体`MyApp`(新ローカライゼーション込み)**で起動成功=起動時クラッシュのリスクは検証済み。**字形の最終目視確認(zh→jaの字形差)はCanvasKit実行時+人の目でしか判定できないため、ユーザーのローカル`flutter run -d chrome`に委ねる**(intl 0.20バンプでDateFormat等に影響が無いことは全テストパスで担保)。
+- **変更ファイル**: `pubspec.yaml`/`pubspec.lock`/`lib/main.dart`/`lib/screens/create/brew_evaluation_screen.dart`/`lib/screens/create/create_form_widgets.dart`/`test/brew_evaluation_test.dart`/`docs/改修マスタープラン.md`。
+- **次回の着手点**: 依存なしで残るのは**T3-27(統計理論説明ページ、L、内容は上位モデルで検討)**と**T3-30(画像から豆情報抽出、L、Gemini Vision)**。どちらもサイズLなので着手時に分割を検討。T3-27は各統計機能付近(040/030/003)からの導線設計、T3-30は抽出項目→012フォームのマッピング設計が要る。T3-24(YouTube再生、要相談)・T3-20(環境構築、ユーザー作業)も依存なし。
+
+## -4.46 当日やったこと(2026-07-21続き、ユーザー指示でT3-23を完了+本番デプロイ+本番確認)
+
+**指示: 「T3-23をやって。ついでにデプロイして。本番書き込みOK。コスト超過OK。本番環境で新規実装したページや機能の確認もして。終わったら/end」に基づき **T3-23を完了**。本番Sheetsへダミーデータ登録+GAS列プロビジョニング漏れ修正+Firebase Hostingデプロイ+本番ビルドでの新機能確認まで実施。詳細は直下の-4.46節。**残タスク**は依存なしで **T3-24(020のYouTube再生再検討、追加パッケージ導入の是非含め要ユーザー相談、サイズS)/T3-20(Ubuntu並行開発のマシンローカル環境構築、ユーザー作業主体)** のみ。**Phase 4(統計解析・予測機能拡張)は全完了済み。** マスタープラン§4以降の画面インベントリ・Phase進捗も参照し、大規模改修の次フェーズがあるかは`docs/改修マスタープラン.md`で確認すること。**日次ループのコスト上限は$24(loop_guard.js/CLAUDE.md/改修マスタープラン§5)。設計書と実装/テストの数値が食い違う場合はpython(scipy/numpy)検証値を採用する運用が確定(ユーザー指示、AskUserQuestionでの都度確認は不要、`statistics_feature_design.md`§12⑤に明記済み)。**)
 
 ## -4.46 当日やったこと(2026-07-21続き、ユーザー指示でT3-23を完了+本番デプロイ+本番確認)
 

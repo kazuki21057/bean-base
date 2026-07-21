@@ -134,12 +134,16 @@ class FormSection extends StatelessWidget {
   final List<Widget> children;
   final bool dark;
 
+  /// タイトル行の右端に表示する任意ウィジェット(情報アイコン等)。
+  final Widget? trailing;
+
   const FormSection({
     super.key,
     required this.icon,
     required this.title,
     required this.children,
     this.dark = false,
+    this.trailing,
   });
 
   @override
@@ -169,6 +173,7 @@ class FormSection extends StatelessWidget {
                   ),
                 ),
               ),
+              if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: 14),
