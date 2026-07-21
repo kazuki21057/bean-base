@@ -1,6 +1,19 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-2c1完了(F1回帰UI前半、regression_section.dart)。次はT4-2c2(予測ミニフォーム+AI解釈、上位モデルでのUI検討を推奨)、またはPhase 3の追加修正6件(T3-21〜T3-26)から。**要検討: 実データのCoffeeRecord.originIdが空でF1が実データで機能しない件(下記)**)
+最終更新: 2026-07-21(T4-2c1・T4-2c2完了(F1回帰UI全体)。サブPhase2(F1重回帰)完了。次はT4-3a(F2 PCA拡張、statistics_service.calculatePca改修)、またはT4-2d(originIdバックフィル、実データでF1を動かすのに必要)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**要検討: 実データのCoffeeRecord.originIdが空でF1が実データで機能しない件→T4-2dとして登録済み**)
+
+## -4.36b 当日やったこと(2026-07-21続き、コスト超過許容の指示でT4-2c2(F1回帰UI後半)実装)
+
+**-4.36(T4-2c1)の締め(/end)中にユーザーから「コスト超過を許容するから続けて」の指示。日次ループのコスト上限($12)を超過($14超)した状態でユーザーが明示承認したうえで、次の高性能モデル向けタスクT4-2c2を実装した。**
+
+- **T4-2c2完了**: `lib/widgets/statistics/regression_section.dart`に設計書§5.2の項目5・6を追加、`lib/services/ai_analysis_service.dart`に`interpretRegression`を新設。
+  - **項目6「このモデルで予測」ミニフォーム**(`_RegressionPredictionForm`、ConsumerStatefulWidget): 湯温/湯量比(湯÷豆)/総抽出時間(分)のテキスト入力(初期値=訓練データの中心平均`centerMeans`)、焙煎度ドロップダウン(`roastOrdinalMap`の正規5値→順序値)、産地ドロップダウン(`design.baseLevel`+`design.dummyLevels`)。「予測する」で`RegressionService.predict()`を呼び、点推定+95%予測区間(T-25)を表示。0〜10範囲外は外挿注意を併記。産地の選択値が現モデルの水準に無ければ基準水準へフォールバック。
+  - **項目5「AIで解釈」**(`_RegressionAiSection`、ConsumerStatefulWidget): ボタン→APIキー取得(shared_preferences、無ければダイアログ入力)→`interpretRegression`呼び出し→結果を紫カードで表示(既存PCAのAI分析UIと同じ操作感、ローカルstateで管理しPCA用の共有プロバイダーとは分離)。
+  - **`AiAnalysisService.interpretRegression(RegressionResult, apiKey)`**: 設計書§8.1のプロンプトテンプレートを**そのまま固定使用**(モデル式・n/調整済みR²/AIC・係数表・注意事項・出力指示)。数値はすべてDart側で計算済みのものを埋め込み、Geminiには再計算させず日本語解釈のみ要求(CLAUDE.md絶対規則)。モデルフォールバック順(`gemini-2.5-flash`→`2.0-flash-lite`→`1.5-flash`)は既存`analyzeComponents`と共通化(`_kGeminiModels`定数に抽出)。
+  - `test/regression_section_test.dart`に2ケース追加(予測フォーム・AIボタンの表示、予測実行で点推定+95%予測区間が表示されること)。**テスト実装の注意: `ElevatedButton.icon`は`find.widgetWithText(ElevatedButton, ...)`で0件になる(実体型がElevatedButtonの単純なancestorにならない)ため`find.text`で判定した。** また案内文にも「95%予測区間」が含まれるためアサーションは「95%予測区間:」(コロン付き)で厳密化した。
+- 検証: `flutter analyze`新規issue0件(既存48件のまま)、`flutter test`全件パス(120→122件)、`flutter build web`成功。**ブラウザ実データ確認は前回(-4.36)と同じ理由で見送り**: 実データはoriginId空で回帰セクションが「データ不足」表示になり、予測フォーム/AI解釈は描画されないため。全UIロジックはwidgetテストで担保(予測実行→点推定+区間の表示まで検証済み)。
+- **サブPhase2(F1重回帰、T4-2a〜c2)がこれで完了。** 設計書§0のPhase順により次はT4-3a(F2 PCA拡張)。ただしF1を実データで実際に体験するにはT4-2d(originIdバックフィル)が先に必要。
+- commit/pushはこのエントリ直後に実施。マスタープランのT4-2c2を✅に更新済み。
 
 ## -4.36 当日やったこと(2026-07-21、/start→高性能モデル指示でT4-2c1(F1回帰UI前半)実装)
 
@@ -19,7 +32,7 @@
 - 検証: `flutter analyze`(新規issue 0件、既存48件のまま)。`flutter test`全件パス(117→120件、新規3ファイル…ではなく新規1ファイル4件追加)。`flutter build web`成功(web固有のコンパイル問題なし)。
 - **ブラウザ実データ確認(claude-in-chrome、`flutter build web`→`python -m http.server`静的配信)**: 040画面が実データ145件で例外なく描画されること(KPI・レーダー等)を確認。ただし**回帰セクションは画面最下部(レーダー約900px+PCA+ランキングの下)にあり、本環境のFlutter Webスクロール制約(マウスホイール・ドラッグとも中央のチャートに吸収されスクロールしない、`rules/verification.md`記載の既知事象)で目視到達できなかった**。全描画分岐はwidgetテストで担保しているため、ロジック検証は十分と判断した。書き込み系操作は一切なし。検証後サーバー停止済み。
 - **⚠️ 重要な発見(F1機能の実データ動作に関わる、要ユーザー判断)**: 実データの`coffee_data`シート(145件)を確認したところ、**`産地ID`という列自体が存在せず、全145件の`CoffeeRecord.originId`が空**だった。`buildRegressionMatrix`はoriginIdが`originById`で解決できる行のみ採用するため、**現状の実データでは全行が除外され、040の回帰セクションは常に「データが不足しています(現在:0件)」を表示する**(実装挙動としては正しい)。
-  - T4-1fの産地データ移行は`bean_master`シート(豆マスタ)の`origin`→`originId`突合であり、**抽出記録(`coffee_data`)側の`originId`は誰も投入していない**。F1回帰分析が実データで実際に動くには、別途 (a) GAS `ensureColumns_`で`coffee_data`に`産地ID`列を追加、(b) 各記録の豆(beanId)→その豆の`originId`を辿って`coffee_data.産地ID`をバックフィル、が必要。これはT4-2c1のスコープ外(データ投入作業)のため今回は実施せず、タスク化するかどうかを含めユーザー判断を仰ぐ。
+  - T4-1fの産地データ移行は`bean_master`シート(豆マスタ)の`origin`→`originId`突合であり、**抽出記録(`coffee_data`)側の`originId`は誰も投入していない**。F1回帰分析が実データで実際に動くには、別途 (a) GAS `ensureColumns_`で`coffee_data`に`産地ID`列を追加、(b) 各記録の豆(beanId)→その豆の`originId`を辿って`coffee_data.産地ID`をバックフィル、が必要。これはT4-2c1のスコープ外(データ投入作業)のため今回は実施せず、**ユーザー指示によりマスタープランに`T4-2d`(抽出記録のoriginIdバックフィル、依存T4-1c2、本番書き込みを伴うため実行前要ユーザー確認)としてタスク登録した**。
   - 焙煎度(`焙煎度`列)も空の記録が散見された(design_matrixは`roastOrdinalMap`で解決できない行を除外)。originId投入時に併せて実データの欠測状況を要確認。
 
 ## -4.35 当日やったこと(2026-07-21、/start→T4-2a・T4-2b実装、追加修正6件をタスク登録)

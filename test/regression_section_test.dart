@@ -105,5 +105,28 @@ void main() {
       expect(find.text('回帰分析を読むときの注意'), findsOneWidget);
       expect(find.textContaining('因果効果ではなく'), findsOneWidget);
     });
+
+    testWidgets('T4-2c2: 予測フォームとAI解釈ボタンが表示される', (tester) async {
+      final records = [for (var i = 0; i < 40; i++) _record(i)];
+      await _pump(tester, records);
+
+      expect(find.text('このモデルで予測'), findsOneWidget);
+      expect(find.text('予測する'), findsOneWidget);
+      expect(find.text('AIで解釈する'), findsOneWidget);
+    });
+
+    testWidgets('T4-2c2: 予測するを押すと点推定と95%予測区間が表示される', (tester) async {
+      final records = [for (var i = 0; i < 40; i++) _record(i)];
+      await _pump(tester, records);
+
+      final predictBtn = find.text('予測する');
+      await tester.ensureVisible(predictBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(predictBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('予測される総合評価'), findsOneWidget);
+      expect(find.textContaining('95%予測区間:'), findsOneWidget);
+    });
   });
 }
