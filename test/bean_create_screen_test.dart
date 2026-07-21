@@ -180,4 +180,16 @@ void main() {
 
     expect(fakeService.lastAdded?.roastDate, isNull);
   });
+
+  testWidgets('T3-30: パッケージ画像から自動入力ボタンが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('パッケージ画像から自動入力(AI)'), findsOneWidget);
+  });
 }

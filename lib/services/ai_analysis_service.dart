@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -7,7 +8,114 @@ import 'statistics_service.dart';
 /// 複数モデルのフォールバック順 (新しい順、ユーザー検証結果に基づく)。
 const _kGeminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
 
+/// T3-30: 豆の説明カード/パッケージ画像からGemini Visionで抽出した豆情報。
+/// 各項目は読み取れなければnull(呼び出し側は既存のフォーム値を維持する)。
+class ExtractedBeanInfo {
+  final String? name;
+  final String? store;
+  final String? origin;
+  final String? roastLevel;
+  final String? type;
+  final DateTime? roastDate;
+
+  const ExtractedBeanInfo({
+    this.name,
+    this.store,
+    this.origin,
+    this.roastLevel,
+    this.type,
+    this.roastDate,
+  });
+
+  bool get isEmpty =>
+      name == null && store == null && origin == null && roastLevel == null && type == null && roastDate == null;
+}
+
 class AiAnalysisService {
+  /// T3-30: 豆の説明カード/パッケージ画像から豆情報を抽出する(設計書に無い新機能、
+  /// マスタープランT3-30に基づく)。数値統計計算の絶対規則(Gemini非依存)は
+  /// テキスト抽出には適用されないため、抽出自体をGeminiに委ねる。
+  /// [knownOrigins] は既存OriginMasterのnameJa一覧。一致しやすくするためのヒントとして
+  /// プロンプトに含めるのみで、実際の照合は呼び出し側(UI)が担う。
+  Future<ExtractedBeanInfo> extractBeanInfoFromImage({
+    required Uint8List imageBytes,
+    required String mimeType,
+    required List<String> knownOrigins,
+    required String apiKey,
+  }) async {
+    if (apiKey.isEmpty) {
+      throw Exception('APIキーが設定されていません。設定画面でGemini APIキーを入力してください。');
+    }
+
+    final prompt = _buildExtractionPrompt(knownOrigins);
+    final schema = Schema.object(properties: {
+      'name': Schema.string(description: '豆の名前(銘柄名)', nullable: true),
+      'store': Schema.string(description: '焙煎所または購入店名', nullable: true),
+      'origin': Schema.string(description: '産地(国名・地域名、日本語カタカナ表記)', nullable: true),
+      'roastLevel': Schema.enumString(
+        enumValues: const ['浅煎り', '中煎り', '中深煎り', '深煎り'],
+        description: '焙煎度',
+        nullable: true,
+      ),
+      'type': Schema.string(description: '品種・精製方法', nullable: true),
+      'roastDate': Schema.string(description: '焙煎日 (YYYY-MM-DD形式)', nullable: true),
+    });
+
+    Object? lastError;
+    for (final modelName in _kGeminiModels) {
+      try {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          ),
+        );
+        final content = Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)]);
+        debugPrint('[Antigravity] Action: 豆情報のAI抽出を要求 (model=$modelName)');
+        final response = await model.generateContent([content]);
+        final text = response.text;
+        if (text == null || text.isEmpty) {
+          throw Exception('抽出結果が空でした');
+        }
+        final json = jsonDecode(text) as Map<String, dynamic>;
+        return ExtractedBeanInfo(
+          name: _nonEmptyString(json['name']),
+          store: _nonEmptyString(json['store']),
+          origin: _nonEmptyString(json['origin']),
+          roastLevel: _nonEmptyString(json['roastLevel']),
+          type: _nonEmptyString(json['type']),
+          roastDate: _tryParseDate(json['roastDate']),
+        );
+      } catch (e) {
+        debugPrint('[Antigravity] Gemini Model $modelName failed (extractBeanInfoFromImage): $e');
+        lastError = e;
+      }
+    }
+    throw Exception('画像からの情報抽出に失敗しました: $lastError');
+  }
+
+  String? _nonEmptyString(Object? v) => (v is String && v.trim().isNotEmpty) ? v.trim() : null;
+
+  DateTime? _tryParseDate(Object? v) {
+    if (v is! String || v.trim().isEmpty) return null;
+    return DateTime.tryParse(v.trim());
+  }
+
+  String _buildExtractionPrompt(List<String> knownOrigins) {
+    final originHint = knownOrigins.isEmpty ? '' : '(既知の産地名の例: ${knownOrigins.join('、')})';
+    return 'これはコーヒー豆のパッケージまたは説明カードの画像です。以下の項目を画像から読み取り、'
+        '指定のJSONスキーマで出力してください。\n'
+        '- name: 豆の名前(銘柄名)\n'
+        '- store: 焙煎所または購入店名\n'
+        '- origin: 産地(国名・地域名)。日本語カタカナ表記に変換すること$originHint\n'
+        '- roastLevel: 焙煎度。浅煎り/中煎り/中深煎り/深煎りのいずれかに分類できる場合のみ設定\n'
+        '- type: 品種・精製方法(例: ウォッシュド、ナチュラル、ゲイシャ種など)\n'
+        '- roastDate: 焙煎日(YYYY-MM-DD形式)。記載が無ければ設定しない\n'
+        '画像から読み取れない項目、または確信が持てない項目は必ずnullにしてください。数値・文字列を推測で埋めないこと。';
+  }
+
   /// F1: 重回帰分析の結果を日本語で解釈する (設計書§8.1)。
   ///
   /// 数値はすべて Dart 側で計算済み。プロンプトは§8.1のテンプレートを固定使用し、

@@ -1,6 +1,19 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-22(前セッションでT3-29/T3-28を完了後、続く`/start`→ユーザー指示「T3-27でOK。コスト超過気にせず最後まで実施して。デプロイして画面確認し/endまでよろしく」で **T3-27(統計理論説明ページ041を新設)を実装完了+Firebase Hostingデプロイ+本番実データ確認まで実施**。詳細は直下の-4.48節。**残タスク**は依存なしで **T3-30(画像から豆情報抽出、Gemini Vision、サイズL)/T3-24(020のYouTube再生再検討、要相談、S)/T3-20(Ubuntu環境構築、ユーザー作業、S)** の3件のみ。日次ループのコスト上限は$24。)
+最終更新: 2026-07-22(T3-27完了後の`/start`でユーザーが**T3-30(画像から豆情報抽出、Gemini Vision、サイズL)を選択・実装完了**。本番書き込み/デプロイ指示は無かったためcommit/pushのみで留めている。詳細は直下の-4.49節。**残タスク**は依存なしで **T3-24(020のYouTube再生再検討、要相談、S)/T3-20(Ubuntu環境構築、ユーザー作業、S)** の2件のみ。日次ループのコスト上限は$24。)
+
+## -4.49 当日やったこと(2026-07-22続き、/start→ユーザーがT3-30を選択・実装)
+
+**`/start`でT3-27完了後の残タスク3件(T3-30/T3-24/T3-20)を提示、ユーザーがT3-30を選択。デプロイ・本番書き込みの指示は無かったため、実装+検証+ローカルブラウザ確認+commit/pushの範囲で完結させた。**
+
+- **T3-30完了(豆の説明カード等の画像からGemini Visionで豆情報を抽出)**: `lib/services/ai_analysis_service.dart`に`ExtractedBeanInfo`(name/store/origin/roastLevel/type/roastDate、各nullable)と`extractBeanInfoFromImage()`を追加。`GenerationConfig(responseMimeType:'application/json', responseSchema: Schema.object(...))`で構造化出力を強制(`google_generative_ai` 0.4.7がSchema/responseSchemaに対応済みであることをpub cacheのソースで事前確認)、`Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)])`で画像+プロンプト送信。既存の`_kGeminiModels`フォールバック順を踏襲。プロンプトで「読み取れない項目は必ずnull、推測で埋めない」ことを明記(抽出失敗時=手動修正前提の設計方針)。
+  - **012(`bean_create_screen.dart`)への結線**: 基本情報セクション先頭に「パッケージ画像から自動入力(AI)」ボタンを新設。`file_picker`(既存`image_upload_field.dart`と同じ`withData:true`パターン)でローカル画像を選択→バイト列をGeminiへ送信→抽出できた項目のみ(nullは既存値を維持)フォームへ反映。**産地マッピング(設計時の判断)**: 抽出した産地文字列を既存`OriginMaster`一覧のnameJaと完全一致→部分一致の順で照合し`_selectedOriginId`を解決。一致しなければ産地は未選択のままにし、スナックバーで「産地「X」は既存産地に一致しなかったため未選択」と案内(専用の新規登録フローは作らず、既存の「新規産地追加」ボタンに任せる)。APIキー未設定時は既存の`pca_detail_panel.dart`(`_PcaDeepAiSection`)と同じ「その場で入力してshared_preferencesに保存」ダイアログパターンを再利用。抽出失敗(ネットワークエラー・JSON不正等)は赤スナックバーでエラー表示するのみでフォームは一切変更しない。
+  - **テスト**: `test/bean_create_screen_test.dart`にボタン描画を確認する1ケースを追加。**Gemini呼び出し自体のテストは追加していない**(既存の`interpretRegression`/`analyzeComponentsDeep`等、他のGemini呼び出し関数も同様に単体テスト対象外という既存方針を踏襲。`pca_detail_panel_test.dart`もAIボタンの描画確認のみで、実際のAPI呼び出しはテストしていない)。
+  - **検証**: `flutter analyze`44件で不変(新規issue0件)。`flutter test`**169→170件全パス**(+1)。`flutter build web`成功。
+  - **ブラウザ確認(ローカル配信+claude-in-chrome)**: 012画面を開き、基本情報セクション先頭に新ボタンが正しく描画されることを確認、コンソールエラー0件。**初回のスクリーンショットでボタンが写らなかった**が、これはFAB押下直後でページ遷移のレイアウトがまだ確定していないタイミングで撮影したための一時的事象で、1秒待機を挟んで再度スクリーンショットすると正常に描画されていた(教訓化: FAB/ボタン押下直後は最低1秒待ってからスクリーンショットを撮ること)。
+  - **未確認(次回以降 or ユーザー側で確認が必要)**: `file_picker`はOSネイティブのファイル選択ダイアログを開くため、この環境(claude-in-chrome、CDP経由の自動操作)では実際の画像選択操作ができず、「画像選択→Gemini Vision呼び出し→JSON抽出→フォーム反映」という一連の実データE2Eフローは自動確認できなかった。実際のパッケージ/説明カード画像・有効なGemini APIキーでの抽出精度、および産地名の完全一致/部分一致マッチングの実際の挙動(例: 「エチオピア イルガチェフェ」のような産地+地域名混在の表記でうまくマッチするか)は、ユーザーのローカル`flutter run -d chrome`での確認が必要。
+- **変更ファイル**: `lib/services/ai_analysis_service.dart`/`lib/screens/create/bean_create_screen.dart`/`test/bean_create_screen_test.dart`/`docs/改修マスタープラン.md`。
+- **次回の着手点**: マスタープランの依存なし残タスクは**T3-24(020のYouTube再生再検討、要ユーザー相談、S)**と**T3-20(Ubuntu環境構築、ユーザー作業主体、S)**の2件のみ。T3-24は着手前にAskUserQuestion等で実装するか見送るかの方針確認が必要。大規模改修(改修マスタープランのPhase体系)側に新たなフェーズがあるかも`/start`時に確認すること。T3-30は本番Sheets書き込みを伴わない機能追加のため、今回はcommit/pushまでに留め、Firebase Hostingへのデプロイはユーザーの明示指示が無かったため実施していない(必要なら次回`firebase deploy --only hosting`で反映)。
 
 ## -4.48 当日やったこと(2026-07-22続き、/start→T3-27を選択・実装+デプロイ+本番確認)
 

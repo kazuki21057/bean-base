@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bean_master.dart';
 import '../../models/origin_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
+import '../../services/ai_analysis_service.dart';
 import '../../services/data_service.dart';
 import '../../widgets/image_upload_field.dart';
 import 'create_form_widgets.dart';
@@ -38,6 +42,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   bool _isInStock = true;
   String? _imageUrl;
   bool _isSaving = false;
+  bool _isExtracting = false;
 
   /// T4-1e(設計書§3.2): 産地はOriginMaster選択に置換(自由入力の`_originController`は廃止)。
   String? _selectedOriginId;
@@ -165,6 +170,154 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     }
   }
 
+  /// T3-30: パッケージ/説明カード画像をGemini Visionに渡し豆情報を抽出、
+  /// 抽出できた項目のみフォームへ反映する(専用ページは作らず012内で完結)。
+  Future<void> _extractFromImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('画像の読み込みに失敗しました'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    var apiKey = prefs.getString('gemini_api_key');
+    if ((apiKey == null || apiKey.isEmpty) && mounted) {
+      apiKey = await _askApiKey();
+      if (apiKey != null && apiKey.isNotEmpty) {
+        await prefs.setString('gemini_api_key', apiKey);
+      }
+    }
+    if (apiKey == null || apiKey.isEmpty) return;
+
+    setState(() => _isExtracting = true);
+    try {
+      final origins = ref.read(originMasterProvider).value ?? const [];
+      debugPrint('[Antigravity] Action: 豆情報のAI抽出を実行 (file=${file.name})');
+      final extracted = await ref.read(aiAnalysisServiceProvider).extractBeanInfoFromImage(
+            imageBytes: Uint8List.fromList(bytes),
+            mimeType: _mimeTypeFromName(file.name),
+            knownOrigins: origins.map((o) => o.nameJa).toList(),
+            apiKey: apiKey,
+          );
+      _applyExtractedInfo(extracted, origins);
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 豆情報のAI抽出に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('抽出に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExtracting = false);
+    }
+  }
+
+  static String _mimeTypeFromName(String filename) {
+    final ext = filename.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  void _applyExtractedInfo(ExtractedBeanInfo extracted, List<OriginMaster> origins) {
+    if (extracted.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('画像から豆情報を読み取れませんでした。手動で入力してください。')),
+        );
+      }
+      return;
+    }
+
+    final filled = <String>[];
+    final unmatchedOrigin = extracted.origin;
+    OriginMaster? matchedOrigin;
+    if (extracted.origin != null) {
+      for (final o in origins) {
+        if (o.nameJa == extracted.origin || o.nameJa.contains(extracted.origin!) || extracted.origin!.contains(o.nameJa)) {
+          matchedOrigin = o;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      if (extracted.name != null) {
+        _nameController.text = extracted.name!;
+        filled.add('豆の名前');
+      }
+      if (extracted.store != null) {
+        _storeController.text = extracted.store!;
+        filled.add('焙煎所/購入店');
+      }
+      if (extracted.type != null) {
+        _typeController.text = extracted.type!;
+        filled.add('品種・精製');
+      }
+      if (matchedOrigin != null) {
+        _selectedOriginId = matchedOrigin.id;
+        filled.add('産地');
+      }
+      if (extracted.roastLevel != null) {
+        _roastLevel = extracted.roastLevel;
+        _roastChoices = _withCurrentValue(_roastOptions, _roastLevel);
+        filled.add('煎り度');
+      }
+      if (extracted.roastDate != null) {
+        _roastDate = extracted.roastDate;
+        filled.add('焙煎日');
+      }
+    });
+
+    if (!mounted) return;
+    var message = filled.isEmpty ? '反映できる項目がありませんでした。' : '自動入力しました: ${filled.join('、')}(内容を確認してください)';
+    if (extracted.origin != null && matchedOrigin == null) {
+      message += '\n産地「$unmatchedOrigin」は既存の産地に一致しなかったため未選択です。必要なら「新規産地追加」から登録してください。';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String?> _askApiKey() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gemini APIキーを入力'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'APIキー',
+            hintText: 'Google Gemini のAPIキー',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('保存')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -239,6 +392,18 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
           icon: Icons.coffee,
           title: '基本情報',
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _isExtracting ? null : _extractFromImage,
+                icon: _isExtracting
+                    ? const SizedBox(
+                        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome_outlined),
+                label: Text(_isExtracting ? '抽出中...' : 'パッケージ画像から自動入力(AI)'),
+              ),
+            ),
+            const SizedBox(height: 8),
             MockTextField(
               label: '豆の名前',
               hint: '例: エチオピア イルガチェフェ',
