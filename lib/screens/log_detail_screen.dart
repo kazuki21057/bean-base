@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';
@@ -124,20 +125,13 @@ class LogDetailScreen extends ConsumerWidget {
           icon: Icons.star_outline,
           title: '評価',
           children: [
-            MockInfoRow(label: '香り', value: '${log.scoreFragrance}/10'),
-            MockInfoRow(label: '酸味', value: '${log.scoreAcidity}/10'),
-            MockInfoRow(label: '苦味', value: '${log.scoreBitterness}/10'),
-            MockInfoRow(label: '甘み', value: '${log.scoreSweetness}/10'),
-            MockInfoRow(label: '複雑さ', value: '${log.scoreComplexity}/10'),
-            MockInfoRow(label: '風味', value: '${log.scoreFlavor}/10'),
-            MockInfoRow(label: '総合', value: '${log.scoreOverall}/10'),
-            if (log.taste.isNotEmpty || log.concentration.isNotEmpty)
-              MockInfoRow(
-                label: 'テイスト',
-                value: [log.taste, log.concentration]
-                    .where((s) => s.isNotEmpty)
-                    .join(' ・ '),
-              ),
+            _overallHero(),
+            const SizedBox(height: 16),
+            _sensoryRadar(),
+            if (log.taste.isNotEmpty || log.concentration.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _tasteChips(),
+            ],
           ],
         ),
         FormSection(
@@ -151,6 +145,128 @@ class LogDetailScreen extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+
+  /// 総合スコアのヒーロー表示(T3-26)。アクセント色のカードに星+大きな数値。
+  Widget _overallHero() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [kAccent, kAccent.withValues(alpha: 0.75)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          const Text('総合評価', style: TextStyle(color: kCream, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Icon(Icons.star_rounded, color: Colors.white, size: 30),
+              const SizedBox(width: 8),
+              Text(
+                '${log.scoreOverall}',
+                style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.bold, height: 1),
+              ),
+              const Text(' / 10', style: TextStyle(color: kCream, fontSize: 18, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 6つの味覚軸の六角形レーダー(T3-26)。0〜10の目盛りを固定するため、
+  /// 透明のmin(0)/max(10)ダミーデータセットを重ねる(radar_chart_widget.dartと同手法)。
+  Widget _sensoryRadar() {
+    const axisTitles = ['香り', '酸味', '苦味', '甘み', '複雑さ', '風味'];
+    final values = <double>[
+      log.scoreFragrance.toDouble(),
+      log.scoreAcidity.toDouble(),
+      log.scoreBitterness.toDouble(),
+      log.scoreSweetness.toDouble(),
+      log.scoreComplexity.toDouble(),
+      log.scoreFlavor.toDouble(),
+    ];
+
+    return AspectRatio(
+      aspectRatio: 1.25,
+      child: RadarChart(
+        RadarChartData(
+          radarTouchData: RadarTouchData(enabled: false),
+          dataSets: [
+            RadarDataSet(
+              fillColor: Colors.transparent,
+              borderColor: Colors.transparent,
+              entryRadius: 0,
+              borderWidth: 0,
+              dataEntries: List.filled(6, const RadarEntry(value: 0.0)),
+            ),
+            RadarDataSet(
+              fillColor: Colors.transparent,
+              borderColor: Colors.transparent,
+              entryRadius: 0,
+              borderWidth: 0,
+              dataEntries: List.filled(6, const RadarEntry(value: 10.0)),
+            ),
+            RadarDataSet(
+              fillColor: kAccent.withValues(alpha: 0.35),
+              borderColor: kAccent,
+              entryRadius: 3,
+              borderWidth: 2,
+              dataEntries: [for (final v in values) RadarEntry(value: v)],
+            ),
+          ],
+          radarBackgroundColor: Colors.transparent,
+          borderData: FlBorderData(show: false),
+          radarBorderData: const BorderSide(color: Colors.transparent),
+          titlePositionPercentageOffset: 0.15,
+          titleTextStyle: const TextStyle(color: kEspresso, fontSize: 12, fontWeight: FontWeight.bold),
+          tickCount: 5,
+          ticksTextStyle: const TextStyle(color: kMocha, fontSize: 9),
+          tickBorderData: const BorderSide(color: Colors.transparent),
+          gridBorderData: BorderSide(color: kLatte, width: 1),
+          getTitle: (index, angle) {
+            if (index < axisTitles.length) {
+              // 軸名の下に実数値を添えて、レーダー形状と正確な値の両方を読めるようにする。
+              return RadarChartTitle(text: '${axisTitles[index]} ${values[index].toStringAsFixed(0)}', angle: angle);
+            }
+            return const RadarChartTitle(text: '');
+          },
+        ),
+      ),
+    );
+  }
+
+  /// テイスト・濃度のチップ(T3-26)。
+  Widget _tasteChips() {
+    final tastes = [log.taste, log.concentration].where((s) => s.isNotEmpty).toList();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final t in tastes)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: kCream,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: kLatte),
+              ),
+              child: Text(t, style: const TextStyle(fontSize: 13, color: kEspresso)),
+            ),
+        ],
+      ),
     );
   }
 
