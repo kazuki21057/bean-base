@@ -1,6 +1,22 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-21(T4-3b完了(F2 PCA拡張のUI、pca_detail_panel.dart)。サブPhase3(F2、T4-3a・T4-3b)完了。次はT4-4a(F5好みプロファイル、preference_service.dart)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)**)
+最終更新: 2026-07-21(T4-4a完了(F5好みプロファイル、preference_service.dart)。次はT4-4b(評価登録後の自動更新フック)、またはPhase 3追加修正6件(T3-21〜T3-26)から。**日次ループのコスト上限をユーザー指示により$12→$24に変更済み(loop_guard.js/CLAUDE.md/改修マスタープラン§5を更新)。設計書§9.6のWelch検定期待値の誤記を発見・訂正済み(下記参照)**)
+
+## -4.40 当日やったこと(2026-07-21続き、コスト超過無視継続の指示でT4-4a実装+設計書§9.6の誤記訂正)
+
+**T4-3b完了報告後、ユーザーから「コスト超過してもいいから続けて」との指示で続行。サブPhase4(F5好みプロファイル)のT4-4a(`preference_service.dart`)に着手した。**
+
+- **設計書§9.6の誤記を発見・訂正(ユーザー確認済み)**: 実装前にPython検証(設計書§12②の運用方針)として`tools/verify_preference.py`を新規作成し、設計書§9.6のフィクスチャ(グループA=[8,9,8,9,8]、残り=[5,6,5,6,5,6,5,6,5,6])でWelch検定を計算したところ、設計書記載の`t=10.2899, ν≈10.68`が`scipy.stats.ttest_ind(equal_var=False)`(t=9.788265, df=7.816449)と一致しないことを発見。不偏分散・母分散いずれの定義でも設計書の値には一致しなかった。`AskUserQuestion`でユーザーに確認したところ「scipy検証値に合わせて設計書・テストを修正」の指示を受け、`statistics_feature_design.md`§9.6を訂正(t=9.788265, ν=7.816449, p=1.17011564e-05, CI half-width=0.680087に修正、訂正コメント付き。p<0.001・significant=trueという結論自体は変わらない)。T4-0c(tQuantile誤記)・T4-2b(回帰係数誤記)と同じ対応パターン。
+- **T4-4a完了**: `lib/services/preference_service.dart`新規作成(`PreferenceGroupStat`/`PreferenceProfile`/`PreferenceService`、設計書§7.1)。
+  - グルーピング: 産地(originIdを`OriginMaster.nameJa`で解決、無ければ自由入力`origin`、それも空なら'不明') × 焙煎度(`roastOrdinalMap`の順序値、各ブロック先頭のキーを代表ラベルとして逆引き)。焙煎度が未知(マップに無い値)の行は欠測として除外(design_matrix.dartと同じ方針)。
+  - 各グループの平均・不偏sd・95%CI(T-22、`tQuantile`使用)を計算。n≥5のグループのみ、そのグループを除いた全レコード(x̄_rest)に対するWelch t検定(T-23)・Welch–Satterthwaite自由度(T-24、`studentTCdf`使用)を計算。
+  - Bonferroni補正: m=検定可能(n≥5)なグループ数として`α'=0.05/m`を適用し`significant`を判定。
+  - `statements`: 有意なグループについて固定テンプレート`「{origin}×{roast}」を{高|低}評価する傾向 (平均{mean}, 全体{±diff}, p={p})`で生成(diffはx̄_rest基準、Welch検定の分子と整合させた)。有意なグループが無ければ固定の案内文。
+- **設計書に無い判断(コード内コメントに明記)**: 焙煎度の代表ラベルは`encoding.dart`の`roastOrdinalMap`を新規に変更せず、`preference_service.dart`内でその場で逆引き(各順序値ブロックの先頭キーを採用)することで導出した。設計書のクラス定義自体には手を加えていない。
+- **テスト**: `test/preference_service_test.dart`新規(6ケース)。§9.6のグループA(n=5)を、Bonferroni補正のグループ数m=1を再現するため「残り」10件を5つの異なる産地×焙煎度(各n=2<5、検定対象外)に分散させて配置した合成データで構成(設計書の「m=1」という記述と整合させるための構築上の工夫)。scipy検証値(訂正後)との一致・n<5グループの非検定・mean降順ソート・statements生成・OriginMaster解決とフォールバック・焙煎度不明行の除外、を検証。
+- 検証: `flutter analyze`(新規issueなし、44件のまま)。`flutter test`全件パス(126→132件)。`flutter build web`成功(UI未接続のためロジック層のみ、`rules/verification.md`記載の既存教訓通りブラウザ確認は対象外)。
+- commit/push はこのエントリ直後に実施予定。マスタープランのT4-4aを✅に更新済み。
+- **次回への申し送り**: T4-4b(評価登録後の自動更新フック、`brew_evaluation_screen.dart`保存処理完了直後に`PreferenceService.build()`を呼びAnalysisSnapshotとして保存)は依存タスクとして次に着手可能。モデル・DataService保存は既にT4-1dで実装済みのため、フック配線のみのはず(設計書の記載通り、サイズS)。
 
 ## -4.39 当日やったこと(2026-07-21続き、コスト超過無視継続の指示でT4-3b実装)
 
