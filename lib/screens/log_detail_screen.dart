@@ -8,6 +8,7 @@ import '../utils/image_utils.dart';
 import 'create/create_form_widgets.dart';
 import 'log_edit_screen.dart';
 import 'mock/mock_scaffold.dart';
+import 'stats_theory_screen.dart';
 
 /// 003 抽出履歴(詳細)。
 ///
@@ -124,6 +125,10 @@ class LogDetailScreen extends ConsumerWidget {
         FormSection(
           icon: Icons.star_outline,
           title: '評価',
+          trailing: const StatsTheoryLink(
+            section: StatsTheorySection.intro,
+            tooltip: 'この評価データが統計解析にどう使われるか',
+          ),
           children: [
             _overallHero(),
             const SizedBox(height: 16),

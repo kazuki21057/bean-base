@@ -34,6 +34,7 @@ enum AppScreen {
   brewRecipe('030', '抽出レシピ'),
   brewEvaluation('031', '抽出結果の評価'),
   statistics('040', '統計情報'),
+  statsTheory('041', '統計の理論と読み方'),
   settings('090', '設定');
 
   final String code;

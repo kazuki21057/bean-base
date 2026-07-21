@@ -13,6 +13,7 @@ import '../widgets/statistics/regression_section.dart';
 import '../widgets/statistics/preference_section.dart';
 import 'create/create_form_widgets.dart';
 import 'mock/mock_scaffold.dart';
+import 'stats_theory_screen.dart';
 
 /// 040 スタッツ(統計情報)画面。
 ///
@@ -76,6 +77,7 @@ class StatisticsScreen extends ConsumerWidget {
                   FormSection(
                     icon: Icons.scatter_plot_outlined,
                     title: '味の傾向マップ (PCA)',
+                    trailing: const StatsTheoryLink(section: StatsTheorySection.pca),
                     children: [
                       const Text(
                         '抽出記録の味の近さを2次元に可視化します',
@@ -96,6 +98,7 @@ class StatisticsScreen extends ConsumerWidget {
                   FormSection(
                     icon: Icons.insights_outlined,
                     title: '回帰分析: 何が総合評価を動かすか',
+                    trailing: const StatsTheoryLink(section: StatsTheorySection.regression),
                     children: [
                       RegressionSection(records: filteredRecords),
                     ],
@@ -103,6 +106,7 @@ class StatisticsScreen extends ConsumerWidget {
                   FormSection(
                     icon: Icons.favorite_outline,
                     title: '好みの傾向',
+                    trailing: const StatsTheoryLink(section: StatsTheorySection.preference),
                     children: [
                       PreferenceSection(records: filteredRecords),
                     ],

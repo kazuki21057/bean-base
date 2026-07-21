@@ -1,6 +1,23 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-22(ユーザー指示「下記を修正点として加えて」で追加要望4件をT3-27〜T3-30としてマスタープランに記録後、続く指示「T3-29(S)→T3-28(M)からよろしく。/endまでして」で **T3-29(評価記録時の注意点ダイアログ)とT3-28(非日本語=中国語字形の漢字修正)を実装完了**。詳細は直下の-4.47節。**残タスク**は依存なしで **T3-27(統計理論説明ページ、上位モデルで内容検討、サイズL)/T3-30(画像から豆情報抽出、Gemini Vision、サイズL)/T3-24(020のYouTube再生再検討、要相談)/T3-20(Ubuntu環境構築、ユーザー作業)** 。日次ループのコスト上限は$24。)
+最終更新: 2026-07-22(前セッションでT3-29/T3-28を完了後、続く`/start`→ユーザー指示「T3-27でOK。コスト超過気にせず最後まで実施して。デプロイして画面確認し/endまでよろしく」で **T3-27(統計理論説明ページ041を新設)を実装完了+Firebase Hostingデプロイ+本番実データ確認まで実施**。詳細は直下の-4.48節。**残タスク**は依存なしで **T3-30(画像から豆情報抽出、Gemini Vision、サイズL)/T3-24(020のYouTube再生再検討、要相談、S)/T3-20(Ubuntu環境構築、ユーザー作業、S)** の3件のみ。日次ループのコスト上限は$24。)
+
+## -4.48 当日やったこと(2026-07-22続き、/start→T3-27を選択・実装+デプロイ+本番確認)
+
+**`/start`で依存充足の実装可能最上位タスクとしてT3-27を提示・承認。ユーザー指示「コスト超過気にせず最後まで。デプロイして画面確認し/endまで」で確認プロンプトなしに一気通貫実施した。**
+
+- **T3-27完了(統計理論説明ページ041の新設)**: 統計処理の理論を機能ごとに日本語解説する専用ページ **041「統計の理論と読み方」**(`lib/screens/stats_theory_screen.dart`新規)を作成。
+  - **画面登録**: `AppScreen`enumに`statsTheory('041','統計の理論と読み方')`を追加(トップレベルタブ`topLevelTabs`には含めず、`StatsTheoryLink`からのpush遷移のみで到達)。`screen_registry.dart`のswitch(全網羅・default無し)に対応caseを追加(追加しないとコンパイルエラーになる=このenumの追加時は必ずここも直す)。`screen_gallery_screen.dart`は`AppScreen.values`を回すだけなので自動で1画面増えるのみ。
+  - **ページ構成**: 目次(先頭に`ActionChip`列、タップで各セクションへ`_scrollTo`)+7セクション。`StatsTheorySection` enum = intro / intervals / regression / pca / preference / gp / suggestion。各セクションは`FormSection`(GlobalKey付き)で、本文は段落`_Para`・小見出し`_SubHead`・箇条書き`_Bullet`・**等幅の数式ブロック`_Formula`(横スクロール可)**・注意カード`_NoteCard`の自作パーツで構成。**式は設計書§2(統計理論編)の式番号 T-1〜T-25 をそのまま引用**し、実装(サービス層docコメントが同じ式番号を引く)と整合させた。内容の正本は`statistics_feature_design.md`§2。
+  - **導線(`StatsTheoryLink`=`menu_book_outlined`アイコン、`FormSection.trailing`スロットに配置)**: 040のPCA(`StatsTheorySection.pca`)・回帰(regression)・好み(preference)の各`FormSection`、030のレシピ探索`gp_explorer_section.dart`(gp)、003評価表示`log_detail_screen.dart`の「評価」`FormSection`(intro、tooltipを「この評価データが統計解析にどう使われるか」に変更)に設置。タップで`StatsTheoryScreen(initialSection: …)`をpushし、`initState`のpost-frameで`Scrollable.ensureVisible`により該当セクションへ自動スクロールして開く。
+  - **実装上の判断(教訓)**: `MockScreenScaffold`内のListViewは画面外の子を遅延生成するため、各セクションのGlobalKeyの`currentContext`が初期状態でnullになり自動スクロールが効かない問題があった。**全セクションを単一の`Column`で一括ビルド**(ListViewの子を1つのColumnにする)ことで全GlobalKeyが常にcontextを持つようにし、ensureVisibleを確実化した(外側ListViewのScrollableをensureVisibleが遡って使う)。widgetテストでもこの構造のおかげで画面外テキストを直接find可能。
+  - **テスト**: `test/stats_theory_screen_test.dart`新規3ケース(①全7セクション見出し+式番号(T-2)/(T-11)/(T-22)が描画される ②`initialSection: gp`起動でEI式が描画・例外なし ③`StatsTheoryLink`タップで`StatsTheoryScreen`へ遷移)。
+- **検証**: `flutter analyze`44件で不変(新規issue 0)。`flutter test`**166→169件全パス**(+3)。`flutter build web`成功。
+- **デプロイ+本番確認**: `firebase deploy --only hosting`で **https://beanbase-app-2016.web.app** に反映(33ファイル)。本番と同一の`build/web`をローカル配信(`python -m http.server`)+claude-in-chromeで本番GASの実データ(146記録)に対しUI確認: ①ダッシュボード(残豆量50%・F3おすすめレシピカード)②040統計画面が実データで全セクション描画(KPI 146件/平均6.4、レーダー、PCA散布図+負荷量、ランキング、回帰係数テーブルn=77+初期値7バイアス警告26件/34%、残差プロット、予測フォーム)③**040回帰セクション見出し右端の本アイコンをクリック→041が回帰セクションへ自動スクロールして開き**、目次+全7セクション(GPのEI式 T-21、F3レシピ提案の仕組みまで)末尾まで正常描画。コンソールエラー0件。
+  - **ハマった点(教訓化)**: **Flutter Web(CanvasKit)のListViewはCDPのマウスホイール(`scroll`アクション)/キーボード(Page_Down)イベントで安定してスクロールしない**(セマンティクスもDOMに出ないため`read_page`は空、`scroll_to`のref参照も不可)。回避策として`document.querySelector('flt-glass-pane').dispatchEvent(new WheelEvent('wheel',{deltaY,clientX,clientY,bubbles:true,cancelable:true}))`をjavascript_toolで直接dispatchすると実機同様にスクロールできた。ただし**多数連投すると描画アーティファクト(同一テキストのタイル状の重複描画)やレンダラ一時フリーズ(CDP `Page.captureScreenshot` timeout)が発生**するため、少量ずつdispatch+間に`setTimeout`待機を挟み、フリーズ時はscreenshotを1回リトライすること。`rules/verification.md`に追記候補。
+- **変更ファイル**: `lib/screens/stats_theory_screen.dart`(新規)/`lib/routing/app_screen.dart`/`lib/routing/screen_registry.dart`/`lib/screens/statistics_screen.dart`/`lib/widgets/brew/gp_explorer_section.dart`/`lib/screens/log_detail_screen.dart`/`test/stats_theory_screen_test.dart`(新規)/`docs/改修マスタープラン.md`。
+- **次回の着手点**: 依存なしで残るのは **T3-30(豆の説明カード等の画像からGemini Visionで豆情報を抽出→012フォームにプリフィル、サイズL)** が実装可能な唯一の残タスク。着手時に「抽出対象項目→012フォーム各欄のマッピング」と「抽出失敗時の扱い(手動修正前提)」の設計が必要。APIキーは既存同様`shared_preferences`(`gemini_api_key`)。他はT3-24(YouTube再生、要ユーザー相談)・T3-20(環境構築、ユーザー作業)のみ。理論ページ041は将来、統計手法を追加/変更した際に該当セクションと式番号の追記・整合維持が必要(正本は`statistics_feature_design.md`§2)。
+
 
 ## -4.47 当日やったこと(2026-07-22、追加要望4件を記録→T3-29・T3-28を実装)
 

@@ -7,6 +7,7 @@ import '../../models/coffee_record.dart';
 import '../../models/origin_master.dart';
 import '../../providers/data_providers.dart';
 import '../../screens/create/create_form_widgets.dart';
+import '../../screens/stats_theory_screen.dart';
 import '../../services/gp_service.dart';
 import '../../services/math/encoding.dart';
 
@@ -51,6 +52,7 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
     return FormSection(
       icon: Icons.insights_outlined,
       title: 'レシピ探索 (実験的)',
+      trailing: const StatsTheoryLink(section: StatsTheorySection.gp),
       children: [
         const Text(
           '産地と焙煎度を選ぶと、過去の記録から予測される総合評価を湯温×比率のマップで表示します。',
