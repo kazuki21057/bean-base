@@ -9,7 +9,9 @@ import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
+import '../utils/youtube_util.dart';
 import '../widgets/method_steps_editor.dart';
+import '../widgets/youtube_embed.dart';
 
 /// 020 メソッド詳細。
 ///
@@ -74,6 +76,13 @@ class MethodDetailScreen extends ConsumerWidget {
             icon: Icons.link,
             title: '参考URL',
             children: [
+              // T3-24: YouTube URL なら埋め込みプレーヤーを表示し、その下に
+              // 従来の外部リンクも残す(外部ブラウザで開きたい人向け)。
+              // YouTube 以外はリンクのみ(従来どおり)。
+              if (youtubeVideoId(method.sourceUrl) case final videoId?) ...[
+                YoutubeEmbed(videoId: videoId),
+                const SizedBox(height: 8),
+              ],
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () async {
