@@ -1,11 +1,14 @@
 import 'package:bean_base/screens/stats_theory_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('StatsTheoryScreen (T3-27)', () {
     testWidgets('全セクションの見出しとキーとなる式番号が描画される', (tester) async {
-      await tester.pumpWidget(const MaterialApp(home: StatsTheoryScreen()));
+      await tester.pumpWidget(
+        const ProviderScope(child: MaterialApp(home: StatsTheoryScreen())),
+      );
       await tester.pumpAndSettle();
 
       // 目次(ヘッダー)
@@ -25,8 +28,10 @@ void main() {
 
     testWidgets('initialSection を渡すとエラーなく起動しスクロールされる', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: StatsTheoryScreen(initialSection: StatsTheorySection.gp),
+        const ProviderScope(
+          child: MaterialApp(
+            home: StatsTheoryScreen(initialSection: StatsTheorySection.gp),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -38,11 +43,13 @@ void main() {
 
     testWidgets('StatsTheoryLink をタップすると理論ページへ遷移する', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => const Center(
-                child: StatsTheoryLink(section: StatsTheorySection.regression),
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => const Center(
+                  child: StatsTheoryLink(section: StatsTheorySection.regression),
+                ),
               ),
             ),
           ),

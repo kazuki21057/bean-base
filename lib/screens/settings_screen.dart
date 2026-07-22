@@ -13,6 +13,7 @@ import 'create/create_form_widgets.dart';
 import 'debug/firebase_test_screen.dart';
 import 'debug/screen_gallery_screen.dart';
 import 'mock/mock_scaffold.dart';
+import 'stats_theory_screen.dart';
 
 /// 豆/ミル/ドリッパー/フィルターの画像をファイル名(先頭がマスターIDと一致)で
 /// 突き合わせて一括アップロードする。旧`master_list_screen.dart`(Cycle 20 T1-7で
@@ -239,7 +240,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'ナビゲーションバー等の標準UIに反映されます(黒板風テーマなど独自デザイン部分は対象外)',
+              'ナビゲーションバー等の標準UI・各画面上部のAppBar・保存ボタン・'
+              '黒板風背景(色相のみ)に反映されます。カードの罫線やチップ、'
+              'グラフの配色など細かいコーヒートーンのアクセント部分は今回は対象外です(T3-9)。',
               style: TextStyle(fontSize: 11, color: kMocha),
             ),
           ],
@@ -352,13 +355,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: const Icon(Icons.check),
             label: const Text('設定を保存する'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: kEspresso,
+              backgroundColor: currentColor,
               foregroundColor: kCream,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ),
         const SizedBox(height: 24),
+        FormSection(
+          icon: Icons.menu_book_outlined,
+          title: 'ヘルプ',
+          children: [
+            MockListRow(
+              icon: Icons.menu_book_outlined,
+              title: '統計の理論と読み方',
+              subtitle: '回帰・PCA・好み検定・GP/EIなど統計処理の考え方を解説(T3-33)',
+              onTap: () {
+                debugPrint('[Antigravity] Action: 設定→統計の理論と読み方(041)へ遷移');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StatsTheoryScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         FormSection(
           icon: Icons.bug_report_outlined,
           title: 'Debug',

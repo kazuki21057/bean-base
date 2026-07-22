@@ -48,7 +48,6 @@ void main() {
     await tester.tap(find.text('豆管理'));
     await tester.pumpAndSettle();
 
-    expect(find.text('010'), findsOneWidget);
     expect(find.text('豆管理(カード)'), findsOneWidget);
   });
 
@@ -71,6 +70,7 @@ void main() {
     await tester.tap(find.text('ドリッパー管理'));
     await tester.pumpAndSettle();
 
-    expect(find.text('013'), findsOneWidget);
+    // メニューは閉じているのでAppBarタイトルとして1件だけ残る
+    expect(find.text('ドリッパー管理'), findsOneWidget);
   });
 }

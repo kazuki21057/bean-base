@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/theme_provider.dart';
 import '../../routing/app_screen.dart';
 import '../../theme/blackboard_theme.dart';
 
@@ -15,8 +17,13 @@ const kLatte = Color(0xFFD7CCC8);
 const kCream = Color(0xFFF7F3EE);
 const kAccent = Color(0xFFB5895A);
 
-/// 作成画面共通の骨格。AppBar(画面コードバッジ付き)+セクション+保存バー。
-class CreateFormScaffold extends StatelessWidget {
+/// 作成画面共通の骨格。AppBar+セクション+保存バー。
+///
+/// Cycle 27 T3-32: AppBarタイトルの画面コードバッジは本番UIとして不要なため削除。
+/// Cycle 27 T3-9: AppBar背景・保存ボタン色を`mainColorProvider`から導出
+/// (`ConsumerWidget`化)。デフォルトプリセットは既存の`kEspresso`と同値のため
+/// 未変更時の見た目は変わらない。
+class CreateFormScaffold extends ConsumerWidget {
   final AppScreen screen;
   final List<Widget> children;
   final String saveLabel;
@@ -35,34 +42,14 @@ class CreateFormScaffold extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mainColor = ref.watch(mainColorProvider);
     return Scaffold(
       backgroundColor: kCream,
       appBar: AppBar(
-        backgroundColor: kEspresso,
+        backgroundColor: mainColor,
         foregroundColor: kCream,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                screen.code,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(title ?? screen.titleJa, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
+        title: Text(title ?? screen.titleJa, style: const TextStyle(fontSize: 18)),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -96,7 +83,7 @@ class CreateFormScaffold extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: kEspresso,
+                    backgroundColor: mainColor,
                     foregroundColor: kCream,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),

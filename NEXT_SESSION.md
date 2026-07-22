@@ -1,6 +1,30 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-22(`/start`引数「youtube埋め込みの相談」でユーザーと相談→**T3-24(020のYouTube埋め込み再生)を実装完了+ユーザー指示で本番デプロイ+本番確認まで実施**。`youtube_player_iframe ^6.0.2`を追加し、既存`sourceUrl`がYouTube URLのとき020の参考URL欄に埋め込みプレーヤー+リンク併記を表示。データ層変更なし。`firebase deploy --only hosting`で`beanbase-app-2016.web.app`へ反映済み。詳細は直下の-4.50節。**これで依存なしの残タスクは T3-20(Ubuntu環境構築、ユーザー作業主体、S) のみ。** 日次ループのコスト上限は$24。)
+最終更新: 2026-07-22(残タスク一覧提示→ユーザー指示「どちらも一括で進めて」でT3-9・T3-13を実装、加えてユーザーがモバイル実機で見つけたYouTube埋め込み不具合(T3-31)・本番の画面コードバッジ削除(T3-32)・設定→統計解説ページ導線(T3-33)を新規タスクとして記録・実装。詳細は直下の-4.51節。**これで依存なしでClaude側が着手できるPhase 3残タスクは無くなった**。残るのはT3-1(モバイル実機レイアウト、ユーザー確認待ち)・T3-4(T3-1完了待ち)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみ。**まだcommit/pushしていない**(ユーザーの明示依頼待ち)。日次ループのコスト上限は$24。)
+
+## -4.51 当日やったこと(2026-07-22続き、残タスク一覧→T3-9・T3-13一括実装+追加3件)
+
+**「残りのタスクを一覧化して」に対し、Phase3の未着手5件(T3-9/T3-13/T3-20/T3-1/T3-4)を提示。依存充足・Claude単独着手可能なT3-9とT3-13を「どちらも一括で進めて」の指示で実装。加えてユーザーから3件の追加指示: ①モバイル実機で確認したYouTube埋め込み不具合の修正タスク追加②本番環境のページ番号削除③設定ボタンから統計解説ページに飛べるボタン追加のタスク追加。3件ともマスタープランにT3-31〜33として記録したうえで、その場で実装まで完了させた(小粒タスクのため一括処理が効率的と判断)。**
+
+- **「ページ番号」の正体を特定**: `MockScreenScaffold`(001/002/010/040/090等ほぼ全既存系画面の骨格)と`CreateFormScaffold`(012/015/018/021/024/031の骨格)のAppBarタイトルに、画面ID(例:「001」)を表示する装飾バッジがあり、これが本番UIに表示され続けていた。090「Debug」内の「画面一覧」(`screen_gallery_screen.dart`)は開発者向けインベントリ表示が目的のため意図的に対象外とした。
+- **T3-9完了(メインカラー反映拡大)**: 着手前に影響調査した結果、コーヒートーン定数(`kEspresso`等)が27ファイルに直接ハードコードされており、全面動的化は本タスクの想定(L、着手前分割検討)を超える別タスク規模と判断。**AppBar背景・保存ボタン色(全22画面共通の骨格2つ経由)・黒板風背景(ダッシュボード)** の3点を`mainColorProvider`から導出するよう変更し、それ以外(カード罫線・チップ・グラフ配色等)は技術的制約として090の説明文に明記する形で完了とした(タスクの完了条件が許容する代替パス)。
+  - `theme_provider.dart`に`boardBackgroundFor(mainColor)`(色相はメインカラー由来、明度0.22に固定してチョーク文字の可読性を確保)を追加。
+  - `mainColorPresets`の1色目が実際の`kEspresso`値(`0xFF3E2723`)とズレていた(`0xFF6D4C41`=kMocha値)ことを発見・修正。これにより未変更時の見た目は完全に従来どおり。
+  - `MockScreenScaffold`・`CreateFormScaffold`を`ConsumerWidget`化。
+- **T3-32完了(画面コードバッジ削除、T3-9と同時実施)**: 上記2骨格のAppBarタイトルから画面コードバッジを削除し画面名のみに。依存していた`test/master_switcher_test.dart`・`test/screen_transition_test.dart`のアサーションをタイトル文字列ベースに更新。
+- **T3-33完了(設定→統計解説ページ導線)**: 090に新設「ヘルプ」`FormSection`から`StatsTheoryScreen`(041)へ`MockListRow`タップで直接遷移。
+- **T3-31完了(YouTube埋め込みのモバイル実機不具合修正)**: WebSearchで先行事例(flutter/flutter#91191・#91805・#161094)を確認した結果、`lib/widgets/youtube_embed.dart`が`YoutubePlayer`(Web版はHtmlElementViewでiframeを描画するプラットフォームビュー)を`ClipRRect`で角丸クリップしていたことが原因と判断(`HtmlElementView`を`ClipRRect`/`ClipRect`で囲むとプラットフォームビューが描画されなくなる既知のFlutter課題)。`ClipRRect`を除去し直接描画するよう修正(角丸が無くなる以外の見た目・動作影響なし)。**実機での再生確認自体はユーザーのローカル環境でのみ可能**。
+- **T3-13完了(デプロイ手順のドキュメント化)**: `docs/deploy.md`新規。build→deployの2コマンド・公開URL・デプロイ後確認手順・既知の教訓(Service Workerキャッシュ・サンドボックスからの本番確認代替手順)をまとめた。
+- **検証**: `flutter analyze`44件で不変(新規0)。`flutter test`は`ConsumerWidget`化に伴い`test/stats_theory_screen_test.dart`の3ケースに`ProviderScope`ラップが必要になり修正、`test/master_switcher_test.dart`・`test/screen_transition_test.dart`のバッジアサーションも更新のうえ**181件全パス**(新規追加は無し、既存修正のみ)。`flutter build web`成功。
+- **ブラウザ確認(ローカル配信+claude-in-chrome)**: `build/web`をローカル配信(port 8791)して確認。
+  - 001ダッシュボード: AppBarから「001」バッジが消え、黒板背景がkEspresso由来の暗い赤茶色になっていることをカード間の隙間でズーム確認(FormSectionのdarkカード自体はkBoardBgLightのまま固定・対象外のため画面全体は従来同様の緑系カードが目立つ見た目)。
+  - 090設定: 新設「ヘルプ」→「統計の理論と読み方」タップで041へ正しく遷移。
+  - 020メソッド詳細「ORIGAMI ウェーブ 基本」: YouTube埋め込み領域が角丸なしの矩形で表示され、コンソールに`YouTube埋め込みプレーヤー初期化 (videoId=dpYaU8LfwG4)`、エラー0件。
+  - 002抽出履歴・012新規豆追加: いずれもAppBarにバッジ無し、012の保存ボタンがメインカラー(kEspresso)反映。
+  - **初回アクセス時にService Workerが旧main.dart.jsをキャッシュしており「001」バッジが残った旧UIが表示される事象を再確認**(`docs/deploy.md`に記載済みの教訓どおり)。SW unregister+cache削除で解消。
+- **未確認(ユーザーのローカル確認が必要)**: YouTube埋め込みの実機再生自体、T3-9のAppBar/黒板背景の実機での見え方。
+- **変更ファイル**: `lib/providers/theme_provider.dart`/`lib/screens/mock/mock_scaffold.dart`/`lib/screens/create/create_form_widgets.dart`/`lib/screens/settings_screen.dart`/`lib/theme/blackboard_theme.dart`/`lib/widgets/youtube_embed.dart`/`test/master_switcher_test.dart`/`test/screen_transition_test.dart`/`test/stats_theory_screen_test.dart`/`docs/deploy.md`(新規)/`docs/改修マスタープラン.md`/`NEXT_SESSION.md`。**未commit・未push**(ユーザーの明示依頼待ち)。
+- **次回の着手点**: Phase3の残りはT3-1(モバイル実機レイアウト、ユーザー確認結果待ち)・T3-4(T3-1完了待ちのためブロック中)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみで、いずれもClaude単独では着手不可。commit/pushの可否をユーザーに確認すること。
 
 ## -4.50 当日やったこと(2026-07-22続き、/start「youtube埋め込みの相談」→T3-24を実装)
 

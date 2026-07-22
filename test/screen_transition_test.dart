@@ -33,7 +33,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify DashboardScreen (001) is displayed
-    expect(find.text('001'), findsOneWidget);
     expect(find.text('ダッシュボード'), findsOneWidget);
     expect(find.text('在庫中の豆はありません'), findsOneWidget);
     expect(find.text('抽出履歴がありません'), findsOneWidget);
@@ -90,7 +89,6 @@ void main() {
     await tester.tap(find.text('豆管理'));
     await tester.pumpAndSettle();
 
-    expect(find.text('010'), findsOneWidget);
     expect(find.text('豆管理(カード)'), findsOneWidget);
   });
 }

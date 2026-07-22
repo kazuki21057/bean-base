@@ -17,15 +17,20 @@ const kChalkError = Color(0xFFFFAB91);
 
 /// 黒板の背景(チョークの粉・かすれをCustomPainterで薄く重ねる)。
 /// `child` の背後に固定シードのテクスチャを敷く。
+///
+/// Cycle 27 T3-9: `background`(デフォルト`kBoardBg`)でメインカラー由来の
+/// 背景色(`boardBackgroundFor`、theme_provider.dart)を渡せるようにした。
+/// 既存呼び出し元(引数省略)は従来どおり`kBoardBg`固定のまま動く。
 class BlackboardTexture extends StatelessWidget {
   final Widget child;
+  final Color background;
 
-  const BlackboardTexture({super.key, required this.child});
+  const BlackboardTexture({super.key, required this.child, this.background = kBoardBg});
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: kBoardBg,
+      color: background,
       child: Stack(
         children: [
           const Positioned.fill(

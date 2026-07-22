@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/theme_provider.dart';
 import '../../routing/app_screen.dart';
 import '../../theme/blackboard_theme.dart';
 import '../../widgets/bean_image.dart';
@@ -16,7 +18,15 @@ import '../settings_screen.dart';
 /// 導線をAppBarに自動追加する。新規登録画面(CreateFormScaffold)・詳細画面
 /// (MasterDetailTemplate)はこの骨格を使わないため対象外。この骨格を使う
 /// 画面のうち詳細画面に相当するもの(003等)・設定画面自身は明示的にfalseにする。
-class MockScreenScaffold extends StatelessWidget {
+///
+/// Cycle 27 T3-32: AppBarタイトルの画面コードバッジ(例:「001」)は開発時の
+/// 画面特定用途だったが本番UIとしては不要なため削除した(090「Debug」内の
+/// 画面一覧は開発者向けの一覧表示が主目的のため対象外のまま残す)。
+///
+/// Cycle 27 T3-9: AppBar背景・黒板風背景色を`mainColorProvider`から導出する
+/// ように変更(`ConsumerWidget`化)。デフォルトのプリセットは既存の
+/// `kEspresso`/`kBoardBg`と同値のため、未変更時の見た目は変わらない。
+class MockScreenScaffold extends ConsumerWidget {
   final AppScreen screen;
   final List<Widget> children;
   final Widget? floatingActionButton;
@@ -37,7 +47,8 @@ class MockScreenScaffold extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mainColor = ref.watch(mainColorProvider);
     final body = Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
@@ -49,9 +60,9 @@ class MockScreenScaffold extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: boardTexture ? kBoardBg : kCream,
+      backgroundColor: boardTexture ? boardBackgroundFor(mainColor) : kCream,
       appBar: AppBar(
-        backgroundColor: kEspresso,
+        backgroundColor: mainColor,
         foregroundColor: kCream,
         actions: [
           ...?actions,
@@ -64,31 +75,10 @@ class MockScreenScaffold extends StatelessWidget {
               },
             ),
         ],
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                screen.code,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(screen.titleJa, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
+        title: Text(screen.titleJa, style: const TextStyle(fontSize: 18)),
       ),
       floatingActionButton: floatingActionButton,
-      body: boardTexture ? BlackboardTexture(child: body) : body,
+      body: boardTexture ? BlackboardTexture(background: boardBackgroundFor(mainColor), child: body) : body,
     );
   }
 }
