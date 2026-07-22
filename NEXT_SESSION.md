@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-22(残タスク一覧提示→ユーザー指示「どちらも一括で進めて」でT3-9・T3-13を実装、加えてユーザーがモバイル実機で見つけたYouTube埋め込み不具合(T3-31)・本番の画面コードバッジ削除(T3-32)・設定→統計解説ページ導線(T3-33)を新規タスクとして記録・実装。詳細は直下の-4.51節。**これで依存なしでClaude側が着手できるPhase 3残タスクは無くなった**。残るのはT3-1(モバイル実機レイアウト、ユーザー確認待ち)・T3-4(T3-1完了待ち)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみ。**まだcommit/pushしていない**(ユーザーの明示依頼待ち)。日次ループのコスト上限は$24。)
+最終更新: 2026-07-23(残タスク一覧提示→ユーザー指示「どちらも一括で進めて」でT3-9・T3-13を実装、加えてユーザーがモバイル実機で見つけたYouTube埋め込み不具合(T3-31)・本番の画面コードバッジ削除(T3-32)・設定→統計解説ページ導線(T3-33)を新規タスクとして記録・実装。ユーザー指示「デプロイし画面確認まで終わったらcommit and pushし、/endまでして」により**`firebase deploy --only hosting`で本番反映+本番データでブラウザ確認→commit(`9a01836`)→push まで完了**。詳細は直下の-4.51節。**これで依存なしでClaude側が着手できるPhase 3残タスクは無くなった**。残るのはT3-1(モバイル実機レイアウト、ユーザー確認待ち)・T3-4(T3-1完了待ち)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみ。日次ループのコスト上限は$24。)
 
 ## -4.51 当日やったこと(2026-07-22続き、残タスク一覧→T3-9・T3-13一括実装+追加3件)
 
@@ -22,9 +22,10 @@
   - 020メソッド詳細「ORIGAMI ウェーブ 基本」: YouTube埋め込み領域が角丸なしの矩形で表示され、コンソールに`YouTube埋め込みプレーヤー初期化 (videoId=dpYaU8LfwG4)`、エラー0件。
   - 002抽出履歴・012新規豆追加: いずれもAppBarにバッジ無し、012の保存ボタンがメインカラー(kEspresso)反映。
   - **初回アクセス時にService Workerが旧main.dart.jsをキャッシュしており「001」バッジが残った旧UIが表示される事象を再確認**(`docs/deploy.md`に記載済みの教訓どおり)。SW unregister+cache削除で解消。
+- **本番デプロイ+本番確認(ユーザー指示「デプロイし画面確認まで終わったらcommit and pushし、/endまでして」)**: `flutter build web`→`firebase deploy --only hosting`で**https://beanbase-app-2016.web.app**へ反映(34ファイル)。claude-in-chrome拡張が本番ドメインをブロックするため、デプロイした同一`build/web`をローカル配信(新規ポート8801、SWキャッシュ回避のため未使用ポート)し本番GAS実データで再確認: 001ダッシュボードでバッジ無し+黒板背景の色味変化、090設定の「ヘルプ」→041への遷移、020「ORIGAMI ウェーブ 基本」でYouTube埋め込み領域(角丸なし)とコンソールの`videoId=dpYaU8LfwG4`初期化ログ、いずれもコンソールエラー0件。デプロイ成果物=事前検証済みビルドと同一のため修正不要と判断。
 - **未確認(ユーザーのローカル確認が必要)**: YouTube埋め込みの実機再生自体、T3-9のAppBar/黒板背景の実機での見え方。
-- **変更ファイル**: `lib/providers/theme_provider.dart`/`lib/screens/mock/mock_scaffold.dart`/`lib/screens/create/create_form_widgets.dart`/`lib/screens/settings_screen.dart`/`lib/theme/blackboard_theme.dart`/`lib/widgets/youtube_embed.dart`/`test/master_switcher_test.dart`/`test/screen_transition_test.dart`/`test/stats_theory_screen_test.dart`/`docs/deploy.md`(新規)/`docs/改修マスタープラン.md`/`NEXT_SESSION.md`。**未commit・未push**(ユーザーの明示依頼待ち)。
-- **次回の着手点**: Phase3の残りはT3-1(モバイル実機レイアウト、ユーザー確認結果待ち)・T3-4(T3-1完了待ちのためブロック中)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみで、いずれもClaude単独では着手不可。commit/pushの可否をユーザーに確認すること。
+- **変更ファイル**: `lib/providers/theme_provider.dart`/`lib/screens/mock/mock_scaffold.dart`/`lib/screens/create/create_form_widgets.dart`/`lib/screens/settings_screen.dart`/`lib/theme/blackboard_theme.dart`/`lib/widgets/youtube_embed.dart`/`test/master_switcher_test.dart`/`test/screen_transition_test.dart`/`test/stats_theory_screen_test.dart`/`docs/deploy.md`(新規)/`docs/改修マスタープラン.md`/`rules/verification.md`(教訓1件追加)/`NEXT_SESSION.md`。commit `9a01836`でpush済み。
+- **次回の着手点**: Phase3の残りはT3-1(モバイル実機レイアウト、ユーザー確認結果待ち)・T3-4(T3-1完了待ちのためブロック中)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみで、いずれもClaude単独では着手不可。大規模改修(マスタープランのPhase体系)は既に全Phase完了済みのため、次回`/start`時は主にユーザー側の追加要望や上記3件の進捗確認が中心になる見込み。
 
 ## -4.50 当日やったこと(2026-07-22続き、/start「youtube埋め込みの相談」→T3-24を実装)
 
