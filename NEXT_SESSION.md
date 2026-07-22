@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-22(`/start`引数「youtube埋め込みの相談」でユーザーと相談→**T3-24(020のYouTube埋め込み再生)を実装完了**。`youtube_player_iframe ^6.0.2`を追加し、既存`sourceUrl`がYouTube URLのとき020の参考URL欄に埋め込みプレーヤー+リンク併記を表示。データ層変更なし。詳細は直下の-4.50節。**これで依存なしの残タスクは T3-20(Ubuntu環境構築、ユーザー作業主体、S) のみ。** commit/push済み、今回デプロイ・本番書き込みは指示が無かったため未実施。日次ループのコスト上限は$24。)
+最終更新: 2026-07-22(`/start`引数「youtube埋め込みの相談」でユーザーと相談→**T3-24(020のYouTube埋め込み再生)を実装完了+ユーザー指示で本番デプロイ+本番確認まで実施**。`youtube_player_iframe ^6.0.2`を追加し、既存`sourceUrl`がYouTube URLのとき020の参考URL欄に埋め込みプレーヤー+リンク併記を表示。データ層変更なし。`firebase deploy --only hosting`で`beanbase-app-2016.web.app`へ反映済み。詳細は直下の-4.50節。**これで依存なしの残タスクは T3-20(Ubuntu環境構築、ユーザー作業主体、S) のみ。** 日次ループのコスト上限は$24。)
 
 ## -4.50 当日やったこと(2026-07-22続き、/start「youtube埋め込みの相談」→T3-24を実装)
 
@@ -13,9 +13,10 @@
   - **データ層(モデル/GAS/シート列)の変更は一切なし**=既存頻発バグ「モデル追加時の列プロビジョニング漏れ」を構造的に回避。既存の本番データ(`youtu.be/…?si=…`形式のメソッドが13件中大半)がそのまま埋め込み対象になる。
 - **検証**: `flutter analyze`44件で不変(新規0)。`flutter test`170→**181件全パス**(+11、`test/youtube_util_test.dart`新規)。`flutter build web`成功(Windowsのsymlink警告はネイティブプラグイン用でWebは`youtube_player_iframe_web`が実装提供のため無影響)。**ブラウザ確認**: 本番ビルドをローカル配信+claude-in-chromeで020「ORIGAMI ウェーブ 基本」(本番`sourceUrl=https://youtu.be/dpYaU8LfwG4?si=…`)を開くと、注湯ステップ下に**16:9プレーヤー領域が確保・表示**され、コンソールに`YouTube埋め込みプレーヤー初期化 (videoId=dpYaU8LfwG4)`=実データからID抽出+コントローラ初期化成功を確認。
   - **ハマった点(教訓化)**: 最初プレーヤーが出なかったのは**FlutterのService Workerが旧`main.dart.js`をキャッシュ**していたため。`navigator.serviceWorker.getRegistrations()`→各`unregister()`+`caches.delete()`してから再読込で新ビルドが反映。**ローカル配信で新機能を確認するときはSWキャッシュを疑う/クリアすること。**
-- **未確認(ユーザーのローカル確認が必要)**: 実際の**動画再生映像(DOM上のiframe/platform-view)は、CanvasKitのplatform-view+クロスオリジンYouTube iframeがこのCDP/拡張サンドボックスでは描画されない**ため目視できていない(引き継ぎ既出の制約)。Dart側結線は実データで全て正常動作しているので、実再生の最終目視は`flutter run -d chrome`(ユーザーローカル)に委ねる。
-- **変更ファイル**: `pubspec.yaml`/`pubspec.lock`/`lib/screens/method_detail_screen.dart`/`lib/utils/youtube_util.dart`(新規)/`lib/widgets/youtube_embed.dart`(新規)/`test/youtube_util_test.dart`(新規)/`docs/改修マスタープラン.md`。
-- **次回の着手点**: 依存なしの残タスクは**T3-20(Ubuntu並行開発のマシンローカル環境構築、ユーザー作業主体、S)のみ**。それ以外の細分化タスク(T3-xx/T4-xx)は全て✅。大規模改修(改修マスタープランのPhase体系)側に新フェーズが追加されているかを`/start`時に確認すること。今回デプロイ・本番書き込みはユーザー指示が無かったため未実施(埋め込みを本番反映したい場合は次回`firebase deploy --only hosting`)。
+- **本番デプロイ+本番確認(ユーザー指示「本番デプロイ→確認→(必要なら修正)→/end」)**: 実装・commit/push後、`firebase deploy --only hosting`で**https://beanbase-app-2016.web.app**へ反映(34ファイル)。拡張機能が本番ドメインをブロックするため、デプロイした同一`build/web`を新ポート(SWキャッシュ回避)でローカル配信し本番GAS実データで再確認: 020「ORIGAMI ウェーブ 基本」(本番`sourceUrl=https://youtu.be/dpYaU8LfwG4?si=…`)で注湯ステップ下に16:9プレーヤー領域が表示、コンソールに`YouTube埋め込みプレーヤー初期化 (videoId=dpYaU8LfwG4)`、エラー0件。デプロイ成果物=事前検証済みビルドと同一のため**修正は不要**と判断。
+- **未確認(ユーザーのローカル確認が必要)**: 実際の**動画再生映像(DOM上のiframe/platform-view)は、CanvasKitのplatform-view+クロスオリジンYouTube iframeがこのCDP/拡張サンドボックスでは描画されない**ため目視できていない(引き継ぎ既出の制約、`rules/verification.md`に教訓追記済み)。Dart側結線は実データで全て正常動作しているので、実再生の最終目視は`flutter run -d chrome`(ユーザーローカル)に委ねる。
+- **変更ファイル**: `pubspec.yaml`/`pubspec.lock`/`lib/screens/method_detail_screen.dart`/`lib/utils/youtube_util.dart`(新規)/`lib/widgets/youtube_embed.dart`(新規)/`test/youtube_util_test.dart`(新規)/`docs/改修マスタープラン.md`/`rules/verification.md`/`NEXT_SESSION.md`。commit `bcbf467`(実装本体)は push済み、本`/end`のドキュメント更新は別commitでpush。
+- **次回の着手点**: 依存なしの残タスクは**T3-20(Ubuntu並行開発のマシンローカル環境構築、ユーザー作業主体、S)のみ**。それ以外の細分化タスク(T3-xx/T4-xx)は全て✅。大規模改修(改修マスタープランのPhase体系)側に新フェーズが追加されているかを`/start`時に確認すること。
 
 ## -4.49 当日やったこと(2026-07-22続き、/start→ユーザーがT3-30を選択・実装)
 
