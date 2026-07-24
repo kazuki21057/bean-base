@@ -1,6 +1,19 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-23(残タスク一覧提示→ユーザー指示「どちらも一括で進めて」でT3-9・T3-13を実装、加えてユーザーがモバイル実機で見つけたYouTube埋め込み不具合(T3-31)・本番の画面コードバッジ削除(T3-32)・設定→統計解説ページ導線(T3-33)を新規タスクとして記録・実装。ユーザー指示「デプロイし画面確認まで終わったらcommit and pushし、/endまでして」により**`firebase deploy --only hosting`で本番反映+本番データでブラウザ確認→commit(`9a01836`)→push まで完了**。詳細は直下の-4.51節。**これで依存なしでClaude側が着手できるPhase 3残タスクは無くなった**。残るのはT3-1(モバイル実機レイアウト、ユーザー確認待ち)・T3-4(T3-1完了待ち)・T3-20(Ubuntu環境構築、ユーザー作業主体)のみ。日次ループのコスト上限は$24。)
+最終更新: 2026-07-24(`/start`で着手可能タスクなしを確認→ユーザーから追加要望5件を受領。4タスク(T3-34〜T3-37)に分解してマスタープランへ記録。うち**T3-37(YouTube埋め込み再修正)を実装・検証・本番デプロイ・本番確認まで完了**。ユーザーがローカル/実機で再生成功を確認済み(「いけた」)。詳細は直下の-4.52節。**残る新規タスクはT3-34(豆画像3分類, L, 依存なし)・T3-35(カメラ撮影, M, T3-34依存)・T3-36(統計on/off一覧ページ, M, 依存なし)。既存のT3-1/T3-4/T3-20はユーザー作業主体。** 日次ループのコスト上限は$24。)
+
+## -4.52 当日やったこと(2026-07-24、追加要望5件を記録→T3-37を実装+本番デプロイ+本番確認)
+
+**`/start`で依存の空いた着手可能タスクが無い(既存のT3-1/T3-4/T3-20はユーザー作業主体)ことを確認・提示。ユーザーから追加要望5件を受領し、4タスクに分解してマスタープラン§3にT3-34〜T3-37として記録。ユーザー指示「ユーザーが操作することなく全て自分でできるように」に従い、実機確認を求めず依存なし・小粒のT3-37(YouTube埋め込み再修正)から着手・完遂した。**
+
+- **受領した追加要望5件**: ①豆情報読取AIにカメラ撮影を追加②撮影画像を保存し豆に紐付け③豆画像をパッケージ/豆/情報の3種類に増やし、AI読取画像=情報画像、既存写真=パッケージに分類④統計処理のon/off状況一覧ページを新設(設定から遷移、各機能から説明へ、off時は有効化条件表示、稼働有無を信号機表示)⑤埋め込みYouTubeが機能していないため修正。→ **T3-34(豆画像3分類, L)/T3-35(カメラ撮影+情報画像保存, M, T3-34依存)/T3-36(統計on/off一覧, M)/T3-37(YouTube再修正, S〜M)** に分解(①②③はデータ層を共有するためT3-34+T3-35に統合)。
+- **T3-37完了(YouTube埋め込みのreleaseビルド限定クラッシュ修正)**: ユーザー報告「灰色の背景はあるがそれ以外は何も表示されない」を、ローカルビルド+claude-in-chromeで本番GAS実データを使い再現。**`flutter run`(debug/DDC)では再現せず、`flutter build web`(release/dart2js)でのみ再現**する点を突き止め、コンソールに出ていた`Null check operator used on a null value`のスタックトレースを`--source-maps`付きビルド+自作VLQデコーダ(`/tmp/decode_sourcemap.py`)で解析。根本原因は、`youtube_player_iframe`のコントローラ構築時に呼ばれる`webview_flutter`の`NavigationDelegate()`が内部参照する`WebViewPlatform.instance!`が、Flutter Webの自動プラグイン登録(`WebYoutubePlayerIframePlatform.registerWith`)の反映前にreleaseビルドでのみnullのまま評価されクラッシュしていたこと(**T3-31のClipRRect説は誤りだったと判明**)。
+  - **修正**: `lib/utils/youtube_web_platform_fix.dart`(conditional export)+`_web.dart`(`WebViewPlatform.instance ??= WebYoutubePlayerIframePlatform()`)+`_io.dart`(no-op)を新設し、`YoutubeEmbed.initState()`で明示的に保険としてプラットフォームを登録(自動登録が効いていればno-op)。加えて診断用に`onWebResourceError`ログと`_controller.stream`のstate遷移ログを`[Antigravity]`で追加。`webview_flutter_platform_interface`・`youtube_player_iframe_web`をpubspec.yamlの直接依存に明示化(解決バージョンは不変、transitive→directのみ)。
+  - **検証**: `flutter analyze`44件(新規0)。`flutter test`181件全パス(Dart変更はwidget非依存のため既存テスト不変)。**同一のreleaseビルドで再現→修正後に再ビルドして再検証**したところクラッシュが消え、`state=unStarted→cued`まで正常遷移、YouTubeサムネイル・タイトルが表示、コンソールエラー0件を確認。
+  - **本番デプロイ+本番確認(ユーザー指示「本番デプロイしてこの修正を反映」)**: `firebase deploy --only hosting`で**https://beanbase-app-2016.web.app**へ反映(34ファイル)。拡張が本番ドメインをブロックするため同一`build/web`をローカル配信し本番GAS実データで020「ORIGAMI ウェーブ 基本」を再確認 → 埋め込み表示・`cued`遷移・エラー0件。**その後ユーザーがローカル/実機で実際の再生成功を確認(「いけた」)**。
+  - **サンドボックス制約**: 実際のクリック→再生自体はこのCDP制御下ブラウザではクロスオリジンiframe操作が反映されず自動確認不可(既出制約)。今回は最終的にユーザー実機確認で再生OKまで取れた。
+- **変更ファイル**: `lib/widgets/youtube_embed.dart`/`lib/utils/youtube_web_platform_fix.dart`(新規)/`lib/utils/youtube_web_platform_fix_web.dart`(新規)/`lib/utils/youtube_web_platform_fix_io.dart`(新規)/`pubspec.yaml`/`pubspec.lock`/`docs/改修マスタープラン.md`。commit `add7196`でpush済み。
+- **次回の着手点**: 依存なしで着手できる新規タスクは**T3-34(豆画像のパッケージ/豆/情報の3分類化, L)**と**T3-36(統計on/off一覧ページ, M)**。T3-35(カメラ撮影+情報画像保存)はT3-34完了後に着手可能。**T3-34着手時の注意**: `BeanMaster`への画像フィールド3種追加・GAS `bean_master`シートの列プロビジョニング(過去に頻発した「モデル追加時の列追加漏れ」バグに注意、`EXISTING_SHEET_EXTRA_COLUMNS`と`_reverseMapBean`の両方)・既存単一`豆画像URL`のパッケージ画像へのマッピング(読み込み時フォールバック推奨)・011/012 UIの3枚アップロード化がスコープ。T3-36は041(統計理論ページ)への導線と設計書§1.3の最小データ条件表示が要点。既存のT3-1/T3-4/T3-20はユーザー作業主体で据え置き。
 
 ## -4.51 当日やったこと(2026-07-22続き、残タスク一覧→T3-9・T3-13一括実装+追加3件)
 
