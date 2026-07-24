@@ -95,9 +95,9 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 **終了条件 — 次のいずれかに達したら必ず停止:**
 1. **タスク完了** — タスク表に定義された終了条件を満たした。
 2. **連続3回失敗** — 検証(`analyze`/`test`/`run`)でエラー。失敗するたび `.claude/loop_failures.txt` を `<当日日付> <回数>` 形式で +1(成功で 0 にリセット。日付が変わると自動的に 0 扱い)。
-3. **当日コストが $24 超**(2026-07-21ユーザー指示により$12から2倍に変更) / 4. **当日ターン数が 30 到達** — `loop_guard.js` が transcript から算出。**この数値が真実**(自前で数えない)。
+3. **1ループあたりのコストが $24 超**(2026-07-25ユーザー指示により「当日累計」から「1ループ単位」に変更。直近の `/start` または `/full_loop` 呼び出し以降の累計コストで判定し、次の `/start`・`/full_loop` が呼ばれるたびリセットされる。境界が検出できない場合のみ従来どおり当日累計にフォールバック) / 4. **当日ターン数が 30 到達** — `loop_guard.js` が transcript から算出。**この数値が真実**(自前で数えない)。
 
-**ガードレール:** `.claude/hooks/loop_guard.js`(UserPromptSubmit / Stop フック、`.claude/settings.json` で有効化)が毎ターン当日コスト・ターン数を `.claude/loop_state.md` に出力し、しきい値超過時は停止を指示する。
+**ガードレール:** `.claude/hooks/loop_guard.js`(UserPromptSubmit / Stop フック、`.claude/settings.json` で有効化)が毎ターン本ループのコスト・当日ターン数を `.claude/loop_state.md` に出力し、しきい値超過時は停止を指示する。
 
 **停止時の作法:** 新規着手はせず、(a) `NEXT_SESSION.md` 更新、(b) マスタープラン進捗表更新、(c) 可能なら commit/push、の順で締める。
 
