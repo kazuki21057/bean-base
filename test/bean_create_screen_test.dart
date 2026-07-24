@@ -194,6 +194,23 @@ void main() {
     expect(find.text('パッケージ画像から自動入力(AI)'), findsOneWidget);
   });
 
+  testWidgets('T3-35: 自動入力ボタンをタップするとファイル選択/カメラ撮影の選択ダイアログが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('パッケージ画像から自動入力(AI)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('画像の取得方法'), findsOneWidget);
+    expect(find.text('ファイルから選択'), findsOneWidget);
+    expect(find.text('カメラで撮影'), findsOneWidget);
+  });
+
   testWidgets('T3-34: 画像アップロード欄がパッケージ/豆/情報の3つ表示される', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

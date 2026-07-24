@@ -49,6 +49,9 @@ dependencies:
   google_generative_ai: ^0.4.7
   shared_preferences: ^2.5.4
   file_picker: ^10.3.10
+  # T3-35: 豆情報読取AI(T3-30)のカメラ撮影対応。Web版はブラウザの<input capture>を
+  # 経由してモバイルのネイティブカメラを起動する(file_pickerには相当機能が無い)。
+  image_picker: ^1.1.2
   path: ^1.9.1
   path_provider: ^2.1.5
   firebase_core: ^4.4.0
