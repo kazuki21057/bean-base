@@ -3,8 +3,8 @@
  * loop_guard.js — 日次改修ループのガードレール
  *
  * 役割:
- *   - 現セッションの transcript を読み、「1ループ」分のコスト(重み付け)と
- *     当日分(ローカル日付)の「ターン数」を算出する。
+ *   - 現セッションの transcript を読み、「1ループ」分のコスト(重み付け)・
+ *     ターン数を算出する。
  *   - コストはトークン種別ごとの単価で重み付け合算するため /cost に近い。
  *     トークン数は transcript から誤差ゼロ。
  *   - 結果を .claude/loop_state.md に書き出す。
@@ -13,16 +13,21 @@
  *   - Stop 時はファイル更新のみ(サイレント)。
  *
  * 終了条件のしきい値(CLAUDE.md・改修マスタープラン §5 と一致させること):
- *   - 1ループのコスト > $24 (2026-07-21 ユーザー指示により$12から2倍に変更。
- *     2026-07-25 ユーザー指示により集計単位を「当日累計」→「1ループ単位」に
- *     変更。transcript内で最後に検出した `/start` または `/full_loop` の
- *     呼び出し(コマンド展開後のテキストに `<command-name>/start</command-name>`
- *     または `<command-name>/full_loop</command-name>` を含む実ユーザーターン)
- *     以降のコストのみ合算する。境界が1件も見つからない場合は従来どおり
- *     当日累計にフォールバックする)
- *   - 当日ターン数 >= 30 (ターン数は引き続き当日累計のまま、今回の変更対象外)
- *   - 連続失敗 >= 3 (失敗は Claude が .claude/loop_failures.txt に
- *     「<YYYY-MM-DD> <回数>」形式で記録。日付が当日以外なら 0 扱い)
+ *   - 1ループのコスト > $24 / ターン数 >= 30 / 連続失敗 >= 3
+ *     (2026-07-21 ユーザー指示によりコスト上限$12→$24。2026-07-25
+ *     ユーザー指示によりコスト・ターン数・連続失敗の集計単位を
+ *     すべて「当日累計」→「1ループ単位」に変更)。
+ *   - 「1ループ」の境界は、transcript内で最後に検出した `/start` または
+ *     `/full_loop` の呼び出し(コマンド展開後のテキストに
+ *     `<command-name>/start</command-name>` または
+ *     `<command-name>/full_loop</command-name>` を含む実ユーザーターン)。
+ *     cron 経由の `/loop` 再実行も同じ形で展開されるため、毎回のループ
+ *     起点をここで検出できる。境界が1件も見つからない場合は従来どおり
+ *     当日累計にフォールバックする。
+ *   - 連続失敗は Claude が .claude/loop_failures.txt に「<ループ識別子>
+ *     <回数>」形式で記録する(識別子は loop_state.md に出力される
+ *     `ループ識別子` の値をそのまま使う)。識別子が現在のループと異なれば
+ *     0 扱い(=新しいループでリセット)。
  */
 
 'use strict';
@@ -149,12 +154,12 @@ function analyze(transcriptPath, today, loopBoundaryTs) {
     const tsDate = ts ? new Date(ts) : null;
     const isToday = !!tsDate && !isNaN(tsDate) && localDateStr(tsDate) === today;
 
-    // ターン数は従来どおり「当日」ベース(今回の変更対象外)。
-    if (isToday && isRealUserPrompt(obj)) turns += 1;
-
-    // コストは「直近のループ境界(/start・/full_loop)以降」ベース。
+    // コスト・ターン数とも「直近のループ境界(/start・/full_loop)以降」ベース。
     // 境界が1件も見つからなかった場合のみ、従来どおり「当日」にフォールバック。
     const inLoopScope = loopBoundaryTs ? !!ts && ts >= loopBoundaryTs : isToday;
+
+    // ターン数 (実ユーザープロンプト)
+    if (inLoopScope && isRealUserPrompt(obj)) turns += 1;
 
     // コスト (assistant の usage)
     const msg = obj.message;
@@ -182,15 +187,16 @@ function analyze(transcriptPath, today, loopBoundaryTs) {
   return { cost, turns, perModelTokens, ok: true };
 }
 
-function readFailures(projectDir, today) {
-  // フォーマット: "<YYYY-MM-DD> <回数>"。日付が当日以外なら 0 扱い。
+function readFailures(projectDir, loopKey) {
+  // フォーマット: "<ループ識別子> <回数>"。識別子が現在のループと異なれば 0 扱い
+  // (2026-07-25〜。以前は日付キーで「日付が当日以外なら0扱い」だった)。
   // 旧フォーマット(整数のみ)は従来どおりの値として読む(後方互換)。
   try {
     const p = path.join(projectDir, '.claude', 'loop_failures.txt');
     const raw = fs.readFileSync(p, 'utf8').trim();
     const parts = raw.split(/\s+/);
     if (parts.length >= 2) {
-      if (parts[0] !== today) return 0;
+      if (parts[0] !== loopKey) return 0;
       const n = parseInt(parts[1], 10);
       return isNaN(n) ? 0 : n;
     }
@@ -225,19 +231,24 @@ function main() {
     today,
     loopBoundaryTs
   );
-  const failures = readFailures(cwd, today);
+
+  // ループ識別子: 境界タイムスタンプがあればそれ、無ければ当日日付に
+  // "today:" を付けたもの(タイムスタンプ形式と衝突しないようにする)。
+  // loop_failures.txt はこのキーと完全一致した場合のみ既存カウントを引き継ぐ。
+  const loopKey = loopBoundaryTs || `today:${today}`;
+  const failures = readFailures(cwd, loopKey);
 
   const costHit = cost > COST_LIMIT;
   const turnHit = turns >= TURN_LIMIT;
   const failHit = failures >= FAIL_LIMIT;
   const stop = costHit || turnHit || failHit;
 
-  const costScopeLabel = loopBoundaryTs ? '本ループ' : '当日(境界未検出のフォールバック)';
+  const scopeLabel = loopBoundaryTs ? '本ループ' : '当日(境界未検出のフォールバック)';
 
   // --- loop_state.md 書き出し ---
   const reasons = [];
-  if (costHit) reasons.push(`コスト超過 (${costScopeLabel} $${cost.toFixed(3)} > $${COST_LIMIT})`);
-  if (turnHit) reasons.push(`ターン上限 (${turns} >= ${TURN_LIMIT})`);
+  if (costHit) reasons.push(`コスト超過 (${scopeLabel} $${cost.toFixed(3)} > $${COST_LIMIT})`);
+  if (turnHit) reasons.push(`ターン上限 (${scopeLabel} ${turns} >= ${TURN_LIMIT})`);
   if (failHit) reasons.push(`連続失敗 (${failures} >= ${FAIL_LIMIT})`);
 
   let breakdown = '';
@@ -248,13 +259,13 @@ function main() {
   const state =
     `# loop_state (自動生成 / loop_guard.js)\n\n` +
     `- 日付: ${today}\n` +
-    `- ${costScopeLabel}のコスト(重み付け概算): $${cost.toFixed(4)} / 上限 $${COST_LIMIT}` +
-    `${loopBoundaryTs ? ` (境界: ${loopBoundaryTs})` : ''}\n` +
-    `- 当日ターン数: ${turns} / 上限 ${TURN_LIMIT}\n` +
+    `- ループ識別子(loop_failures.txt 記録用キー): ${loopKey}\n` +
+    `- ${scopeLabel}のコスト(重み付け概算): $${cost.toFixed(4)} / 上限 $${COST_LIMIT}\n` +
+    `- ${scopeLabel}のターン数: ${turns} / 上限 ${TURN_LIMIT}\n` +
     `- 連続失敗: ${failures} / 上限 ${FAIL_LIMIT}\n` +
     `- 停止条件: ${stop ? '🛑 到達 — ' + reasons.join(', ') : '✅ 余裕あり'}\n` +
     `- transcript読込: ${ok ? 'OK' : '失敗(空集計)'}\n\n` +
-    `## モデル別トークン(${costScopeLabel})\n${breakdown || '  (なし)\n'}` +
+    `## モデル別トークン(${scopeLabel})\n${breakdown || '  (なし)\n'}` +
     `\n_更新: ${new Date().toISOString()} (${event})_\n`;
 
   try {
@@ -264,8 +275,8 @@ function main() {
   // --- UserPromptSubmit のみ文脈へ注入 ---
   if (event === 'UserPromptSubmit') {
     let out =
-      `[loop_guard] ${costScopeLabel} cost=$${cost.toFixed(3)}/$${COST_LIMIT}, ` +
-      `当日turns=${turns}/${TURN_LIMIT}, fails=${failures}/${FAIL_LIMIT}.`;
+      `[loop_guard] ${scopeLabel} cost=$${cost.toFixed(3)}/$${COST_LIMIT}, ` +
+      `turns=${turns}/${TURN_LIMIT}, fails=${failures}/${FAIL_LIMIT}.`;
     if (stop) {
       out +=
         `\n🛑 終了条件に到達しました (${reasons.join(', ')})。` +
