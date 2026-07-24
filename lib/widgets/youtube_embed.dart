@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+
+import '../utils/youtube_web_platform_fix.dart';
 
 /// YouTube 埋め込みプレーヤー (T3-24)。
 ///
@@ -19,6 +23,16 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 /// 再生領域が表示されなかったと判断し、クリップをやめて直接描画するように
 /// 変更した(見た目は角丸が無くなるのみで、デスクトップChromeでの動作には
 /// 影響なし)。
+///
+/// Cycle 27 T3-37: T3-31後も「灰色の背景のみで埋め込みが何も表示されない」報告が
+/// あり、`flutter build web`(release/dart2js)のビルドだけで再現することを確認した
+/// (`flutter run`のdebug/DDCでは再現しない)。原因は
+/// `youtube_player_iframe`のコントローラ構築時に呼ばれる
+/// `webview_flutter`の`NavigationDelegate()`が内部で`WebViewPlatform.instance!`を
+/// 参照するが、release ビルドではこの時点で Flutter Web の自動プラグイン登録
+/// (`WebYoutubePlayerIframePlatform.registerWith`)の反映が間に合わずnullのままで、
+/// null check operator の例外がコンソールに出て初期化が止まっていたため
+/// (`ensureYoutubeWebViewPlatformRegistered`参照)。
 class YoutubeEmbed extends StatefulWidget {
   final String videoId;
 
@@ -30,24 +44,41 @@ class YoutubeEmbed extends StatefulWidget {
 
 class _YoutubeEmbedState extends State<YoutubeEmbed> {
   late final YoutubePlayerController _controller;
+  StreamSubscription<YoutubePlayerValue>? _valueSub;
 
   @override
   void initState() {
     super.initState();
     debugPrint('[Antigravity] Action: YouTube埋め込みプレーヤー初期化 (videoId=${widget.videoId})');
-    _controller = YoutubePlayerController.fromVideoId(
-      videoId: widget.videoId,
-      autoPlay: false,
+    ensureYoutubeWebViewPlatformRegistered();
+    _controller = YoutubePlayerController(
       params: const YoutubePlayerParams(
         showControls: true,
         showFullscreenButton: true,
         mute: false,
       ),
-    );
+      onWebResourceError: (error) {
+        debugPrint(
+          '[Antigravity] Error: YouTube埋め込みプレーヤーのWebViewエラー '
+          '(videoId=${widget.videoId}, type=${error.errorType}, code=${error.errorCode}): '
+          '${error.description}',
+        );
+      },
+    )..cueVideoById(videoId: widget.videoId);
+    // T3-37: 実機で「灰色の背景のみで何も表示されない」報告があり、原因切り分け用に
+    // プレーヤー状態の遷移を逐次ログする(state が unknown/unStarted のまま変化しない
+    // 場合はブリッジ未初期化、cued 以降に進まない場合は別要因と切り分けられる)。
+    _valueSub = _controller.stream.listen((value) {
+      debugPrint(
+        '[Antigravity] Action: YouTube埋め込みプレーヤー状態変化 '
+        '(videoId=${widget.videoId}, state=${value.playerState}, error=${value.error})',
+      );
+    });
   }
 
   @override
   void dispose() {
+    _valueSub?.cancel();
     _controller.close();
     super.dispose();
   }
