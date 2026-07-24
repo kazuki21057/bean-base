@@ -207,6 +207,20 @@ void main() {
     expect(fakeService.lastDeletedId, 'b1');
   });
 
+  testWidgets('T3-34: 011詳細に豆画像・情報画像セクションが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('豆画像・情報画像'), findsOneWidget);
+    expect(find.text('豆画像'), findsOneWidget);
+    expect(find.text('情報画像'), findsOneWidget);
+  });
+
   testWidgets('010の＋ボタン→012新規フォームで登録するとDataService.addBeanが呼ばれる', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

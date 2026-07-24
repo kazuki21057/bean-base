@@ -55,8 +55,10 @@ function ensureSheet_(ss, name) {
 // 実装済みだったが、本番シートへの列プロビジョニングが漏れており、残量%計算
 // (calculateBeanRemainingPercent)が常に0を返していた(全豆で初期量が未保存だった)。
 // ここに列を追加することで初期購入量が保存・取得できるようになる。
+// T3-34: bean_master の画像を パッケージ/豆/情報 の3種類に分離。既存の
+// '豆画像URL' はパッケージ画像として維持し、新規2列を追加する。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
-  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)'],
+  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL'],
   'coffee_data': ['産地ID'],
 };
 

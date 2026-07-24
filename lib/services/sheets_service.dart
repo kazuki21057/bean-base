@@ -207,6 +207,8 @@ class SheetsService implements DataService {
       '購入店舗': 'store',
       '豆の種類': 'type',
       '豆画像URL': 'imageUrl',
+      '豆粒画像URL': 'beanImageUrl',
+      '情報画像URL': 'infoImageUrl',
       '購入日': 'purchaseDate',
       '開封日': 'firstUseDate',
       '使い切り日': 'lastUseDate',
@@ -566,6 +568,7 @@ class SheetsService implements DataService {
      final reverseMap = {
       'id': '豆ID', 'name': '豆名', 'roastLevel': '焙煎度', 'origin': '産地',
       'store': '購入店舗', 'type': '豆の種類', 'imageUrl': '豆画像URL',
+      'beanImageUrl': '豆粒画像URL', 'infoImageUrl': '情報画像URL',
       'purchaseDate': '購入日', 'firstUseDate': '開封日', 'lastUseDate': '使い切り日', 'isInStock': '在庫',
       'initialQuantityGrams': '初期購入量(g)',
       'originId': '産地ID', 'roastDate': '焙煎日',

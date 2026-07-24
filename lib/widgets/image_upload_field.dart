@@ -8,10 +8,15 @@ class ImageUploadField extends ConsumerStatefulWidget {
   final String? initialImageUrl;
   final ValueChanged<String?> onImageUploaded;
 
+  /// T3-34: 豆マスターのように1画面に複数のアップロード欄を並べる場合の
+  /// 見出しラベル(任意)。未指定なら従来どおり見出し無しで描画される。
+  final String? label;
+
   const ImageUploadField({
     super.key,
     this.initialImageUrl,
     required this.onImageUploaded,
+    this.label,
   });
 
   @override
@@ -103,6 +108,11 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (widget.label != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4.0),
+            child: Text(widget.label!, style: Theme.of(context).textTheme.labelLarge),
+          ),
         Row(
           children: [
             Expanded(

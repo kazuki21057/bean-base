@@ -7,7 +7,9 @@ import '../services/data_service.dart';
 import '../services/image_service.dart';
 import '../utils/bean_stock_calculator.dart';
 import '../utils/image_utils.dart';
+import '../widgets/bean_image.dart';
 import 'create/bean_create_screen.dart';
+import 'create/create_form_widgets.dart';
 import 'master_template.dart';
 
 /// 011 豆管理(詳細)。
@@ -41,6 +43,22 @@ class BeanDetailScreen extends ConsumerWidget {
         ('初期購入量', bean.initialQuantityGrams == null ? '未設定' : '${bean.initialQuantityGrams!.toStringAsFixed(1)}g'),
         ('残量', percent > 0 ? '$percent% (在庫あり)' : '0% (在庫なし)'),
       ],
+      extraSections: [
+        FormSection(
+          icon: Icons.photo_library_outlined,
+          title: '豆画像・情報画像',
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _labeledImage('豆画像', bean.beanImageUrl, Icons.coffee)),
+                const SizedBox(width: 12),
+                Expanded(child: _labeledImage('情報画像', bean.infoImageUrl, Icons.description_outlined)),
+              ],
+            ),
+          ],
+        ),
+      ],
       relatedLogFilter: (log) => log.beanId == bean.id,
       onEdit: () {
         debugPrint('[Antigravity] Action: 豆詳細011から編集画面へ遷移 (id=${bean.id})');
@@ -52,8 +70,11 @@ class BeanDetailScreen extends ConsumerWidget {
       onDelete: () async {
         debugPrint('[Antigravity] Action: 豆削除 (id=${bean.id})');
         try {
-          if (bean.imageUrl != null && bean.imageUrl!.isNotEmpty) {
-            await ref.read(imageServiceProvider).deleteImage(bean.imageUrl!);
+          final imageService = ref.read(imageServiceProvider);
+          for (final url in [bean.imageUrl, bean.beanImageUrl, bean.infoImageUrl]) {
+            if (url != null && url.isNotEmpty) {
+              await imageService.deleteImage(url);
+            }
           }
           await ref.read(dataServiceProvider).deleteBean(bean.id);
           ref.invalidate(beanMasterProvider);
@@ -62,6 +83,26 @@ class BeanDetailScreen extends ConsumerWidget {
           rethrow;
         }
       },
+    );
+  }
+
+  static Widget _labeledImage(String label, String? imageUrl, IconData placeholderIcon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: BeanImage(
+            imagePath: ImageUtils.getOptimizedImageUrl(imageUrl),
+            height: 100,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholderIcon: placeholderIcon,
+          ),
+        ),
+      ],
     );
   }
 

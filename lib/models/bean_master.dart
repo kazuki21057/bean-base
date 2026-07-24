@@ -16,7 +16,17 @@ class BeanMaster {
   final String store;
   @JsonKey(defaultValue: '')
   final String type;
+
+  /// T3-34: 画像3分類のうち「パッケージ画像」。既存の単一`imageUrl`をそのまま
+  /// 転用(データ移行不要。旧データは全てパッケージ画像として表示される)。
   final String? imageUrl;
+
+  /// T3-34: 「豆画像」(豆粒そのものの写真)。
+  final String? beanImageUrl;
+
+  /// T3-34: 「情報画像」(パッケージ裏面の説明書き等。Gemini Vision抽出の
+  /// 入力画像もここに保存される、T3-35で結線予定)。
+  final String? infoImageUrl;
 
   @JsonKey(fromJson: _parseDate)
   final DateTime? purchaseDate;
@@ -51,6 +61,8 @@ class BeanMaster {
     this.store = '',
     this.type = '',
     this.imageUrl,
+    this.beanImageUrl,
+    this.infoImageUrl,
     this.purchaseDate,
     this.firstUseDate,
     this.lastUseDate,
@@ -114,6 +126,8 @@ class BeanMaster {
     String? store,
     String? type,
     String? imageUrl,
+    String? beanImageUrl,
+    String? infoImageUrl,
     DateTime? purchaseDate,
     DateTime? firstUseDate,
     DateTime? lastUseDate,
@@ -130,6 +144,8 @@ class BeanMaster {
       store: store ?? this.store,
       type: type ?? this.type,
       imageUrl: imageUrl ?? this.imageUrl,
+      beanImageUrl: beanImageUrl ?? this.beanImageUrl,
+      infoImageUrl: infoImageUrl ?? this.infoImageUrl,
       purchaseDate: purchaseDate ?? this.purchaseDate,
       firstUseDate: firstUseDate ?? this.firstUseDate,
       lastUseDate: lastUseDate ?? this.lastUseDate,

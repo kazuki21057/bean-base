@@ -47,4 +47,54 @@ void main() {
       expect(updated.name, '豆');
     });
   });
+
+  group('BeanMaster T3-34拡張(画像3分類: パッケージ/豆/情報)', () {
+    test('json round-trip でimageUrl・beanImageUrl・infoImageUrlが全て保持される', () {
+      final bean = BeanMaster(
+        id: '1',
+        name: '豆',
+        roastLevel: '中煎り',
+        origin: 'ブラジル',
+        imageUrl: 'https://example.com/package.jpg',
+        beanImageUrl: 'https://example.com/bean.jpg',
+        infoImageUrl: 'https://example.com/info.jpg',
+      );
+
+      final json = bean.toJson();
+      final restored = BeanMaster.fromJson(json);
+
+      expect(restored.imageUrl, 'https://example.com/package.jpg');
+      expect(restored.beanImageUrl, 'https://example.com/bean.jpg');
+      expect(restored.infoImageUrl, 'https://example.com/info.jpg');
+    });
+
+    test('既存データ(beanImageUrl・infoImageUrl未設定)はnullのままでimageUrlのみパッケージ画像として残る', () {
+      final restored = BeanMaster.fromJson({
+        'id': '1',
+        'name': '既存の豆',
+        'roastLevel': '中煎り',
+        'origin': 'ブラジル',
+        'imageUrl': 'https://example.com/legacy.jpg',
+      });
+      expect(restored.imageUrl, 'https://example.com/legacy.jpg');
+      expect(restored.beanImageUrl, isNull);
+      expect(restored.infoImageUrl, isNull);
+    });
+
+    test('copyWithでbeanImageUrl・infoImageUrlを更新できる', () {
+      final bean = BeanMaster(
+        id: '1',
+        name: '豆',
+        roastLevel: '中煎り',
+        origin: 'ブラジル',
+      );
+      final updated = bean.copyWith(
+        beanImageUrl: 'https://example.com/bean.jpg',
+        infoImageUrl: 'https://example.com/info.jpg',
+      );
+      expect(updated.beanImageUrl, 'https://example.com/bean.jpg');
+      expect(updated.infoImageUrl, 'https://example.com/info.jpg');
+      expect(updated.imageUrl, isNull);
+    });
+  });
 }

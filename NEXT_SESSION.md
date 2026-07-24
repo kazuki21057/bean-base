@@ -1,6 +1,22 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-24(`/start`で着手可能タスクなしを確認→ユーザーから追加要望5件を受領。4タスク(T3-34〜T3-37)に分解してマスタープランへ記録。うち**T3-37(YouTube埋め込み再修正)を実装・検証・本番デプロイ・本番確認まで完了**。ユーザーがローカル/実機で再生成功を確認済み(「いけた」)。詳細は直下の-4.52節。**残る新規タスクはT3-34(豆画像3分類, L, 依存なし)・T3-35(カメラ撮影, M, T3-34依存)・T3-36(統計on/off一覧ページ, M, 依存なし)。既存のT3-1/T3-4/T3-20はユーザー作業主体。** 日次ループのコスト上限は$24。)
+最終更新: 2026-07-24(`/start`引数「依存がなく優先度が高いものから着手、コスト気にせず一括、デプロイ+本番確認後/end」を受け**T3-34(豆マスター画像3分類化)を実装・検証・本番デプロイ・本番確認まで完了**。加えて選定〜実装〜デプロイ〜本番確認〜`/end`を一括実行する新スキル`.claude/skills/full_loop/`を作成。詳細は直下の-4.53節。**残る新規タスクはT3-35(カメラ撮影, M, T3-34完了により依存解消)・T3-36(統計on/off一覧ページ, M, 依存なし)。既存のT3-1/T3-4/T3-20はユーザー作業主体。** 日次ループのコスト上限は$24。**今回はbuild_runnerのDart SDK/analyzerミスマッチ問題(`rules/verification.md`教訓参照)の調査・回避で当日コストが大幅超過($24→最終的に約$40超)した。次回このマシンで`build_runner`が必要な作業をする際は、先に`rules/verification.md`の当該教訓を読み、まずanalyzerバージョンが直っていないか(`grep -A5 "^  analyzer:" pubspec.lock`)を確認してから着手するとコストを抑えられる。**)
+
+## -4.53 当日やったこと(2026-07-24、`/start`一括実行指示→T3-34を実装+本番デプロイ+本番確認、full_loopスキル新設)
+
+**指示: 「依存がなく優先度が高いものから着手して。コストを気にせずひとつのタスクを一括で終わらせて。終わったらデプロイして本番環境確認してから/endして。また、これをひとつのスキルにして。」に基づき、確認プロンプトなしで一気通貫実施した。**
+
+- **T3-34完了(豆マスター画像のパッケージ/豆/情報3分類化)**: `BeanMaster`(`lib/models/bean_master.dart`)に`beanImageUrl`(豆画像)・`infoImageUrl`(情報画像)を追加。既存の単一`imageUrl`は**データ移行なしでそのままパッケージ画像として維持**(意味づけの変更のみ)。
+  - **GAS**: `gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に`豆粒画像URL`・`情報画像URL`を追加(`ensureColumns_`により次回書き込み時に自動プロビジョニング、T3-23と同パターン)。`sheets_service.dart`の`getBeans()`keyMapと`_reverseMapBean`に対応マッピングを追加。
+  - **012(`bean_create_screen.dart`)**: 「画像」`FormSection`を、`ImageUploadField`(新設の任意`label`パラメータ対応)3つ(パッケージ画像/豆画像/情報画像(説明書き等))に変更。
+  - **011(`bean_detail_screen.dart`)**: `MasterDetailTemplate.extraSections`に「豆画像・情報画像」セクションを追加し、豆画像・情報画像のサムネイル2枚(未設定時はプレースホルダアイコン)を表示。削除時は3画像すべてDriveから削除するよう`onDelete`を拡張。
+- **build_runnerのハマりどころ(教訓化、詳細は`rules/verification.md`)**: このマシンのDart SDK(3.10.7)とpubspec.lock上の`analyzer`(7.6.0、Dart言語3.9系までしか対応)がミスマッチしており、`dart run build_runner build --delete-conflicting-outputs`が`lib/firebase_options.dart`(Cycle18 legacy、内容自体は無害)のリンク時に`Missing implementation of visitDotShorthandPropertyAccess`でクラッシュ、その後もビルドデーモンプロセスがCPUを使ったまま停止せず「ハング」に見える現象に3回遭遇した。原因調査中に見つけた**セッション開始前からの無関係なゾンビ`dartvm`/`dartaotruntime`プロセス(計1.3GB超)**も終了させたが根本原因ではなかった。`flutter pub upgrade`はanalyzerを更新できず(他パッケージの制約に阻まれる)解決しなかったため、その変更は`git checkout -- pubspec.lock`で破棄。**最終的な回避策**: `--delete-conflicting-outputs`で削除された無関係な`*.g.dart`は全て`git checkout --`で復元し、`bean_master.g.dart`のみ既存の生成パターンに倣って新2フィールド分を手動追記(json_serializableの出力は定型的なため手編集で十分正確)。
+- **検証**: `flutter analyze`44件(新規0)。`flutter test`187件全パス(既存181件+新規6件: `bean_master_test.dart`+3、`bean_create_screen_test.dart`+2、`bean_detail_test.dart`+1)。追加した1件のwidgetテストは初回失敗(「画像」FormSectionがListView下方で遅延生成されるため`find.text`が見つからず、T3-29の教訓と同じ`scrollUntilVisible`で解消)。`flutter build web`成功。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 初回はService Workerキャッシュにより新UIが反映されなかった(既知の教訓どおりunregister+cache削除で解消)。再確認後、012で3つのアップロード欄(パッケージ画像/豆画像/情報画像(説明書き等))が正しく表示され、Flutter Web CanvasKitのListViewスクロール制約は既存の教訓(`flt-glass-pane`へのWheelEventディスパッチ)で回避。011「残量50%テスト豆(T3-23)」詳細で「豆画像・情報画像」セクション(未設定のためプレースホルダ表示)を確認。コンソールエラー0件。
+- **本番デプロイ+本番確認(ユーザー指示どおり確認なしで実施)**: `clasp push`→`clasp redeploy AKfycbxqhFoge1C2jYwoyPcS3BDRypCyOjc7rV6qd3FwwMaPBQ42MyrtMv8-NdcAIlvpl0Ao`(既存Web App URL維持、@11)でGASに新2列のプロビジョニングを反映。`firebase deploy --only hosting`で**https://beanbase-app-2016.web.app**へ反映(34ファイル)。デプロイ済みと同一の`build/web`をローカル配信し本番GAS実データで再確認、011/012とも新UI正常表示・コンソールエラー0件。**実際に画像をアップロードして本番Sheets/Driveへ書き込むE2E(ファイル選択ダイアログを要するためこの環境では自動操作不可)はユーザーのローカル`flutter run -d chrome`確認に委ねる。**
+- **`full_loop`スキル新設(ユーザー指示「これをひとつのスキルにして」)**: `.claude/skills/full_loop/SKILL.md`を新規作成。`/start`の状況確認→タスク選定(承認待ちなし)→実装→検証→デプロイ→本番確認→`/end`手順、を1回の指示で一気通貫実行するモード。ユーザーが明示的に一括実行を指示した場合のみ使う(通常の`/start`は従来どおり候補提示→承認待ち)。本番データの実書き込みを伴う操作は一括実行モードでも都度確認する旨を明記。
+- **変更ファイル**: `lib/models/bean_master.dart`/`lib/models/bean_master.g.dart`(手動編集)/`lib/services/sheets_service.dart`/`lib/widgets/image_upload_field.dart`/`lib/screens/create/bean_create_screen.dart`/`lib/screens/bean_detail_screen.dart`/`gas/Code.gs`/`test/models/bean_master_test.dart`/`test/bean_create_screen_test.dart`/`test/bean_detail_test.dart`/`.claude/skills/full_loop/SKILL.md`(新規)/`docs/改修マスタープラン.md`/`rules/verification.md`/`NEXT_SESSION.md`。
+- **次回の着手点**: 依存なしで残るのは**T3-35(豆情報読取AIへのカメラ撮影追加、M、T3-34完了により依存解消)**と**T3-36(統計on/off一覧ページ、M、依存なし)**。他はT3-1/T3-4/T3-20(ユーザー作業主体)のみ。T3-35着手時は`file_picker`のカメラ撮影対応(`FileType.image`+`allowMultiple:false`に加えWeb/モバイルでのカメラソース指定方法を確認)と、撮影画像をAI抽出と情報画像(`infoImageUrl`)の両方に使う結線が要点。
 
 ## -4.52 当日やったこと(2026-07-24、追加要望5件を記録→T3-37を実装+本番デプロイ+本番確認)
 

@@ -19,6 +19,7 @@ import 'package:bean_base/services/data_service.dart';
 class _FakeDataService implements DataService {
   final List<OriginMaster> origins;
   BeanMaster? lastAdded;
+  BeanMaster? lastUpdated;
   OriginMaster? lastSavedOrigin;
 
   _FakeDataService(this.origins);
@@ -34,7 +35,7 @@ class _FakeDataService implements DataService {
   @override
   Future<void> addBean(BeanMaster bean) async => lastAdded = bean;
   @override
-  Future<void> updateBean(BeanMaster bean) async {}
+  Future<void> updateBean(BeanMaster bean) async => lastUpdated = bean;
   @override
   Future<void> deleteBean(String id) async {}
   @override
@@ -191,5 +192,54 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('パッケージ画像から自動入力(AI)'), findsOneWidget);
+  });
+
+  testWidgets('T3-34: 画像アップロード欄がパッケージ/豆/情報の3つ表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 「画像」FormSectionはListView下方にあり遅延生成されるため、
+    // scrollUntilVisibleでスクロールしてから確認する(T3-29の教訓と同様)。
+    await tester.scrollUntilVisible(
+      find.text('パッケージ画像'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('パッケージ画像'), findsOneWidget);
+    expect(find.text('豆画像'), findsOneWidget);
+    expect(find.text('情報画像(説明書き等)'), findsOneWidget);
+  });
+
+  testWidgets('T3-34: 編集時に既存の3種類の画像URLがフォームに引き継がれ、更新時にそのまま保存される', (tester) async {
+    final edit = BeanMaster(
+      id: 'b1',
+      name: '既存の豆',
+      roastLevel: '中煎り',
+      origin: 'ブラジル',
+      imageUrl: 'https://example.com/package.jpg',
+      beanImageUrl: 'https://example.com/bean.jpg',
+      infoImageUrl: 'https://example.com/info.jpg',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanCreateScreen(editData: edit)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を更新する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded, isNull);
+    expect(fakeService.lastUpdated?.imageUrl, 'https://example.com/package.jpg');
+    expect(fakeService.lastUpdated?.beanImageUrl, 'https://example.com/bean.jpg');
+    expect(fakeService.lastUpdated?.infoImageUrl, 'https://example.com/info.jpg');
   });
 }

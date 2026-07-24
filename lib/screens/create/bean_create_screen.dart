@@ -41,6 +41,8 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   DateTime? _roastDate;
   bool _isInStock = true;
   String? _imageUrl;
+  String? _beanImageUrl;
+  String? _infoImageUrl;
   bool _isSaving = false;
   bool _isExtracting = false;
 
@@ -62,6 +64,8 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _roastDate = edit?.roastDate;
     _isInStock = edit?.isInStock ?? true;
     _imageUrl = edit?.imageUrl;
+    _beanImageUrl = edit?.beanImageUrl;
+    _infoImageUrl = edit?.infoImageUrl;
     _selectedOriginId = (edit?.originId.isNotEmpty ?? false) ? edit!.originId : null;
     _roastChoices = _withCurrentValue(_roastOptions, _roastLevel);
   }
@@ -344,6 +348,8 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       store: _storeController.text.trim(),
       type: _typeController.text.trim(),
       imageUrl: _imageUrl,
+      beanImageUrl: _beanImageUrl,
+      infoImageUrl: _infoImageUrl,
       purchaseDate: _purchaseDate,
       firstUseDate: edit?.firstUseDate,
       lastUseDate: edit?.lastUseDate,
@@ -487,8 +493,21 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
           title: '画像',
           children: [
             ImageUploadField(
+              label: 'パッケージ画像',
               initialImageUrl: _imageUrl,
               onImageUploaded: (url) => _imageUrl = url,
+            ),
+            const SizedBox(height: 16),
+            ImageUploadField(
+              label: '豆画像',
+              initialImageUrl: _beanImageUrl,
+              onImageUploaded: (url) => _beanImageUrl = url,
+            ),
+            const SizedBox(height: 16),
+            ImageUploadField(
+              label: '情報画像(説明書き等)',
+              initialImageUrl: _infoImageUrl,
+              onImageUploaded: (url) => _infoImageUrl = url,
             ),
           ],
         ),
