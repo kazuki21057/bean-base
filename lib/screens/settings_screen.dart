@@ -15,6 +15,7 @@ import 'debug/screen_gallery_screen.dart';
 import 'mock/mock_scaffold.dart';
 import 'stats_theory_screen.dart';
 import 'stats_status_screen.dart';
+import 'gemini_model_screen.dart';
 
 /// 豆/ミル/ドリッパー/フィルターの画像をファイル名(先頭がマスターIDと一致)で
 /// 突き合わせて一括アップロードする。旧`master_list_screen.dart`(Cycle 20 T1-7で
@@ -264,6 +265,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onPressed: () => setState(() => _obscureText = !_obscureText),
                 icon: Icon(_obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 18),
                 label: Text(_obscureText ? '表示する' : '隠す'),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  debugPrint('[Antigravity] Action: 設定→Geminiモデル設定(043)へ遷移');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GeminiModelScreen()),
+                  );
+                },
+                icon: const Icon(Icons.tune_outlined),
+                label: const Text('使用するモデルを設定'),
               ),
             ),
           ],

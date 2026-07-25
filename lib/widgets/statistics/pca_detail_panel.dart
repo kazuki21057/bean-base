@@ -224,6 +224,7 @@ class _PcaDeepAiSectionState extends ConsumerState<_PcaDeepAiSection> {
             topPc1Summary: topSummary,
             bottomPc1Summary: bottomSummary,
             apiKey: apiKey,
+            preferredModel: prefs.getString('gemini_model'),
           );
       if (mounted) setState(() => _result = text);
     } catch (e) {

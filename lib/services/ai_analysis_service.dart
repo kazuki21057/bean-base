@@ -6,7 +6,23 @@ import 'regression_service.dart';
 import 'statistics_service.dart';
 
 /// 複数モデルのフォールバック順 (新しい順、ユーザー検証結果に基づく)。
-const _kGeminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+/// T3-39(2026-07-25): `gemini-1.5-flash`は`https://ai.google.dev/gemini-api/docs/pricing?hl=ja`
+/// の現行モデル一覧に存在しなくなっていたため`gemini-2.0-flash`に置き換えて最新化した。
+const _kGeminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+
+/// T3-39: 設定(090→モデル設定)でユーザーが選択できるモデルの選択肢。
+/// `https://ai.google.dev/gemini-api/docs/pricing?hl=ja`(2026-07-25時点)を参照し、
+/// テキスト/画像入力に対応する汎用モデル(preview版・画像/動画/音声/embedding等の
+/// 専用モデルを除く)を新しい順に厳選した。
+const kSelectableGeminiModels = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+];
 
 /// T3-30: 豆の説明カード/パッケージ画像からGemini Visionで抽出した豆情報。
 /// 各項目は読み取れなければnull(呼び出し側は既存のフォーム値を維持する)。
@@ -32,6 +48,13 @@ class ExtractedBeanInfo {
 }
 
 class AiAnalysisService {
+  /// T3-39: [preferredModel]が指定されていれば先頭に置き、既定のフォールバック順
+  /// (`_kGeminiModels`)を後ろに続ける(重複は除く)。未指定・空文字なら既定順のまま。
+  List<String> _modelOrder(String? preferredModel) {
+    if (preferredModel == null || preferredModel.isEmpty) return _kGeminiModels;
+    return [preferredModel, ..._kGeminiModels.where((m) => m != preferredModel)];
+  }
+
   /// T3-30: 豆の説明カード/パッケージ画像から豆情報を抽出する(設計書に無い新機能、
   /// マスタープランT3-30に基づく)。数値統計計算の絶対規則(Gemini非依存)は
   /// テキスト抽出には適用されないため、抽出自体をGeminiに委ねる。
@@ -42,6 +65,7 @@ class AiAnalysisService {
     required String mimeType,
     required List<String> knownOrigins,
     required String apiKey,
+    String? preferredModel,
   }) async {
     if (apiKey.isEmpty) {
       throw Exception('APIキーが設定されていません。設定画面でGemini APIキーを入力してください。');
@@ -62,7 +86,7 @@ class AiAnalysisService {
     });
 
     Object? lastError;
-    for (final modelName in _kGeminiModels) {
+    for (final modelName in _modelOrder(preferredModel)) {
       try {
         final model = GenerativeModel(
           model: modelName,
@@ -120,19 +144,20 @@ class AiAnalysisService {
   ///
   /// 数値はすべて Dart 側で計算済み。プロンプトは§8.1のテンプレートを固定使用し、
   /// Gemini には再計算させず解釈のみを求める (CLAUDE.md 絶対規則)。
-  Future<String> interpretRegression(RegressionResult result, String apiKey) async {
+  Future<String> interpretRegression(RegressionResult result, String apiKey, {String? preferredModel}) async {
     if (apiKey.isEmpty) return 'APIキーが設定されていません。';
 
     final prompt = _buildRegressionPrompt(result);
+    final order = _modelOrder(preferredModel);
 
-    for (final modelName in _kGeminiModels) {
+    for (final modelName in order) {
       try {
         final model = GenerativeModel(model: modelName, apiKey: apiKey);
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
         debugPrint('[Antigravity] Gemini Model $modelName failed (interpretRegression): $e');
-        if (modelName == _kGeminiModels.last) {
+        if (modelName == order.last) {
           return 'AI解釈に失敗しました。\nエラー: $e\n\n'
               'APIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
         }
@@ -161,13 +186,12 @@ class AiAnalysisService {
         '(3)次に試すべき抽出条件の変更案1つ。各項目2-3文、日本語、断定を避けた表現で。';
   }
 
-  Future<String> analyzeComponents(List<PcaComponent> components, String apiKey) async {
+  Future<String> analyzeComponents(List<PcaComponent> components, String apiKey, {String? preferredModel}) async {
     if (components.isEmpty) return "No components to analyze.";
     if (apiKey.isEmpty) return "API Key is missing.";
 
-    // Prioritize newer models as per user testing
-    final modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
-    
+    final modelsToTry = _modelOrder(preferredModel);
+
     final prompt = _buildPrompt(components);
 
     for (final modelName in modelsToTry) {
@@ -200,19 +224,21 @@ class AiAnalysisService {
     required String topPc1Summary,
     required String bottomPc1Summary,
     required String apiKey,
+    String? preferredModel,
   }) async {
     if (apiKey.isEmpty) return 'APIキーが設定されていません。';
 
     final prompt = _buildDeepPrompt(pc1, pc2, topPc1Summary, bottomPc1Summary);
+    final order = _modelOrder(preferredModel);
 
-    for (final modelName in _kGeminiModels) {
+    for (final modelName in order) {
       try {
         final model = GenerativeModel(model: modelName, apiKey: apiKey);
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
         debugPrint('[Antigravity] Gemini Model $modelName failed (analyzeComponentsDeep): $e');
-        if (modelName == _kGeminiModels.last) {
+        if (modelName == order.last) {
           return 'AI解釈に失敗しました。\nエラー: $e\n\n'
               'APIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
         }

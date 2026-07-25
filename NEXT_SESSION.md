@@ -1,6 +1,23 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-25(`/loop 1h /full_loop`によるcron定期実行の5回目で、-4.56節のloop_guard修正が実地では不十分だったことが判明(次発火でも前ループの高額コストをそのまま引き継ぎcost=$77超と誤報告)。原因を「stdin JSONの`prompt`フィールドが想定した形式・存在ですらなかった可能性」と特定し、**JSONの特定フィールドに依存せずstdin生テキスト全体に対する正規表現マッチに変更**して再修正。手動のstdin合成テストでは複数のフィールド構造(`prompt`直下・`message.content`ネスト等)で正しく動作することを確認したが、**この手動テストでは「実際のharnessペイロードの正確な構造」までは検証できない**ため、次回`/full_loop`発火時に本当に解消しているかを実地で必ず確認すること。**このバグ修正のみ実施し、新規タスク(T3-39)には着手せず終了**。詳細は直下の-4.58節。**残る新規タスクはT3-39(Geminiモデル選択設定, M, 依存なし・優先度低)のみ。既存のT3-1/T3-4/T3-20はユーザー作業主体。** 次回`/loop`起動時はこのファイルと`docs/改修マスタープラン.md` §3から着手タスクを選ぶこと。)
+最終更新: 2026-07-25(`/loop 1h /full_loop`によるcron定期実行の6回目、-4.58節のloop_guard再修正が今回は正しく機能(発火直後にcost=$0.000/turns=0を確認)。**T3-39(Geminiモデル選択設定)を完了し、Phase 3の細分化タスク(ユーザー作業主体のT3-1/T3-4/T3-20を除く)がすべて完了**。詳細は直下の-4.59節。**マスタープラン§3に新規の未着手タスクは残っていない**(T3-1: モバイル実機レイアウト確認待ち/T3-4: T3-1完了待ち/T3-20: Ubuntu環境構築、いずれもユーザー作業主体で着手不可)。次回`/loop`発火時、`full_loop`は「着手すべきタスクが無い」と判断してユーザーへ承認を求める(PushNotification併用)はずなので、その時点でユーザーから新しい要望を聞くか、cronを停止するかの判断が必要。)
+
+## -4.59 当日やったこと(2026-07-25続き、`/loop`定期実行6回目→T3-39(Geminiモデル選択設定)を完了、Phase 3完全終了)
+
+**loop_guard再修正(-4.58節)が今回は正しく機能し、発火直後にcost=$0.000/turns=0を確認できた。依存が満たされた最上位(かつ唯一の残)タスクT3-39に着手した。**
+
+- **モデル一覧の最新化**: `WebFetch`で`https://ai.google.dev/gemini-api/docs/pricing?hl=ja`を参照し実装時点(2026-07-25)の現行モデルを確認したところ、既定フォールバック順に含まれていた`gemini-1.5-flash`が既に廃止されモデル一覧から消えていたことが判明。`gemini-2.0-flash`に置き換えた(`gemini-2.5-flash → gemini-2.0-flash-lite → gemini-2.0-flash`)。同ページからテキスト/画像入力対応の汎用モデル(preview限定版・画像/動画/音声生成・embedding等は除外)を7件厳選し`kSelectableGeminiModels`として公開。
+- **`AiAnalysisService`(`lib/services/ai_analysis_service.dart`)**: `_modelOrder(preferredModel)`ヘルパーを追加(指定モデルを先頭に、既存の既定フォールバック順を重複除去して後続)。4つの公開メソッド(`extractBeanInfoFromImage`/`interpretRegression`/`analyzeComponents`/`analyzeComponentsDeep`)すべてに`preferredModel`任意引数を追加し、内部の`for (modelName in _kGeminiModels)`ループを`_modelOrder(preferredModel)`に置換(`analyzeComponents`が独自に持っていた重複リスト`modelsToTry`もこの機会に統合)。
+- **呼び出し元4箇所**(`bean_create_screen.dart`/`pca_detail_panel.dart`/`pca_scatter_plot.dart`/`regression_section.dart`): 既存の`gemini_api_key`取得と同じパターンで`shared_preferences`から`gemini_model`キーを読み取り`preferredModel`として渡すよう統一。
+- **新規ページ043「Geminiモデル設定」**(`lib/screens/gemini_model_screen.dart`): `AppScreen.geminiModel('043',…)`追加、`screen_registry.dart`にcase追加。「自動(既定の優先順)」+7モデルを`RadioListTile`で選択、保存で`shared_preferences`(`gemini_model`、自動選択時はキー削除)に保存。**`RadioListTile`のgroupValue/onChangedは(Flutter 3.32で導入された)`RadioGroup`祖先ウィジェットへの移行により非推奨化されていたため、`RadioGroup<String?>`でラップする現行APIを使用**(旧APIのままだと新規lint issueが発生し検証が通らないため)。090「Gemini APIキー」`FormSection`内、APIキー入力欄の下に遷移ボタン「使用するモデルを設定」を追加。
+- **検証**: `flutter analyze`44件(新規0)。`flutter test`194件全パス(既存191+新規3、`test/gemini_model_screen_test.dart`)。
+  - **既存テストの破損と修正(教訓化)**: `test/settings_screen_test.dart`の「APIキーを入力して保存する」テストが、新ボタン追加による画面の高さ増分で固定オフセット`tester.drag(ListView, Offset(0,-600))`では「設定を保存する」ボタンに届かなくなり破損。`-700`〜`-1100`ではウィジェット自体が未生成(見つからない)、`-1200`ではウィジェットは見つかるがAppBarの裏に隠れヒットテスト失敗、微小補正dragは逆に未生成状態に戻ってしまうという再現性の低い挙動に翻弄された。最終的に`tester.state<ScrollableState>(...).position.jumpTo(offset)`を少しずつ呼びアニメーション/フリングを伴わない決定的スクロールに切り替えて解決(`rules/verification.md`に詳細追記)。
+  - `flutter build web`成功。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 090→「使用するモデルを設定」→043でモデル一覧表示、`gemini-2.5-pro`を選択して保存→スナックバー確認→ページリロード後も選択状態が正しく永続化されていることを確認。コンソールエラー0件。
+- **本番デプロイ**: `firebase deploy --only hosting`で https://beanbase-app-2016.web.app へ反映(34ファイル)。
+- **スコープ判断**: モデル一覧は実装時点のWeb検索結果を静的にハードコードしたもので、アプリ実行時にライブ取得しているわけではない(`google_generative_ai` 0.4.7にモデル一覧取得APIが無く、Generative Language APIの`models.list`REST直叩きは低優先度タスクに対してスコープ過大と判断し見送った)。
+- **変更ファイル**: `lib/services/ai_analysis_service.dart`/`lib/screens/gemini_model_screen.dart`(新規)/`lib/routing/app_screen.dart`/`lib/routing/screen_registry.dart`/`lib/screens/settings_screen.dart`/`lib/screens/create/bean_create_screen.dart`/`lib/widgets/statistics/pca_detail_panel.dart`/`lib/widgets/statistics/pca_scatter_plot.dart`/`lib/widgets/statistics/regression_section.dart`/`test/gemini_model_screen_test.dart`(新規)/`test/settings_screen_test.dart`/`docs/改修マスタープラン.md`/`rules/verification.md`。
+- **次回の着手点**: **マスタープランに新規の未着手タスクは残っていない**(T3-1/T3-4/T3-20はいずれもユーザー作業主体で着手不可)。次回`/loop`発火時は`full_loop`の「着手すべきタスクが無い場合の承認待ち」ルールに従い、新規タスクに着手せずユーザーに確認を求めることになる見込み。ユーザーから新たな要望が無ければ、cronループを停止するか待機し続けるかをその時点で確認する。
 
 ## -4.58 当日やったこと(2026-07-25続き、`/loop`定期実行5回目→loop_guardの境界検出バグを再修正)
 

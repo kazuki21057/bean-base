@@ -143,7 +143,14 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, 'test-api-key-123');
-    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    var offset = 0.0;
+    while (find.text('設定を保存する').evaluate().isEmpty &&
+        offset < scrollable.position.maxScrollExtent) {
+      offset += 150;
+      scrollable.position.jumpTo(offset);
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
     await tester.tap(find.text('設定を保存する'));
     await tester.pumpAndSettle();

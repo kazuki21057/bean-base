@@ -659,7 +659,11 @@ class _RegressionAiSectionState extends ConsumerState<_RegressionAiSection> {
     setState(() => _loading = true);
     try {
       debugPrint('[Antigravity] Action: 回帰結果のAI解釈を要求 (n=${widget.model.n})');
-      final text = await ref.read(aiAnalysisServiceProvider).interpretRegression(widget.model, apiKey);
+      final text = await ref.read(aiAnalysisServiceProvider).interpretRegression(
+            widget.model,
+            apiKey,
+            preferredModel: prefs.getString('gemini_model'),
+          );
       if (mounted) setState(() => _result = text);
     } catch (e) {
       debugPrint('[Antigravity] Error: interpretRegression 失敗: $e');

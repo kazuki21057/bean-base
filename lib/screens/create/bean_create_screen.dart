@@ -274,12 +274,14 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     setState(() => _isExtracting = true);
     try {
       final origins = ref.read(originMasterProvider).value ?? const [];
+      final preferredModel = prefs.getString('gemini_model');
       debugPrint('[Antigravity] Action: 豆情報のAI抽出を実行 (file=$filename, camera=$saveAsInfoImage)');
       final extracted = await ref.read(aiAnalysisServiceProvider).extractBeanInfoFromImage(
             imageBytes: bytes,
             mimeType: _mimeTypeFromName(filename),
             knownOrigins: origins.map((o) => o.nameJa).toList(),
             apiKey: apiKey,
+            preferredModel: preferredModel,
           );
       _applyExtractedInfo(extracted, origins);
 

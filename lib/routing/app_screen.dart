@@ -36,6 +36,7 @@ enum AppScreen {
   statistics('040', '統計情報'),
   statsTheory('041', '統計の理論と読み方'),
   statsStatus('042', '統計処理の稼働状況'),
+  geminiModel('043', 'Geminiモデル設定'),
   settings('090', '設定');
 
   final String code;

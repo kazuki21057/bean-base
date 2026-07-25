@@ -246,7 +246,11 @@ class PcaScatterPlot extends ConsumerWidget {
     // Start Analysis
     ref.read(aiAnalysisLoadingProvider.notifier).state = true;
     try {
-      final result = await ref.read(aiAnalysisServiceProvider).analyzeComponents(components, apiKey);
+      final result = await ref.read(aiAnalysisServiceProvider).analyzeComponents(
+            components,
+            apiKey,
+            preferredModel: prefs.getString('gemini_model'),
+          );
       ref.read(aiAnalysisResultProvider.notifier).state = result;
     } catch (e) {
       ref.read(aiAnalysisResultProvider.notifier).state = 'エラー: $e';
