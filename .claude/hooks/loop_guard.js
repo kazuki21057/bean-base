@@ -231,10 +231,13 @@ function main() {
   // このプロンプト自体が transcript にまだ書き込まれていないことがある
   // (findLoopBoundaryTs は1ターン遅れて検出することになり、/start・/full_loop
   // 直後のチェックが前ループの累計コストを誤って引き継いでしまう)。
-  // hook入力の `prompt` フィールド(標準のUserPromptSubmitペイロード)に境界
-  // マーカーが含まれていれば、現在時刻を境界として即座に採用する(常に
-  // transcript側の境界より新しいので上書きして問題ない)。
-  if (typeof input.prompt === 'string' && LOOP_BOUNDARY_RE.test(input.prompt)) {
+  // 標準ペイロードの `prompt` フィールドを直接チェックする初版の修正は実地では
+  // 効果が無かった(フィールド名・格納形式が想定と異なっていた可能性があり、
+  // 2026-07-25の次ループでも前ループの高額コストをそのまま引き継いだ)。
+  // そのため JSON パース後の特定フィールドに依存せず、stdin の生テキスト全体
+  // (`raw`)に境界コマンドの文字列が含まれるかを直接チェックする方式に変更した
+  // (フィールド名の実際の仕様が不明でも確実に拾える、最も頑健な検出方法)。
+  if (/\/(?:start|full_loop)\b/.test(raw)) {
     loopBoundaryTs = nowIso;
   }
 
