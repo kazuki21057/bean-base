@@ -1,6 +1,21 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-25(`/loop 1 /full_loop`によるcron定期実行(毎時7分、1時間間隔)の1回目として`full_loop`スキルが自動選定した**T3-35(豆情報読取AIへのカメラ撮影追加)を実装・検証・本番デプロイ・commit/push(`27772a3`)まで完了**。詳細は直下の-4.54節。**残る新規タスクはT3-36(統計on/off一覧ページ, M, 依存なし)・T3-38(original-dataの本番Sheets移植, M, 依存なし)・T3-39(Geminiモデル選択設定, M, 依存なし・優先度低)。既存のT3-1/T3-4/T3-20はユーザー作業主体。** **同日、ユーザー指示によりこのプロジェクトの確認方針を変更**: 「ファイル・データの削除を伴う操作」以外(本番Sheets/Driveへの書き込み・デプロイ・push含む)は事前承認済みとして都度確認しない運用に変更(`full_loop`/`end`スキルの「注意」節に反映済み)。**当日コストが上限$24を超過(loop_guard検知、約$44.6)したため本セッションはこれ以上の新規タスクに着手せずここで終了**。次回`/loop`起動時はこのファイルと`docs/改修マスタープラン.md` §3から着手タスクを選ぶこと。)
+最終更新: 2026-07-25(`/loop 1h /full_loop`によるcron定期実行(毎時7分、1時間間隔)の2回目として`full_loop`スキルが自動選定した**T3-36(統計処理の稼働状況一覧ページ新設)を実装・検証・本番デプロイまで完了**。詳細は直下の-4.55節。**残る新規タスクはT3-38(original-dataの本番Sheets移植, M, 依存なし)・T3-39(Geminiモデル選択設定, M, 依存なし・優先度低)。既存のT3-1/T3-4/T3-20はユーザー作業主体。** **同日、運用ルールを2点追加変更**: ①`loop_guard.js`のしきい値(コスト$24/ターン30/連続失敗3)の集計単位を「当日累計」→「直近の`/start`・`/full_loop`以降の1ループ単位」に変更(cronで同一セッション内に複数ループが連続すると当日累計がすぐ上限に達し実質1回しか動かせなかったため)。②`start`/`full_loop`スキルで、ユーザーへの確認・質問は`PushNotification`ツールでも同時通知するよう変更(cron定期実行はユーザーが画面を見ていない前提のため)。次回`/loop`起動時はこのファイルと`docs/改修マスタープラン.md` §3から着手タスクを選ぶこと。)
+
+## -4.55 当日やったこと(2026-07-25続き、loop_guardをループ単位に変更+push通知追加→T3-36を実装+本番デプロイ)
+
+**ユーザー指示「ターン数、連続失敗もコストと同様にループごとにして。また、スキルにユーザへの依頼はすべてプッシュ通知がくるようにして。これらを変更し、/loop 1h /full_loopして」に基づき、まず運用ルール2点を変更し、その後`/loop 1h /full_loop`で`full_loop`を再度自走させた。**
+
+- **loop_guard.jsの集計単位変更(ターン数・連続失敗も1ループ単位に)**: 前回セッションでコストのみループ境界(`/start`・`/full_loop`呼び出しの検出)ベースに変更済みだったが、ターン数・連続失敗は当日累計のまま残っていたため統一。`turns`のカウントを`inLoopScope`(境界以降)ベースに変更。`readFailures`は`<日付>`ではなく`<ループ識別子>`(境界タイムスタンプ、無ければ`today:<日付>`)をキーにし、識別子が現在と異なれば0扱いに変更。`loop_state.md`に「ループ識別子(loop_failures.txt記録用キー)」を明示出力し、Claudeが失敗記録時にコピーできるようにした。実transcriptに対する動作確認(手動でstdinを合成してhookを直接実行)で、識別子・本ループのターン数が正しく算出されることを確認済み。`CLAUDE.md`・マスタープラン§5・`start`/`full_loop`スキルの該当記述も更新。
+- **PushNotification運用の追加**: `CLAUDE.md`§日次改修ループ運用ルールに「ユーザーへの依頼・確認(AskUserQuestion・終了条件到達報告・削除操作前のリスク説明等)は`PushNotification`でも同時通知する」を追記。`start`(手順5の着手確認)・`full_loop`(「着手すべきタスクが無い場合の承認待ち」、注意節)に同様の指示を追記。cronによる定期実行はユーザーが画面を見ていない前提のため。
+- **`/loop 1h /full_loop`で再起動**: 旧cron(`bba13efb`)は前回セッション終了時に停止済みだったため、新規cron(`6a4044da`、毎時7分・1時間間隔・セッション限定)を作成。クラウド/セッション限定の選択は同一会話内で既に「セッション限定」を選択済みのため再確認を省略。作成後、`/loop`の手順どおり`/full_loop`を即時実行(2回目の自動ループ)。
+- **T3-36完了(統計処理の稼働状況一覧ページ新設)**: 新規ページ**042「統計処理の稼働状況」**(`lib/screens/stats_status_screen.dart`)。F1(重回帰)/F2(PCA)/F4(GP)/F5(好み検定)それぞれについて、設計書§1.3の最小データ条件を判定する既存ロジック(`buildRegressionMatrix`/`StatisticsService.calculatePca`/`PreferenceService.build`/`GpService.fit`)をそのまま呼び出して「稼働中(緑)/未稼働(赤)」を判定・表示し、未稼働時は必要件数を案内。各行から`StatsTheoryLink`で041の該当セクションへ遷移可能。090「ヘルプ」に導線を追加。`AppScreen.statsStatus('042',…)`・`screen_registry.dart`のcase追加。
+  - **F4判定の設計判断**: `GpService.fit`の重み付け(設計書§7.5)は不一致データにも最低0.2の重みを与えるため、n_effは特定の産地×焙煎度の組み合わせに依らずほぼ全記録数に連動する(=どの組み合わせで試してもほぼ同じ判定になる)。本ページでは「最新記録の産地×焙煎度」を代表値として1回フィットする簡略化で判定した。
+  - **検証**: `flutter analyze`44件(新規0)。`flutter test`191件全パス(既存188+新規3、`test/stats_status_screen_test.dart`)。`flutter build web`成功。
+  - **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 090→「統計処理の稼働状況」で4機能とも緑ドット「稼働中」(F1=77件/F2=146件/F4 n_eff=47.7/F5最大グループ16件)と表示。F1の本アイコンから041の重回帰セクションへ自動スクロール遷移することを確認。コンソールエラー0件。
+  - **本番デプロイ**: `firebase deploy --only hosting`で https://beanbase-app-2016.web.app へ反映(34ファイル)。
+- **変更ファイル**: `.claude/hooks/loop_guard.js`/`CLAUDE.md`/`.claude/skills/start/SKILL.md`/`.claude/skills/full_loop/SKILL.md`/`lib/routing/app_screen.dart`/`lib/routing/screen_registry.dart`/`lib/screens/stats_status_screen.dart`(新規)/`lib/screens/settings_screen.dart`/`test/stats_status_screen_test.dart`(新規)/`docs/改修マスタープラン.md`。
+- **次回の着手点**: 依存なしで残るのは**T3-38(original-data移植、M、既存本番データとの重複登録防止が必須)**・**T3-39(Geminiモデル選択設定、M、優先度低)**。他はT3-1/T3-4/T3-20(ユーザー作業主体)のみ。`original-data/`配下のCSV(T3-38向けにユーザーが投入したデータ)は依然未コミットのまま残っている。
 
 ## -4.54 当日やったこと(2026-07-25、`/loop`定期実行1回目→T3-35を実装+本番デプロイ、original-data移植タスク追加、Geminiモデル選択タスク追加)
 
