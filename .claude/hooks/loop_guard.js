@@ -218,6 +218,7 @@ function main() {
   const transcriptPath = input.transcript_path || '';
   const cwd = input.cwd || process.cwd();
   const today = localDateStr(new Date());
+  const nowIso = new Date().toISOString();
 
   let loopBoundaryTs = null;
   try {
@@ -225,6 +226,17 @@ function main() {
       fs.readFileSync(transcriptPath, 'utf8').split('\n')
     );
   } catch (_) {}
+
+  // UserPromptSubmit は「今まさに送信された」プロンプトに対して発火するため、
+  // このプロンプト自体が transcript にまだ書き込まれていないことがある
+  // (findLoopBoundaryTs は1ターン遅れて検出することになり、/start・/full_loop
+  // 直後のチェックが前ループの累計コストを誤って引き継いでしまう)。
+  // hook入力の `prompt` フィールド(標準のUserPromptSubmitペイロード)に境界
+  // マーカーが含まれていれば、現在時刻を境界として即座に採用する(常に
+  // transcript側の境界より新しいので上書きして問題ない)。
+  if (typeof input.prompt === 'string' && LOOP_BOUNDARY_RE.test(input.prompt)) {
+    loopBoundaryTs = nowIso;
+  }
 
   const { cost, turns, perModelTokens, ok } = analyze(
     transcriptPath,
