@@ -29,19 +29,22 @@ class GpExplorerSection extends ConsumerStatefulWidget {
 
 class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
   String? _selectedOriginId;
-  String _selectedRoast = '中煎り';
+  String _selectedRoast = 'ハイ';
 
   /// 粗グリッド (設計書§7.5「5℃×1.0比率の粗グリッド 4×5」)。
   static const _gridTemps = <double>[80, 85, 90, 95];
   static const _gridRatios = <double>[14, 15, 16, 17, 18];
 
-  /// 焙煎度の代表5水準 (encoding.dart の roastOrdinalMap の各順序値に対応)。
+  /// 焙煎度の代表8水準 (T3-42、encoding.dart の roastOrdinalMap の各順序値に対応)。
   static const _roastOptions = <(String, double)>[
-    ('浅煎り', 1.0),
-    ('中浅煎り', 2.0),
-    ('中煎り', 3.0),
-    ('中深煎り', 4.0),
-    ('深煎り', 5.0),
+    ('ライト', 1.0),
+    ('シナモン', 2.0),
+    ('ミディアム', 3.0),
+    ('ハイ', 4.0),
+    ('シティ', 5.0),
+    ('フルシティ', 6.0),
+    ('フレンチ', 7.0),
+    ('イタリアン', 8.0),
   ];
 
   @override
@@ -96,7 +99,7 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
     }
 
     _selectedOriginId ??= selectableOrigins.first.id;
-    final roastOrdinal = roastOrdinalMap[_selectedRoast] ?? 3.0;
+    final roastOrdinal = roastOrdinalMap[_selectedRoast] ?? 4.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -125,7 +128,7 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
                   for (final r in _roastOptions)
                     DropdownMenuItem(value: r.$1, child: Text(r.$1)),
                 ],
-                onChanged: (v) => setState(() => _selectedRoast = v ?? '中煎り'),
+                onChanged: (v) => setState(() => _selectedRoast = v ?? 'ハイ'),
               ),
             ),
           ],

@@ -94,9 +94,11 @@ void main() {
     testWidgets('statementsカードとグループ統計テーブルが表示される', (tester) async {
       await _pump(tester, _records);
 
-      expect(find.textContaining('「エチオピア×浅煎り」を高評価する傾向'), findsOneWidget);
+      // T3-42: 焙煎度8段階統一により、入力'浅煎り'(旧5段階)の代表ラベルは
+      // 新8段階の同一順序値(2.0)の代表名'シナモン'になる(グルーピング自体は不変)。
+      expect(find.textContaining('「エチオピア×シナモン」を高評価する傾向'), findsOneWidget);
       expect(find.text('グループ統計'), findsOneWidget);
-      expect(find.textContaining('エチオピア×浅煎り'), findsWidgets);
+      expect(find.textContaining('エチオピア×シナモン'), findsWidgets);
       expect(find.text('有意'), findsOneWidget);
       // n=2の小グループは「n不足」バッジ。
       expect(find.text('n不足'), findsWidgets);

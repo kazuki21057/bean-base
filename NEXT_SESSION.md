@@ -1,6 +1,20 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-26(`/loop`定期実行、T3-40完了によりT3-41(全画像欄でファイル/カメラ選択)の依存が解消され着手・完了。T3-35で豆情報読取AI(012)だけにあった「画像の取得方法」ダイアログを`ImageUploadField`(全マスター共通の画像アップロード部品)へ共通化し、本番デプロイ・ブラウザ確認済み。詳細は直下の-4.62節。**次に着手できる(依存なし)のはT3-44(S)・T3-45(M)・T3-42(L)・T3-46(S)・T3-50(M)**。`/loop`のcronは稼働中(`4501d1eb`、毎時7分)。)
+最終更新: 2026-07-26(`/loop`定期実行、T3-42(焙煎度8段階統一)完了。`roastOrdinalMap`を旧5段階(1.0〜5.0)から新8段階(ライト〜イタリアン、1.0〜8.0)へ再構成し、旧表記は2026-07-26ユーザー確認済みの対応表どおり後方互換エイリアスとして保持(既存データは欠測にならない)。012/041(F1・F4)のUI選択肢を8段階に統一、`preference_service.dart`の代表ラベル変更に伴うテスト3件を更新+新規`encoding_test.dart`を追加。本番デプロイ・ブラウザ確認済み。詳細は直下の-4.63節。**T3-42完了によりT3-43(AI抽出反映)・T3-51(説明ページ)・T3-47(メソッドの推奨焙煎度)が着手可能になった。次に着手できる(依存なし)のはT3-44(S)・T3-45(M)・T3-43(L)・T3-51(M)・T3-47(M)・T3-46(S)・T3-50(M)**。`/loop`のcronは稼働中(`4501d1eb`、毎時7分)。)
+
+## -4.63 当日やったこと(2026-07-26続き、`/loop`定期実行→T3-42(焙煎度8段階統一)を完了)
+
+**依存なしですぐ着手できるタスク(T3-44/T3-45/T3-42/T3-46/T3-50)のうち、タスク表で最上位かつ後続タスク(T3-43/T3-51/T3-47)を解放するT3-42に着手。**
+
+- **`lib/services/math/encoding.dart`の`roastOrdinalMap`を再構成**: 新8段階(ライト1.0/シナモン2.0/ミディアム3.0/ハイ4.0/シティ5.0/フルシティ6.0/フレンチ7.0/イタリアン8.0)を正式名として宣言し、各段階に英語アルファベット表記のエイリアス(`Light`/`Cinnamon`/…/`Italian`)を追加。続けて2026-07-26ユーザー確認済みの対応表どおり、旧5段階(浅煎り→シナモン2.0、中浅煎り→ミディアム3.0、中煎り→ハイ4.0、中深煎り→シティ5.0、深煎り→フレンチ7.0)を後方互換エイリアスとして追加(ライト・フルシティ・イタリアンは旧データに存在しないため欠測ではなく単に該当が無いだけ)。UI選択肢用の新定数`roastLevels8`も追加。
+- **UI 3箇所を8段階へ統一**: `lib/screens/create/bean_create_screen.dart`(012、`_roastOptions`を`roastLevels8`に置換)、`lib/widgets/statistics/regression_section.dart`(041 F1回帰予測フォーム、同様)、`lib/widgets/brew/gp_explorer_section.dart`(041 F4レシピ探索、タプル形式の`_roastOptions`を8段階に置換、デフォルト値を旧'中煎り'相当の新'ハイ'に変更)。`lib/screens/stats_status_screen.dart`のF4判定フォールバックも3.0→4.0に更新。
+- **影響範囲の副作用と対応**: `preference_service.dart`の`roastLabelByOrdinal`は各順序値の代表ラベルを`roastOrdinalMap`の宣言順(先勝ち)で決めるため、新8段階の正式名を旧エイリアスより先に宣言した結果、**旧表記の記録も新8段階の代表名でグルーピング・表示されるようになった**(グルーピングの単位=順序値そのものは不変、表示名のみ新名称になる。例: 旧'浅煎り'の記録は今後'シナモン'として集計・表示される)。この副作用で失敗した既存テスト3件(`preference_service_test.dart`/`preference_section_test.dart`/`recipe_suggestion_card_test.dart`)を、期待する表示ラベルを新代表名に更新し理由コメントを付記して修正(設計書§9.6のフィクスチャ数値そのものは変更していない)。
+- **新規テスト**: `test/math/encoding_test.dart`を追加(新8段階の順序値、英語エイリアスの一致、旧5段階の後方互換解決、`roastLevels8`の内容、未知表記の欠測扱いを検証)。
+- **検証**: `flutter analyze`44件(新規0)。`flutter test`200件全パス(既存195+新規5)。`flutter build web`成功(`web_plugin_registrant.dart`に`image_picker_for_web`の登録が引き続き含まれることを確認)。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 041のレシピ探索(F4)で焙煎度ドロップダウンの既定値が「ハイ」になっており、開くと8段階(ライト/シナモン/ミディアム/ハイ/シティ/フルシティ/フレンチ/イタリアン)すべてが選択可能なことを確認。ダッシュボードの「今日のおすすめレシピ」で実際の本番データに基づき「この産地はシティが高評価です」と表示されている(新代表名が本番データで実際に機能していることを確認)。豆管理(旧データ「中煎り」のスイートイエロー)を編集フォームで開くと、「中煎り」チップが選択済みのまま新8段階の選択肢と共存表示され、欠測やクラッシュが無いことを確認。コンソールエラー0件。
+- **本番デプロイ**: `firebase deploy --only hosting`で https://beanbase-app-2016.web.app へ反映。
+- **変更ファイル**: `lib/services/math/encoding.dart`/`lib/screens/create/bean_create_screen.dart`/`lib/widgets/brew/gp_explorer_section.dart`/`lib/widgets/statistics/regression_section.dart`/`lib/screens/stats_status_screen.dart`/`test/math/encoding_test.dart`(新規)/`test/preference_service_test.dart`/`test/preference_section_test.dart`/`test/recipe_suggestion_card_test.dart`/`docs/改修マスタープラン.md`。
+- **次回の着手点**: 依存なしですぐ着手できるのはT3-44(S)・T3-45(M)・T3-46(S)・T3-50(M)。T3-42完了により**T3-43(AI抽出に反映、L)・T3-51(焙煎度説明ページ、M)・T3-47(メソッドに推奨焙煎度、M)**も着手可能になった。
 
 ## -4.62 当日やったこと(2026-07-26続き、`/loop`定期実行→T3-41(全画像欄でファイル/カメラ選択)を完了)
 

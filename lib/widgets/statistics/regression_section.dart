@@ -436,12 +436,12 @@ class _RegressionPredictionFormState
   late final TextEditingController _tempCtrl;
   late final TextEditingController _ratioCtrl;
   late final TextEditingController _timeCtrl;
-  String _roastLabel = '中煎り';
+  String _roastLabel = 'ハイ';
   String? _originLevel;
   ({double point, double lower, double upper})? _result;
 
-  // 順序値の重複を避けた代表ラベル(設計書§3.5 の roastOrdinalMap の正規5値)。
-  static const _roastOptions = ['浅煎り', '中浅煎り', '中煎り', '中深煎り', '深煎り'];
+  // T3-42: 焙煎度8段階の代表ラベル(設計書§3.5 の roastOrdinalMap 参照)。
+  static const _roastOptions = roastLevels8;
 
   @override
   void initState() {
@@ -467,7 +467,7 @@ class _RegressionPredictionFormState
     final temp = double.tryParse(_tempCtrl.text.trim()) ?? cm['temperature'] ?? 90;
     final ratio = double.tryParse(_ratioCtrl.text.trim()) ?? cm['brewRatio'] ?? 15;
     final time = double.tryParse(_timeCtrl.text.trim()) ?? cm['totalTimeMin'] ?? 3;
-    final roast = roastOrdinalMap[_roastLabel] ?? 3.0;
+    final roast = roastOrdinalMap[_roastLabel] ?? 4.0;
 
     final r = ref.read(regressionServiceProvider).predict(
           widget.model,

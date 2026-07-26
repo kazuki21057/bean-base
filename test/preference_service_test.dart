@@ -59,7 +59,9 @@ void main() {
     test('グループAの平均・CI・Welch検定・significantがscipy検証値と一致する (許差1e-4)', () {
       final profile = PreferenceService().build(records, {});
 
-      final a = profile.groups.firstWhere((g) => g.originLevel == 'エチオピア' && g.roastLabel == '浅煎り');
+      // T3-42: 焙煎度8段階統一により、入力'浅煎り'(旧5段階)の代表ラベルは
+      // 新8段階の同一順序値(2.0)の代表名'シナモン'になる(グルーピング自体は不変)。
+      final a = profile.groups.firstWhere((g) => g.originLevel == 'エチオピア' && g.roastLabel == 'シナモン');
 
       expect(a.n, 5);
       expect(a.mean, closeTo(8.4, 1e-9));
@@ -99,7 +101,8 @@ void main() {
 
       expect(profile.totalRecords, records.length);
       expect(profile.statements.length, 1);
-      expect(profile.statements.first, contains('「エチオピア×浅煎り」を高評価する傾向'));
+      // T3-42: 代表ラベルが新8段階の'シナモン'になる(上記コメント参照)。
+      expect(profile.statements.first, contains('「エチオピア×シナモン」を高評価する傾向'));
       expect(profile.statements.first, contains('平均8.4'));
       expect(profile.statements.first, contains('p=0.000'));
     });

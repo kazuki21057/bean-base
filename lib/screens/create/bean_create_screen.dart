@@ -10,6 +10,7 @@ import '../../routing/app_screen.dart';
 import '../../services/ai_analysis_service.dart';
 import '../../services/data_service.dart';
 import '../../services/image_service.dart';
+import '../../services/math/encoding.dart';
 import '../../widgets/image_upload_field.dart';
 import 'create_form_widgets.dart';
 
@@ -30,7 +31,7 @@ class BeanCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
-  static const _roastOptions = ['浅煎り', '中煎り', '中深煎り', '深煎り'];
+  static const _roastOptions = roastLevels8;
 
   final _nameController = TextEditingController();
   final _storeController = TextEditingController();

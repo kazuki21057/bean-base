@@ -239,7 +239,9 @@ void main() {
       ];
       await _pump(tester, beans: [bean], records: manyRecords, origins: origins);
 
-      expect(find.textContaining('この産地は浅煎りが高評価です'), findsOneWidget);
+      // T3-42: 焙煎度8段階統一により、代表ラベルは新8段階の同一順序値(2.0)の
+      // 代表名'シナモン'になる(おすすめ焙煎度との一致判定は順序値ベースのため不変)。
+      expect(find.textContaining('この産地はシナモンが高評価です'), findsOneWidget);
       expect(find.text('おすすめ焙煎度と一致'), findsOneWidget);
     });
 
