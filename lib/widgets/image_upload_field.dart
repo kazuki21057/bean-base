@@ -122,6 +122,21 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
     super.dispose();
   }
 
+  // T3-44: 画面下部固定の登録ボタン(CreateFormScaffold)にSnackBarが重なり
+  // タップを奪う不具合の対策として、floating+マージンでボタン領域を避ける。
+  void _showSnack(String message, {Color? backgroundColor}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _pickImage() async {
     try {
       final picked = await pickImageFile(context);
@@ -133,15 +148,11 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
           _isUploading = true;
         });
 
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Uploading image...')),
-            );
-        }
+        _showSnack('画像をアップロード中...');
 
         final service = ref.read(imageServiceProvider);
         final url = await service.saveImage(file);
-        
+
         setState(() {
           _isUploading = false;
         });
@@ -149,28 +160,16 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
         if (url != null) {
           _urlController.text = url;
           widget.onImageUploaded(url);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Image uploaded!')),
-            );
-          }
+          _showSnack('画像をアップロードしました');
         } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to upload image'), backgroundColor: Colors.red),
-            );
-          }
+          _showSnack('画像のアップロードに失敗しました', backgroundColor: Colors.red);
         }
       }
     } catch (e) {
       setState(() {
         _isUploading = false;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e'), backgroundColor: Colors.red),
-        );
-      }
+      _showSnack('画像の取得に失敗しました: $e', backgroundColor: Colors.red);
     }
   }
 
