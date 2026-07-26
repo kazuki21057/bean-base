@@ -271,7 +271,7 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
         ),
         FormSection(
           icon: Icons.water_drop_outlined,
-          title: '注湯ステップ (Pouring Steps)',
+          title: '注湯ステップ',
           children: [
             if (_isEdit && !_stepsLoaded)
               const Center(child: CircularProgressIndicator())

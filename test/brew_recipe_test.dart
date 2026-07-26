@@ -165,13 +165,13 @@ void main() {
     await tester.drag(listView, const Offset(0, -1000));
     await tester.pumpAndSettle();
 
-    expect(find.text('End Time'), findsOneWidget);
-    expect(find.text('Total Water'), findsOneWidget);
+    expect(find.text('経過時間'), findsOneWidget);
+    expect(find.text('総湯量'), findsOneWidget);
     expect(find.text('Bloom'), findsOneWidget);
     expect(find.text('Pour'), findsOneWidget);
 
     // ステップ追加
-    final addStepFinder = find.text('Add Step');
+    final addStepFinder = find.text('ステップを追加');
     expect(addStepFinder, findsOneWidget);
     await tester.tap(addStepFinder);
     await tester.pumpAndSettle();

@@ -188,7 +188,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
             Expanded(
               child: TextFormField(
                 controller: _urlController,
-                decoration: const InputDecoration(labelText: 'Image URL'),
+                decoration: const InputDecoration(labelText: '画像URL'),
                 onChanged: (value) => widget.onImageUploaded(value),
               ),
             ),
@@ -200,7 +200,7 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
                 )
               : IconButton(
                   icon: const Icon(Icons.cloud_upload),
-                  tooltip: 'Upload Image',
+                  tooltip: '画像をアップロード',
                   onPressed: _pickImage,
                 ),
           ],

@@ -21,11 +21,11 @@ const Map<AppScreen, IconData> _tabIcons = {
 };
 
 const Map<AppScreen, String> _tabLabels = {
-  AppScreen.dashboard: 'Home',
-  AppScreen.beanList: 'Masters',
-  AppScreen.logList: 'Logs',
-  AppScreen.brewRecipe: 'Calc',
-  AppScreen.statistics: 'Stats',
+  AppScreen.dashboard: 'ホーム',
+  AppScreen.beanList: 'マスター',
+  AppScreen.logList: '履歴',
+  AppScreen.brewRecipe: 'レシピ',
+  AppScreen.statistics: '統計',
 };
 
 Widget _screenFor(AppScreen screen) {

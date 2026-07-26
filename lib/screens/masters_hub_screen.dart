@@ -28,7 +28,7 @@ class MastersHubScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Masters'),
+        title: const Text('マスター管理'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),

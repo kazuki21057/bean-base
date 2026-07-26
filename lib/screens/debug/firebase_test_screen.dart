@@ -42,17 +42,17 @@ class _FirebaseTestScreenState extends ConsumerState<FirebaseTestScreen> {
           });
         } else {
           setState(() {
-            _errorMessage = 'Upload returned null (Check console)';
+            _errorMessage = 'アップロード結果がnullでした(コンソールを確認してください)';
           });
         }
       } else {
         setState(() {
-          _errorMessage = 'No file selected';
+          _errorMessage = 'ファイルが選択されていません';
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error: $e';
+        _errorMessage = 'エラー: $e';
       });
     } finally {
       setState(() {
@@ -64,7 +64,7 @@ class _FirebaseTestScreenState extends ConsumerState<FirebaseTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Firebase Storage Test')),
+      appBar: AppBar(title: const Text('Firebaseストレージ動作確認')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -72,12 +72,12 @@ class _FirebaseTestScreenState extends ConsumerState<FirebaseTestScreen> {
             ElevatedButton.icon(
               onPressed: _isUploading ? null : _pickAndUpload,
               icon: const Icon(Icons.cloud_upload),
-              label: const Text('Pick & Upload Image'),
+              label: const Text('画像を選択してアップロード'),
             ),
             if (_isUploading) ...[
               const SizedBox(height: 20),
               const CircularProgressIndicator(),
-              const Text('Uploading...'),
+              const Text('アップロード中...'),
             ],
             if (_errorMessage != null) ...[
               const SizedBox(height: 20),
@@ -85,7 +85,7 @@ class _FirebaseTestScreenState extends ConsumerState<FirebaseTestScreen> {
             ],
             if (_uploadedUrl != null) ...[
               const SizedBox(height: 20),
-              const Text('Upload Success!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              const Text('アップロード成功', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               SelectableText(_uploadedUrl!),
               const SizedBox(height: 20),
               Expanded(
@@ -95,7 +95,7 @@ class _FirebaseTestScreenState extends ConsumerState<FirebaseTestScreen> {
                     if (loadingProgress == null) return child;
                     return const Center(child: CircularProgressIndicator());
                   },
-                  errorBuilder: (ctx, error, stackTrace) => const Text('Failed to load image'),
+                  errorBuilder: (ctx, error, stackTrace) => const Text('画像の読み込みに失敗しました'),
                 ),
               ),
             ],

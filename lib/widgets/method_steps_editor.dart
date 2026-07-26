@@ -44,7 +44,7 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
   @override
   Widget build(BuildContext context) {
     if (_steps.isEmpty && !widget.isEditing) {
-      return const Text('No steps defined.');
+      return const Text('注湯ステップが未設定です。');
     }
 
     // Cumulative calc
@@ -144,10 +144,10 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
             columnSpacing: 16,
             horizontalMargin: 8,
             columns: [
-              DataColumn(label: Text(widget.isEditing ? 'End Time' : 'End Time')),
-              DataColumn(label: Text(widget.isEditing ? 'Total Water' : 'Total Water')),
-              const DataColumn(label: Text('Description')),
-              if (widget.isEditing) const DataColumn(label: Text('Action')),
+              const DataColumn(label: Text('経過時間')),
+              const DataColumn(label: Text('総湯量')),
+              const DataColumn(label: Text('説明')),
+              if (widget.isEditing) const DataColumn(label: Text('操作')),
             ],
             rows: rows,
           ),
@@ -158,7 +158,7 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
             child: ElevatedButton.icon(
               onPressed: _addStep,
               icon: const Icon(Icons.add),
-              label: const Text('Add Step'),
+              label: const Text('ステップを追加'),
             ),
           ),
       ],

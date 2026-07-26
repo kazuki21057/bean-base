@@ -412,12 +412,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         const SizedBox(height: 8),
         FormSection(
           icon: Icons.bug_report_outlined,
-          title: 'Debug',
+          title: 'デバッグ',
           children: [
             MockListRow(
               icon: Icons.cloud_upload_outlined,
-              title: 'Firebase Storage Test',
-              subtitle: 'Verify image upload functionality',
+              title: 'Firebaseストレージ動作確認',
+              subtitle: '画像アップロード機能の動作確認',
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const FirebaseTestScreen()));
               },

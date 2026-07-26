@@ -61,7 +61,7 @@ class MethodDetailScreen extends ConsumerWidget {
       extraSections: [
         FormSection(
           icon: Icons.water_drop_outlined,
-          title: '注湯ステップ (Pouring Steps)',
+          title: '注湯ステップ',
           children: [
             MethodStepsEditor(
               initialSteps: steps,

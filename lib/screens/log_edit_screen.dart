@@ -93,13 +93,13 @@ class _LogEditScreenState extends ConsumerState<LogEditScreen> {
       ref.invalidate(coffeeRecordsProvider);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Log updated')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('記録を更新しました')));
         Navigator.pop(context); // Close Edit
         Navigator.pop(context); // Close Detail (optional, or rely on nav stack)
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('エラー: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -130,7 +130,7 @@ class _LogEditScreenState extends ConsumerState<LogEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Log'),
+        title: const Text('抽出記録を編集'),
         actions: [
           IconButton(
             icon: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.save),
@@ -143,29 +143,29 @@ class _LogEditScreenState extends ConsumerState<LogEditScreen> {
         child: Column(
           children: [
             ListTile(
-              title: const Text('Date & Time'),
+              title: const Text('日時'),
               subtitle: Text('${_brewedAt.year}/${_brewedAt.month}/${_brewedAt.day} ${_brewedAt.hour}:${_brewedAt.minute.toString().padLeft(2,'0')}'),
               trailing: const Icon(Icons.calendar_today),
               onTap: _pickDateTime,
             ),
             const Divider(),
-            _buildSection('Parameters', [
-              _buildNumField(_beanWeightController, 'Bean Weight (g)'),
-              _buildNumField(_waterAmountController, 'Water Amount (ml)'),
-              _buildNumField(_tempController, 'Temperature (°C)'),
-              _buildNumField(_timeController, 'Time (sec)'),
-              _buildTextField(_grindSizeController, 'Grind Size'),
-              _buildTextField(_commentController, 'Comment', maxLines: 3),
+            _buildSection('抽出パラメータ', [
+              _buildNumField(_beanWeightController, '豆量(g)'),
+              _buildNumField(_waterAmountController, '総湯量(ml)'),
+              _buildNumField(_tempController, '湯温(℃)'),
+              _buildNumField(_timeController, '抽出時間(秒)'),
+              _buildTextField(_grindSizeController, '挽き目'),
+              _buildTextField(_commentController, 'コメント', maxLines: 3),
             ]),
             const SizedBox(height: 16),
-            _buildSection('Scores', [
-              _buildScoreSlider('Fragrance', _scoreFragrance, (v) => setState(() => _scoreFragrance = v)),
-              _buildScoreSlider('Acidity', _scoreAcidity, (v) => setState(() => _scoreAcidity = v)),
-              _buildScoreSlider('Bitterness', _scoreBitterness, (v) => setState(() => _scoreBitterness = v)),
-              _buildScoreSlider('Sweetness', _scoreSweetness, (v) => setState(() => _scoreSweetness = v)),
-              _buildScoreSlider('Complexity', _scoreComplexity, (v) => setState(() => _scoreComplexity = v)),
-              _buildScoreSlider('Flavor', _scoreFlavor, (v) => setState(() => _scoreFlavor = v)),
-              _buildScoreSlider('Overall', _scoreOverall, (v) => setState(() => _scoreOverall = v)),
+            _buildSection('評価スコア', [
+              _buildScoreSlider('香り', _scoreFragrance, (v) => setState(() => _scoreFragrance = v)),
+              _buildScoreSlider('酸味', _scoreAcidity, (v) => setState(() => _scoreAcidity = v)),
+              _buildScoreSlider('苦味', _scoreBitterness, (v) => setState(() => _scoreBitterness = v)),
+              _buildScoreSlider('甘み', _scoreSweetness, (v) => setState(() => _scoreSweetness = v)),
+              _buildScoreSlider('複雑さ', _scoreComplexity, (v) => setState(() => _scoreComplexity = v)),
+              _buildScoreSlider('風味', _scoreFlavor, (v) => setState(() => _scoreFlavor = v)),
+              _buildScoreSlider('総合', _scoreOverall, (v) => setState(() => _scoreOverall = v)),
             ]),
           ],
         ),

@@ -474,7 +474,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
         ),
         FormSection(
           icon: Icons.water_drop_outlined,
-          title: 'Pouring Steps (経過時間で現在のステップを強調)',
+          title: '注湯ステップ (経過時間で現在のステップを強調)',
           children: [
             if (_selectedMethod == null)
               const Padding(

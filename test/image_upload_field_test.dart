@@ -14,7 +14,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Upload Image'));
+      await tester.tap(find.byTooltip('画像をアップロード'));
       await tester.pumpAndSettle();
 
       expect(find.text('画像の取得方法'), findsOneWidget);
@@ -34,7 +34,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Upload Image'));
+      await tester.tap(find.byTooltip('画像をアップロード'));
       await tester.pumpAndSettle();
       // テスト環境にはfile_pickerのプラットフォームチャンネルが無いため、
       // 「ファイルから選択」を選ぶとMissingPluginExceptionが送出され
