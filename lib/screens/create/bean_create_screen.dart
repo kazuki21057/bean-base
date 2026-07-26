@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart' as picker;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bean_master.dart';
 import '../../models/origin_master.dart';
@@ -13,9 +12,6 @@ import '../../services/data_service.dart';
 import '../../services/image_service.dart';
 import '../../widgets/image_upload_field.dart';
 import 'create_form_widgets.dart';
-
-/// T3-35: 豆情報読取AI(T3-30)の画像取得元。
-enum _BeanImagePickSource { file, camera }
 
 /// T4-1e(設計書§3.2): 産地マスタの地域選択肢(OriginMaster.region、固定4種)。
 const _originRegionOptions = ['アフリカ', '中南米', 'アジア・太平洋', 'その他'];
@@ -179,80 +175,21 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     }
   }
 
-  /// T3-30/T3-35: パッケージ/説明カード画像(ファイル選択またはカメラ撮影)を
+  /// T3-30/T3-35/T3-41: パッケージ/説明カード画像(ファイル選択またはカメラ撮影)を
   /// Gemini Visionに渡し豆情報を抽出、抽出できた項目のみフォームへ反映する
   /// (専用ページは作らず012内で完結)。カメラ撮影の場合は、撮影画像をAI抽出に
   /// 使うと同時に情報画像(T3-34)として保存し豆に紐付ける(終了条件)。
+  /// ファイル/カメラの選択ダイアログと取得ロジックはT3-41で`image_upload_field.dart`の
+  /// `pickImageFile`へ共通化した(全マスターの画像アップロード欄と同じ経路)。
   Future<void> _extractFromImage() async {
-    final source = await _chooseBeanImageSource();
-    if (source == null) return;
+    final picked = await pickImageFile(context);
+    if (picked == null || picked.file.bytes == null) return;
 
-    Uint8List bytes;
-    String filename;
-    if (source == _BeanImagePickSource.file) {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
-      final fileBytes = file.bytes;
-      if (fileBytes == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('画像の読み込みに失敗しました'), backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-      bytes = Uint8List.fromList(fileBytes);
-      filename = file.name;
-    } else {
-      final photo = await picker.ImagePicker().pickImage(
-        source: picker.ImageSource.camera,
-        imageQuality: 85,
-      );
-      if (photo == null) return;
-      bytes = await photo.readAsBytes();
-      filename = photo.name.isNotEmpty ? photo.name : 'camera_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    }
-
+    final bytes = Uint8List.fromList(picked.file.bytes!);
     await _runBeanImageExtraction(
       bytes: bytes,
-      filename: filename,
-      saveAsInfoImage: source == _BeanImagePickSource.camera,
-    );
-  }
-
-  Future<_BeanImagePickSource?> _chooseBeanImageSource() {
-    return showDialog<_BeanImagePickSource>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('画像の取得方法'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, _BeanImagePickSource.file),
-            child: const Row(
-              children: [
-                Icon(Icons.photo_library_outlined),
-                SizedBox(width: 12),
-                Text('ファイルから選択'),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, _BeanImagePickSource.camera),
-            child: const Row(
-              children: [
-                Icon(Icons.photo_camera_outlined),
-                SizedBox(width: 12),
-                Text('カメラで撮影'),
-              ],
-            ),
-          ),
-        ],
-      ),
+      filename: picked.file.name,
+      saveAsInfoImage: picked.source == ImagePickSource.camera,
     );
   }
 

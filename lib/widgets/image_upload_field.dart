@@ -1,8 +1,83 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' as picker;
 import '../services/image_service.dart';
 import 'bean_image.dart';
+
+/// T3-41: 画像を取得した経路(ファイル選択/カメラ撮影)。呼び出し元が
+/// 撮影画像だけ特別扱いしたい場合(例: 豆情報読取AIの情報画像保存、T3-35)に使う。
+enum ImagePickSource { file, camera }
+
+/// T3-35でbean_create_screen.dartにローカル実装していた「ファイルから選択/
+/// カメラで撮影」の選択ダイアログをT3-41で共通化したもの。[ImageUploadField]
+/// (豆/ドリッパー/フィルター/グラインダーの全画像欄が経由する共通部品)と
+/// bean_create_screen.dartの豆情報読取AIの両方から呼ばれる。
+Future<ImagePickSource?> showImageSourceDialog(BuildContext context) {
+  return showDialog<ImagePickSource>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: const Text('画像の取得方法'),
+      children: [
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(context, ImagePickSource.file),
+          child: const Row(
+            children: [
+              Icon(Icons.photo_library_outlined),
+              SizedBox(width: 12),
+              Text('ファイルから選択'),
+            ],
+          ),
+        ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(context, ImagePickSource.camera),
+          child: const Row(
+            children: [
+              Icon(Icons.photo_camera_outlined),
+              SizedBox(width: 12),
+              Text('カメラで撮影'),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// ダイアログでの選択に応じて`FilePicker`または`image_picker`(カメラ)から
+/// 画像を取得し、共通の`PlatformFile`として返す(呼び出し側はソースを問わず
+/// 同じ形で扱える)。キャンセル時はnull。[source]には実際に使われた取得元が
+/// 入るため、カメラ撮影時だけ追加処理をしたい呼び出し元はこれを見て分岐できる。
+Future<({PlatformFile file, ImagePickSource source})?> pickImageFile(
+  BuildContext context,
+) async {
+  final source = await showImageSourceDialog(context);
+  if (source == null || !context.mounted) return null;
+
+  if (source == ImagePickSource.file) {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return null;
+    return (file: result.files.first, source: source);
+  }
+
+  final photo = await picker.ImagePicker().pickImage(
+    source: picker.ImageSource.camera,
+    imageQuality: 85,
+  );
+  if (photo == null) return null;
+  final bytes = await photo.readAsBytes();
+  final name = photo.name.isNotEmpty
+      ? photo.name
+      : 'camera_${DateTime.now().millisecondsSinceEpoch}.jpg';
+  return (
+    file: PlatformFile(name: name, size: bytes.length, bytes: bytes),
+    source: source,
+  );
+}
 
 class ImageUploadField extends ConsumerStatefulWidget {
   final String? initialImageUrl;
@@ -49,15 +124,11 @@ class _ImageUploadFieldState extends ConsumerState<ImageUploadField> {
 
   Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true, // Important for Web
-      );
-      
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        
+      final picked = await pickImageFile(context);
+
+      if (picked != null) {
+        final file = picked.file;
+
         setState(() {
           _isUploading = true;
         });
