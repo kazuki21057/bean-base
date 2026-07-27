@@ -13,6 +13,8 @@ import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T2-3a: 030(抽出レシピ)を実データ接続の新デザインへ移植した際の
 /// 検証。メソッド選択→Pouring Steps読込・編集・保存ダイアログの導線を確認する
 /// (旧英語UI版の検証内容を新デザイン・日本語UIに合わせて更新)。
@@ -140,7 +142,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          methodMasterProvider.overrideWith((ref) async => [mockMethod]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [mockMethod])),
           pouringStepsProvider.overrideWith((ref) async => mockSteps),
           coffeeRecordsProvider.overrideWith((ref) async => []),
         ],
@@ -211,7 +213,7 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) => fakeService.getMethods()),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() => fakeService.getMethods())),
           pouringStepsProvider.overrideWith((ref) => fakeService.getPouringSteps()),
           coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
         ],
@@ -270,7 +272,7 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) => fakeService.getMethods()),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() => fakeService.getMethods())),
           pouringStepsProvider.overrideWith((ref) => fakeService.getPouringSteps()),
           coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
         ],
@@ -308,13 +310,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
           pouringStepsProvider.overrideWith((ref) async => <PouringStep>[]),
           coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
-          beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: const MaterialApp(home: BrewRecipeScreen()),
       ),

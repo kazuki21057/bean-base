@@ -171,7 +171,11 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
         await service.deletePouringStep(removedId);
       }
 
-      ref.invalidate(methodMasterProvider);
+      if (_isEdit) {
+        ref.read(methodMasterProvider.notifier).updateOptimistic(method);
+      } else {
+        ref.read(methodMasterProvider.notifier).addOptimistic(method);
+      }
       ref.invalidate(pouringStepsProvider);
 
       if (mounted) {

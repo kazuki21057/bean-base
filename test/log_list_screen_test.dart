@@ -8,6 +8,8 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/log_list_screen.dart';
 import 'package:bean_base/widgets/bean_image.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T3-14: 002(抽出履歴)の一覧行、左側のアイコンを豆の画像に変更した
 /// ことの検証。`MockListRow`が元々対応していた`imageUrl`引数を、豆マスターの
 /// `imageUrl`から解決して渡すだけの変更のため、画像あり/なし双方の表示を確認する。
@@ -63,11 +65,11 @@ void main() {
         overrides: [
           coffeeRecordsProvider.overrideWith(
               (ref) async => [_record(id: 'r1', beanId: 'b1'), _record(id: 'r2', beanId: 'b2')]),
-          beanMasterProvider.overrideWith((ref) async => [beanWithImage, beanWithoutImage]),
-          methodMasterProvider.overrideWith((ref) async => [method]),
-          grinderMasterProvider.overrideWith((ref) async => []),
-          dripperMasterProvider.overrideWith((ref) async => []),
-          filterMasterProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [beanWithImage, beanWithoutImage])),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [method])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
         ],
         child: const MaterialApp(home: LogListScreen()),
       ),

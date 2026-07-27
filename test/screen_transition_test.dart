@@ -7,6 +7,8 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/layout/main_layout.dart';
 import 'package:bean_base/utils/nav_key.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 void main() {
   testWidgets('App starts and navigates to LogListScreen from NavigationRail', (WidgetTester tester) async {
     // Override provider to return empty list instantly to avoid loading state issues or network
@@ -14,11 +16,11 @@ void main() {
       ProviderScope(
         overrides: [
           coffeeRecordsProvider.overrideWith((ref) async => []),
-          beanMasterProvider.overrideWith((ref) async => []),
-          methodMasterProvider.overrideWith((ref) async => []),
-          grinderMasterProvider.overrideWith((ref) async => []),
-          dripperMasterProvider.overrideWith((ref) async => []),
-          filterMasterProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [])),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,
@@ -55,11 +57,11 @@ void main() {
       ProviderScope(
         overrides: [
           coffeeRecordsProvider.overrideWith((ref) async => []),
-          beanMasterProvider.overrideWith((ref) async => []),
-          methodMasterProvider.overrideWith((ref) async => []),
-          grinderMasterProvider.overrideWith((ref) async => []),
-          dripperMasterProvider.overrideWith((ref) async => []),
-          filterMasterProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [])),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,

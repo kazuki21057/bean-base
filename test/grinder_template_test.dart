@@ -15,6 +15,8 @@ import 'package:bean_base/screens/grinder_detail_screen.dart';
 import 'package:bean_base/screens/grinder_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T1-5c の汎用マスターテンプレート適用(グラインダー)の検証。
 /// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
 /// DataServiceをフェイクに差し替えたwidgetテストで一覧→詳細→編集→保存/削除の
@@ -122,10 +124,10 @@ void main() {
 
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
-        grinderMasterProvider.overrideWith((ref) => service.getGrinders()),
+        grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() => service.getGrinders())),
         coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
-        beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
-        methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
       ];
 
   setUp(() {

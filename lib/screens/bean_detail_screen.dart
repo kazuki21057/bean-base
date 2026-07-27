@@ -77,7 +77,7 @@ class BeanDetailScreen extends ConsumerWidget {
             }
           }
           await ref.read(dataServiceProvider).deleteBean(bean.id);
-          ref.invalidate(beanMasterProvider);
+          ref.read(beanMasterProvider.notifier).removeOptimistic(bean.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: 豆削除に失敗 $e');
           rethrow;

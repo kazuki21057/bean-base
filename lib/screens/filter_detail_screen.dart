@@ -45,7 +45,7 @@ class FilterDetailScreen extends ConsumerWidget {
             await ref.read(imageServiceProvider).deleteImage(filter.imageUrl!);
           }
           await ref.read(dataServiceProvider).deleteFilter(filter.id);
-          ref.invalidate(filterMasterProvider);
+          ref.read(filterMasterProvider.notifier).removeOptimistic(filter.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: フィルター削除に失敗 $e');
           rethrow;

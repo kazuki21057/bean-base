@@ -6,6 +6,8 @@ import 'package:bean_base/models/coffee_record.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/log_detail_screen.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// T3-26: 003(抽出履歴詳細)の評価表示デザイン改善の検証。
 /// 総合スコアのヒーロー表示・6軸レーダー・テイストチップが出ることを確認する。
 CoffeeRecord _record() {
@@ -44,11 +46,11 @@ Future<void> _pump(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        beanMasterProvider.overrideWith((ref) async => []),
-        methodMasterProvider.overrideWith((ref) async => []),
-        grinderMasterProvider.overrideWith((ref) async => []),
-        dripperMasterProvider.overrideWith((ref) async => []),
-        filterMasterProvider.overrideWith((ref) async => []),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [])),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [])),
+        grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+        dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
+        filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
       ],
       child: MaterialApp(home: LogDetailScreen(log: _record())),
     ),

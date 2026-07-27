@@ -45,7 +45,7 @@ class DripperDetailScreen extends ConsumerWidget {
             await ref.read(imageServiceProvider).deleteImage(dripper.imageUrl!);
           }
           await ref.read(dataServiceProvider).deleteDripper(dripper.id);
-          ref.invalidate(dripperMasterProvider);
+          ref.read(dripperMasterProvider.notifier).removeOptimistic(dripper.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: ドリッパー削除に失敗 $e');
           rethrow;

@@ -10,17 +10,19 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/bean_list_screen.dart';
 import 'package:bean_base/screens/dripper_list_screen.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T3-19: 各マスター管理画面から他マスターの一覧へ直接遷移できる
 /// `MasterSwitcherButton`の検証。`MasterListTemplate`/`MasterDetailTemplate`
 /// 経由の画面(ドリッパー等)と、独自実装の`BeanListScreen`の両方で
 /// ボタンが機能することを確認する。
 List<Override> _emptyOverrides() => [
       coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
-      beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
-      methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
-      grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-      dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-      filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+      beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+      methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
+      grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+      dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+      filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
     ];
 
 void main() {

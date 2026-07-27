@@ -115,7 +115,7 @@ class MethodDetailScreen extends ConsumerWidget {
         try {
           await ref.read(dataServiceProvider).deletePouringStepsForMethod(method.id);
           await ref.read(dataServiceProvider).deleteMethod(method.id);
-          ref.invalidate(methodMasterProvider);
+          ref.read(methodMasterProvider.notifier).removeOptimistic(method.id);
           ref.invalidate(pouringStepsProvider);
         } catch (e) {
           debugPrint('[Antigravity] Error: メソッド削除に失敗 $e');

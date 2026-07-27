@@ -85,7 +85,11 @@ class _DripperCreateScreenState extends ConsumerState<DripperCreateScreen> {
         await service.addDripper(dripper);
         debugPrint('[Antigravity] Action: ドリッパー登録 (id=${dripper.id})');
       }
-      ref.invalidate(dripperMasterProvider);
+      if (_isEdit) {
+        ref.read(dripperMasterProvider.notifier).updateOptimistic(dripper);
+      } else {
+        ref.read(dripperMasterProvider.notifier).addOptimistic(dripper);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isEdit ? 'ドリッパーを更新しました' : 'ドリッパーを登録しました')),

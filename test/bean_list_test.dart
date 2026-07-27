@@ -14,6 +14,8 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/bean_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T1-6a: 豆管理カード一覧(010)の本実装(実データ表示)の検証。
 /// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
 /// DataServiceをフェイクに差し替えたwidgetテストでカード表示・0%表示切替・
@@ -106,7 +108,7 @@ void main() {
 
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
-        beanMasterProvider.overrideWith((ref) => service.getBeans()),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() => service.getBeans())),
       ];
 
   setUp(() {

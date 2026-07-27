@@ -13,6 +13,8 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/services/data_service.dart';
 import 'package:bean_base/widgets/dashboard/recipe_suggestion_card.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// T4-5b(設計書§7.4): F3レシピ提案カードの検証。
 /// 在庫豆(残量>0)+同グループの過去記録があると提案カードが出ること、
 /// [今回はパス]でaccepted='no'が保存されカードが消えること、対象が無いときの
@@ -156,7 +158,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         dataServiceProvider.overrideWithValue(service ?? _FakeDataService()),
-        beanMasterProvider.overrideWith((ref) async => beans),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => beans)),
         coffeeRecordsProvider.overrideWith((ref) async => records),
         originMasterProvider.overrideWith((ref) async => origins),
         recipeSuggestionsProvider.overrideWith((ref) async => history),

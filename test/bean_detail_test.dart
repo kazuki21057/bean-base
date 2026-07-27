@@ -15,6 +15,8 @@ import 'package:bean_base/screens/bean_detail_screen.dart';
 import 'package:bean_base/screens/bean_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T1-6b: 豆詳細(011)・新規豆追加/編集(012)の本実装の検証。
 /// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
 /// DataServiceをフェイクに差し替えたwidgetテストで一覧→詳細→編集→保存/削除・
@@ -123,9 +125,9 @@ void main() {
 
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
-        beanMasterProvider.overrideWith((ref) => service.getBeans()),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() => service.getBeans())),
         coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
-        methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
       ];
 
   setUp(() {

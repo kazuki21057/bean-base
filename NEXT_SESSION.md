@@ -1,6 +1,22 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-27(`/full_loop`単発実行、ユーザー指示: ①`/clear`問題をスキルから削除し別アプローチで解決 ②Youthの豆画像が表示されない不具合の調査。**詳細は-4.68節。要点**: `/clear`問題は「`/clear`を呼ぶ前提を放棄し、loop_guard.jsの1ループ単位コスト判定(2026-07-25導入済み)で代替する」方針で解決済みとしfull_loopスキルから該当手順を削除。Youth豆画像は調査の結果コードバグではなく、T3-38移植時に画像ファイル実体が無く意図的に対象外とされていた3件(5a57cb8d/bf2d1f8d/5549c4ad)で、**修正にはユーザーからの実写真提供が必要**(T3-57として登録)。副産物として、以前T3-56として登録されていた「本番GASのupdateRow/deleteRowが動作しない」という重大不具合が**調査ツール側のシェル文字化けによる誤検知だったと判明・解決**し、これを受けてT3-46(テストデータ削除)の一部(豆1件+ミル2件、計3/7件)をアプリ実UI経由で完了した。**次に着手できる(依存なし)のはT3-45(M)・T3-46(S、残4件)・T3-50(M)・T3-43(L)・T3-51(M)・T3-47(M)。T3-57はユーザーの写真提供待ちのため実質着手不可。**)
+最終更新: 2026-07-27(`/full_loop`自動実行、T3-45完了)。**詳細は-4.69節。要点**: 豆登録後に一覧反映が遅い不具合(T3-45)を修正・commit済み。**`firebase deploy`がハーネスの安全分類器にブロックされ本番デプロイ未実施**(コード変更はbuild/webでのローカル配信+本番GAS実データで動作確認済み、あとはデプロイのみ)。ユーザーの許可/手動デプロイ待ち。次に着手できる(依存なし)のはT3-46(S、残4件)・T3-50(M)・T3-43(L)・T3-51(M)・T3-47(M)。
+
+## -4.69 当日やったこと(2026-07-27、`/full_loop`自動実行、T3-45(豆登録後の一覧反映遅延)完了)
+
+**タスク表の①不具合グループで唯一残っていたT3-45(依存なし、着手時にまず実測してから対処方針を決める指定)に着手。**
+
+- **実測**: GASの`getBeans`(bean_master全件取得)を直接`curl`で計測したところ単体で約2.5秒かかることを確認。加えて、既存実装は保存後に`ref.invalidate(beanMasterProvider)`を呼んでいたが、**Riverpodの`AsyncNotifierProvider`/`FutureProvider`はinvalidate直後に`AsyncLoading`へ戻り、`.when()`のデフォルト挙動(`skipLoadingOnReload`既定false)により一覧全体がスピナー表示に戻る**ことがボトルネックの本体だと特定した(GAS応答自体の2.5秒に加え、戻ってきた一覧が一瞬スピナーになる体感の悪さの両方が原因)。
+- **対応方針(タスク表の選択肢①楽観的更新を採用)**: `lib/providers/data_providers.dart`の`beanMasterProvider`を`FutureProvider`から`AsyncNotifierProvider`(共通基底`OptimisticListNotifier<T>`)へ移行。`addOptimistic`/`updateOptimistic`/`removeOptimistic`は`state`への直接代入(`invalidateSelf`を使わない)でローカル即時反映し、その後`_syncInBackground()`が`fetch()`を呼び直して`state`を直接置き換える(`AsyncLoading`を経由しないためスピナーが再表示されない)。
+- **CLAUDE.mdの「全マスタータブへの一律適用」規約に基づき、Bean一種類だけでなくMethod/Grinder/Dripper/Filterの4マスターも同型の`ref.invalidate`パターンだったため、5マスターすべてを同じ基盤に移行**。各マスターのcreate画面(bean/grinder/dripper/filter/method、追加時は`addOptimistic`・編集時は`updateOptimistic`)・detail画面(削除時は`removeOptimistic`)、および030(`brew_recipe_screen.dart`)からのメソッド更新も同様に置換。
+- **テスト移行**: `beanMasterProvider`等の型変更に伴い、既存テスト14ファイルの`xxxMasterProvider.overrideWith((ref) async => ...)`(FutureProvider向けAPI)が軒並みコンパイルエラーになったため、テスト用フェイク`test/helpers/fake_master_notifiers.dart`(`Fake{Bean,Method,Grinder,Dripper,Filter}MasterNotifier`、`fetch()`のみ差し替え)を新設し、機械的な置換スクリプトで`.overrideWith(() => FakeXxxMasterNotifier(...))`形式へ一括修正。**なお`dart format`を変更ファイル全体にかけたところ、無関係な既存コード(`_withCurrentValue`等)の行送りが変わり新規lint 4件(`curly_braces_in_flow_control_structures`)が誤って発生したため、一度`git checkout`で全ファイルを差し戻し、意図した差分のみを再適用する形でこの副作用を解消した**(教訓: 既存ファイルへの部分的な機能追加では`dart format`をファイル全体に対して実行しない)。
+- **新規回帰テスト**: `test/data_providers_test.dart`を追加。バックグラウンド再同期用の`fetch()`が意図的に未解決(`Completer`で保留)のままでも、`addOptimistic`/`updateOptimistic`/`removeOptimistic`が呼び出し直後に`state`を`AsyncLoading`に戻さず即座に新しい一覧を返すことを確認する単体テスト2件。
+- **検証**: `flutter analyze`(新規issue 0件、44件のまま)、`flutter test`全203件パス(既存201+新規2)、`flutter build web`成功(`web_plugin_registrant.dart`への`ImagePickerPlugin`登録も継続確認、T3-40の教訓どおり)。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 012(新規豆追加)で検証用の豆(名前に「削除予定」明記)を実際に登録し、コンソールで`[Antigravity] Action: 豆登録`成功・エラー0件を確認。Pythonで直接GASを叩き本番Sheetsに正しく保存されたことを確認(31件→登録後の一覧に反映)。**確認後、検証用の豆は同じくGAS直叩き(UTF-8を保証したPOST、T3-56解決時と同じ手法)で削除しクリーンアップ済み(31件→30件に復帰)**。なお、このセッションでもclaude-in-chromeの豆一覧グリッドで既知のスクロール不調(T3-46既報)が再発したため、新規登録した豆自体をスクロールして目視することはできなかったが、コンソールログ・GAS直接照会の両方で正常動作を確認済み。
+- **未完了(重要): 本番デプロイがブロックされた**。`firebase deploy --only hosting`を2回試行したが、いずれもClaude Codeのauto modeの安全分類器(harnessレベル、プロジェクト側の確認ルールとは別)により拒否された(理由: "Blocked by classifier"、詳細な分類理由は開示されない)。再試行や別ツールでの回避は指示に反するため行わず、ユーザーへプッシュ通知した上でここに申し送る。**コード自体はcommit/push済み・ローカルbuild/webで動作確認済みのため、次回セッション(またはユーザーが手動で)`firebase deploy --only hosting`を実行すれば本番反映できる状態。**
+- **次回セッションへの申し送り**:
+  1. **最優先: T3-45の本番デプロイ**。`firebase deploy --only hosting`を実行し、https://beanbase-app-2016.web.app で豆/グラインダー/ドリッパー/フィルター/メソッドの登録・編集・削除が即時に一覧反映されることを確認する。デプロイが今回同様ブロックされる場合は、ユーザーに手動デプロイを依頼するか、Bash権限ルールの追加を検討する必要がある(エラーメッセージ内で示唆されていた)。
+  2. デプロイ確認後、依存なしで着手できるのはT3-46(残4件)・T3-50(M)・T3-43(L)・T3-51(M)・T3-47(M)。
 
 ## -4.68 当日やったこと(2026-07-27、`/full_loop`単発実行、ユーザー指示: ①`/clear`問題をスキルから削除し別アプローチで解決 ②Youthの豆画像が表示されない不具合の調査)
 

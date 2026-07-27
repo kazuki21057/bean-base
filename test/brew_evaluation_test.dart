@@ -14,6 +14,8 @@ import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/brew_evaluation_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T2-5a: 031(評価画面)の本実装(評価入力→records登録)の検証。
 /// method_template_test.dart等と同じフェイクDataServiceパターンで、
 /// 030から引き継いだ抽出情報+評価入力が実際にCoffeeRecordとして
@@ -150,11 +152,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => [grinder]),
-          dripperMasterProvider.overrideWith((ref) async => [dripper]),
-          filterMasterProvider.overrideWith((ref) async => [filter]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [grinder])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [dripper])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [filter])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
@@ -244,11 +246,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
@@ -310,11 +312,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [v60Method]),
-          beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [v60Method])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
@@ -381,11 +383,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
@@ -432,11 +434,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
@@ -498,11 +500,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(
           home: BrewEvaluationScreen(info: info, pendingSuggestion: suggestion),
@@ -560,11 +562,11 @@ void main() {
       ProviderScope(
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
-          methodMasterProvider.overrideWith((ref) async => [info.method!]),
-          beanMasterProvider.overrideWith((ref) async => [bean]),
-          grinderMasterProvider.overrideWith((ref) async => <GrinderMaster>[]),
-          dripperMasterProvider.overrideWith((ref) async => <DripperMaster>[]),
-          filterMasterProvider.overrideWith((ref) async => <FilterMaster>[]),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
         ],
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),

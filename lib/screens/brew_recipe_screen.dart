@@ -315,7 +315,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
         await service.deletePouringStep(removedId);
       }
 
-      ref.invalidate(methodMasterProvider);
+      ref.read(methodMasterProvider.notifier).updateOptimistic(method);
       ref.invalidate(pouringStepsProvider);
 
       if (!mounted) return;

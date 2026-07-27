@@ -45,7 +45,7 @@ class GrinderDetailScreen extends ConsumerWidget {
             await ref.read(imageServiceProvider).deleteImage(grinder.imageUrl!);
           }
           await ref.read(dataServiceProvider).deleteGrinder(grinder.id);
-          ref.invalidate(grinderMasterProvider);
+          ref.read(grinderMasterProvider.notifier).removeOptimistic(grinder.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: グラインダー削除に失敗 $e');
           rethrow;

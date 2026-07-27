@@ -15,6 +15,8 @@ import 'package:bean_base/screens/dripper_detail_screen.dart';
 import 'package:bean_base/screens/dripper_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T1-5a の汎用マスターテンプレート(MasterListTemplate/
 /// MasterDetailTemplate)をドリッパーへ適用した本実装の検証。
 /// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
@@ -123,10 +125,10 @@ void main() {
 
   List<Override> overridesFor(_FakeDataService service, List<DripperMaster> drippers) => [
         dataServiceProvider.overrideWithValue(service),
-        dripperMasterProvider.overrideWith((ref) => service.getDrippers()),
+        dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() => service.getDrippers())),
         coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
-        beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
-        methodMasterProvider.overrideWith((ref) async => <MethodMaster>[]),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
       ];
 
   setUp(() {

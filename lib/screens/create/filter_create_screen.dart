@@ -85,7 +85,11 @@ class _FilterCreateScreenState extends ConsumerState<FilterCreateScreen> {
         await service.addFilter(filter);
         debugPrint('[Antigravity] Action: フィルター登録 (id=${filter.id})');
       }
-      ref.invalidate(filterMasterProvider);
+      if (_isEdit) {
+        ref.read(filterMasterProvider.notifier).updateOptimistic(filter);
+      } else {
+        ref.read(filterMasterProvider.notifier).addOptimistic(filter);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isEdit ? 'フィルターを更新しました' : 'フィルターを登録しました')),

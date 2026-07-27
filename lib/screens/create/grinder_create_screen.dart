@@ -75,7 +75,11 @@ class _GrinderCreateScreenState extends ConsumerState<GrinderCreateScreen> {
         await service.addGrinder(grinder);
         debugPrint('[Antigravity] Action: グラインダー登録 (id=${grinder.id})');
       }
-      ref.invalidate(grinderMasterProvider);
+      if (_isEdit) {
+        ref.read(grinderMasterProvider.notifier).updateOptimistic(grinder);
+      } else {
+        ref.read(grinderMasterProvider.notifier).addOptimistic(grinder);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isEdit ? 'グラインダーを更新しました' : 'グラインダーを登録しました')),

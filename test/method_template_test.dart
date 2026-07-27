@@ -15,6 +15,8 @@ import 'package:bean_base/screens/method_detail_screen.dart';
 import 'package:bean_base/screens/method_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 /// Cycle 20 T1-5d の汎用マスターテンプレート適用(メソッド)の検証。
 /// プレビュー環境(サンドボックス)ではGASへの外部通信がブロックされるため、
 /// DataServiceをフェイクに差し替えたwidgetテストで一覧→詳細→編集→保存/削除の
@@ -169,10 +171,10 @@ void main() {
 
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
-        methodMasterProvider.overrideWith((ref) => service.getMethods()),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() => service.getMethods())),
         pouringStepsProvider.overrideWith((ref) => service.getPouringSteps()),
         coffeeRecordsProvider.overrideWith((ref) => service.getCoffeeRecords()),
-        beanMasterProvider.overrideWith((ref) async => <BeanMaster>[]),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
       ];
 
   setUp(() {

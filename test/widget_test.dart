@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bean_base/main.dart';
 import 'package:bean_base/providers/data_providers.dart';
 
+import 'helpers/fake_master_notifiers.dart';
+
 void main() {
   testWidgets('App launch smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
@@ -19,11 +21,11 @@ void main() {
       ProviderScope(
         overrides: [
           coffeeRecordsProvider.overrideWith((ref) async => []),
-          beanMasterProvider.overrideWith((ref) async => []),
-          methodMasterProvider.overrideWith((ref) async => []),
-          grinderMasterProvider.overrideWith((ref) async => []),
-          dripperMasterProvider.overrideWith((ref) async => []),
-          filterMasterProvider.overrideWith((ref) async => []),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [])),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
         ],
         child: const MyApp(),
       ),

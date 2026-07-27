@@ -395,7 +395,11 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
         await service.addBean(bean);
         debugPrint('[Antigravity] Action: 豆登録 (id=${bean.id})');
       }
-      ref.invalidate(beanMasterProvider);
+      if (_isEdit) {
+        ref.read(beanMasterProvider.notifier).updateOptimistic(bean);
+      } else {
+        ref.read(beanMasterProvider.notifier).addOptimistic(bean);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isEdit ? '豆を更新しました' : '豆を登録しました')),
