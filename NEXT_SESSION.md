@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-29(T3-54完了=焙煎度スライダーUIの設計書作成とT3-54a/T3-54bへの分解。上位モデル(Opus 5)による設計専任実行、コード変更なし)
+最終更新: 2026-07-29(T3-58完了=030の豆量変更が注湯ステップに反映されない不具合を修正。`/full_loop`(Sonnet 5)、実装・検証・本番デプロイ・確認まで完了)
 
 > **本書の構成(2026-07-28に整理)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに**直近5セッション分の作業ログ(-4.71〜-4.67節)**のみを残した。それ以前の作業ログ(-4.66節以前)と旧「2. 次回の着手点」は **`docs/archive/NEXT_SESSION_log.md`** へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」という記述は、-4.66以前ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の先頭に新しい節を足し、**6件目以降になった最古の節はアーカイブへ移す**(本書は直近5件だけを保つ)。タスク定義・進捗の正本はあくまで `docs/改修マスタープラン.md`。
@@ -8,12 +8,13 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物は無い**(T3-45を2026-07-28に反映済み)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物は無い**(T3-58を2026-07-29に反映済み)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
 - 直近の追加タスク: 2026-07-28にユーザー要望6件を **T3-58〜T3-69** として登録(追加購入・購入履歴・購入店マスタ・保存場所・残量手動調整・030の湯量スケーリング不具合)。同日さらに **T3-70**(新規購入店のAI自動情報取得)を追加。
 - **T3-66(購入店マスタ設計、上位モデル)は2026-07-28に完了**。成果物は **`docs/store_master_design.md`**。これによりT3-67→T3-68→T3-70/T3-69がSonnet 5で実装可能になった。
 - **T3-54(焙煎度スライダーUI、上位モデル)は2026-07-29に完了**。成果物は **`docs/roast_slider_design.md`**。実装は **T3-54a(ウィジェット新規作成+012適用、依存なし)** → **T3-54b(040/030への展開)** に分解済みで、どちらもSonnet 5で実装可能。
 - **モデル分担ルール(2026-07-28恒久化)**: 上位モデルは**方針検討と実装内容の検討まで**。実装は必ずSonnet 5に回す。上位モデル指定タスクの成果物は常に設計書+タスク分解で、コードは書かない(`CLAUDE.md`§日次改修ループ運用ルール参照)。
+- **T3-58(030の湯量スケーリング不具合)は2026-07-29に完了・本番反映済み**。共通関数`lib/utils/pouring_step_scaling.dart`の`scaledStepWaterAmount`に一本化し、`MethodStepsEditor`の湯量セルに豆量依存のValueKeyを付けて解決。
 
 ## 2. 次回の着手点
 
@@ -21,7 +22,6 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | T3-58 | 030の豆量変更が注湯ステップに反映されない不具合 | S | **根本原因調査済み**(-4.70節)。`/full_loop`1回で完結する見込み |
 | ◎ | T3-67 | 購入店マスタのデータ基盤(`store_master`、19列+初期データ7店) | M | **T3-66完了により着手可能に**。設計は`docs/store_master_design.md`§2・§4で確定済み、発明不要 |
 | ◎ | T3-54a | 焙煎度スライダー`RoastLevelSlider`の新規作成+012への適用 | M | **T3-54完了(2026-07-29)により着手可能に**。設計は`docs/roast_slider_design.md`で確定済み、発明不要。**AI自動入力の焙煎度が画面に反映されない既存バグも同時に直る** |
 | ○ | T3-60 | 豆の残量を手動調整(在庫基準点方式) | M | T3-63の前提基盤。早めに入れると良い |
@@ -44,6 +44,23 @@
 3. **実ブラウザ目視が未実施のまま残っている画面**: 030「新規として保存」→021遷移、031「評価を登録する」ボタン(押すと実データが1件増える点に注意)、040のPCA散布図・ランキング部分。いずれも widget テストでは担保済み。
 
 ## 3. 直近の作業ログ(最新5セッション)
+
+### -4.74 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-58完了=030の豆量変更が注湯ステップに反映されない不具合を修正・本番デプロイ・確認まで完了)
+
+**依存なし・原因調査済みで「`/full_loop`1回で完結する見込み」と申し送られていたT3-58に着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **原因は申し送りどおり2点**: ①`MethodStepsEditor`の湯量セル(`TextFormField`)が`initialValue`のみで描画されており、`initialValue`はウィジェットの初回生成時にしか読まれないため、030で豆量を変えて親が再ビルドされても表示中の湯量テキストが更新されなかった。②`MethodStepsEditor`の湯量計算が`waterRatio`設定済みステップしかスケールしておらず、`waterRatio`が無いステップは030本体の`_stepAmount()`(`waterAmount * (現在の豆量/メソッド基準豆量)`)と異なり無スケールのままだった。
+- **修正**: 新規`lib/utils/pouring_step_scaling.dart`に`scaledStepWaterAmount()`を作成し、030(`brew_recipe_screen.dart`)の`_stepAmount()`と`MethodStepsEditor`の両方がこの共通関数を呼ぶように統一(二重定義を解消)。`MethodStepsEditor`に`methodBaseBeanWeight`(メソッド基準豆量、任意引数・未指定時は`baseBeanWeight`と同値=既存呼び出し元の挙動を変えない)を追加し、030だけが`_selectedMethod?.baseBeanWeight`を渡す。表示更新については、湯量セルの`TextFormField`に`ValueKey('water_${i}_${baseBeanWeight}_${methodBaseBeanWeight}')`を付与し、**豆量が変わったときだけ**ウィジェットが再生成されて新しい`initialValue`を読み直す(豆量以外のセル編集中はキーが変わらないためフォーカス・カーソル位置は保たれる)設計にした。
+- **21詳細画面(`method_detail_screen.dart`)・021新規/編集画面(`method_create_screen.dart`)は`methodBaseBeanWeight`を渡していないため従来どおり(スケール1倍)の挙動を維持**(意図的、030だけが豆量とメソッド基準を区別する必要があるため)。
+- **新規テスト7件追加**(`test/pouring_step_scaling_test.dart` 5件・`test/method_steps_editor_test.dart` 2件)。既存の`brew_recipe_test.dart`は変更不要(保存時のスケーリングは元々`_stepAmount()`経由で正しく、今回直したのは編集中のライブ表示のみ)。
+- **検証**: `flutter analyze`新規issue 0(既存44件のまま)、`flutter test`全210件パス(既存203+新規7)、`flutter build web`成功。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 030で実在メソッド「4:6メソッド」(基準15g、ステップ湯量45/90/135/180/225/225ml)を選択し、豆量を30g(2倍)に変更→各ステップが90/180/270/360/450/450mlへ即座にスケール、7.5g(0.5倍)に変更→22.5/45/67.5/90/112.5/112.5mlへスケールされることを確認。あわせて湯量セルを直接手入力(末尾に"9"を追記)してもカーソル位置が飛ばないことも確認(フォーカス保持の設計どおり)。コンソールエラーなし。
+- **デプロイ**: `firebase deploy --only hosting`成功(ブロックされず一発)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認(バイト単位で同一の成果物が配信されている)。**claude-in-chrome拡張は本番ドメイン(`*.web.app`)への直接遷移をブロックする仕様のため、上記ブラウザ確認はデプロイ前にローカル配信(ビルド成果物は本番と同一)で実施したもの。`docs/deploy.md`記載の代替手順どおり**。
+- **コミット**: `42cf565`(push済み)。
+- **次回セッションへの申し送り**:
+  1. **T3-58は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
+  2. 次に依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-54a(焙煎度スライダー、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
 
 ### -4.73 当日やったこと(2026-07-29、`/full_loop`(Opus 5指定)。T3-54完了=焙煎度スライダーUIの設計とタスク分解。**コード変更なし**)
 
@@ -112,23 +129,7 @@
   3. **T3-61・T3-66は上位モデル指定のためSonnet 5の`/full_loop`では選定しないこと**。この2件が未完了だとT3-62〜T3-65・T3-67〜T3-69に着手できないため、ユーザーに上位モデルでの実施を促すこと(購入履歴・購入店の系列全体がここでブロックされる)。
   4. T3-61ではカレンダーUIに外部パッケージ(`table_calendar`等)を使うかの判断が要る。**独断で追加せずユーザーに確認すること**。
 
-### -4.69 当日やったこと(2026-07-27、`/full_loop`自動実行、T3-45(豆登録後の一覧反映遅延)完了)
-
-**タスク表の①不具合グループで唯一残っていたT3-45(依存なし、着手時にまず実測してから対処方針を決める指定)に着手。**
-
-- **実測**: GASの`getBeans`(bean_master全件取得)を直接`curl`で計測したところ単体で約2.5秒かかることを確認。加えて、既存実装は保存後に`ref.invalidate(beanMasterProvider)`を呼んでいたが、**Riverpodの`AsyncNotifierProvider`/`FutureProvider`はinvalidate直後に`AsyncLoading`へ戻り、`.when()`のデフォルト挙動(`skipLoadingOnReload`既定false)により一覧全体がスピナー表示に戻る**ことがボトルネックの本体だと特定した(GAS応答自体の2.5秒に加え、戻ってきた一覧が一瞬スピナーになる体感の悪さの両方が原因)。
-- **対応方針(タスク表の選択肢①楽観的更新を採用)**: `lib/providers/data_providers.dart`の`beanMasterProvider`を`FutureProvider`から`AsyncNotifierProvider`(共通基底`OptimisticListNotifier<T>`)へ移行。`addOptimistic`/`updateOptimistic`/`removeOptimistic`は`state`への直接代入(`invalidateSelf`を使わない)でローカル即時反映し、その後`_syncInBackground()`が`fetch()`を呼び直して`state`を直接置き換える(`AsyncLoading`を経由しないためスピナーが再表示されない)。
-- **CLAUDE.mdの「全マスタータブへの一律適用」規約に基づき、Bean一種類だけでなくMethod/Grinder/Dripper/Filterの4マスターも同型の`ref.invalidate`パターンだったため、5マスターすべてを同じ基盤に移行**。各マスターのcreate画面(bean/grinder/dripper/filter/method、追加時は`addOptimistic`・編集時は`updateOptimistic`)・detail画面(削除時は`removeOptimistic`)、および030(`brew_recipe_screen.dart`)からのメソッド更新も同様に置換。
-- **テスト移行**: `beanMasterProvider`等の型変更に伴い、既存テスト14ファイルの`xxxMasterProvider.overrideWith((ref) async => ...)`(FutureProvider向けAPI)が軒並みコンパイルエラーになったため、テスト用フェイク`test/helpers/fake_master_notifiers.dart`(`Fake{Bean,Method,Grinder,Dripper,Filter}MasterNotifier`、`fetch()`のみ差し替え)を新設し、機械的な置換スクリプトで`.overrideWith(() => FakeXxxMasterNotifier(...))`形式へ一括修正。**なお`dart format`を変更ファイル全体にかけたところ、無関係な既存コード(`_withCurrentValue`等)の行送りが変わり新規lint 4件(`curly_braces_in_flow_control_structures`)が誤って発生したため、一度`git checkout`で全ファイルを差し戻し、意図した差分のみを再適用する形でこの副作用を解消した**(教訓: 既存ファイルへの部分的な機能追加では`dart format`をファイル全体に対して実行しない)。
-- **新規回帰テスト**: `test/data_providers_test.dart`を追加。バックグラウンド再同期用の`fetch()`が意図的に未解決(`Completer`で保留)のままでも、`addOptimistic`/`updateOptimistic`/`removeOptimistic`が呼び出し直後に`state`を`AsyncLoading`に戻さず即座に新しい一覧を返すことを確認する単体テスト2件。
-- **検証**: `flutter analyze`(新規issue 0件、44件のまま)、`flutter test`全203件パス(既存201+新規2)、`flutter build web`成功(`web_plugin_registrant.dart`への`ImagePickerPlugin`登録も継続確認、T3-40の教訓どおり)。
-- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 012(新規豆追加)で検証用の豆(名前に「削除予定」明記)を実際に登録し、コンソールで`[Antigravity] Action: 豆登録`成功・エラー0件を確認。Pythonで直接GASを叩き本番Sheetsに正しく保存されたことを確認(31件→登録後の一覧に反映)。**確認後、検証用の豆は同じくGAS直叩き(UTF-8を保証したPOST、T3-56解決時と同じ手法)で削除しクリーンアップ済み(31件→30件に復帰)**。なお、このセッションでもclaude-in-chromeの豆一覧グリッドで既知のスクロール不調(T3-46既報)が再発したため、新規登録した豆自体をスクロールして目視することはできなかったが、コンソールログ・GAS直接照会の両方で正常動作を確認済み。
-- **未完了(重要): 本番デプロイがブロックされた**。`firebase deploy --only hosting`を2回試行したが、いずれもClaude Codeのauto modeの安全分類器(harnessレベル、プロジェクト側の確認ルールとは別)により拒否された(理由: "Blocked by classifier"、詳細な分類理由は開示されない)。再試行や別ツールでの回避は指示に反するため行わず、ユーザーへプッシュ通知した上でここに申し送る。**コード自体はcommit/push済み・ローカルbuild/webで動作確認済みのため、次回セッション(またはユーザーが手動で)`firebase deploy --only hosting`を実行すれば本番反映できる状態。**
-- **次回セッションへの申し送り**:
-  1. **最優先: T3-45の本番デプロイ**。`firebase deploy --only hosting`を実行し、https://beanbase-app-2016.web.app で豆/グラインダー/ドリッパー/フィルター/メソッドの登録・編集・削除が即時に一覧反映されることを確認する。デプロイが今回同様ブロックされる場合は、ユーザーに手動デプロイを依頼するか、Bash権限ルールの追加を検討する必要がある(エラーメッセージ内で示唆されていた)。
-  2. デプロイ確認後、依存なしで着手できるのはT3-46(残4件)・T3-50(M)・T3-43(L)・T3-51(M)・T3-47(M)。
-
-> これ以前(-4.66節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-4.69節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. 自動ループのセットアップ状況
 
