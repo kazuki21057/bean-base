@@ -11,6 +11,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/services/data_service.dart';
 
 import 'helpers/fake_master_notifiers.dart';
@@ -26,6 +27,14 @@ import 'helpers/fake_master_notifiers.dart';
 /// Cycle 20 T2-4a: 「上書き保存」がDataServiceに実際に接続されたことを
 /// フェイクDataServiceで検証する(method_template_test.dartと同じパターン)。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<MethodMaster> methods;
   final List<PouringStep> steps;
   MethodMaster? lastUpdatedMethod;

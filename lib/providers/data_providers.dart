@@ -9,6 +9,7 @@ import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
+import '../models/store_master.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
@@ -114,6 +115,18 @@ class FilterMasterNotifier extends OptimisticListNotifier<FilterMaster> {
 
 final filterMasterProvider = AsyncNotifierProvider<FilterMasterNotifier, List<FilterMaster>>(
   FilterMasterNotifier.new,
+);
+
+/// T3-67(docs/store_master_design.md): 購入店マスタ。026/027/028(T3-68)で使用。
+class StoreMasterNotifier extends OptimisticListNotifier<StoreMaster> {
+  @override
+  Future<List<StoreMaster>> fetch() => ref.watch(dataServiceProvider).getStores();
+  @override
+  String idOf(StoreMaster item) => item.id;
+}
+
+final storeMasterProvider = AsyncNotifierProvider<StoreMasterNotifier, List<StoreMaster>>(
+  StoreMasterNotifier.new,
 );
 
 final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {

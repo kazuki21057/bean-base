@@ -10,6 +10,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/filter_detail_screen.dart';
 import 'package:bean_base/screens/filter_list_screen.dart';
@@ -22,6 +23,14 @@ import 'helpers/fake_master_notifiers.dart';
 /// DataServiceをフェイクに差し替えたwidgetテストで一覧→詳細→編集→保存/削除の
 /// 一連の導線を確認する。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<FilterMaster> filters;
   FilterMaster? lastAdded;
   FilterMaster? lastUpdated;

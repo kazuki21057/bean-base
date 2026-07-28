@@ -10,6 +10,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/brew_evaluation_screen.dart';
 import 'package:bean_base/services/data_service.dart';
@@ -25,6 +26,14 @@ import 'helpers/fake_master_notifiers.dart';
 /// 移動したため、これらは`PendingBrewInfo`に事前セットせず、031画面上の
 /// ドロップダウンから選択してCoffeeRecordに反映されることを検証する。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   CoffeeRecord? lastAddedRecord;
   final List<CoffeeRecord> addedRecords = [];
   final List<AnalysisSnapshot> savedSnapshots = [];

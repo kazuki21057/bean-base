@@ -6,11 +6,20 @@ import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/services/data_service.dart';
 import 'package:bean_base/services/migration_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<BeanMaster> beans;
   final List<OriginMaster> origins;
   final List<BeanMaster> updated = [];

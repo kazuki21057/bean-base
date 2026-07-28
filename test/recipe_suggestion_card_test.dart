@@ -9,6 +9,7 @@ import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/services/data_service.dart';
 import 'package:bean_base/widgets/dashboard/recipe_suggestion_card.dart';
@@ -20,6 +21,14 @@ import 'helpers/fake_master_notifiers.dart';
 /// [今回はパス]でaccepted='no'が保存されカードが消えること、対象が無いときの
 /// 案内文、推奨焙煎度(§7.4後半)の表示・一致バッジを確認する。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<RecipeSuggestion> saved = [];
   final List<RecipeSuggestion> updated = [];
 

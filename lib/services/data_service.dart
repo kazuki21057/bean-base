@@ -7,6 +7,7 @@ import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
+import '../models/store_master.dart';
 import 'sheets_service.dart';
 
 /// Abstract data-access contract shared by all storage backends.
@@ -61,6 +62,12 @@ abstract class DataService {
   // --- Origin Masters (T4-1d, 設計書§3.4.3) ---
   Future<List<OriginMaster>> fetchOriginMasters();
   Future<void> saveOriginMaster(OriginMaster origin);
+
+  // --- Store Masters (T3-67, docs/store_master_design.md§2) ---
+  Future<List<StoreMaster>> getStores();
+  Future<void> addStore(StoreMaster store);
+  Future<void> updateStore(StoreMaster store);
+  Future<void> deleteStore(String id);
 
   // --- Analysis Snapshots (T4-1d, 設計書§3.4.3) ---
   Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type});

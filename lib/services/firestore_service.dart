@@ -8,6 +8,7 @@ import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
+import '../models/store_master.dart';
 import 'data_service.dart';
 
 class FirestoreService implements DataService {
@@ -222,6 +223,22 @@ class FirestoreService implements DataService {
 
   @override
   Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<List<StoreMaster>> getStores() =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> addStore(StoreMaster store) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> updateStore(StoreMaster store) =>
+      throw UnimplementedError('FirestoreService is legacy and unused.');
+
+  @override
+  Future<void> deleteStore(String id) =>
       throw UnimplementedError('FirestoreService is legacy and unused.');
 }
 

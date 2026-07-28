@@ -10,6 +10,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/bean_list_screen.dart';
 import 'package:bean_base/services/data_service.dart';
@@ -21,6 +22,14 @@ import 'helpers/fake_master_notifiers.dart';
 /// DataServiceをフェイクに差し替えたwidgetテストでカード表示・0%表示切替・
 /// 詳細への遷移を確認する。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<BeanMaster> beans;
 
   _FakeDataService(this.beans);

@@ -9,6 +9,7 @@ import '../models/pouring_step.dart';
 import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
+import '../models/store_master.dart';
 import 'data_service.dart';
 
 // URL Placeholder - User needs to provide this
@@ -415,6 +416,61 @@ class SheetsService implements DataService {
     };
     final data = _mapToJson(origin.toJson(), reverseMap);
     await _postData('origin_master', 'add', data);
+  }
+
+  // --- Store Masters (T3-67, docs/store_master_design.md§2) ---
+
+  Map<String, String> get _storeKeyMap => {
+        '購入店ID': 'id',
+        '店名': 'name',
+        '正式名称': 'formalName',
+        'URL': 'url',
+        '都道府県': 'prefecture',
+        '住所': 'address',
+        'オンライン販売': 'hasOnlineShop',
+        '実店舗': 'hasPhysicalStore',
+        '焙煎所併設': 'hasRoastery',
+        '取扱豆の傾向': 'beanTendency',
+        'メモ': 'memo',
+        '店舗画像URL': 'imageUrl',
+        'SNS': 'snsUrl',
+        '営業時間': 'businessHours',
+        '定休日': 'closedDays',
+        '電話番号': 'phone',
+        '開業年': 'openedYear',
+        '情報取得元': 'sourceUrl',
+        '情報取得日': 'infoFetchedAt',
+      };
+
+  @override
+  Future<List<StoreMaster>> getStores() async {
+    final keyMap = _storeKeyMap;
+    return _fetchData(
+        'store_master', (map) => StoreMaster.fromJson(_remapKeys(map, keyMap)));
+  }
+
+  Map<String, dynamic> _reverseMapStore(StoreMaster store) {
+    final reverseMap = {
+      for (final entry in _storeKeyMap.entries) entry.value: entry.key,
+    };
+    return _mapToJson(store.toJson(), reverseMap);
+  }
+
+  @override
+  Future<void> addStore(StoreMaster store) async {
+    final data = _reverseMapStore(store);
+    await _postData('store_master', 'add', data);
+  }
+
+  @override
+  Future<void> updateStore(StoreMaster store) async {
+    final data = _reverseMapStore(store);
+    await _postData('store_master', 'update', data);
+  }
+
+  @override
+  Future<void> deleteStore(String id) async {
+    await _postData('store_master', 'delete', {'購入店ID': id});
   }
 
   // --- Analysis Snapshots (T4-1d) ---

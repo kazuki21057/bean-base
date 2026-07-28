@@ -10,6 +10,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/bean_create_screen.dart';
 import 'package:bean_base/services/data_service.dart';
@@ -17,6 +18,14 @@ import 'package:bean_base/services/data_service.dart';
 /// T4-1e: 012(新規豆追加)の産地マスタ選択ドロップダウン・新規産地追加・
 /// 焙煎日入力の検証。
 class _FakeDataService implements DataService {
+  @override
+  Future<List<StoreMaster>> getStores() async => [];
+  @override
+  Future<void> addStore(StoreMaster store) async {}
+  @override
+  Future<void> updateStore(StoreMaster store) async {}
+  @override
+  Future<void> deleteStore(String id) async {}
   final List<OriginMaster> origins;
   BeanMaster? lastAdded;
   BeanMaster? lastUpdated;

@@ -21,6 +21,7 @@ const ALLOWED_SHEETS = [
   'origin_master',
   'analysis_history',
   'recipe_suggestions',
+  'store_master',
 ];
 
 // 新規シートのヘッダー定義 (設計書§3.4.1)。ensureSheet_ が無ければ自動生成する。
@@ -30,6 +31,13 @@ const NEW_SHEET_HEADERS = {
   'recipe_suggestions': [
     '提案ID', '作成日時', '豆ID', '産地ID', '焙煎度',
     '湯温', '湯豆比', '抽出時間', '提案根拠', '採否', '結果記録ID',
+  ],
+  // T3-67(docs/store_master_design.md§2): 購入店マスタ、19列。
+  'store_master': [
+    '購入店ID', '店名', '正式名称', 'URL', '都道府県', '住所',
+    'オンライン販売', '実店舗', '焙煎所併設', '取扱豆の傾向', 'メモ',
+    '店舗画像URL', 'SNS', '営業時間', '定休日', '電話番号', '開業年',
+    '情報取得元', '情報取得日',
   ],
 };
 
