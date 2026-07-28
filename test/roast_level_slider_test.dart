@@ -69,4 +69,26 @@ void main() {
 
     expect(received, isNull);
   });
+
+  testWidgets('compact:trueのとき端ラベル(浅い/深い)が表示されない', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RoastLevelSlider(value: 'ミディアム', compact: true, onChanged: (_) {}),
+      ),
+    ));
+
+    expect(find.text('浅い'), findsNothing);
+    expect(find.text('深い'), findsNothing);
+    expect(find.textContaining('ミディアム'), findsOneWidget);
+  });
+
+  testWidgets('compact:trueのときクリアボタンが表示されない', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RoastLevelSlider(value: 'ミディアム', compact: true, onChanged: (_) {}),
+      ),
+    ));
+
+    expect(find.widgetWithText(TextButton, 'クリア'), findsNothing);
+  });
 }

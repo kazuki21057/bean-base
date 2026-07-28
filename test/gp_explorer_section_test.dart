@@ -127,5 +127,22 @@ void main() {
 
       expect(find.textContaining('産地が紐付いた抽出記録がまだありません'), findsOneWidget);
     });
+
+    testWidgets('T3-54b: モバイル幅(390)でも産地×焙煎度の選択行がオーバーフローしない', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final records = [
+        for (var i = 0; i < 12; i++)
+          _record('r$i', originId: 'origin_1', roastLevel: '中煎り', score: 7 + (i % 3)),
+      ];
+
+      await _pump(tester, records: records, origins: origins);
+
+      expect(find.text('おすすめの条件'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

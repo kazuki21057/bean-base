@@ -13,6 +13,7 @@ import '../../services/ai_analysis_service.dart';
 import '../../services/math/design_matrix.dart';
 import '../../services/math/encoding.dart';
 import '../../services/regression_service.dart';
+import '../roast_level_slider.dart';
 
 /// F1: 重回帰分析セクション (設計書§5.2)。
 ///
@@ -440,9 +441,6 @@ class _RegressionPredictionFormState
   String? _originLevel;
   ({double point, double lower, double upper})? _result;
 
-  // T3-42: 焙煎度8段階の代表ラベル(設計書§3.5 の roastOrdinalMap 参照)。
-  static const _roastOptions = roastLevels8;
-
   @override
   void initState() {
     super.initState();
@@ -518,7 +516,13 @@ class _RegressionPredictionFormState
             children: [
               Expanded(child: _numField('総抽出時間', _timeCtrl, '分')),
               const SizedBox(width: 10),
-              Expanded(child: _roastDropdown()),
+              Expanded(
+                child: RoastLevelSlider(
+                  value: _roastLabel,
+                  compact: true,
+                  onChanged: (v) => setState(() => _roastLabel = v ?? _roastLabel),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -559,25 +563,6 @@ class _RegressionPredictionFormState
         border: const OutlineInputBorder(),
         focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: kAccent)),
       ),
-    );
-  }
-
-  Widget _roastDropdown() {
-    return DropdownButtonFormField<String>(
-      initialValue: _roastLabel,
-      isExpanded: true,
-      style: const TextStyle(fontSize: 14, color: kEspresso),
-      decoration: const InputDecoration(
-        labelText: '焙煎度',
-        labelStyle: TextStyle(fontSize: 12, color: kMocha),
-        isDense: true,
-        border: OutlineInputBorder(),
-      ),
-      items: [
-        for (final label in _roastOptions)
-          DropdownMenuItem(value: label, child: Text(label)),
-      ],
-      onChanged: (v) => setState(() => _roastLabel = v ?? _roastLabel),
     );
   }
 

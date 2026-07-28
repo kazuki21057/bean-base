@@ -128,5 +128,18 @@ void main() {
       expect(find.text('予測される総合評価'), findsOneWidget);
       expect(find.textContaining('95%予測区間:'), findsOneWidget);
     });
+
+    testWidgets('T3-54b: モバイル幅(390)でも予測フォームがオーバーフローしない', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final records = [for (var i = 0; i < 40; i++) _record(i)];
+      await _pump(tester, records);
+
+      expect(find.text('このモデルで予測'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

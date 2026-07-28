@@ -10,6 +10,7 @@ import '../../screens/create/create_form_widgets.dart';
 import '../../screens/stats_theory_screen.dart';
 import '../../services/gp_service.dart';
 import '../../services/math/encoding.dart';
+import '../roast_level_slider.dart';
 
 /// F4: レシピ探索セクション (設計書§7.5、T4-6b)。抽出画面(030)に配置する。
 ///
@@ -34,18 +35,6 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
   /// 粗グリッド (設計書§7.5「5℃×1.0比率の粗グリッド 4×5」)。
   static const _gridTemps = <double>[80, 85, 90, 95];
   static const _gridRatios = <double>[14, 15, 16, 17, 18];
-
-  /// 焙煎度の代表8水準 (T3-42、encoding.dart の roastOrdinalMap の各順序値に対応)。
-  static const _roastOptions = <(String, double)>[
-    ('ライト', 1.0),
-    ('シナモン', 2.0),
-    ('ミディアム', 3.0),
-    ('ハイ', 4.0),
-    ('シティ', 5.0),
-    ('フルシティ', 6.0),
-    ('フレンチ', 7.0),
-    ('イタリアン', 8.0),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -120,14 +109,9 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: _selectedRoast,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '焙煎度', border: OutlineInputBorder()),
-                items: [
-                  for (final r in _roastOptions)
-                    DropdownMenuItem(value: r.$1, child: Text(r.$1)),
-                ],
+              child: RoastLevelSlider(
+                value: _selectedRoast,
+                compact: true,
                 onChanged: (v) => setState(() => _selectedRoast = v ?? 'ハイ'),
               ),
             ),
