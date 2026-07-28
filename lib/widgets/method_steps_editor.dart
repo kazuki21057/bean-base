@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../models/pouring_step.dart';
+import '../utils/pouring_step_scaling.dart';
 
 class MethodStepsEditor extends StatefulWidget {
   final List<PouringStep> initialSteps;
   final bool isEditing;
   final double baseBeanWeight;
+
+  /// スケーリングの基準となるメソッドの基準豆量。
+  /// 未指定時は[baseBeanWeight]と同値とみなす(=スケールなし、従来どおりの挙動)。
+  /// T3-58: 030(抽出レシピ)では現在の豆量([baseBeanWeight])と
+  /// メソッド本来の基準豆量が異なりうるため、両方を区別して受け取る。
+  final double? methodBaseBeanWeight;
+
   final Function(List<PouringStep>) onStepsChanged;
 
   /// タイマー連動のハイライト対象ステップ(0始まりindex)。
@@ -16,6 +24,7 @@ class MethodStepsEditor extends StatefulWidget {
     required this.initialSteps,
     required this.isEditing,
     this.baseBeanWeight = 15.0,
+    this.methodBaseBeanWeight,
     required this.onStepsChanged,
     this.activeStepIndex,
   });
@@ -59,13 +68,12 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
       final stepStartWater = cumulativeWater;
       
       final currentDuration = s.duration;
-      double currentAmount = 0;
-      if (s.waterRatio != null && s.waterRatio! > 0) {
-         currentAmount = s.waterRatio! * (widget.baseBeanWeight > 0 ? widget.baseBeanWeight : 15.0);
-      } else {
-         currentAmount = s.waterAmount;
-      }
-      
+      final currentAmount = scaledStepWaterAmount(
+        s,
+        currentWeight: widget.baseBeanWeight > 0 ? widget.baseBeanWeight : 15.0,
+        methodBaseWeight: widget.methodBaseBeanWeight ?? widget.baseBeanWeight,
+      );
+
       cumulativeTime += currentDuration;
       cumulativeWater += currentAmount;
       
@@ -92,8 +100,14 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
              )
            : Text(_formatTime(stepEndTime))), 
          // Water Column
+         // T3-58: 豆量変更時のみ再生成されるキー(ValueKey)を付け、
+         // TextFormFieldのinitialValueが初回生成時にしか反映されない問題
+         // (豆量を変えても表示中の湯量テキストが更新されない)を解消する。
+         // 豆量が変わらない限りキーは変わらないため、手入力中のフォーカス・
+         // カーソル位置は保たれる。
          DataCell(widget.isEditing
             ? TextFormField(
+               key: ValueKey('water_${i}_${widget.baseBeanWeight}_${widget.methodBaseBeanWeight}'),
                initialValue: stepEndWater.toStringAsFixed(1),
                keyboardType: TextInputType.number,
                onChanged: (v) {

@@ -7,6 +7,7 @@ import '../models/pouring_step.dart';
 import '../models/pending_brew_info.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
+import '../utils/pouring_step_scaling.dart';
 import '../widgets/brew/gp_explorer_section.dart';
 import '../widgets/method_steps_editor.dart';
 import 'create/brew_evaluation_screen.dart';
@@ -178,16 +179,12 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
 
   double get _currentWeight => double.tryParse(_beanWeightController.text) ?? 15.0;
 
-  double get _scaleFactor {
-    final base = _selectedMethod?.baseBeanWeight ?? 0;
-    return base > 0 ? (_currentWeight / base) : 1.0;
-  }
-
   double _stepAmount(PouringStep s) {
-    if (s.waterRatio != null && s.waterRatio! > 0) {
-      return s.waterRatio! * _currentWeight;
-    }
-    return s.waterAmount * _scaleFactor;
+    return scaledStepWaterAmount(
+      s,
+      currentWeight: _currentWeight,
+      methodBaseWeight: _selectedMethod?.baseBeanWeight ?? 0,
+    );
   }
 
   Future<void> _showSaveDialog() async {
@@ -486,6 +483,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
                 initialSteps: _workingSteps,
                 isEditing: true,
                 baseBeanWeight: _currentWeight,
+                methodBaseBeanWeight: _selectedMethod?.baseBeanWeight,
                 activeStepIndex: _activeStepIndex,
                 onStepsChanged: (newSteps) => _workingSteps = newSteps,
               ),
