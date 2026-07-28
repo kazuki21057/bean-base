@@ -55,7 +55,7 @@ class ImageService {
         'data': base64Data,
       });
 
-      debugPrint('[Antigravity] Action: Uploading image to Drive via GAS: $filename');
+      debugPrint('[Antigravity] Action: GAS経由でGoogle Driveへ画像をアップロード開始: $filename');
       final response = await http.post(
         Uri.parse(kGoogleSheetsApiUrl),
         // text/plain を使うことで CORS プリフライト(OPTIONS)を回避する。
@@ -70,18 +70,18 @@ class ImageService {
         final result = jsonDecode(response.body) as Map<String, dynamic>;
         if (result['success'] == true) {
           final url = result['url'] as String?;
-          debugPrint('[Antigravity] Action: Image uploaded. URL: $url');
+          debugPrint('[Antigravity] Action: 画像をアップロードしました。URL: $url');
           return url;
         } else {
-          debugPrint('[Antigravity] Error: GAS upload failed: ${result['error']}');
+          debugPrint('[Antigravity] Error: GASアップロード失敗: ${result['error']}');
           return null;
         }
       } else {
-        debugPrint('[Antigravity] Error: GAS responded ${response.statusCode}: ${response.body}');
+        debugPrint('[Antigravity] Error: GASが${response.statusCode}を返却: ${response.body}');
         return null;
       }
     } catch (e) {
-      debugPrint('[Antigravity] Error: uploadImage failed: $e');
+      debugPrint('[Antigravity] Error: uploadImage失敗: $e');
       return null;
     }
   }
@@ -101,7 +101,7 @@ class ImageService {
     final filterMaster = await ref.read(filterMasterProvider.future);
 
     if (beanMaster.isEmpty && grinderMaster.isEmpty && dripperMaster.isEmpty && filterMaster.isEmpty) {
-      return 'Error: No master data loaded.';
+      return 'エラー: マスターデータが読み込まれていません。';
     }
 
     final beanMap = {for (var b in beanMaster) b.id: b};
@@ -150,7 +150,7 @@ class ImageService {
         try {
           final newImageUrl = await uploadImage(file);
           if (newImageUrl == null) {
-            errors.add('Failed to upload ${file.name}');
+            errors.add('${file.name} のアップロードに失敗');
             failCount++;
             continue;
           }
@@ -168,16 +168,16 @@ class ImageService {
           successCount++;
         } catch (e) {
           failCount++;
-          errors.add('Failed to process ${file.name}: $e');
+          errors.add('${file.name} の処理に失敗: $e');
         }
       } else {
         skippedCount++;
       }
     }
 
-    String result = 'Import Complete.\nSuccess: $successCount\nFailed: $failCount\nSkipped: $skippedCount';
+    String result = 'インポート完了。\n成功: $successCount\n失敗: $failCount\nスキップ: $skippedCount';
     if (errors.isNotEmpty) {
-      result += '\nErrors:\n${errors.join('\n')}';
+      result += '\nエラー:\n${errors.join('\n')}';
     }
     return result;
   }
@@ -193,7 +193,7 @@ class ImageService {
     try {
       final fileId = _driveFileId(imageUrl);
       if (fileId == null) {
-        debugPrint('[Antigravity] Action: deleteImage skipped (not a Drive URL): $imageUrl');
+        debugPrint('[Antigravity] Action: deleteImageをスキップ(Drive URLではない): $imageUrl');
         return;
       }
 
@@ -207,15 +207,15 @@ class ImageService {
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body) as Map<String, dynamic>;
         if (result['success'] == true) {
-          debugPrint('[Antigravity] Action: Deleted Drive image: $fileId');
+          debugPrint('[Antigravity] Action: Drive画像を削除: $fileId');
         } else {
-          debugPrint('[Antigravity] Error: GAS deleteImage failed: ${result['error']}');
+          debugPrint('[Antigravity] Error: GAS deleteImage失敗: ${result['error']}');
         }
       } else {
-        debugPrint('[Antigravity] Error: GAS deleteImage responded ${response.statusCode}');
+        debugPrint('[Antigravity] Error: GAS deleteImageが${response.statusCode}を返却');
       }
     } catch (e) {
-      debugPrint('[Antigravity] Error: deleteImage failed: $e');
+      debugPrint('[Antigravity] Error: deleteImage失敗: $e');
     }
   }
 

@@ -78,9 +78,17 @@ Detailed rules live in `rules/verification.md` — follow them before submitting
 
 ## Response Language & Documentation Conventions
 
-- **Respond in Japanese by default**, unless the user asks otherwise.
-- The three cycle documents — `implementation_plan.md` (実装計画), `walkthrough.md` (修正内容の確認), `task.md` (タスクリスト) — are written in Japanese.
-- **Do not generate these documents for simple questions or information-gathering tasks.** When they are warranted (complex code changes / new features), get the user's explicit permission first, then save them to a new folder `docs/cycle_<N>_<english_topic>/`.
+**日本語出力を徹底する(2026-07-29改訂)。** 「日本語で応答する」はチャット返信だけでなく、この作業で生成するあらゆる**出力**(=コードの識別子以外で人が読むテキスト全般)に及ぶ。範囲を以下に明示する。
+
+- **チャット応答**: 既定は日本語(ユーザーが英語等を明示的に指定した場合を除く)。
+- **ユーザー向けUI文言(最重要)**: `SnackBar`/`AlertDialog`/エラーメッセージ等、画面に表示される文字列は日本語で書く。**「英語のままでも動くから」という理由で放置しない**(2026-07-29に`lib/services/image_service.dart`の一括画像インポート結果ダイアログ、`lib/services/ai_analysis_service.dart`の`analyzeComponents`のAI解釈失敗メッセージが英語のまま本番に残っていたのを発見・修正した実例あり。ダイアログのタイトルだけ日本語で本文が英語、のような**部分的な日本語化は見落としやすいので特に注意**)。
+- **ログ出力**: `debugPrint('[Antigravity] ...')`の`[Antigravity]`はプロジェクト由来の固有表記としてそのまま英字で残すが、**その後ろのメッセージ本文は日本語で書く**(`rules/verification.md`の教訓と統一)。
+- **ドキュメント**: `NEXT_SESSION.md`・`docs/改修マスタープラン.md`・`rules/verification.md`の教訓・3点セット文書(`implementation_plan.md`/`walkthrough.md`/`task.md`)はすべて日本語。**3点セット文書は簡単な質問や情報収集のためのタスクでは生成しない。** 複雑なコード変更・新機能追加など生成が妥当な場合のみ、まずユーザーの明示的な許可を得たうえで新規フォルダ`docs/cycle_<N>_<english_topic>/`に保存する(フォルダ名の`<english_topic>`部分のみ既存慣習どおり英語でよい)。
+- **commit メッセージ・PR タイトル/本文**: 日本語で書く。ただしハーネスが自動付与する`Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`等の固定トレーラー行はシステム側テンプレートのため英語のまま変更しない。
+- **`AskUserQuestion`・`PushNotification`の文面**: 日本語。
+- **サブエージェント(`Agent`ツール)への委譲時**: 新規サブエージェントはこのファイルの文脈を持たないため、プロンプト中で明示的に「日本語で報告して」等の指示を含める(委譲先が英語で作業・報告してしまうのを防ぐため)。
+
+**例外(翻訳しない)**: コード上の識別子(クラス名・変数名・関数名・ファイル名)、ライブラリ/API/技術用語などの固有名詞、`[Antigravity]`ログプレフィックスそのもの、ハーネスが要求する固定コミットトレーラー。これらは無理に日本語化しない。
 
 ## Cycle Workflow
 

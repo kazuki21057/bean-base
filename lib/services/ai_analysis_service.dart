@@ -113,7 +113,7 @@ class AiAnalysisService {
           roastDate: _tryParseDate(json['roastDate']),
         );
       } catch (e) {
-        debugPrint('[Antigravity] Gemini Model $modelName failed (extractBeanInfoFromImage): $e');
+        debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (extractBeanInfoFromImage): $e');
         lastError = e;
       }
     }
@@ -156,7 +156,7 @@ class AiAnalysisService {
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
-        debugPrint('[Antigravity] Gemini Model $modelName failed (interpretRegression): $e');
+        debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (interpretRegression): $e');
         if (modelName == order.last) {
           return 'AI解釈に失敗しました。\nエラー: $e\n\n'
               'APIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
@@ -187,8 +187,8 @@ class AiAnalysisService {
   }
 
   Future<String> analyzeComponents(List<PcaComponent> components, String apiKey, {String? preferredModel}) async {
-    if (components.isEmpty) return "No components to analyze.";
-    if (apiKey.isEmpty) return "API Key is missing.";
+    if (components.isEmpty) return '分析対象の成分がありません。';
+    if (apiKey.isEmpty) return 'APIキーが設定されていません。';
 
     final modelsToTry = _modelOrder(preferredModel);
 
@@ -197,21 +197,21 @@ class AiAnalysisService {
     for (final modelName in modelsToTry) {
       try {
         final model = GenerativeModel(
-          model: modelName, 
+          model: modelName,
           apiKey: apiKey,
         );
 
         final content = [Content.text(prompt)];
         final response = await model.generateContent(content);
-        return response.text ?? "No analysis result generated.";
+        return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
-        debugPrint('Gemini Model $modelName failed: $e');
+        debugPrint('[Antigravity] Gemini モデル $modelName が失敗: $e');
         if (modelName == modelsToTry.last) {
-           return "AI Analysis Failed.\nError: $e\n\nPlease check your API Key and ensure the 'Generative Language API' is enabled in your Google Cloud Console.";
+           return 'AI解釈に失敗しました。\nエラー: $e\n\nAPIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
         }
       }
     }
-    return "AI Analysis Failed (Unknown Error).";
+    return 'AI解釈に失敗しました (原因不明)。';
   }
 
   /// F2拡張: PCA深掘り解釈(設計書§8.2、T4-3b)。既存`analyzeComponents`(簡易版)を
@@ -237,7 +237,7 @@ class AiAnalysisService {
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
-        debugPrint('[Antigravity] Gemini Model $modelName failed (analyzeComponentsDeep): $e');
+        debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (analyzeComponentsDeep): $e');
         if (modelName == order.last) {
           return 'AI解釈に失敗しました。\nエラー: $e\n\n'
               'APIキーと、Google Cloud Console で「Generative Language API」が有効か確認してください。';
