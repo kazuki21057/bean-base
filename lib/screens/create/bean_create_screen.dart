@@ -10,8 +10,8 @@ import '../../routing/app_screen.dart';
 import '../../services/ai_analysis_service.dart';
 import '../../services/data_service.dart';
 import '../../services/image_service.dart';
-import '../../services/math/encoding.dart';
 import '../../widgets/image_upload_field.dart';
+import '../../widgets/roast_level_slider.dart';
 import 'create_form_widgets.dart';
 
 /// T4-1e(設計書§3.2): 産地マスタの地域選択肢(OriginMaster.region、固定4種)。
@@ -31,13 +31,10 @@ class BeanCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
-  static const _roastOptions = roastLevels8;
-
   final _nameController = TextEditingController();
   final _storeController = TextEditingController();
   final _typeController = TextEditingController();
   final _initialQuantityController = TextEditingController();
-  late List<String> _roastChoices;
   String? _roastLevel;
   DateTime? _purchaseDate;
   DateTime? _roastDate;
@@ -69,7 +66,6 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _beanImageUrl = edit?.beanImageUrl;
     _infoImageUrl = edit?.infoImageUrl;
     _selectedOriginId = (edit?.originId.isNotEmpty ?? false) ? edit!.originId : null;
-    _roastChoices = _withCurrentValue(_roastOptions, _roastLevel);
   }
 
   static T? _resolveById<T>(List<T> items, String? id, String Function(T) idOf) {
@@ -78,11 +74,6 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       if (idOf(item) == id) return item;
     }
     return null;
-  }
-
-  static List<String> _withCurrentValue(List<String> base, String? current) {
-    if (current == null || current.isEmpty || base.contains(current)) return base;
-    return [current, ...base];
   }
 
   @override
@@ -311,7 +302,6 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       }
       if (extracted.roastLevel != null) {
         _roastLevel = extracted.roastLevel;
-        _roastChoices = _withCurrentValue(_roastOptions, _roastLevel);
         filled.add('煎り度');
       }
       if (extracted.roastDate != null) {
@@ -485,11 +475,9 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               hint: '例: ウォッシュド',
               controller: _typeController,
             ),
-            MockChoiceChips(
-              label: '煎り度',
-              options: _roastChoices,
-              initialValue: _roastLevel,
-              onChanged: (v) => _roastLevel = v,
+            RoastLevelSlider(
+              value: _roastLevel,
+              onChanged: (v) => setState(() => _roastLevel = v),
             ),
           ],
         ),

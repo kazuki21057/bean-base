@@ -39,3 +39,16 @@ const List<String> roastLevels8 = [
   'フレンチ',
   'イタリアン',
 ];
+
+/// 新8段階の英語表記(浅い順)。roastLevels8 と同じ index が同じ段階を指す。
+/// T3-54(焙煎度スライダー)の値表示で「ミディアム (Medium)」のように併記するために使う。
+const List<String> roastLevels8En = [
+  'Light',
+  'Cinnamon',
+  'Medium',
+  'High',
+  'City',
+  'Full City',
+  'French',
+  'Italian',
+];
