@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/bean_master.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
+import '../services/data_service.dart';
 import '../theme/blackboard_theme.dart';
 import '../utils/bean_stock_calculator.dart';
 import '../widgets/bean_jar_widget.dart';
@@ -42,11 +44,31 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _showEmpty = false;
 
+  Future<void> _answerSeekOptimal(BeanMaster bean, bool seek) async {
+    debugPrint('[Antigravity] Action: 最適条件探索の回答 (豆ID=${bean.id}, 探索する=$seek)');
+    final updated = bean.copyWith(seekOptimalConditions: seek);
+    try {
+      await ref.read(dataServiceProvider).updateBean(updated);
+      ref.read(beanMasterProvider.notifier).updateOptimistic(updated);
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 最適条件探索の回答保存に失敗 (豆ID=${bean.id}) $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('回答の保存に失敗しました。もう一度お試しください')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final beansAsync = ref.watch(beanMasterProvider);
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final methodsAsync = ref.watch(methodMasterProvider);
+    // T3-50: 未回答(seekOptimalConditions == null)の豆があれば案内カードを出す。
+    final unansweredBeans = (beansAsync.value ?? const <BeanMaster>[])
+        .where((b) => b.name != '-' && b.name.isNotEmpty && b.seekOptimalConditions == null)
+        .toList();
 
     return MockScreenScaffold(
       screen: AppScreen.dashboard,
@@ -81,6 +103,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ],
           ),
         ),
+        // T3-50: 最適条件探索の未回答があれば質問カードを表示する。
+        // 「今から淹れる」意思決定(RecipeSuggestionCard)より前、一度answerすれば
+        // 消える一時的な案内のため最上部に置く。
+        if (unansweredBeans.isNotEmpty)
+          FormSection(
+            icon: Icons.science_outlined,
+            title: '最適条件の探索',
+            dark: true,
+            children: [
+              for (final bean in unansweredBeans)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '「${bean.name}」の最適な淹れ方を探しますか?',
+                          style: const TextStyle(color: kChalkWhite, fontSize: 13),
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: kChalkAccent),
+                        onPressed: () => _answerSeekOptimal(bean, true),
+                        child: const Text('探索する'),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: kChalkMuted),
+                        onPressed: () => _answerSeekOptimal(bean, false),
+                        child: const Text('探索しない'),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         // F3レシピ提案(設計書§7.4、T4-5b)。「今から淹れる」意思決定を助けるため
         // 残豆量・直近抽出より前に配置する。
         const RecipeSuggestionCard(),

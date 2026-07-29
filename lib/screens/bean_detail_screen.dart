@@ -54,6 +54,7 @@ class BeanDetailScreen extends ConsumerWidget {
         ('購入日', _formatDate(currentBean.purchaseDate)),
         ('初期購入量', currentBean.initialQuantityGrams == null ? '未設定' : '${currentBean.initialQuantityGrams!.toStringAsFixed(1)}g'),
         ('残量', percent > 0 ? '$percent% (在庫あり)' : '0% (在庫なし)'),
+        ('最適条件を探索するか', _seekOptimalLabel(currentBean.seekOptimalConditions)),
       ],
       extraSections: [
         FormSection(
@@ -278,6 +279,13 @@ class BeanDetailScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// T3-50: `bool?`(未回答/探索する/探索しない)の表示ラベル。
+  static String _seekOptimalLabel(bool? v) {
+    if (v == true) return '探索する';
+    if (v == false) return '探索しない';
+    return '未回答';
   }
 
   static String _formatDate(DateTime? d) {

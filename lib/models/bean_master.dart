@@ -69,6 +69,12 @@ class BeanMaster {
   @JsonKey(defaultValue: '', fromJson: _parseString)
   final String storageLocation;
 
+  /// T3-50: この豆で最適条件(メソッド・湯温・粒度)を探索するか(旧称: A/Bテスト
+  /// を希望するか)。`null`は「未回答」を表し、001ダッシュボードで回答を促す
+  /// カードが表示される。`true`にした豆がT3-52(GP探索)・T3-53(進捗表示)の対象。
+  @JsonKey(fromJson: _parseNullableBool)
+  final bool? seekOptimalConditions;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -89,6 +95,7 @@ class BeanMaster {
     this.stockBaselineGrams,
     this.stockBaselineAt,
     this.storageLocation = '',
+    this.seekOptimalConditions,
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -120,6 +127,20 @@ class BeanMaster {
       return v == 'true' || v == 'yes' || v == '1';
     }
     return false;
+  }
+
+  /// T3-50: 3値(未回答=null/探索する=true/探索しない=false)を扱うためのbool?版。
+  /// 空文字・未知の文字列は「未回答」として扱う。
+  static bool? _parseNullableBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    if (value is String) {
+      final v = value.trim().toLowerCase();
+      if (v == 'true' || v == 'yes' || v == '1') return true;
+      if (v == 'false' || v == 'no' || v == '0') return false;
+      return null;
+    }
+    return null;
   }
 
   static String _parseString(dynamic value) {
@@ -157,6 +178,7 @@ class BeanMaster {
     double? stockBaselineGrams,
     DateTime? stockBaselineAt,
     String? storageLocation,
+    bool? seekOptimalConditions,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -178,6 +200,7 @@ class BeanMaster {
       stockBaselineGrams: stockBaselineGrams ?? this.stockBaselineGrams,
       stockBaselineAt: stockBaselineAt ?? this.stockBaselineAt,
       storageLocation: storageLocation ?? this.storageLocation,
+      seekOptimalConditions: seekOptimalConditions ?? this.seekOptimalConditions,
     );
   }
 }

@@ -240,6 +240,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // T3-50でフィールドが増え画面下部に押し出されたため、スクロールして表示させる。
+    await tester.dragUntilVisible(
+      find.text('豆画像・情報画像'),
+      find.byType(Scrollable).first,
+      const Offset(0, -300),
+    );
+
     expect(find.text('豆画像・情報画像'), findsOneWidget);
     expect(find.text('豆画像'), findsOneWidget);
     expect(find.text('情報画像'), findsOneWidget);

@@ -393,6 +393,72 @@ void main() {
     expect(fakeService.lastUpdated?.storageLocation, '職場');
   });
 
+  testWidgets('T3-50: 「探索する」を選択して登録するとseekOptimalConditionsがtrueで保存される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆G');
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, '探索する'),
+      50,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '探索する'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded?.seekOptimalConditions, true);
+  });
+
+  testWidgets('T3-50: 未回答のまま登録するとseekOptimalConditionsはnullのまま', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆H');
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded?.seekOptimalConditions, isNull);
+  });
+
+  testWidgets('T3-50: 編集時に既存の探索フラグ(探索しない)がフォームに引き継がれる', (tester) async {
+    final edit = BeanMaster(
+      id: 'b1',
+      name: '既存の豆',
+      roastLevel: '中煎り',
+      origin: 'ブラジル',
+      seekOptimalConditions: false,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanCreateScreen(editData: edit)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を更新する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated?.seekOptimalConditions, false);
+  });
+
   testWidgets('T3-63b: 編集モードで購入日があっても初回購入は記録されない', (tester) async {
     final edit = BeanMaster(
       id: 'b1',

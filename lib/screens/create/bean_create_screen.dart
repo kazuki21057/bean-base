@@ -42,6 +42,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   DateTime? _purchaseDate;
   DateTime? _roastDate;
   bool _isInStock = true;
+  bool? _seekOptimalConditions;
   String? _imageUrl;
   String? _beanImageUrl;
   String? _infoImageUrl;
@@ -67,10 +68,27 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _purchaseDate = edit?.purchaseDate;
     _roastDate = edit?.roastDate;
     _isInStock = edit?.isInStock ?? true;
+    _seekOptimalConditions = edit?.seekOptimalConditions;
     _imageUrl = edit?.imageUrl;
     _beanImageUrl = edit?.beanImageUrl;
     _infoImageUrl = edit?.infoImageUrl;
     _selectedOriginId = (edit?.originId.isNotEmpty ?? false) ? edit!.originId : null;
+  }
+
+  /// T3-50: `bool?`(未回答/探索する/探索しない)を`MockChoiceChips`の3択と
+  /// 相互変換する。
+  static const _seekOptimalOptions = ['未回答', '探索する', '探索しない'];
+
+  static String _seekOptimalToLabel(bool? v) {
+    if (v == true) return '探索する';
+    if (v == false) return '探索しない';
+    return '未回答';
+  }
+
+  static bool? _seekOptimalFromLabel(String? label) {
+    if (label == '探索する') return true;
+    if (label == '探索しない') return false;
+    return null;
   }
 
   static T? _resolveById<T>(List<T> items, String? id, String Function(T) idOf) {
@@ -380,6 +398,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       isInStock: _isInStock,
       initialQuantityGrams: double.tryParse(_initialQuantityController.text.trim()),
       storageLocation: _storageLocation ?? '',
+      seekOptimalConditions: _seekOptimalConditions,
     );
 
     try {
@@ -516,6 +535,24 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               options: beanStorageLocations,
               initialValue: _storageLocation,
               onChanged: (v) => setState(() => _storageLocation = v),
+            ),
+          ],
+        ),
+        FormSection(
+          icon: Icons.science_outlined,
+          title: '最適条件の探索',
+          children: [
+            const Text(
+              'この豆で最適なメソッド・湯温・粒度を探しますか?回答するとダッシュボードの案内が表示されなくなります。',
+              style: TextStyle(fontSize: 12, color: kMocha),
+            ),
+            const SizedBox(height: 8),
+            MockChoiceChips(
+              label: '最適条件を探索するか',
+              options: _seekOptimalOptions,
+              initialValue: _seekOptimalToLabel(_seekOptimalConditions),
+              onChanged: (v) =>
+                  setState(() => _seekOptimalConditions = _seekOptimalFromLabel(v)),
             ),
           ],
         ),
