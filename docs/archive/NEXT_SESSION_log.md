@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.89以前であればこのファイルを見ること。
 
+### -4.90 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-59完了=豆マスタに保存場所(職場/家)を追加。本番デプロイ・確認まで完了。T3-59完全クローズ)
+
+- **実装**: マスタープラン記載の実装方針どおりに実装(発明箇所なし)。①`BeanMaster`に`String storageLocation`(`@JsonKey(defaultValue: '')`)を追加、`copyWith`・`bean_master.g.dart`(手動編集)にも反映。②`lib/utils/bean_storage.dart`を新設し`beanStorageLocations = ['職場', '家']`を定義。③`SheetsService.getBeans()`のkeyMapに`'保存場所': 'storageLocation'`、`_reverseMapBean()`のreverseMapに`'storageLocation': '保存場所'`を両方追加。④`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に`'保存場所'`を追加し`clasp push`+`clasp deploy --deploymentId <既存ID>`で再デプロイ(URLは変わらないため`kGoogleSheetsApiUrl`の更新不要)。⑤012(`bean_create_screen.dart`)の基本情報セクション末尾(焙煎度スライダーの直後)に既存の`MockChoiceChips`(焙煎所/購入店等で未使用だった汎用ChoiceChip群ウィジェット)を使い保存場所選択UIを追加。⑥011(`bean_detail_screen.dart`)の`fields`に「保存場所」を追加(表示のみ、編集は012経由)。⑦010(`bean_list_screen.dart`)に`SegmentedButton<String>`で「全て/職場/家」の絞り込みを追加、カード上には`Icons.work_outline`/`Icons.home_outlined`アイコン+店名で保存場所を表示。
+- **既存データ一括設定**: `tools/migrate_bean_storage_location.dart`を新規作成(冪等、302リダイレクト手動フォロー対応、`updateRow`アクションで`保存場所`が空の行のみ更新)。本番`bean_master`の既存30件全件に`保存場所='職場'`を設定完了、再実行で0件更新(スキップ)になることを確認済み。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま、git stashで前後比較して確認)、`flutter test`全272件パス(既存266+新規6: モデルround-trip3件・012のChoiceChip選択と編集時引き継ぎ2件・010の絞り込み1件)、`flutter build web`成功。
+- **本番デプロイ**: `firebase deploy --only hosting`が今回は分類器にブロックされず直接成功(過去のブロック事象は毎回発生するわけではない模様)。`main.dart.js`のMD5ハッシュが本番とローカルで完全一致することを確認。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: `build/web`をローカル配信しSW/キャッシュを完全クリアしてから確認。010で「全て/職場/家」の絞り込みが実データ(3豆、全て職場)に対して正しく動作(「家」選択時は「登録されていません」)、カードに🏢アイコン表示、011の詳細に「保存場所: 職場」表示、012編集画面でChoiceChipが「職場」選択済みで表示されることをいずれも確認。コンソールエラーなし。
+- **次回セッションへの申し送り**: 依存なしで着手できるのは**T3-46(テストデータ削除)・T3-50(最適条件探索フラグ)・T3-47(推奨焙煎度)・T3-51(焙煎度説明ページ)・T3-43(AI自動入力に焙煎度追加)・T3-69(store→storeId移行、依存充足済み)**。優先度は`docs/改修マスタープラン.md` §3参照。
+
 ### -4.89 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-65完了=025にカレンダー形式を追加。本番デプロイ・確認まで完了。T3-65完全クローズ)
 
 - **実装**: `docs/bean_purchase_design.md`§6.2・§6.4のとおり実装。`pubspec.yaml`に`table_calendar: ^3.2.0`追加(推移依存は`simple_gesture_detector`のみ、想定どおり)。`main.dart`に`initializeDateFormatting('ja_JP', null)`を`runApp`前に追加(地雷(a)対策)。`bean_purchase_history_screen.dart`に`_PurchaseViewMode.calendar`を追加し`SegmentedButton`をリスト/カレンダーの2択に変更、`TableCalendar`(月固定・フォーマットボタン非表示・`onPageChanged`で`focusedDay`更新)を実装。イベントキーの正規化は公開関数`purchaseDayKey()`に切り出し(地雷(b)対策、テストから直接呼べるように)。
