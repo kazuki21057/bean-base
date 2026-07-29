@@ -1,7 +1,26 @@
-# NEXT_SESSION 作業ログ アーカイブ(-4.66節以前 + 旧「2. 次回の着手点」)
+# NEXT_SESSION 作業ログ アーカイブ(-4.77節以前 + 旧「2. 次回の着手点」)
 
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため、直近5セッション分を除く作業ログをここへ退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.66以前であればこのファイルを見ること。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.77以前であればこのファイルを見ること。
+
+## -4.77 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-67完了=購入店マスタのデータ基盤・本番デプロイ・確認まで完了)
+
+**依存なし・設計確定済み(`docs/store_master_design.md`)で「発明せずそのまま実装すればよい」タスクだったT3-67に着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **実装は設計書どおり**: ①`lib/models/store_master.dart`(+手書き`.g.dart`、`build_runner`不安定のためT3-34と同じ運用)を新規作成。19フィールド(`id`〜`infoFetchedAt`)を設計書§2の順で定義、`id`は`@JsonKey(defaultValue: '', fromJson: _parseString)`で`.toString()`キャスト、bool 3つは`BeanMaster._parseBool`と同型のヘルパーをコピー、初期投入データ7店(`kInitialStoreMasters`)も設計書§4の値をそのまま転記(空欄は空欄のまま、推測で埋めない)。②`gas/Code.gs`の`ALLOWED_SHEETS`に`'store_master'`、`NEW_SHEET_HEADERS['store_master']`に日本語列名19個を設計書§2の順で追加。③`DataService`/`SheetsService`に`getStores`/`addStore`/`updateStore`/`deleteStore`を追加(`keyMap`/`reverseMap`とも19列分)。レガシー`FirestoreService`にも`UnimplementedError`スタブを追加(コンパイルエラー回避、既存の`fetchOriginMasters`等と同じ扱い)。④`data_providers.dart`に`StoreMasterNotifier`/`storeMasterProvider`を`OptimisticListNotifier<T>`基底で追加(T3-45と同型)。⑤`tools/migrate_stores.dart`を新規作成(`tools/seed_origin_masters.dart`と同型、302リダイレクト手動フォロー、`購入店ID`が既にあればスキップ)し実行、本番Sheetsへ7店を投入。
+- **設計書に無かった新規バグを実装中に発見・修正**: `openedYear`(開業年、設計書は「不明が多いため`int`ではなく`String`」と明記)を素の`@JsonKey(defaultValue: '')`(`as String?`キャストのみ)で実装したところ、本番投入後に`2019`/`2015`/`2017`のような数字だけの値がGoogle Sheets側で自動的に数値セルへ変換され、`getStores()`で取得する際に型キャストエラーになることが判明(`curl`でGASから返るJSONを直接見て気付いた)。`FilterMaster.size`が同じ理由で`@JsonKey(fromJson: _parseString)`を使っていた前例に倣い修正。`rules/verification.md`に一般化した教訓として追記済み(「数字だけの文字列」型`String`フィールド全般に起きうる注意点)。
+- **テスト**: `test/store_master_test.dart`を新規作成、7件(fromJson/toJson往復・数値IDの文字列化・空ID・bool大文字TRUE/FALSE・bool既定値・name既定値・`openedYear`の数値→文字列キャスト・`kInitialStoreMasters`の7店ID一意性)。既存12個の`_FakeDataService`(test/配下)にも`getStores`/`addStore`/`updateStore`/`deleteStore`の空実装を追加(コンパイルエラー回避、機能テスト対象外)。
+- **検証**: `flutter analyze`新規issue 0(既存44件+新規ツールファイルの`avoid_print` 2件=46件、エラー0件)、`flutter test`全228件パス(既存220+新規7+1)、`flutter build web`成功。
+- **GASデプロイ**: `clasp push`→`clasp deploy --deploymentId <既存ID>`で`kGoogleSheetsApiUrl`のURLを変えずに反映(バージョン@11→@12)。反映直後は`store_master`シートが「Sheet not allowed」を返したが数秒後に解消(GAS Web Appの伝播遅延、既知ではないが致命的でないため再試行で確認)。
+- **本番データ投入・確認**: `dart run tools/migrate_stores.dart`で7店追加を確認、直後にもう一度実行し`added=0, skipped=7`で冪等性を確認。`curl`で本番`store_master`シートの内容を直接取得し19列すべてが設計書§4の値どおり登録されていることを目視確認。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: T3-67はデータ基盤のみでUI画面は無い(026/027/028はT3-68)ため、既存画面(ダッシュボード等)がデータ層の変更(`data_providers.dart`・`DataService`のインターフェース拡張)で壊れていないことをコンソールエラー0件で確認。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後のMD5一致は今回未確認(UIに変更が無くビルド差分が無関係な箇所のみのため、コンソールエラー0件確認で代替)。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-67は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
+  2. **T3-68(購入店の一覧026/詳細027/新規028)が依存なしで着手可能**。設計は`docs/store_master_design.md`§5で確定済み、発明不要。`storeMasterProvider`は実装済みなのでそのまま`ref.watch`できる。
+  3. **設計書§9の未解決4件(SORA・Navy・神戸珈琲物語のどの店舗か・Youth Coffee詳細)はユーザー確認が必要**。027(T3-68)実装後、編集画面から補完してもらうタイミングで聞くのが自然。
+  4. **「数字だけになりうる`String`フィールドは`_parseString`を最初から使う」という教訓が生まれた**(`rules/verification.md`参照)。今後モデルに新規`String`フィールドを追加する際、値が数字だけになりうるかを一度立ち止まって検討すること(単体テストのfromJson往復チェックだけでは見逃す典型パターン)。
 
 ## -4.76 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-54b完了=040/030の焙煎度入力をコンパクトスライダーに統一・本番デプロイ・確認まで完了)
 
