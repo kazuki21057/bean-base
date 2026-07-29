@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/dashboard_screen.dart';
 import 'layout/main_layout.dart';
 import 'providers/theme_provider.dart';
@@ -12,6 +13,9 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // T3-65: table_calendarのlocale: 'ja_JP'指定にはintlの日付シンボルデータ初期化が別途必要
+  // (flutter_localizationsのdelegatesとは無関係。呼ばないとLocaleDataExceptionで落ちる)。
+  await initializeDateFormatting('ja_JP', null);
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,

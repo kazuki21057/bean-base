@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:bean_base/models/bean_master.dart';
 import 'package:bean_base/models/coffee_record.dart';
@@ -117,6 +118,12 @@ class _FakeDataService implements DataService {
 }
 
 void main() {
+  setUpAll(() async {
+    // T3-65: table_calendarのlocale: 'ja_JP'指定はintlの日付シンボルデータ初期化が必要
+    // (main.dartのinitializeDateFormatting呼び出しに相当。テストではmain()を通らないため個別に呼ぶ)。
+    await initializeDateFormatting('ja_JP', null);
+  });
+
   List<Override> overridesFor(_FakeDataService service) => [
         dataServiceProvider.overrideWithValue(service),
         beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() => service.getBeans())),
@@ -206,5 +213,73 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('購入履歴がありません'), findsOneWidget);
+  });
+
+  group('T3-65 カレンダー形式', () {
+    final today = DateTime.now();
+    final todayUtc = DateTime.utc(today.year, today.month, today.day);
+
+    testWidgets('購入がある日にマーカーが載り、日付タップでその日の内訳が出る', (tester) async {
+      final purchases = [
+        BeanPurchase(
+          id: 'p1',
+          beanId: 'b1',
+          purchasedAt: DateTime(todayUtc.year, todayUtc.month, todayUtc.day, 9, 30),
+          quantityGrams: 200,
+          storeName: 'Navy',
+        ),
+      ];
+      final fakeService = _FakeDataService(beans: beans, purchases: purchases);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overridesFor(fakeService),
+          child: const MaterialApp(home: BeanPurchaseHistoryScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('カレンダー'));
+      await tester.pumpAndSettle();
+
+      // 既定で選択されるのは今日なので、購入内訳が最初から出ているはず。
+      final y = todayUtc.year.toString();
+      final m = todayUtc.month.toString().padLeft(2, '0');
+      final d = todayUtc.day.toString().padLeft(2, '0');
+      expect(find.text('$y/$m/$d · Navy · 200.0g'), findsOneWidget);
+      expect(find.text('エチオピア イルガチェフェ'), findsOneWidget);
+    });
+
+    testWidgets('購入が無い日を選ぶと「この日の購入はありません」が出る', (tester) async {
+      final fakeService = _FakeDataService(beans: beans, purchases: const []);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overridesFor(fakeService),
+          child: const MaterialApp(home: BeanPurchaseHistoryScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('カレンダー'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('この日の購入はありません'), findsOneWidget);
+    });
+  });
+
+  group('purchaseDayKey (地雷(b)回帰防止)', () {
+    test('同日で時刻が異なる2つのDateTimeが同一キーに正規化される', () {
+      final morning = DateTime(2026, 7, 29, 8, 0);
+      final night = DateTime(2026, 7, 29, 23, 59);
+      expect(purchaseDayKey(morning), purchaseDayKey(night));
+      expect(purchaseDayKey(morning), DateTime.utc(2026, 7, 29));
+    });
+
+    test('日付が異なればキーも異なる', () {
+      final day1 = DateTime(2026, 7, 29, 23, 59);
+      final day2 = DateTime(2026, 7, 30, 0, 1);
+      expect(purchaseDayKey(day1), isNot(purchaseDayKey(day2)));
+    });
   });
 }

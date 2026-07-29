@@ -1468,3 +1468,12 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
   3. **T3-69実装時の必須対応(今回のメモ)**: `store_detail_screen.dart`の`_matchesBean()`を、設計書どおりの`b.storeId == store.id || (b.storeId.isEmpty && ...)`ロジックに差し替えること。現状は`storeId`フィールド不在のため`b.store == store.name`のみで代用している。
   4. 引き続き依存なしで着手できるのは**T3-70(新規購入店のAI自動取得、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
   5. **`build/web/main.dart.js`の内容確認に`grep`で日本語文字列を探すのは無意味**(dart2jsのエンコードにより常に0件になる)。ビルドが最新変更を含むかはタイムスタンプ比較+実ブラウザでの動作確認(必要ならService Worker/Cacheクリア)で判断すること。
+
+### -4.88 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-64の本番デプロイ+本番確認を完了。T3-64完全クローズ)
+
+**前セッション(-4.87)でコード完成済みだったT3-64について、前セッションでは`firebase deploy --only hosting`が自動モード分類器にブロックされ未実施だった。本セッション開始時、ユーザーが`! firebase deploy --only hosting`を自ら実行し成功したため、そのデプロイ結果を確認したうえで`/full_loop`として本番確認・ドキュメント更新のみを完走した(実装作業は無し)。**
+
+- **デプロイ成功の確認**: ユーザー実行の`firebase deploy --only hosting`が成功(Hosting URL: https://beanbase-app-2016.web.app)。念のため`curl`で本番`main.dart.js`のMD5を取得し、ローカル`build/web/main.dart.js`のMD5と完全一致することを確認(`docs/deploy.md`記載の検証法どおり)。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: `build/web`を`python -m http.server 8642`でローカル配信し、SW/キャッシュを完全クリアしてから確認(教訓L32)。マスター管理ハブ→「購入履歴」→025リスト表示で本番`bean_purchases`実データ(スイートイエロー、2026/07/30購入、HEISEI COFFEE The Factory、50.0g)が正しく表示されること、行タップで011(豆詳細)へ遷移し残量135.5g等の詳細が表示されることを確認。コンソールエラーなし。確認後、ローカルサーバは停止済み。
+- **ドキュメント更新**: `docs/改修マスタープラン.md`のT3-64行を✅に更新し`docs/archive/マスタープラン_完了タスク.md`へ移動(本番デプロイ完了の経緯も記載)、完了済みリストを9件→10件に更新。次に着手可能なのはT3-65(025カレンダー形式)。
+- **次回セッションへの申し送り**: **T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み。`table_calendar: ^3.2.0`の追加はユーザー承認済み)。実装時は既知の地雷(§6.4.1の`initializeDateFormatting`・`DateTime.utc`正規化)に注意。
