@@ -53,6 +53,17 @@ class BeanMaster {
   @JsonKey(fromJson: _parseDate)
   final DateTime? roastDate;
 
+  /// T3-60: 残量の手動調整による基準時点での残量(g)。設定されている間は
+  /// `initialQuantityGrams`ではなくこの値を基準に残量を算出する
+  /// (`calculateBeanRemainingGrams`/`calculateBeanRemainingPercent`参照)。
+  @JsonKey(fromJson: _parseDouble)
+  final double? stockBaselineGrams;
+
+  /// T3-60: `stockBaselineGrams`を設定した日時。この日時より後の抽出記録のみ
+  /// 残量計算で差し引く(基準点設定より前の記録は既に反映済みとみなす)。
+  @JsonKey(fromJson: _parseDate)
+  final DateTime? stockBaselineAt;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -70,6 +81,8 @@ class BeanMaster {
     this.initialQuantityGrams,
     this.originId = '',
     this.roastDate,
+    this.stockBaselineGrams,
+    this.stockBaselineAt,
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -135,6 +148,8 @@ class BeanMaster {
     double? initialQuantityGrams,
     String? originId,
     DateTime? roastDate,
+    double? stockBaselineGrams,
+    DateTime? stockBaselineAt,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -153,6 +168,8 @@ class BeanMaster {
       initialQuantityGrams: initialQuantityGrams ?? this.initialQuantityGrams,
       originId: originId ?? this.originId,
       roastDate: roastDate ?? this.roastDate,
+      stockBaselineGrams: stockBaselineGrams ?? this.stockBaselineGrams,
+      stockBaselineAt: stockBaselineAt ?? this.stockBaselineAt,
     );
   }
 }

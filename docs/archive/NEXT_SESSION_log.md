@@ -3,6 +3,23 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため、直近5セッション分を除く作業ログをここへ退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.66以前であればこのファイルを見ること。
 
+## -4.76 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-54b完了=040/030の焙煎度入力をコンパクトスライダーに統一・本番デプロイ・確認まで完了)
+
+**T3-54a完了(-4.75節)により依存が満たされたT3-54bに着手し、実装・検証・デプロイ・本番確認まで完走した。設計は`docs/roast_slider_design.md`§5.3・§3.5で完全に確定済みのため、発明はなし。**
+
+- **実装は設計書どおり**: ①`lib/widgets/statistics/regression_section.dart`の`_roastDropdown()`(旧`DropdownButtonFormField`)を`RoastLevelSlider(value: _roastLabel, compact: true, onChanged: (v) => setState(() => _roastLabel = v ?? _roastLabel))`に置換し、不要になった`_roastDropdown()`メソッド本体と`_roastOptions`(`= roastLevels8`)を削除。②`lib/widgets/brew/gp_explorer_section.dart`の焙煎度`DropdownButtonFormField`を同様に`RoastLevelSlider(value: _selectedRoast, compact: true, onChanged: (v) => setState(() => _selectedRoast = v ?? 'ハイ'))`に置換し、ドロップダウン専用だった`static const _roastOptions`(8水準タプルのリスト)を削除。**`roastOrdinalMap[_selectedRoast]`による順序値変換ロジックは両ファイルとも変更していない**(設計書の指示どおり)。`RoastLevelSlider`の`compact`分岐自体はT3-54aで作り込み済みだったため新規実装は不要だった。
+- **テスト**: `test/roast_level_slider_test.dart`に`compact: true`表示テスト2件(端ラベル「浅い/深い」が無い・クリアボタンが無い)を追加。加えて、**ブラウザでのオーバーフロー目視がこの環境で困難(下記参照)だったため、代替として`test/regression_section_test.dart`・`test/gp_explorer_section_test.dart`にモバイル幅(390×844、`tester.view.physicalSize`)でのレンダリングテストを追加し、`tester.takeException()`が`null`であることを確認**(Flutterのwidgetテストは`RenderFlex`オーバーフロー等の`FlutterError`が発生すると自動的にテスト失敗になるため、オーバーフロー無しの直接的な自動検証になる)。
+- **検証**: `flutter analyze`新規issue 0(既存44件のまま)、`flutter test`全220件パス(既存216+新規4: compact表示2件+モバイル幅オーバーフロー2件)、`flutter build web`成功。
+- **ブラウザ確認で新知見(重要、`rules/verification.md`に教訓追記済み)**: `claude-in-chrome`拡張の`computer`ツールは、リサイズ・新規タブ・accessibility有効化など複数の対処を試しても040/030のスクロールが一切反応しなかった(スクリーンショットも同一内容のまま)。**Playwright MCPの`browser_evaluate`でページ実コンテキストのJSから`flutter-view`要素へ`WheelEvent`/`PointerEvent`を直接`dispatchEvent`する方法に切り替えたところ、スクロール・クリックとも初回から確実に反映された**。さらに画面の見た目自体も、DOMスクリーンショットではなく`flt-glass-pane.shadowRoot`内の実`<canvas>`から`toDataURL('image/png')`で直接PNGを取得する方式(`browser_evaluate`の`filename`引数で`.playwright-mcp/`配下に保存→Nodeでbase64デコード→`Read`ツールで閲覧)に切り替えることで、日本語文字化けも無く正確に確認できた。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: 上記手法で040の回帰予測フォームを確認し、「湯温・湯量比・総抽出時間」の並びの右列に「焙煎度 ハイ 4/8」のコンパクトスライダーが1行に収まって表示されオーバーフロー無しを確認。030の「レシピ探索(実験的)」セクションでも同様に「産地」ドロップダウンの隣に「焙煎度 ハイ 4/8」のコンパクトスライダーが表示され、ヒートマップ・おすすめの条件が従来どおり更新されることを確認。コンソールエラー0件(WebGLのパフォーマンス警告4件のみ、無関係)。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。**上記の本番データ確認は、デプロイ後に取得したbuild/webをローカル配信して行った(claude-in-chrome/Playwrightとも本番ドメインへの直接navigateには制約があるため、`docs/deploy.md`記載の代替手順どおり)。ビルド成果物がバイト単位で同一であるため本番でも同じ挙動になる。**
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-54bは完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。焙煎度スライダー関連タスク(T3-54/T3-54a/T3-54b)はこれで全完結。
+  2. 引き続き依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
+  4. **claude-in-chromeでスクロール/クリックが反応しない画面に当たったら、Playwright MCPの`WheelEvent`/`PointerEvent`直接dispatch+canvas直接ダンプへ早めに切り替えるとよい**(手順は`rules/verification.md`の該当教訓を参照。無理にclaude-in-chrome側で粘るより速い)。
+
 ## -4.74 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-58完了=030の豆量変更が注湯ステップに反映されない不具合を修正・本番デプロイ・確認まで完了)
 
 **依存なし・原因調査済みで「`/full_loop`1回で完結する見込み」と申し送られていたT3-58に着手し、実装・検証・デプロイ・本番確認まで完走した。**

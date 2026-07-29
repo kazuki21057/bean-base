@@ -232,6 +232,53 @@ void main() {
     expect(find.text('情報画像'), findsOneWidget);
   });
 
+  testWidgets('T3-60: 011の「残量を調整」ダイアログで保存するとDataService.updateBeanとstockBaselineGramsが反映される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 初期購入量200g・抽出履歴なしのため、現在の残量は200.0g
+    expect(find.text('現在の残量: 200.0g'), findsOneWidget);
+
+    await tester.tap(find.text('残量を調整'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, '200.0'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '120.5');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated?.id, 'b1');
+    expect(fakeService.lastUpdated?.stockBaselineGrams, 120.5);
+    expect(fakeService.lastUpdated?.stockBaselineAt, isNotNull);
+    // 楽観的更新により、画面を離れずに残量表示が即座に更新される
+    expect(find.text('現在の残量: 120.5g'), findsOneWidget);
+  });
+
+  testWidgets('T3-60: 残量調整ダイアログでキャンセルすると何も更新されない', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('残量を調整'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('キャンセル'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated, isNull);
+    expect(find.text('現在の残量: 200.0g'), findsOneWidget);
+  });
+
   testWidgets('010の＋ボタン→012新規フォームで登録するとDataService.addBeanが呼ばれる', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

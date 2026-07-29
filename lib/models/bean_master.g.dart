@@ -27,6 +27,8 @@ BeanMaster _$BeanMasterFromJson(Map<String, dynamic> json) => BeanMaster(
       ? ''
       : BeanMaster._parseString(json['originId']),
   roastDate: BeanMaster._parseDate(json['roastDate']),
+  stockBaselineGrams: BeanMaster._parseDouble(json['stockBaselineGrams']),
+  stockBaselineAt: BeanMaster._parseDate(json['stockBaselineAt']),
 );
 
 Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
@@ -47,4 +49,6 @@ Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
       'initialQuantityGrams': instance.initialQuantityGrams,
       'originId': instance.originId,
       'roastDate': instance.roastDate?.toIso8601String(),
+      'stockBaselineGrams': instance.stockBaselineGrams,
+      'stockBaselineAt': instance.stockBaselineAt?.toIso8601String(),
     };

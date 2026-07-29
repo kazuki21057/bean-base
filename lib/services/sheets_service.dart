@@ -217,6 +217,8 @@ class SheetsService implements DataService {
       '初期購入量(g)': 'initialQuantityGrams',
       '産地ID': 'originId',
       '焙煎日': 'roastDate',
+      '在庫基準量(g)': 'stockBaselineGrams',
+      '在庫基準日時': 'stockBaselineAt',
     };
     return _fetchData('bean_master', (map) => BeanMaster.fromJson(_remapKeys(map, keyMap)));
   }
@@ -628,6 +630,7 @@ class SheetsService implements DataService {
       'purchaseDate': '購入日', 'firstUseDate': '開封日', 'lastUseDate': '使い切り日', 'isInStock': '在庫',
       'initialQuantityGrams': '初期購入量(g)',
       'originId': '産地ID', 'roastDate': '焙煎日',
+      'stockBaselineGrams': '在庫基準量(g)', 'stockBaselineAt': '在庫基準日時',
     };
     return _mapToJson(bean.toJson(), reverseMap);
   }

@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-70完了=新規購入店のAI自動取得・本番デプロイ・確認まで完了)
+最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-60完了=豆の残量手動調整(在庫基準点方式)・本番デプロイ・確認まで完了)
 
 > **本書の構成(2026-07-28に整理)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに**直近5セッション分の作業ログ(-4.79〜-4.75節)**のみを残した。それ以前の作業ログ(-4.74節以前)と旧「2. 次回の着手点」は **`docs/archive/NEXT_SESSION_log.md`** へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」という記述は、-4.74以前ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の先頭に新しい節を足し、**6件目以降になった最古の節はアーカイブへ移す**(本書は直近5件だけを保つ)。タスク定義・進捗の正本はあくまで `docs/改修マスタープラン.md`。
@@ -20,6 +20,7 @@
 - **T3-67(購入店マスタのデータ基盤)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`の設計どおり`StoreMaster`モデル・GAS `store_master`シート(19列)・`DataService`/`SheetsService`のCRUD・`storeMasterProvider`を実装し、初期7店を本番Sheetsへ投入(冪等確認済み)。これによりT3-68(購入店の3画面)が着手可能になった。
 - **T3-68(購入店の一覧026/詳細027/新規028の3画面)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`§5の設計どおり実装。**「この店で買った豆」の突合は`BeanMaster.storeId`がT3-69未実施のため`b.store == store.name`(+明暮焙煎所↔明暮焙煎研フォールバック)で代用**しており、T3-69実装時に設計書どおりの`storeId`優先ロジックへ差し替えが必要。これによりT3-70(新規購入店のAI自動取得)が着手可能になった。
 - **T3-70(新規購入店のAI自動取得)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`§8の設計どおり`AiAnalysisService.fetchStoreInfo`+028の確認ダイアログを実装。これにより購入店マスタ関連タスク(T3-66〜T3-68・T3-70)は完結、残るはT3-69(store→storeId移行)のみ。
+- **T3-60(豆の残量手動調整、在庫基準点方式)は2026-07-29に完了・本番反映済み**。`BeanMaster`に`stockBaselineGrams`/`stockBaselineAt`を追加し、011に「残量調整」ダイアログを実装。これによりT3-61(追加購入+購入履歴の統合設計、上位モデル)が着手可能になった。
 
 ## 2. 次回の着手点
 
@@ -27,7 +28,6 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | T3-60 | 豆の残量を手動調整(在庫基準点方式) | M | T3-63の前提基盤。早めに入れると良い |
 | ○ | T3-59 | 豆マスタに保存場所(職場/家) | M | |
 | ○ | T3-46 | テストデータ削除(残4件) | S | |
 | ○ | T3-50 | 豆マスタ「最適条件を探索するか」 | M | |
@@ -35,8 +35,8 @@
 | △ | T3-51 | 焙煎度8段階の説明ページ新設 | M | |
 | △ | T3-43 | 豆情報AI自動入力で焙煎度も入力 | L | |
 
-**`/full_loop`(Sonnet 5)で選んではいけないタスク(⚠️上位モデル指定)**: T3-52・T3-53・**T3-61**。(**T3-66は2026-07-28に、T3-54/T3-54a/T3-54b/T3-67/T3-68は2026-07-29に全完了済み**)
-- **T3-61(追加購入+購入履歴の統合設計)が T3-62〜T3-65 をブロック中**。ただし T3-61 自体が **T3-60(在庫基準点、Sonnet 5可)待ち**なので、先にT3-60を終わらせておくこと。
+**`/full_loop`(Sonnet 5)で選んではいけないタスク(⚠️上位モデル指定)**: T3-52・T3-53・**T3-61**。(**T3-66は2026-07-28に、T3-54/T3-54a/T3-54b/T3-67/T3-68/T3-70/T3-60は2026-07-29に全完了済み**)
+- **T3-60完了(2026-07-29)により T3-61(追加購入+購入履歴の統合設計、上位モデル)が着手可能になった**。上位モデルで起動された場合はこれを優先的に選んでよい(下記参照)。
 - **上位モデルで起動された場合は、⚠️上位モデル指定タスクを優先的に選んでよい**(2026-07-28ユーザー指示)。ただし成果物は**設計書+タスク分解のみでコードは書かない**。
 - T3-61ではカレンダーUIに外部パッケージ(`table_calendar` 等)を使うかの判断が要る。**独断で追加せずユーザーに確認すること。**
 
@@ -48,6 +48,24 @@
 4. **設計書`docs/store_master_design.md`§9の未解決4件(SORA・Navy・神戸珈琲物語のどの店舗か・Youth Coffeeの詳細)はユーザー確認待ち**。027(T3-68完了済み)の編集画面(028編集モード)からいつでも補完可能。
 
 ## 3. 直近の作業ログ(最新5セッション)
+
+### -4.81 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-60完了=豆の残量手動調整(在庫基準点方式)・本番デプロイ・確認まで完了)
+
+**NEXT_SESSION.mdで◎最優先とされ、依存なし・実装方針がタスク表側で完全に確定済みだったT3-60に着手し、実装・検証・デプロイ・本番確認まで完走した。T3-61(追加購入+購入履歴の統合設計、上位モデル)のブロッカーを解消するタスク。**
+
+- **実装はタスク表の方針どおり**: ①`BeanMaster`に`double? stockBaselineGrams`(在庫基準点、基準時点の残量g)と`DateTime? stockBaselineAt`(基準時点)を追加(`.g.dart`は`build_runner`不安定のため手書き、T3-34以来の運用)。②`lib/utils/bean_stock_calculator.dart`に`calculateBeanRemainingGrams()`を新設し、`stockBaselineGrams`設定済みの豆は`基準点 - Σ(stockBaselineAtより後の該当豆記録のbeanWeight)`、未設定の豆は従来どおり`initialQuantityGrams`基準にフォールバックするロジックへ改修。`calculateBeanRemainingPercent()`の分母も`stockBaselineGrams ?? initialQuantityGrams`に変更(基準点設定直後は100%表示になる、タスク表の仕様どおり)。③011(`bean_detail_screen.dart`)に「残量調整」`FormSection`を追加し、「残量を調整」ボタン→ダイアログ(現在の残量gを編集)→保存で`stockBaselineGrams`=入力値・`stockBaselineAt`=現在時刻を`updateBean`+`updateOptimistic`で保存。④`SheetsService`のkeyMap/reverseMap両方に`'在庫基準量(g)'`/`'在庫基準日時'`を追加、`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に同2列を追加して`clasp push`+`clasp redeploy`(既存デプロイID宛、@13)。
+- **タスク表に無かった追加対応(011がこの画面上でも即座に更新されるようにするため)**: `BeanDetailScreen`はコンストラクタで渡された`bean`(遷移時点のスナップショット)をそのまま表示していたため、残量調整ダイアログで保存しても画面を離れずには反映されない設計上の問題があった(編集画面からの保存でも同型の問題が既存コードに潜在していたと判明)。`beanMasterProvider`を`ref.watch`し、`beans.firstWhere((b) => b.id == bean.id, orElse: () => bean)`で「最新のbean」を都度解決してから全フィールドに使う形に変更し、残量調整も編集も**同じ画面に留まったまま**表示が即座に更新されるようにした。
+- **実装中に発見・修正したバグ**: 残量調整ダイアログを関数内で`final controller = TextEditingController(...); final v = await showDialog(...); controller.dispose();`という素直な書き方で実装したところ、widgetテストで`A TextEditingController was used after being disposed`の例外が発生した。`showDialog`が値を返した直後(ダイアログを閉じるアニメーションがまだ残っているフレーム)にdisposeが走ってしまうことが原因。ダイアログ本体を専用の`_AdjustStockDialog`(`StatefulWidget`)に切り出し、コントローラの生成/破棄を`initState`/`dispose()`に持たせる形に修正して解決(`rules/verification.md`に教訓追記)。
+- **新規テスト6件追加**: `test/bean_stock_calculator_test.dart`に「T3-60 在庫基準点」グループ4件(基準点設定直後は100%・基準点より後の記録のみ差し引かれる・基準点未設定は後方互換・使用量超過でも0g未満にならない)、`test/bean_detail_test.dart`に011の残量調整ダイアログ2件(保存で`updateBean`が呼ばれ画面上の表示も即座に更新される・キャンセルで何も変わらない)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全245件パス(既存239+新規6)、`flutter build web`成功。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: 010(豆管理カード一覧)から実在の豆「スイートイエロー」の011詳細を開き、「残量調整」セクション(現在の残量: 100.0g)→「残量を調整」ボタン→ダイアログで`85.5`に変更→保存を実行。**画面を離れずに「現在の残量: 85.5g」へ即座に更新されること**(011自身のライブ更新)、010一覧に戻っても反映されていることを確認。コンソールエラー0件。本番Sheetsをcurlで直接確認し、`在庫基準量(g)=85.5`が該当行に保存され、かつ他の全行にも`在庫基準量(g)`/`在庫基準日時`列(空文字)が自動プロビジョニングされたことを確認(`ensureColumns_`はPOST時のみ動作するため、この保存操作がトリガーになった)。**この確認は実データへの意図的な書き込みであり(機能そのものの実地検証のため)、削除は伴わない**。
+- **デプロイ**: GAS `clasp push`+`clasp deploy --deploymentId <既存ID>`(@13)。`flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-60は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。これにより**T3-61(追加購入+購入履歴の統合設計、上位モデル)が着手可能**になった(上位モデルで起動された場合はこれを優先的に選んでよい)。
+  2. 引き続きSonnet 5で依存なしで着手できるのは**T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. **`BeanDetailScreen`は最新のbeanを`beanMasterProvider`から都度解決する設計に変更した**ため、他のマスター詳細画面(Grinder/Dripper/Filter/Method)でも同様に「画面に留まったまま更新した項目が反映されない」問題が潜在していないか、次にそれらの画面へ手を入れる際は確認するとよい(今回はBean detail限定の対応で、他マスターへの横展開はスコープ外として見送った)。
+  4. **関数内`showDialog`直後の`TextEditingController.dispose()`は避け、ダイアログ本体を`StatefulWidget`にしてライフサイクルを持たせること**(`rules/verification.md`の新規教訓参照)。
 
 ### -4.80 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-70完了=新規購入店のAI自動取得・本番デプロイ・確認まで完了)
 
@@ -123,24 +141,7 @@
   4. **「数字だけになりうる`String`フィールドは`_parseString`を最初から使う」という教訓が生まれた**(`rules/verification.md`参照)。今後モデルに新規`String`フィールドを追加する際、値が数字だけになりうるかを一度立ち止まって検討すること(単体テストのfromJson往復チェックだけでは見逃す典型パターン)。
   5. 引き続き依存なしで着手できるのは**T3-68(M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
 
-### -4.76 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-54b完了=040/030の焙煎度入力をコンパクトスライダーに統一・本番デプロイ・確認まで完了)
-
-**T3-54a完了(-4.75節)により依存が満たされたT3-54bに着手し、実装・検証・デプロイ・本番確認まで完走した。設計は`docs/roast_slider_design.md`§5.3・§3.5で完全に確定済みのため、発明はなし。**
-
-- **実装は設計書どおり**: ①`lib/widgets/statistics/regression_section.dart`の`_roastDropdown()`(旧`DropdownButtonFormField`)を`RoastLevelSlider(value: _roastLabel, compact: true, onChanged: (v) => setState(() => _roastLabel = v ?? _roastLabel))`に置換し、不要になった`_roastDropdown()`メソッド本体と`_roastOptions`(`= roastLevels8`)を削除。②`lib/widgets/brew/gp_explorer_section.dart`の焙煎度`DropdownButtonFormField`を同様に`RoastLevelSlider(value: _selectedRoast, compact: true, onChanged: (v) => setState(() => _selectedRoast = v ?? 'ハイ'))`に置換し、ドロップダウン専用だった`static const _roastOptions`(8水準タプルのリスト)を削除。**`roastOrdinalMap[_selectedRoast]`による順序値変換ロジックは両ファイルとも変更していない**(設計書の指示どおり)。`RoastLevelSlider`の`compact`分岐自体はT3-54aで作り込み済みだったため新規実装は不要だった。
-- **テスト**: `test/roast_level_slider_test.dart`に`compact: true`表示テスト2件(端ラベル「浅い/深い」が無い・クリアボタンが無い)を追加。加えて、**ブラウザでのオーバーフロー目視がこの環境で困難(下記参照)だったため、代替として`test/regression_section_test.dart`・`test/gp_explorer_section_test.dart`にモバイル幅(390×844、`tester.view.physicalSize`)でのレンダリングテストを追加し、`tester.takeException()`が`null`であることを確認**(Flutterのwidgetテストは`RenderFlex`オーバーフロー等の`FlutterError`が発生すると自動的にテスト失敗になるため、オーバーフロー無しの直接的な自動検証になる)。
-- **検証**: `flutter analyze`新規issue 0(既存44件のまま)、`flutter test`全220件パス(既存216+新規4: compact表示2件+モバイル幅オーバーフロー2件)、`flutter build web`成功。
-- **ブラウザ確認で新知見(重要、`rules/verification.md`に教訓追記済み)**: `claude-in-chrome`拡張の`computer`ツールは、リサイズ・新規タブ・accessibility有効化など複数の対処を試しても040/030のスクロールが一切反応しなかった(スクリーンショットも同一内容のまま)。**Playwright MCPの`browser_evaluate`でページ実コンテキストのJSから`flutter-view`要素へ`WheelEvent`/`PointerEvent`を直接`dispatchEvent`する方法に切り替えたところ、スクロール・クリックとも初回から確実に反映された**。さらに画面の見た目自体も、DOMスクリーンショットではなく`flt-glass-pane.shadowRoot`内の実`<canvas>`から`toDataURL('image/png')`で直接PNGを取得する方式(`browser_evaluate`の`filename`引数で`.playwright-mcp/`配下に保存→Nodeでbase64デコード→`Read`ツールで閲覧)に切り替えることで、日本語文字化けも無く正確に確認できた。
-- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: 上記手法で040の回帰予測フォームを確認し、「湯温・湯量比・総抽出時間」の並びの右列に「焙煎度 ハイ 4/8」のコンパクトスライダーが1行に収まって表示されオーバーフロー無しを確認。030の「レシピ探索(実験的)」セクションでも同様に「産地」ドロップダウンの隣に「焙煎度 ハイ 4/8」のコンパクトスライダーが表示され、ヒートマップ・おすすめの条件が従来どおり更新されることを確認。コンソールエラー0件(WebGLのパフォーマンス警告4件のみ、無関係)。
-- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。**上記の本番データ確認は、デプロイ後に取得したbuild/webをローカル配信して行った(claude-in-chrome/Playwrightとも本番ドメインへの直接navigateには制約があるため、`docs/deploy.md`記載の代替手順どおり)。ビルド成果物がバイト単位で同一であるため本番でも同じ挙動になる。**
-- **コミット**: 本セッション終了時にpush予定。
-- **次回セッションへの申し送り**:
-  1. **T3-54bは完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。焙煎度スライダー関連タスク(T3-54/T3-54a/T3-54b)はこれで全完結。
-  2. 引き続き依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
-  3. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
-  4. **claude-in-chromeでスクロール/クリックが反応しない画面に当たったら、Playwright MCPの`WheelEvent`/`PointerEvent`直接dispatch+canvas直接ダンプへ早めに切り替えるとよい**(手順は`rules/verification.md`の該当教訓を参照。無理にclaude-in-chrome側で粘るより速い)。
-
-> これ以前(-4.75節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-4.76節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. 自動ループのセットアップ状況
 
