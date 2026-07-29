@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-64=025新設+リスト形式を実装・検証完了。**本番デプロイは自動モード分類器にブロックされ未実施**、次回セッションでデプロイから再開)
+最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-64の本番デプロイ+本番確認まで完全クローズ。次回はT3-65から着手)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -8,9 +8,9 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物あり**: T3-64(025購入履歴のリスト形式)がローカルでは実装・検証(analyze/test/build)・ブラウザでの本番実データ確認まで完了しているが、`firebase deploy --only hosting`が本セッションでは自動モード分類器にブロックされ本番未反映。**次回セッションの最初にデプロイ(`firebase deploy --only hosting`)→本番確認から再開すること**(コード変更・commit/pushは完了済み)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物なし**(全完了タスクが本番反映済み)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
-- 2026-07-28〜29にユーザー要望から **T3-58〜T3-70** を追加登録。うち購入店マスタ系(T3-66〜T3-68・T3-70)・焙煎度スライダー系(T3-54/54a/54b)・T3-58/T3-60〜T3-63/T3-63b は完了・本番反映済み。**各完了タスクの詳細は `docs/改修マスタープラン.md` の完了済み一覧→`docs/archive/マスタープラン_完了タスク.md` を参照**(本書には書かない)。
+- 2026-07-28〜29にユーザー要望から **T3-58〜T3-70** を追加登録。うち購入店マスタ系(T3-66〜T3-68・T3-70)・焙煎度スライダー系(T3-54/54a/54b)・T3-58/T3-60〜T3-64/T3-63b は完了・本番反映済み。**各完了タスクの詳細は `docs/改修マスタープラン.md` の完了済み一覧→`docs/archive/マスタープラン_完了タスク.md` を参照**(本書には書かない)。
 - 実装の正本となる設計書(いずれも上位モデルが作成済み・そのまま実装すればよい): **`docs/bean_purchase_design.md`**(追加購入・購入履歴)、**`docs/store_master_design.md`**(購入店マスタ)、**`docs/roast_slider_design.md`**(焙煎度スライダー)。
 - **モデル分担ルール(2026-07-28恒久化)**: 上位モデルは**方針検討と実装内容の検討まで**。実装は必ずSonnet 5に回す。上位モデル指定タスクの成果物は常に設計書+タスク分解で、コードは書かない(`CLAUDE.md`§日次改修ループ運用ルール参照)。
 
@@ -20,8 +20,7 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | (デプロイ) | T3-64の本番デプロイ+本番確認 | S | コード変更・commit/pushは完了済み。`firebase deploy --only hosting`を実行し、本番で025を確認してから改修マスタープラン.mdのT3-64行を完了済みへ移すこと |
-| ○ | T3-65 | 025にカレンダー形式を追加(T3-64完了で着手可能) | M | 設計は`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で確定済み |
+| ◎ | T3-65 | 025にカレンダー形式を追加(T3-64完了で着手可能) | M | 設計は`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で確定済み |
 | ○ | T3-59 | 豆マスタに保存場所(職場/家) | M | |
 | ○ | T3-46 | テストデータ削除(残4件) | S | |
 | ○ | T3-50 | 豆マスタ「最適条件を探索するか」 | M | |
@@ -44,18 +43,16 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -4.87 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-64=025新設+リスト形式を実装・検証完了。**本番デプロイは未実施**)
+### -4.88 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-64の本番デプロイ+本番確認を完了。T3-64完全クローズ)
 
-**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-64に着手し、`docs/bean_purchase_design.md`§6.1〜§6.3・§7の設計をそのまま実装した。発明箇所なし。**
+**前セッション(-4.87)でコード完成済みだったT3-64について、前セッションでは`firebase deploy --only hosting`が自動モード分類器にブロックされ未実施だった。本セッション開始時、ユーザーが`! firebase deploy --only hosting`を自ら実行し成功したため、そのデプロイ結果を確認したうえで`/full_loop`として本番確認・ドキュメント更新のみを完走した(実装作業は無し)。**
 
-- **実装は設計書§6.1〜§6.3・§7どおり**: ①`lib/routing/app_screen.dart`に`beanPurchaseHistory('025', '購入履歴')`を`grinderNew('024')`と`storeList('026')`の間に追加、`lib/routing/screen_registry.dart`にcase追加。②新規画面`lib/screens/bean_purchase_history_screen.dart`(`BeanPurchaseHistoryScreen`、`MockScreenScaffold`使用・FABなし)。`children`先頭に`SegmentedButton<_PurchaseViewMode>`(設計書§9の指示どおり、この時点では`list`の1セグメントのみでカレンダーはT3-65まで置かない)。`beanPurchasesProvider`+`beanMasterProvider`を`watch`し購入日降順で`MockListRow`を描画、`subtitle`は`'yyyy/MM/dd · 店名 · N.Ng · 焙煎 MM/dd'`形式で空要素を`·`ごと省略、行タップで011(`BeanDetailScreen`)へ`Navigator.push`(豆が見つからなければ`onTap: null`)。③導線2箇所: `bean_list_screen.dart`(010)のAppBar `actions`に`MasterSwitcherButton`の前へ`IconButton(Icons.shopping_bag_outlined)`を追加、`masters_hub_screen.dart`の`entries`末尾に「購入履歴」を追加(アイコンは`Icons.shopping_bag_outlined`、メソッド管理の`Icons.receipt_long_outlined`と重複させない設計書の指示どおり)。
-- **新規テスト3件追加**(`test/bean_purchase_history_screen_test.dart`): フェイクデータで行が購入日降順に描画されsubtitleに豆名・購入店名・購入量・焙煎日が出ること、行タップで011へ遷移すること、履歴0件で「購入履歴がありません」が出ること。`test/helpers/fake_master_notifiers.dart`に`FakeBeanPurchaseNotifier`を追加。
-- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全262件パス(既存259+新規3)、`flutter build web`成功。
-- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: L32の教訓どおりSW/キャッシュを完全クリアしてから確認。本番`bean_purchases`実データ(スイートイエロー購入1件)が025に正しく表示され、010→025・マスターハブ→025の両導線、行タップ→011遷移をいずれも確認済み。コンソールエラーなし。
-- **本番デプロイがブロックされた(今回新規に遭遇した事象)**: `firebase deploy --only hosting`を実行しようとしたところ、Bash・PowerShellのいずれでも「Claude Code auto mode classifierによって拒否された」旨のエラーで実行できなかった。プロジェクトのメモリ・CLAUDE.mdには「デプロイは事前承認済み」とあるが、これはユーザー側の運用ルールであり、**ハーネス側(Claude Code本体)の自動モード分類器によるブロックは別レイヤーで、こちらからは回避できない**。ユーザーに`AskUserQuestion`で確認したところ「待つ(このループを終了)」を選択。**次回セッションの最初にユーザー自身が`firebase deploy --only hosting`を実行するか、権限設定を調整したうえで、デプロイ→本番確認から再開すること**。コード変更・テスト・commit/pushはこのセッションで完了済みのため、次回は実装作業なしでデプロイ以降だけ行えばよい。
-- **次回セッションへの申し送り**: まず**T3-64の本番デプロイ+本番確認**(コードは完成済み)。完了したら改修マスタープラン.mdのT3-64行を🟡→✅・完了済み一覧へ移すこと。その後は**T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み)。
+- **デプロイ成功の確認**: ユーザー実行の`firebase deploy --only hosting`が成功(Hosting URL: https://beanbase-app-2016.web.app)。念のため`curl`で本番`main.dart.js`のMD5を取得し、ローカル`build/web/main.dart.js`のMD5と完全一致することを確認(`docs/deploy.md`記載の検証法どおり)。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: `build/web`を`python -m http.server 8642`でローカル配信し、SW/キャッシュを完全クリアしてから確認(教訓L32)。マスター管理ハブ→「購入履歴」→025リスト表示で本番`bean_purchases`実データ(スイートイエロー、2026/07/30購入、HEISEI COFFEE The Factory、50.0g)が正しく表示されること、行タップで011(豆詳細)へ遷移し残量135.5g等の詳細が表示されることを確認。コンソールエラーなし。確認後、ローカルサーバは停止済み。
+- **ドキュメント更新**: `docs/改修マスタープラン.md`のT3-64行を✅に更新し`docs/archive/マスタープラン_完了タスク.md`へ移動(本番デプロイ完了の経緯も記載)、完了済みリストを9件→10件に更新。次に着手可能なのはT3-65(025カレンダー形式)。
+- **次回セッションへの申し送り**: **T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み。`table_calendar: ^3.2.0`の追加はユーザー承認済み)。実装時は既知の地雷(§6.4.1の`initializeDateFormatting`・`DateTime.utc`正規化)に注意。
 
-> これ以前(-4.86節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-4.87節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 
 ## 4. その他

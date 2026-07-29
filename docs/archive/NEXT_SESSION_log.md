@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.86以前であればこのファイルを見ること。
 
+#### -4.87 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-64=025新設+リスト形式を実装・検証完了。**本番デプロイは未実施**)
+
+**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-64に着手し、`docs/bean_purchase_design.md`§6.1〜§6.3・§7の設計をそのまま実装した。発明箇所なし。**
+
+- **実装は設計書§6.1〜§6.3・§7どおり**: ①`lib/routing/app_screen.dart`に`beanPurchaseHistory('025', '購入履歴')`を`grinderNew('024')`と`storeList('026')`の間に追加、`lib/routing/screen_registry.dart`にcase追加。②新規画面`lib/screens/bean_purchase_history_screen.dart`(`BeanPurchaseHistoryScreen`、`MockScreenScaffold`使用・FABなし)。`children`先頭に`SegmentedButton<_PurchaseViewMode>`(設計書§9の指示どおり、この時点では`list`の1セグメントのみでカレンダーはT3-65まで置かない)。`beanPurchasesProvider`+`beanMasterProvider`を`watch`し購入日降順で`MockListRow`を描画、`subtitle`は`'yyyy/MM/dd · 店名 · N.Ng · 焙煎 MM/dd'`形式で空要素を`·`ごと省略、行タップで011(`BeanDetailScreen`)へ`Navigator.push`(豆が見つからなければ`onTap: null`)。③導線2箇所: `bean_list_screen.dart`(010)のAppBar `actions`に`MasterSwitcherButton`の前へ`IconButton(Icons.shopping_bag_outlined)`を追加、`masters_hub_screen.dart`の`entries`末尾に「購入履歴」を追加(アイコンは`Icons.shopping_bag_outlined`、メソッド管理の`Icons.receipt_long_outlined`と重複させない設計書の指示どおり)。
+- **新規テスト3件追加**(`test/bean_purchase_history_screen_test.dart`): フェイクデータで行が購入日降順に描画されsubtitleに豆名・購入店名・購入量・焙煎日が出ること、行タップで011へ遷移すること、履歴0件で「購入履歴がありません」が出ること。`test/helpers/fake_master_notifiers.dart`に`FakeBeanPurchaseNotifier`を追加。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全262件パス(既存259+新規3)、`flutter build web`成功。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: L32の教訓どおりSW/キャッシュを完全クリアしてから確認。本番`bean_purchases`実データ(スイートイエロー購入1件)が025に正しく表示され、010→025・マスターハブ→025の両導線、行タップ→011遷移をいずれも確認済み。コンソールエラーなし。
+- **本番デプロイがブロックされた(今回新規に遭遇した事象)**: `firebase deploy --only hosting`を実行しようとしたところ、Bash・PowerShellのいずれでも「Claude Code auto mode classifierによって拒否された」旨のエラーで実行できなかった。プロジェクトのメモリ・CLAUDE.mdには「デプロイは事前承認済み」とあるが、これはユーザー側の運用ルールであり、**ハーネス側(Claude Code本体)の自動モード分類器によるブロックは別レイヤーで、こちらからは回避できない**。ユーザーに`AskUserQuestion`で確認したところ「待つ(このループを終了)」を選択。**次回セッションの最初にユーザー自身が`firebase deploy --only hosting`を実行するか、権限設定を調整したうえで、デプロイ→本番確認から再開すること**。コード変更・テスト・commit/pushはこのセッションで完了済みのため、次回は実装作業なしでデプロイ以降だけ行えばよい。
+- **次回セッションへの申し送り**: まず**T3-64の本番デプロイ+本番確認**(コードは完成済み)。完了したら改修マスタープラン.mdのT3-64行を🟡→✅・完了済み一覧へ移すこと。その後は**T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み)。
+
 #### -4.86 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-63b完了=012の初回購入記録+遡及登録スクリプトを追加・本番デプロイ・実データ確認まで完了)
 
 **NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-63bに着手し、`docs/bean_purchase_design.md`§5の設計をそのまま実装した。発明箇所なし。**
