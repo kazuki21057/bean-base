@@ -1,7 +1,17 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.91節以前 + 旧「2. 次回の着手点」)
 
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.89以前であればこのファイルを見ること。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.92以前であればこのファイルを見ること。
+
+### -4.92 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-50完了=豆マスタに「最適条件を探索するか」を追加。本番デプロイ・確認まで完了。T3-50完全クローズ)
+
+- **実装**: マスタープラン記載の実装方針どおり(T3-47と同じ5点セット手順)。①`BeanMaster`に`bool? seekOptimalConditions`を追加(3値: 未回答=null/探索する=true/探索しない=false、`_parseNullableBool`ヘルパー新設)、`copyWith`・`bean_master.g.dart`(手動編集)にも反映。②`SheetsService.getBeans()`のkeyMapに`'最適条件探索': 'seekOptimalConditions'`、`_reverseMapBean()`のreverseMapに`'seekOptimalConditions': '最適条件探索'`を両方追加。③`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に`'最適条件探索'`を追加し`clasp push`+`clasp deploy --deploymentId <既存ID>`で再デプロイ(@16、URLは変わらないため`kGoogleSheetsApiUrl`の更新不要)。④012(`bean_create_screen.dart`)に「最適条件の探索」`FormSection`を新設、既存の`MockChoiceChips`を3択(`['未回答','探索する','探索しない']`)として流用(3値専用ウィジェットは無かったため変換関数`_seekOptimalToLabel`/`_seekOptimalFromLabel`で`bool?`と相互変換)。⑤011(`bean_detail_screen.dart`)の`fields`に「最適条件を探索するか」を追加(表示のみ)。⑥001(`dashboard_screen.dart`)に、未回答(`seekOptimalConditions == null`)の豆が1件以上あるときだけ表示される案内カード「最適条件の探索」を新設、豆ごとに「探索する」/「探索しない」ボタンで即座に`updateBean`+楽観的更新。
+- **新規テスト6件追加**: `test/bean_create_screen_test.dart`に3件(探索する選択→保存、未回答のまま保存、編集時の引き継ぎ)、新設`test/dashboard_screen_test.dart`に3件(未回答時の案内カード表示、ボタンタップでupdateBean呼び出し・カードから消える、全回答済み時は非表示)。既存`test/bean_detail_test.dart`の画像セクションテストが、フィールド増加でリスト下部に押し出され`dragUntilVisible`が必要になったため追記して修正(既存テストの座視回帰、機能追加自体は無関係)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全278件パス(既存266+新規12)、`flutter build web`成功。
+- **本番デプロイ**: GAS(`clasp push`+`clasp deploy`)・`firebase deploy`とも分類器ブロックなく直接成功。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ28件)**: 001に「最適条件の探索」カードが未回答28件全件で表示され、「探索する」タップで即座にカードから消えることを確認。**ブラウザ拡張(claude-in-chrome)経由のPOSTは302リダイレクトのフォロー時にクライアント側で404/エラーになることがあるが、doPost自体はリダイレクト前に成立しておりサーバー側の書き込みは成功している**(L87と同型の挙動、`curl`のGETで実際に値が反映されていることを確認)。011詳細・012編集フォームでも正しく表示・引き継ぎされることを確認。
+- **新たな教訓**: **このBash環境(Git Bash上のcurl)経由のPOSTで日本語JSONキー(`豆ID`等)を直接コマンド文字列に埋め込むと、GAS側で`dataObj[header]`が見つからず「ID column or value not found for update」エラーになることがある**(L87のPowerShell版と同型の問題がbash/curlでも発生。一方ブラウザ経由のPOSTは同じ日本語キーでもサーバー側の書き込みには成功していた)。検証目的で本番の2件に書き込んだ値は、ブラウザUI経由(012編集フォームで「未回答」を選択→更新)で正しく未回答へ戻せることを確認済み。`rules/lessons_archive.md`のL88として記録。
+- **次回セッションへの申し送り**: 依存なしで着手できるのは**T3-47(推奨焙煎度)・T3-51(焙煎度説明ページ)・T3-43(AI自動入力に焙煎度追加)・T3-69(store→storeId移行、依存充足済み)**。T3-47完了で上位モデル指定のT3-52が着手可能になる。優先度は`docs/改修マスタープラン.md` §3参照。
 
 ### -4.91 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-46完全クローズ=本番Sheetsの残りテストデータ4件を削除。コード変更なし)
 

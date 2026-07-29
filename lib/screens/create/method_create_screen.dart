@@ -6,6 +6,7 @@ import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../services/data_service.dart';
 import '../../widgets/method_steps_editor.dart';
+import '../../widgets/roast_level_slider.dart';
 import 'create_form_widgets.dart';
 
 /// 021 新規メソッド / 020 詳細からの編集フォーム。
@@ -44,6 +45,7 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
   final _temperatureController = TextEditingController();
   final _grindSizeController = TextEditingController();
   final _equipmentController = TextEditingController();
+  String? _recommendedRoastLevel;
 
   List<PouringStep> _originalSteps = [];
   List<PouringStep> _steps = [];
@@ -68,6 +70,7 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
         (edit?.temperature == null || edit!.temperature == 0) ? '' : edit.temperature!.toStringAsFixed(1);
     _grindSizeController.text = edit?.grindSize ?? '';
     _equipmentController.text = edit?.recommendedEquipment ?? '';
+    _recommendedRoastLevel = edit?.recommendedRoastLevel;
     if (!_isEdit) {
       // prefillSteps は永続化済みの他メソッドのステップを複製したものなので、
       // 元のIDのまま _submit() に渡すと updatePouringStep で元メソッド側の
@@ -136,6 +139,7 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
       description: _descController.text.trim(),
       recommendedEquipment: _equipmentController.text.trim(),
       sourceUrl: _urlController.text.trim().isEmpty ? null : _urlController.text.trim(),
+      recommendedRoastLevel: _recommendedRoastLevel,
     );
 
     try {
@@ -271,6 +275,11 @@ class _MethodCreateScreenState extends ConsumerState<MethodCreateScreen> {
             ),
             MockTextField(label: '推奨挽き目', hint: '例: 中粗挽き', controller: _grindSizeController),
             MockTextField(label: '推奨器具', hint: '例: V60 + ペーパー', controller: _equipmentController),
+            RoastLevelSlider(
+              value: _recommendedRoastLevel,
+              onChanged: (v) => setState(() => _recommendedRoastLevel = v),
+              label: '推奨焙煎度',
+            ),
           ],
         ),
         FormSection(

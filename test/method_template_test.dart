@@ -207,6 +207,7 @@ void main() {
         grindSize: '中粗挽き',
         description: '前半4割で味、後半6割で濃度を調整する',
         recommendedEquipment: 'V60',
+        recommendedRoastLevel: 'シティ',
       ),
       MethodMaster(
         id: 'm2',
@@ -316,5 +317,55 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeService.lastAddedMethod?.name, 'Hoffmann 1cup');
+  });
+
+  testWidgets('020詳細に推奨焙煎度が表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: MethodDetailScreen(method: methods[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('シティ'), findsOneWidget);
+  });
+
+  testWidgets('020詳細の編集→021で推奨焙煎度の初期値が引き継がれる', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: MethodDetailScreen(method: methods[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('シティ (City)'), findsOneWidget);
+  });
+
+  testWidgets('021新規登録で推奨焙煎度をスライダーで設定するとMethodMasterに保存される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: MethodListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'Hoffmann 1cup');
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(5.0);
+    await tester.pump();
+
+    await tester.tap(find.text('メソッドを登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAddedMethod?.recommendedRoastLevel, 'シティ');
   });
 }

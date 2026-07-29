@@ -22,6 +22,7 @@ class MethodMaster {
   @JsonKey(defaultValue: '')
   final String recommendedEquipment;
   final String? sourceUrl;
+  final String? recommendedRoastLevel;
 
   MethodMaster({
     required this.id,
@@ -34,6 +35,7 @@ class MethodMaster {
     required this.description,
     required this.recommendedEquipment,
     this.sourceUrl,
+    this.recommendedRoastLevel,
   });
 
   factory MethodMaster.fromJson(Map<String, dynamic> json) =>

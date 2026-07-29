@@ -55,6 +55,9 @@ class MethodDetailScreen extends ConsumerWidget {
         ('湯温', (method.temperature == null || method.temperature == 0) ? '-' : '${method.temperature!.toStringAsFixed(1)}℃'),
         ('推奨挽き目', method.grindSize ?? '-'),
         ('推奨器具', method.recommendedEquipment.isEmpty ? '-' : method.recommendedEquipment),
+        ('推奨焙煎度', (method.recommendedRoastLevel == null || method.recommendedRoastLevel!.isEmpty)
+            ? '-'
+            : method.recommendedRoastLevel!),
         ('説明', method.description.isEmpty ? '-' : method.description),
         ('抽出回数', '$extractionCount回'),
       ],

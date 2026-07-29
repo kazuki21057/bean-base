@@ -17,6 +17,7 @@ MethodMaster _$MethodMasterFromJson(Map<String, dynamic> json) => MethodMaster(
   description: json['description'] as String? ?? '',
   recommendedEquipment: json['recommendedEquipment'] as String? ?? '',
   sourceUrl: json['sourceUrl'] as String?,
+  recommendedRoastLevel: json['recommendedRoastLevel'] as String?,
 );
 
 Map<String, dynamic> _$MethodMasterToJson(MethodMaster instance) =>
@@ -31,4 +32,5 @@ Map<String, dynamic> _$MethodMasterToJson(MethodMaster instance) =>
       'description': instance.description,
       'recommendedEquipment': instance.recommendedEquipment,
       'sourceUrl': instance.sourceUrl,
+      'recommendedRoastLevel': instance.recommendedRoastLevel,
     };

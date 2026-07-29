@@ -239,6 +239,7 @@ class SheetsService implements DataService {
       '説明': 'description',
       '推奨機器': 'recommendedEquipment',
       'ソース': 'sourceUrl',
+      '推奨焙煎度': 'recommendedRoastLevel',
     };
     return _fetchData('methods_master', (map) => MethodMaster.fromJson(_remapKeys(map, keyMap)));
   }
@@ -704,8 +705,9 @@ class SheetsService implements DataService {
     final reverseMap = { 
        'id': 'メソッドID', 'name': 'メソッド名', 'author': '発案者', 
        'baseBeanWeight': '基準豆量(g)', 'baseWaterAmount': '基準湯量(ml)', 
-       'temperature': '湯温（℃）', 'grindSize': '粒度', 
-       'description': '説明', 'recommendedEquipment': '推奨機器', 'sourceUrl': 'ソース'
+       'temperature': '湯温（℃）', 'grindSize': '粒度',
+       'description': '説明', 'recommendedEquipment': '推奨機器', 'sourceUrl': 'ソース',
+       'recommendedRoastLevel': '推奨焙煎度',
     };
     return _mapToJson(item.toJson(), reverseMap);
   }
