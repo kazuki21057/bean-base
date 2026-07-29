@@ -4,6 +4,7 @@ import '../models/bean_master.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../utils/bean_stock_calculator.dart';
+import '../utils/bean_storage.dart';
 import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
 import 'bean_detail_screen.dart';
@@ -27,8 +28,11 @@ class BeanListScreen extends ConsumerStatefulWidget {
   ConsumerState<BeanListScreen> createState() => _BeanListScreenState();
 }
 
+const _storageFilterAll = '全て';
+
 class _BeanListScreenState extends ConsumerState<BeanListScreen> {
   bool _showEmpty = false;
+  String _storageFilter = _storageFilterAll;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +60,18 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
         destinationBuilder: () => const BeanCreateScreen(),
       ),
       children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SegmentedButton<String>(
+            segments: [
+              const ButtonSegment(value: _storageFilterAll, label: Text('全て')),
+              for (final loc in beanStorageLocations) ButtonSegment(value: loc, label: Text(loc)),
+            ],
+            selected: {_storageFilter},
+            onSelectionChanged: (s) => setState(() => _storageFilter = s.first),
+          ),
+        ),
+        const SizedBox(height: 8),
         MockSwitchTile(
           label: '残量0%の豆も表示する',
           initialValue: _showEmpty,
@@ -69,7 +85,11 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
             final withPercent = [
               for (final bean in named) (bean, calculateBeanRemainingPercent(bean, logs)),
             ];
-            final visible = withPercent.where((e) => _showEmpty || e.$2 > 0).toList();
+            final visible = withPercent
+                .where((e) =>
+                    (_showEmpty || e.$2 > 0) &&
+                    (_storageFilter == _storageFilterAll || e.$1.storageLocation == _storageFilter))
+                .toList();
             if (visible.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
@@ -158,7 +178,24 @@ class _BeanCard extends StatelessWidget {
                   : const Icon(Icons.coffee, size: 36, color: kMocha),
             ),
             const SizedBox(height: 8),
-            Text(bean.store, style: const TextStyle(fontSize: 11, color: kMocha)),
+            Row(
+              children: [
+                if (bean.storageLocation.isNotEmpty) ...[
+                  Icon(
+                    bean.storageLocation == '職場' ? Icons.work_outline : Icons.home_outlined,
+                    size: 12,
+                    color: kMocha,
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                Expanded(
+                  child: Text(bean.store,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: kMocha)),
+                ),
+              ],
+            ),
             Text(
               bean.name,
               maxLines: 1,

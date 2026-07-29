@@ -12,6 +12,7 @@ import '../../services/ai_analysis_service.dart';
 import '../../services/data_service.dart';
 import '../../services/image_service.dart';
 import '../../widgets/image_upload_field.dart';
+import '../../utils/bean_storage.dart';
 import '../../widgets/roast_level_slider.dart';
 import 'create_form_widgets.dart';
 
@@ -37,6 +38,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   final _typeController = TextEditingController();
   final _initialQuantityController = TextEditingController();
   String? _roastLevel;
+  String? _storageLocation;
   DateTime? _purchaseDate;
   DateTime? _roastDate;
   bool _isInStock = true;
@@ -60,6 +62,8 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _typeController.text = edit?.type ?? '';
     _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(1) ?? '';
     _roastLevel = (edit?.roastLevel.isNotEmpty ?? false) ? edit!.roastLevel : null;
+    _storageLocation =
+        (edit?.storageLocation.isNotEmpty ?? false) ? edit!.storageLocation : null;
     _purchaseDate = edit?.purchaseDate;
     _roastDate = edit?.roastDate;
     _isInStock = edit?.isInStock ?? true;
@@ -375,6 +379,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       lastUseDate: edit?.lastUseDate,
       isInStock: _isInStock,
       initialQuantityGrams: double.tryParse(_initialQuantityController.text.trim()),
+      storageLocation: _storageLocation ?? '',
     );
 
     try {
@@ -505,6 +510,12 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
             RoastLevelSlider(
               value: _roastLevel,
               onChanged: (v) => setState(() => _roastLevel = v),
+            ),
+            MockChoiceChips(
+              label: '保存場所',
+              options: beanStorageLocations,
+              initialValue: _storageLocation,
+              onChanged: (v) => setState(() => _storageLocation = v),
             ),
           ],
         ),

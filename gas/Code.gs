@@ -72,8 +72,9 @@ function ensureSheet_(ss, name) {
 // T3-34: bean_master の画像を パッケージ/豆/情報 の3種類に分離。既存の
 // '豆画像URL' はパッケージ画像として維持し、新規2列を追加する。
 // T3-60: bean_master に在庫基準点(残量手動調整)の2列を追加。
+// T3-59: bean_master に保存場所の1列を追加。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
-  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL', '在庫基準量(g)', '在庫基準日時'],
+  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL', '在庫基準量(g)', '在庫基準日時', '保存場所'],
   'coffee_data': ['産地ID'],
 };
 

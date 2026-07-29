@@ -343,6 +343,56 @@ void main() {
     expect(fakeService.lastAddedPurchase, isNull);
   });
 
+  testWidgets('T3-59: 保存場所を「家」で選択して登録するとstorageLocationが保存される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆F');
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, '家'),
+      50,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '家'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded?.storageLocation, '家');
+  });
+
+  testWidgets('T3-59: 編集時に既存の保存場所がフォームに引き継がれる', (tester) async {
+    final edit = BeanMaster(
+      id: 'b1',
+      name: '既存の豆',
+      roastLevel: '中煎り',
+      origin: 'ブラジル',
+      storageLocation: '職場',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanCreateScreen(editData: edit)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を更新する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated?.storageLocation, '職場');
+  });
+
   testWidgets('T3-63b: 編集モードで購入日があっても初回購入は記録されない', (tester) async {
     final edit = BeanMaster(
       id: 'b1',

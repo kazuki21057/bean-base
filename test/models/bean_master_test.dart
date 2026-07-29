@@ -97,4 +97,44 @@ void main() {
       expect(updated.imageUrl, isNull);
     });
   });
+
+  group('BeanMaster T3-59拡張(保存場所)', () {
+    test('json round-trip でstorageLocationが保持される', () {
+      final bean = BeanMaster(
+        id: '1',
+        name: '豆',
+        roastLevel: '中煎り',
+        origin: 'ブラジル',
+        storageLocation: '家',
+      );
+
+      final json = bean.toJson();
+      final restored = BeanMaster.fromJson(json);
+
+      expect(restored.storageLocation, '家');
+    });
+
+    test('storageLocation未設定の既存データは空文字のデフォルト値になる', () {
+      final restored = BeanMaster.fromJson({
+        'id': '1',
+        'name': '既存の豆',
+        'roastLevel': '中煎り',
+        'origin': 'ブラジル',
+      });
+      expect(restored.storageLocation, '');
+    });
+
+    test('copyWithでstorageLocationを更新できる', () {
+      final bean = BeanMaster(
+        id: '1',
+        name: '豆',
+        roastLevel: '中煎り',
+        origin: 'ブラジル',
+        storageLocation: '職場',
+      );
+      final updated = bean.copyWith(storageLocation: '家');
+      expect(updated.storageLocation, '家');
+      expect(updated.name, '豆');
+    });
+  });
 }

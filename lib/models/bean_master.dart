@@ -64,6 +64,11 @@ class BeanMaster {
   @JsonKey(fromJson: _parseDate)
   final DateTime? stockBaselineAt;
 
+  /// T3-59: 保存場所(職場/家)。選択肢は`lib/utils/bean_storage.dart`の
+  /// `beanStorageLocations`を参照。
+  @JsonKey(defaultValue: '', fromJson: _parseString)
+  final String storageLocation;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -83,6 +88,7 @@ class BeanMaster {
     this.roastDate,
     this.stockBaselineGrams,
     this.stockBaselineAt,
+    this.storageLocation = '',
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -150,6 +156,7 @@ class BeanMaster {
     DateTime? roastDate,
     double? stockBaselineGrams,
     DateTime? stockBaselineAt,
+    String? storageLocation,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -170,6 +177,7 @@ class BeanMaster {
       roastDate: roastDate ?? this.roastDate,
       stockBaselineGrams: stockBaselineGrams ?? this.stockBaselineGrams,
       stockBaselineAt: stockBaselineAt ?? this.stockBaselineAt,
+      storageLocation: storageLocation ?? this.storageLocation,
     );
   }
 }

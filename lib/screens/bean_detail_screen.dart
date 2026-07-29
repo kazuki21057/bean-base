@@ -50,6 +50,7 @@ class BeanDetailScreen extends ConsumerWidget {
         ('産地', currentBean.origin.isEmpty ? '-' : currentBean.origin),
         ('品種・精製', currentBean.type.isEmpty ? '-' : currentBean.type),
         ('煎り度', currentBean.roastLevel.isEmpty ? '-' : currentBean.roastLevel),
+        ('保存場所', currentBean.storageLocation.isEmpty ? '-' : currentBean.storageLocation),
         ('購入日', _formatDate(currentBean.purchaseDate)),
         ('初期購入量', currentBean.initialQuantityGrams == null ? '未設定' : '${currentBean.initialQuantityGrams!.toStringAsFixed(1)}g'),
         ('残量', percent > 0 ? '$percent% (在庫あり)' : '0% (在庫なし)'),

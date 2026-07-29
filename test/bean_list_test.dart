@@ -189,6 +189,49 @@ void main() {
     expect(find.text('残 0%'), findsOneWidget);
   });
 
+  testWidgets('T3-59: 保存場所で絞り込むと該当する豆だけ表示される', (tester) async {
+    final storageBeans = [
+      BeanMaster(
+        id: 'b1',
+        name: '職場の豆',
+        roastLevel: '浅煎り',
+        origin: 'エチオピア',
+        store: '岬の焙煎所',
+        isInStock: true,
+        initialQuantityGrams: 200,
+        storageLocation: '職場',
+      ),
+      BeanMaster(
+        id: 'b2',
+        name: '家の豆',
+        roastLevel: '中煎り',
+        origin: 'ケニア',
+        store: 'Navy',
+        isInStock: true,
+        initialQuantityGrams: 200,
+        storageLocation: '家',
+      ),
+    ];
+    final storageService = _FakeDataService(storageBeans);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(storageService),
+        child: const MaterialApp(home: BeanListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('職場の豆'), findsOneWidget);
+    expect(find.text('家の豆'), findsOneWidget);
+
+    await tester.tap(find.text('家'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('職場の豆'), findsNothing);
+    expect(find.text('家の豆'), findsOneWidget);
+  });
+
   testWidgets('カードをタップすると豆詳細(011)へ遷移する', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
