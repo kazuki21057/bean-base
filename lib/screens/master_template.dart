@@ -10,6 +10,7 @@ import 'filter_list_screen.dart';
 import 'grinder_list_screen.dart';
 import 'log_detail_screen.dart';
 import 'method_list_screen.dart';
+import 'store_list_screen.dart';
 import 'mock/mock_scaffold.dart';
 
 /// Cycle 20 T1-5a: 汎用マスター画面テンプレート。
@@ -35,6 +36,7 @@ class MasterSwitcherButton extends StatelessWidget {
     (AppScreen.filterList, Icons.filter_frames_outlined, 'フィルター管理', (_) => const FilterListScreen()),
     (AppScreen.methodList, Icons.receipt_long_outlined, 'メソッド管理', (_) => const MethodListScreen()),
     (AppScreen.grinderList, Icons.settings_input_component_outlined, 'グラインダー管理', (_) => const GrinderListScreen()),
+    (AppScreen.storeList, Icons.storefront_outlined, '購入店管理', (_) => const StoreListScreen()),
   ];
 
   /// 詳細画面(例: `AppScreen.beanDetail`)は対応する一覧(`AppScreen.beanList`)
@@ -56,6 +58,9 @@ class MasterSwitcherButton extends StatelessWidget {
       case AppScreen.grinderList:
       case AppScreen.grinderDetail:
         return AppScreen.grinderList;
+      case AppScreen.storeList:
+      case AppScreen.storeDetail:
+        return AppScreen.storeList;
       default:
         return screen;
     }

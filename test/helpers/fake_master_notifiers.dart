@@ -1,6 +1,7 @@
 import 'package:bean_base/models/bean_master.dart';
 import 'package:bean_base/models/equipment_masters.dart';
 import 'package:bean_base/models/method_master.dart';
+import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 
 /// T3-45: `beanMasterProvider`等が`FutureProvider`から`AsyncNotifierProvider`
@@ -40,4 +41,11 @@ class FakeFilterMasterNotifier extends FilterMasterNotifier {
   final Future<List<FilterMaster>> Function() _fetcher;
   @override
   Future<List<FilterMaster>> fetch() => _fetcher();
+}
+
+class FakeStoreMasterNotifier extends StoreMasterNotifier {
+  FakeStoreMasterNotifier(this._fetcher);
+  final Future<List<StoreMaster>> Function() _fetcher;
+  @override
+  Future<List<StoreMaster>> fetch() => _fetcher();
 }

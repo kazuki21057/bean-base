@@ -5,6 +5,7 @@ import '../screens/create/dripper_create_screen.dart';
 import '../screens/create/filter_create_screen.dart';
 import '../screens/create/grinder_create_screen.dart';
 import '../screens/create/method_create_screen.dart';
+import '../screens/create/store_create_screen.dart';
 import '../screens/create/brew_evaluation_screen.dart';
 import '../models/pending_brew_info.dart';
 import '../screens/mock/dashboard_mock_screen.dart';
@@ -22,6 +23,7 @@ import '../screens/dripper_list_screen.dart';
 import '../screens/filter_list_screen.dart';
 import '../screens/grinder_list_screen.dart';
 import '../screens/method_list_screen.dart';
+import '../screens/store_list_screen.dart';
 
 /// 画面ID → Widget の解決テーブル。
 /// 全22画面がUIモック(見た目のみ・データ未接続)として登録済み。
@@ -64,6 +66,12 @@ Widget buildScreenWidget(AppScreen screen) {
       return const GrinderDetailMockScreen();
     case AppScreen.grinderNew:
       return const GrinderCreateScreen();
+    case AppScreen.storeList:
+      return const StoreListScreen();
+    case AppScreen.storeDetail:
+      return const StoreDetailMockScreen();
+    case AppScreen.storeNew:
+      return const StoreCreateScreen();
     case AppScreen.brewRecipe:
       return const BrewRecipeScreen();
     case AppScreen.brewEvaluation:

@@ -4,6 +4,7 @@ import 'dripper_list_screen.dart';
 import 'filter_list_screen.dart';
 import 'grinder_list_screen.dart';
 import 'method_list_screen.dart';
+import 'store_list_screen.dart';
 import 'settings_screen.dart';
 
 /// 「Masters」ナビタブの入り口。
@@ -24,6 +25,7 @@ class MastersHubScreen extends StatelessWidget {
       (Icons.filter_frames_outlined, 'フィルター管理', '', (_) => const FilterListScreen()),
       (Icons.receipt_long_outlined, 'メソッド管理', '発案者/抽出回数', (_) => const MethodListScreen()),
       (Icons.settings_input_component_outlined, 'グラインダー管理', '', (_) => const GrinderListScreen()),
+      (Icons.storefront_outlined, '購入店管理', '', (_) => const StoreListScreen()),
     ];
 
     return Scaffold(

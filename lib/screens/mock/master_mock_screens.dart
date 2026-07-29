@@ -167,6 +167,28 @@ class MethodDetailMockScreen extends StatelessWidget {
   }
 }
 
+// ---- 購入店 027(詳細のみ。026本実装は store_list_screen.dart) ----
+// T3-68: ギャラリー(screen_gallery_screen.dart)からコード指定で単独遷移する
+// 際のプレースホルダ。実データを伴う詳細は store_detail_screen.dart の
+// StoreDetailScreen(store: ...) を一覧からのタップ経由で表示する。
+
+class StoreDetailMockScreen extends StatelessWidget {
+  const StoreDetailMockScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _MasterDetailMock(
+      screen: AppScreen.storeDetail,
+      icon: Icons.storefront_outlined,
+      fields: [
+        ('店名', 'Navy'),
+        ('都道府県', '兵庫県'),
+        ('業態', 'オンライン販売 ・ 実店舗 ・ 焙煎所併設'),
+      ],
+    );
+  }
+}
+
 // ---- グラインダー 023(詳細のみ。022本実装は grinder_list_screen.dart) ----
 
 class GrinderDetailMockScreen extends StatelessWidget {
