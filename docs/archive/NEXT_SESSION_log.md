@@ -1244,3 +1244,19 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
   3. **T3-61(追加購入+購入履歴の統合設計)は依然として上位モデル待ち**。依存元のT3-60(在庫基準点)が未完なので、まずSonnet 5でT3-60を終わらせてから上位モデルでT3-61を実施する順序になる。
   4. 引き続き**依存なしで着手できるのは T3-58(S、原因調査済み)・T3-59(M)・T3-60(M)**、および T3-46(S、残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
 
+### -4.75 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-54a完了=焙煎度スライダー`RoastLevelSlider`の新規作成と012への適用・本番デプロイ・確認まで完了)
+
+**依存なし・設計確定済み(`docs/roast_slider_design.md`)で「発明せずそのまま実装すればよい」タスクだったT3-54aに着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **実装は設計書どおり**: ①`lib/services/math/encoding.dart`に`roastLevels8En`(英語8ラベル)を追加。`roastOrdinalMap`は変更なし。②`lib/widgets/roast_level_slider.dart`を新規作成、`RoastLevelSlider`(`StatelessWidget`、制御コンポーネント)を実装。通常表示(中央大表示+浅い/深い端ラベル+クリアボタン)と`compact`表示(T3-54b用、ラベル行にインライン表示・端ラベル/クリアボタン無し)の両方をこのタスクで作り込んだ。グラデーショントラックは設計書§3.3どおり「背面にグラデーション`Container`、前面に`activeTrackColor/inactiveTrackColor: Colors.transparent`の`Slider`を`Stack`で重ねる」方式。③`lib/screens/create/bean_create_screen.dart`(012)の`MockChoiceChips`(煎り度)を`RoastLevelSlider(value: _roastLevel, onChanged: (v) => setState(() => _roastLevel = v))`に置換し、`_roastOptions`/`_roastChoices`/`_withCurrentValue`(このファイル内のみ)/AI抽出時の`_roastChoices`代入/未使用になった`encoding.dart`のimportを削除。
+- **副次効果(設計書の想定どおり)**: AI自動入力で焙煎度が抽出されても`MockChoiceChips`(`initState`でしか`initialValue`を読まない)のせいで画面に反映されなかった既存バグが、`RoastLevelSlider`を制御コンポーネント化したことで自動的に解消した。
+- **新規テスト6件追加**(`test/roast_level_slider_test.dart`、設計書§7.1どおり): 未設定表示・正常表示・旧5段階表記の後方互換(`中煎り`→`ハイ`)・未知の値の扱い(`onChanged`を呼ばない)・Slider操作でのコールバック値・クリアボタンの6ケース。すべてドラッグではなく`Slider.onChanged`を直接呼ぶ方式(設計書指定どおり、環境依存の不安定さを回避)。
+- **検証**: `flutter analyze`新規issue 0(既存44件のまま)、`flutter test`全216件パス(既存210+新規6)、`flutter build web`成功。
+- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 既存豆(焙煎度「中煎り」=旧5段階表記)の編集画面で、スライダーが正しく「ハイ (High) 4/8」と表示され後方互換が機能することを確認。新規豆追加画面では「未設定(スライダーを動かして選択)」表示・クリアボタン無効・サムが中央(4.0)にあることを確認。確認後は保存せずキャンセルで抜け、本番データにテスト豆を増やしていない(既存の教訓どおり)。**なお、検証中に一度ローカルサーバーのポートで古いFlutter Service Worker/キャッシュが残っていて古いビルドが表示される事象が発生したが、`docs/deploy.md`/`rules/verification.md`既知の教訓どおりコンソールで`serviceWorker.getRegistrations()`→`unregister()`+`caches.delete()`してから再読み込みして解決した(新規の教訓ではなく既知の手順で解決したため`rules/verification.md`への追記は不要と判断)。**
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-54aは完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
+  2. **T3-54b(040/030の焙煎度入力をコンパクトスライダーに統一)が依存なしで着手可能**。設計は`docs/roast_slider_design.md`§5.3で確定済み、発明不要。オーバーフロー目視確認が必須(`Row`/`Expanded`内での縦幅増加に注意)。
+  3. 引き続き依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-54b(S〜M)・T3-60(M)・T3-59(M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  4. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。

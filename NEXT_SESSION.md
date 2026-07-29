@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-68完了=購入店の一覧026/詳細027/新規028の3画面・本番デプロイ・確認まで完了)
+最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-70完了=新規購入店のAI自動取得・本番デプロイ・確認まで完了)
 
 > **本書の構成(2026-07-28に整理)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに**直近5セッション分の作業ログ(-4.79〜-4.75節)**のみを残した。それ以前の作業ログ(-4.74節以前)と旧「2. 次回の着手点」は **`docs/archive/NEXT_SESSION_log.md`** へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」という記述は、-4.74以前ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の先頭に新しい節を足し、**6件目以降になった最古の節はアーカイブへ移す**(本書は直近5件だけを保つ)。タスク定義・進捗の正本はあくまで `docs/改修マスタープラン.md`。
@@ -8,7 +8,7 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物は無い**(T3-68を2026-07-29に反映済み)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物は無い**(T3-70を2026-07-29に反映済み)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
 - 直近の追加タスク: 2026-07-28にユーザー要望6件を **T3-58〜T3-69** として登録(追加購入・購入履歴・購入店マスタ・保存場所・残量手動調整・030の湯量スケーリング不具合)。同日さらに **T3-70**(新規購入店のAI自動情報取得)を追加。
 - **T3-66(購入店マスタ設計、上位モデル)は2026-07-28に完了**。成果物は **`docs/store_master_design.md`**。これによりT3-67→T3-68→T3-70/T3-69がSonnet 5で実装可能になった。
@@ -19,6 +19,7 @@
 - **T3-54b(040/030へのcompact版展開)は2026-07-29に完了・本番反映済み**。設計書§5.3どおり両画面のドロップダウンを`RoastLevelSlider(compact: true)`に置換。claude-in-chromeのスクロール不具合により、Playwright経由でCanvasKitのcanvasを直接ダンプする手法(`rules/verification.md`参照)で実ブラウザ確認しオーバーフロー無しを確認済み。
 - **T3-67(購入店マスタのデータ基盤)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`の設計どおり`StoreMaster`モデル・GAS `store_master`シート(19列)・`DataService`/`SheetsService`のCRUD・`storeMasterProvider`を実装し、初期7店を本番Sheetsへ投入(冪等確認済み)。これによりT3-68(購入店の3画面)が着手可能になった。
 - **T3-68(購入店の一覧026/詳細027/新規028の3画面)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`§5の設計どおり実装。**「この店で買った豆」の突合は`BeanMaster.storeId`がT3-69未実施のため`b.store == store.name`(+明暮焙煎所↔明暮焙煎研フォールバック)で代用**しており、T3-69実装時に設計書どおりの`storeId`優先ロジックへ差し替えが必要。これによりT3-70(新規購入店のAI自動取得)が着手可能になった。
+- **T3-70(新規購入店のAI自動取得)は2026-07-29に完了・本番反映済み**。`docs/store_master_design.md`§8の設計どおり`AiAnalysisService.fetchStoreInfo`+028の確認ダイアログを実装。これにより購入店マスタ関連タスク(T3-66〜T3-68・T3-70)は完結、残るはT3-69(store→storeId移行)のみ。
 
 ## 2. 次回の着手点
 
@@ -26,8 +27,7 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | T3-70 | 新規購入店のAI自動取得 | M | **T3-68完了により着手可能に**。方式・プロンプト制約・UIは`docs/store_master_design.md`§8で確定済み、発明不要 |
-| ○ | T3-60 | 豆の残量を手動調整(在庫基準点方式) | M | T3-63の前提基盤。早めに入れると良い |
+| ◎ | T3-60 | 豆の残量を手動調整(在庫基準点方式) | M | T3-63の前提基盤。早めに入れると良い |
 | ○ | T3-59 | 豆マスタに保存場所(職場/家) | M | |
 | ○ | T3-46 | テストデータ削除(残4件) | S | |
 | ○ | T3-50 | 豆マスタ「最適条件を探索するか」 | M | |
@@ -48,6 +48,25 @@
 4. **設計書`docs/store_master_design.md`§9の未解決4件(SORA・Navy・神戸珈琲物語のどの店舗か・Youth Coffeeの詳細)はユーザー確認待ち**。027(T3-68完了済み)の編集画面(028編集モード)からいつでも補完可能。
 
 ## 3. 直近の作業ログ(最新5セッション)
+
+### -4.80 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-70完了=新規購入店のAI自動取得・本番デプロイ・確認まで完了)
+
+**依存なし・設計確定済み(`docs/store_master_design.md`§8)で「発明せずそのまま実装すればよい」タスクだったT3-70に着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **実装は設計書§8どおり**: ①`lib/services/ai_analysis_service.dart`に`StoreInfoCandidate`(§2の13項目+`ambiguous`/`candidates`/`confidence`/`sourceUrls`)と`fetchStoreInfo({storeName, hintPrefecture, apiKey, preferredModel})`を追加。既存の`extractBeanInfoFromImage`と同型に`GenerationConfig(responseMimeType: 'application/json')`+`_modelOrder`フォールバックを使用。②`lib/screens/create/store_create_screen.dart`(028)の店名欄の右に「AIで自動入力」アイコンボタン(`Icons.auto_awesome_outlined`、012と同じ流儀)を追加し、確認ダイアログ(`_StoreInfoConfirmDialog`)を新設。③確認ダイアログはチェックボックス付きで、`confidence: low`と既に値が入っている項目は既定OFF(設計書§8.4どおり)。「反映」を押すとチェック済み項目のみフォームへ反映し`sourceUrl`(改行区切り)/`infoFetchedAt`(現在時刻)も設定。無条件保存はしない。④`ambiguous: true`のときは候補選択ダイアログを先に挟み、選ばなければ何も反映せず閉じる(選んだ場合は候補の説明文を店名に付加して再取得)。⑤APIキー未設定・取得失敗・JSONパース失敗はいずれも日本語SnackBar(floating+下マージン)で通知し手入力に継続できる。
+- **設計書に無かった調査事項**: Google検索グラウンディングの対応可否を`google_generative_ai: ^0.4.7`のソース(`Tool`クラス)で確認したところ、`functionDeclarations`/`codeExecution`のみで検索グラウンディング非対応と判明。設計書§8.1の指示どおりパッケージ追加はせず非グラウンディングで実装した。
+- **実装中に発見・修正したバグ**: 確認ダイアログ表示中も`_isFetchingInfo`(スピナー用フラグ)をtrueのままにしていたため、インジケータの回転アニメーションが止まらず、ウィジェットテストの`pumpAndSettle`が収束せずタイムアウトする不具合があった。通信中のみスピナーをtrueにし、確認・候補選択ダイアログの表示前にfalseへ戻すよう修正(ユーザー入力待ちとAPI通信中を明確に分離)。
+- **新規テスト9件追加**(`test/store_ai_fetch_test.dart`、`_FakeAiAnalysisService extends AiAnalysisService`でメソッドオーバーライドする方式): ウィジェットテスト3件(confidence:low・既存値ありの既定OFF/反映後にフォームへ反映されること、ambiguous時の候補選択ダイアログとキャンセルで何も反映されないこと、取得失敗時のSnackBarと手入力継続)+`StoreInfoCandidate.fromJson`の単体テスト3件(項目ごとのvalue/confidence読み取り、ambiguousのcandidates読み取り、空JSONでisEmpty)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全239件パス(既存233+新規6、`store_ai_fetch_test.dart`内訳はウィジェット3件+`StoreInfoCandidate.fromJson`単体3件)、`flutter build web`成功。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: `claude-in-chrome`の`computer`ツールでのNavigationRailクリックが今回も不安定だったため、Playwright MCPの`page.mouse.click`(実マウスイベント)+CanvasKit canvas直接ダンプ(`rules/verification.md`既知の手法)に切り替えて確認した。マスター管理ハブに「購入店管理」が表示され026一覧に本番7店が表示されること、028新規購入店フォームの店名欄の横に「AIで自動入力」ボタン(ツールチップ「AIで自動入力」)が表示されること、店名未入力のままボタンを押すと「先に店名を入力してください」のSnackBarが出ることを確認。コンソールエラー0件。**実際のGemini API呼び出し(確認ダイアログの表示・項目反映)は本番APIキーでの課金が発生するため実施していない**(ロジックはフェイクサービスを使ったウィジェットテストで担保)。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **座標クリックでの新知見(`rules/verification.md`へ追記予定)**: この環境でのFlutter Web(CanvasKit)ナビゲーションは、`claude-in-chrome`の`computer`ツールおよび`browser_evaluate`での合成`PointerEvent`ディスパッチのどちらも、NavigationRailやAppBarの戻るボタンなど一部の要素で反応しない/誤った座標に当たることがあった。Playwright MCPの`browser_run_code_unsafe`で`page.mouse.click(x, y)`(Playwrightの本物のマウスイベント)を使うと確実に反応した。また、Read/画像表示ツールが示す「displayed」座標はビューポート座標そのものではなく縮小表示のため、`page.mouse.click`に渡す座標は**表示された画像上で読み取った座標に「original/displayed」の倍率(本セッションでは1.28)を掛けた値**を使う必要がある(生の表示座標をそのまま使うと隣接する行/要素を誤クリックする)。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-70は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。これで購入店マスタ関連タスク(T3-66〜T3-68・T3-70)は完結し、残るはT3-69(豆マスタのstore→storeId移行、T3-62待ち)のみ。
+  2. 引き続き依存なしで着手できるのは**T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. **実ブラウザでのAI取得結果確認ダイアログの目視確認は依然として未実施**(本物のGemini APIキーでの課金を避けたため)。ユーザーが手元で`flutter run`し実際のAPIキーで一度試すことを推奨。
+  4. **Flutter Web(CanvasKit)への座標クリックはPlaywrightの`page.mouse.click`(`browser_run_code_unsafe`経由)を第一候補にするとよい**(`claude-in-chrome`の`computer`や`browser_evaluate`での合成PointerEventより安定していた、詳細は本節上の「座標クリックでの新知見」を参照)。
 
 ### -4.79 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-68完了=購入店の一覧026/詳細027/新規028の3画面・本番デプロイ・確認まで完了)
 
@@ -121,24 +140,7 @@
   3. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
   4. **claude-in-chromeでスクロール/クリックが反応しない画面に当たったら、Playwright MCPの`WheelEvent`/`PointerEvent`直接dispatch+canvas直接ダンプへ早めに切り替えるとよい**(手順は`rules/verification.md`の該当教訓を参照。無理にclaude-in-chrome側で粘るより速い)。
 
-### -4.75 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-54a完了=焙煎度スライダー`RoastLevelSlider`の新規作成と012への適用・本番デプロイ・確認まで完了)
-
-**依存なし・設計確定済み(`docs/roast_slider_design.md`)で「発明せずそのまま実装すればよい」タスクだったT3-54aに着手し、実装・検証・デプロイ・本番確認まで完走した。**
-
-- **実装は設計書どおり**: ①`lib/services/math/encoding.dart`に`roastLevels8En`(英語8ラベル)を追加。`roastOrdinalMap`は変更なし。②`lib/widgets/roast_level_slider.dart`を新規作成、`RoastLevelSlider`(`StatelessWidget`、制御コンポーネント)を実装。通常表示(中央大表示+浅い/深い端ラベル+クリアボタン)と`compact`表示(T3-54b用、ラベル行にインライン表示・端ラベル/クリアボタン無し)の両方をこのタスクで作り込んだ。グラデーショントラックは設計書§3.3どおり「背面にグラデーション`Container`、前面に`activeTrackColor/inactiveTrackColor: Colors.transparent`の`Slider`を`Stack`で重ねる」方式。③`lib/screens/create/bean_create_screen.dart`(012)の`MockChoiceChips`(煎り度)を`RoastLevelSlider(value: _roastLevel, onChanged: (v) => setState(() => _roastLevel = v))`に置換し、`_roastOptions`/`_roastChoices`/`_withCurrentValue`(このファイル内のみ)/AI抽出時の`_roastChoices`代入/未使用になった`encoding.dart`のimportを削除。
-- **副次効果(設計書の想定どおり)**: AI自動入力で焙煎度が抽出されても`MockChoiceChips`(`initState`でしか`initialValue`を読まない)のせいで画面に反映されなかった既存バグが、`RoastLevelSlider`を制御コンポーネント化したことで自動的に解消した。
-- **新規テスト6件追加**(`test/roast_level_slider_test.dart`、設計書§7.1どおり): 未設定表示・正常表示・旧5段階表記の後方互換(`中煎り`→`ハイ`)・未知の値の扱い(`onChanged`を呼ばない)・Slider操作でのコールバック値・クリアボタンの6ケース。すべてドラッグではなく`Slider.onChanged`を直接呼ぶ方式(設計書指定どおり、環境依存の不安定さを回避)。
-- **検証**: `flutter analyze`新規issue 0(既存44件のまま)、`flutter test`全216件パス(既存210+新規6)、`flutter build web`成功。
-- **ブラウザ確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: 既存豆(焙煎度「中煎り」=旧5段階表記)の編集画面で、スライダーが正しく「ハイ (High) 4/8」と表示され後方互換が機能することを確認。新規豆追加画面では「未設定(スライダーを動かして選択)」表示・クリアボタン無効・サムが中央(4.0)にあることを確認。確認後は保存せずキャンセルで抜け、本番データにテスト豆を増やしていない(既存の教訓どおり)。**なお、検証中に一度ローカルサーバーのポートで古いFlutter Service Worker/キャッシュが残っていて古いビルドが表示される事象が発生したが、`docs/deploy.md`/`rules/verification.md`既知の教訓どおりコンソールで`serviceWorker.getRegistrations()`→`unregister()`+`caches.delete()`してから再読み込みして解決した(新規の教訓ではなく既知の手順で解決したため`rules/verification.md`への追記は不要と判断)。**
-- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
-- **コミット**: 本セッション終了時にpush予定。
-- **次回セッションへの申し送り**:
-  1. **T3-54aは完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
-  2. **T3-54b(040/030の焙煎度入力をコンパクトスライダーに統一)が依存なしで着手可能**。設計は`docs/roast_slider_design.md`§5.3で確定済み、発明不要。オーバーフロー目視確認が必須(`Row`/`Expanded`内での縦幅増加に注意)。
-  3. 引き続き依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-54b(S〜M)・T3-60(M)・T3-59(M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
-  4. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
-
-> これ以前(-4.74節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-4.75節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. 自動ループのセットアップ状況
 

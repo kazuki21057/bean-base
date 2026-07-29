@@ -47,6 +47,113 @@ class ExtractedBeanInfo {
       name == null && store == null && origin == null && roastLevel == null && type == null && roastDate == null;
 }
 
+/// T3-70(設計書`docs/store_master_design.md`§8.3): 新規購入店の情報をAIで自動取得した結果。
+/// `StoreMaster`の13項目(id/name/memo/imageUrl/sourceUrl/infoFetchedAtを除く)を対象とし、
+/// 項目ごとに`confidence`(high/medium/low)を必ず併記する。値が確信できない項目はnull。
+class StoreInfoCandidate {
+  /// 同名の別店舗が複数存在し、AIが1つに絞れなかった場合はtrue。
+  /// この場合、他のフィールドはすべて空(候補提示のみ)。
+  final bool ambiguous;
+  final List<String> candidates;
+
+  final String? formalName;
+  final String? url;
+  final String? prefecture;
+  final String? address;
+  final bool? hasOnlineShop;
+  final bool? hasPhysicalStore;
+  final bool? hasRoastery;
+  final String? beanTendency;
+  final String? snsUrl;
+  final String? businessHours;
+  final String? closedDays;
+  final String? phone;
+  final String? openedYear;
+
+  /// `StoreMaster`のDartフィールド名 → 'high'/'medium'/'low'。値がnullの項目は含まれない。
+  final Map<String, String> confidence;
+  final List<String> sourceUrls;
+
+  const StoreInfoCandidate({
+    this.ambiguous = false,
+    this.candidates = const [],
+    this.formalName,
+    this.url,
+    this.prefecture,
+    this.address,
+    this.hasOnlineShop,
+    this.hasPhysicalStore,
+    this.hasRoastery,
+    this.beanTendency,
+    this.snsUrl,
+    this.businessHours,
+    this.closedDays,
+    this.phone,
+    this.openedYear,
+    this.confidence = const {},
+    this.sourceUrls = const [],
+  });
+
+  bool get isEmpty =>
+      !ambiguous &&
+      formalName == null &&
+      url == null &&
+      prefecture == null &&
+      address == null &&
+      hasOnlineShop == null &&
+      hasPhysicalStore == null &&
+      hasRoastery == null &&
+      beanTendency == null &&
+      snsUrl == null &&
+      businessHours == null &&
+      closedDays == null &&
+      phone == null &&
+      openedYear == null;
+
+  factory StoreInfoCandidate.fromJson(Map<String, dynamic> json) {
+    final confidence = <String, String>{};
+    String? readString(String key) {
+      final field = json[key];
+      if (field is! Map) return null;
+      final v = field['value'];
+      final c = field['confidence'];
+      if (v is! String || v.trim().isEmpty) return null;
+      if (c is String && c.isNotEmpty) confidence[key] = c;
+      return v.trim();
+    }
+
+    bool? readBool(String key) {
+      final field = json[key];
+      if (field is! Map) return null;
+      final v = field['value'];
+      final c = field['confidence'];
+      if (v is! bool) return null;
+      if (c is String && c.isNotEmpty) confidence[key] = c;
+      return v;
+    }
+
+    return StoreInfoCandidate(
+      ambiguous: json['ambiguous'] == true,
+      candidates: (json['candidates'] as List?)?.whereType<String>().toList() ?? const [],
+      formalName: readString('formalName'),
+      url: readString('url'),
+      prefecture: readString('prefecture'),
+      address: readString('address'),
+      hasOnlineShop: readBool('hasOnlineShop'),
+      hasPhysicalStore: readBool('hasPhysicalStore'),
+      hasRoastery: readBool('hasRoastery'),
+      beanTendency: readString('beanTendency'),
+      snsUrl: readString('snsUrl'),
+      businessHours: readString('businessHours'),
+      closedDays: readString('closedDays'),
+      phone: readString('phone'),
+      openedYear: readString('openedYear'),
+      confidence: confidence,
+      sourceUrls: (json['sourceUrls'] as List?)?.whereType<String>().toList() ?? const [],
+    );
+  }
+}
+
 class AiAnalysisService {
   /// T3-39: [preferredModel]が指定されていれば先頭に置き、既定のフォールバック順
   /// (`_kGeminiModels`)を後ろに続ける(重複は除く)。未指定・空文字なら既定順のまま。
@@ -118,6 +225,111 @@ class AiAnalysisService {
       }
     }
     throw Exception('画像からの情報抽出に失敗しました: $lastError');
+  }
+
+  /// T3-70(設計書§8.3): 新規購入店の情報をGeminiに取得させる。数値計算ではなく
+  /// テキスト情報の収集のため「Gemini非依存」の絶対規則(統計解析機能向け)は適用されない。
+  /// Google検索グラウンディングは`google_generative_ai: ^0.4.7`が`Tool`に
+  /// `functionDeclarations`/`codeExecution`しか公開しておらず非対応のため、
+  /// 非グラウンディングのまま実装する(設計書§8.1の指示どおり、パッケージ追加はしない)。
+  Future<StoreInfoCandidate> fetchStoreInfo({
+    required String storeName,
+    String? hintPrefecture,
+    required String apiKey,
+    String? preferredModel,
+  }) async {
+    if (apiKey.isEmpty) {
+      throw Exception('APIキーが設定されていません。設定画面でGemini APIキーを入力してください。');
+    }
+
+    final prompt = _buildStoreInfoPrompt(storeName, hintPrefecture);
+    final schema = _storeInfoSchema();
+
+    Object? lastError;
+    for (final modelName in _modelOrder(preferredModel)) {
+      try {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          ),
+        );
+        debugPrint('[Antigravity] Action: 購入店情報のAI取得を要求 (model=$modelName, store=$storeName)');
+        final response = await model.generateContent([Content.text(prompt)]);
+        final text = response.text;
+        if (text == null || text.isEmpty) {
+          throw Exception('取得結果が空でした');
+        }
+        final json = jsonDecode(text) as Map<String, dynamic>;
+        return StoreInfoCandidate.fromJson(json);
+      } catch (e) {
+        debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (fetchStoreInfo): $e');
+        lastError = e;
+      }
+    }
+    throw Exception('購入店情報の取得に失敗しました: $lastError');
+  }
+
+  Schema _storeInfoField(Schema valueSchema, String description) => Schema.object(
+        nullable: true,
+        description: description,
+        properties: {
+          'value': valueSchema,
+          'confidence': Schema.enumString(
+            enumValues: const ['high', 'medium', 'low'],
+            description: 'この項目の確信度',
+            nullable: true,
+          ),
+        },
+      );
+
+  Schema _storeInfoSchema() {
+    final s = Schema.string(nullable: true);
+    final b = Schema.boolean(nullable: true);
+    return Schema.object(properties: {
+      'ambiguous': Schema.boolean(description: '同名の別店舗が複数あり1つに絞れない場合はtrue', nullable: true),
+      'candidates': Schema.array(
+        items: Schema.string(),
+        description: 'ambiguousがtrueのときの候補一覧(店名+所在地の簡単な説明)',
+        nullable: true,
+      ),
+      'formalName': _storeInfoField(s, '法人名・正式屋号'),
+      'url': _storeInfoField(s, '公式サイトURL'),
+      'prefecture': _storeInfoField(s, '都道府県'),
+      'address': _storeInfoField(s, '都道府県以下の住所(郵便番号を含めてよい)'),
+      'hasOnlineShop': _storeInfoField(b, 'オンライン販売の有無'),
+      'hasPhysicalStore': _storeInfoField(b, '実店舗の有無'),
+      'hasRoastery': _storeInfoField(b, '焙煎所併設の有無'),
+      'beanTendency': _storeInfoField(s, '取扱豆の傾向'),
+      'snsUrl': _storeInfoField(s, 'SNS(Instagram等)のURL 1本'),
+      'businessHours': _storeInfoField(s, '営業時間'),
+      'closedDays': _storeInfoField(s, '定休日'),
+      'phone': _storeInfoField(s, '電話番号'),
+      'openedYear': _storeInfoField(s, '開業年(西暦4桁の文字列)'),
+      'sourceUrls': Schema.array(
+        items: Schema.string(),
+        description: '情報の出典URL一覧',
+        nullable: true,
+      ),
+    });
+  }
+
+  String _buildStoreInfoPrompt(String storeName, String? hintPrefecture) {
+    final hint = (hintPrefecture == null || hintPrefecture.isEmpty) ? '' : '(手がかり: 都道府県「$hintPrefecture」)';
+    return 'あなたはコーヒー店・自家焙煎コーヒーショップの情報収集アシスタントです。\n'
+        '以下の購入店について、公式サイトやSNS等から分かる情報を調べ、指定のJSONスキーマで出力してください。\n'
+        '店名: $storeName $hint\n\n'
+        '絶対規則:\n'
+        '- 確信が持てない項目は必ずvalueをnullにしてください。推測で埋めてはいけません。\n'
+        '- 同名または類似名の別店舗が複数存在し、どの店か1つに絞れない場合は、'
+        'ambiguousをtrueにしてcandidatesに候補(店名+所在地の簡単な説明)を列挙し、'
+        '他の項目はすべてnullにしてください。\n'
+        '- 各項目には必ずconfidence(high/medium/low)を付けてください。\n'
+        '- sourceUrlsに情報の出典としたURLを列挙してください。\n'
+        '- 出力は日本語にしてください。住所は郵便番号を含めてよいです。\n'
+        '- 開業年は西暦4桁の文字列(例: "2015")で、不明ならnullにしてください。';
   }
 
   String? _nonEmptyString(Object? v) => (v is String && v.trim().isNotEmpty) ? v.trim() : null;
