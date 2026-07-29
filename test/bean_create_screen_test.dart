@@ -29,8 +29,13 @@ class _FakeDataService implements DataService {
   Future<void> deleteStore(String id) async {}
   @override
   Future<List<BeanPurchase>> getBeanPurchases() async => [];
+  BeanPurchase? lastAddedPurchase;
+  bool throwOnAddBeanPurchase = false;
   @override
-  Future<void> addBeanPurchase(BeanPurchase purchase) async {}
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {
+    if (throwOnAddBeanPurchase) throw Exception('購入履歴の記録に失敗');
+    lastAddedPurchase = purchase;
+  }
   @override
   Future<void> updateBeanPurchase(BeanPurchase purchase) async {}
   @override
@@ -276,5 +281,90 @@ void main() {
     expect(fakeService.lastUpdated?.imageUrl, 'https://example.com/package.jpg');
     expect(fakeService.lastUpdated?.beanImageUrl, 'https://example.com/bean.jpg');
     expect(fakeService.lastUpdated?.infoImageUrl, 'https://example.com/info.jpg');
+  });
+
+  testWidgets('T3-63b: 012の新規登録で購入日を入力するとbp_init_<豆ID>のIDで初回購入が記録される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆D');
+    await tester.enterText(find.widgetWithText(TextField, '焙煎所 / 購入店').hitTestable(), 'テスト焙煎所');
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.widgetWithText(TextField, '初期購入量(g)'),
+      50,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, '初期購入量(g)').hitTestable(), '200');
+
+    await tester.scrollUntilVisible(
+      find.text('購入日'),
+      50,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('購入日'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded, isNotNull);
+    expect(fakeService.lastAddedPurchase, isNotNull);
+    expect(fakeService.lastAddedPurchase?.id, 'bp_init_${fakeService.lastAdded!.id}');
+    expect(fakeService.lastAddedPurchase?.beanId, fakeService.lastAdded!.id);
+    expect(fakeService.lastAddedPurchase?.quantityGrams, 200);
+    expect(fakeService.lastAddedPurchase?.storeName, 'テスト焙煎所');
+  });
+
+  testWidgets('T3-63b: 012の新規登録で購入日を入力しなければ初回購入は記録されない', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: const MaterialApp(home: BeanCreateScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆E');
+    await tester.tap(find.text('豆を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAdded, isNotNull);
+    expect(fakeService.lastAddedPurchase, isNull);
+  });
+
+  testWidgets('T3-63b: 編集モードで購入日があっても初回購入は記録されない', (tester) async {
+    final edit = BeanMaster(
+      id: 'b1',
+      name: '既存の豆',
+      roastLevel: '中煎り',
+      origin: 'ブラジル',
+      purchaseDate: DateTime(2026, 7, 1),
+      initialQuantityGrams: 150,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanCreateScreen(editData: edit)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('豆を更新する'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated, isNotNull);
+    expect(fakeService.lastAddedPurchase, isNull);
   });
 }

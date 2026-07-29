@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bean_master.dart';
+import '../../models/bean_purchase.dart';
 import '../../models/origin_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
@@ -390,10 +391,36 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       } else {
         ref.read(beanMasterProvider.notifier).addOptimistic(bean);
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEdit ? '豆を更新しました' : '豆を登録しました')),
+
+      // T3-63b(設計書§5.1): 新規登録時のみ、購入日が入力されていれば初回購入を
+      // 購入履歴へ1行追記する。固定ID`bp_init_<豆ID>`により遡及登録スクリプトを
+      // 後から流しても衝突しない。失敗しても豆の登録自体は成功扱いにする。
+      var purchaseHistoryFailed = false;
+      if (!_isEdit && _purchaseDate != null) {
+        final purchase = BeanPurchase(
+          id: 'bp_init_${bean.id}',
+          beanId: bean.id,
+          purchasedAt: _purchaseDate,
+          roastDate: _roastDate,
+          quantityGrams: bean.initialQuantityGrams,
+          storeName: bean.store,
+          createdAt: DateTime.now(),
         );
+        try {
+          await service.addBeanPurchase(purchase);
+          ref.read(beanPurchasesProvider.notifier).addOptimistic(purchase);
+          debugPrint('[Antigravity] Action: 初回購入を記録 (豆ID=${bean.id})');
+        } catch (e) {
+          purchaseHistoryFailed = true;
+          debugPrint('[Antigravity] Error: 初回購入履歴の記録に失敗 (豆ID=${bean.id}) $e');
+        }
+      }
+
+      if (mounted) {
+        final message = _isEdit
+            ? '豆を更新しました'
+            : (purchaseHistoryFailed ? '豆を登録しましたが購入履歴の記録に失敗しました' : '豆を登録しました');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
         Navigator.of(context).pop();
       }
     } catch (e) {
