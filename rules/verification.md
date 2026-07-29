@@ -115,6 +115,7 @@
 - L87 本番GASへの`delete`直POSTは分類器ブロックが確率的でBash/PowerShellどちらでも起き得る。PowerShellも日本語JSON…
 - L88 Bash/curlでのGAS `update`直POSTは日本語JSONキーが化けて「ID column or value not found」になりやすい。`cl…
 - L89 マスター詳細画面(011/020等)は対象をコンストラクタ引数で受け取るため、編集→保存→pop直後は表示が古いスナップショットのまま更新されない
+- L90 `SheetsService`のkeyMapの列名が本番シートと違ってもエラーにならず「そのフィールドが常にnull」で静かに壊れる。新規利用時は必ず本番`doGet`の実列名と突合
 
 ### ループ運用・ガードレール
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合

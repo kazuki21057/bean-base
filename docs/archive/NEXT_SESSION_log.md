@@ -1,7 +1,17 @@
-# NEXT_SESSION 作業ログ アーカイブ(-4.91節以前 + 旧「2. 次回の着手点」)
+# NEXT_SESSION 作業ログ アーカイブ(-4.93節以前 + 旧「2. 次回の着手点」)
 
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.92以前であればこのファイルを見ること。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.93以前であればこのファイルを見ること。
+
+### -4.93 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-47完了=メソッドマスタに推奨焙煎度を追加。本番デプロイ・確認まで完了。T3-47完全クローズ)
+
+- **実装**: マスタープラン記載の実装方針どおりの5点セット手順。①`MethodMaster`に`String? recommendedRoastLevel`を追加(`method_master.g.dart`も手動編集、既存の`MethodMaster`には元々`copyWith`が無かったため追加しなかった)。②`SheetsService.getMethods()`のkeyMapに`'推奨焙煎度': 'recommendedRoastLevel'`、`_reverseMapMethod()`のreverseMapに`'recommendedRoastLevel': '推奨焙煎度'`を両方追加。③`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['methods_master']`に`'推奨焙煎度'`を新設(既存キーは`bean_master`/`coffee_data`のみだったため新規追加)、`clasp push`+`clasp deploy --deploymentId <既存ID>`で再デプロイ(@17、URLは変わらないため`kGoogleSheetsApiUrl`の更新不要)。④021(`method_create_screen.dart`)の「基準レシピ」セクション末尾に、bean_create_screenと同じ`RoastLevelSlider`ウィジェット(T3-54aで新設済み)をそのまま流用して追加(専用UIの新規実装は不要だった)。⑤020(`method_detail_screen.dart`)の`fields`に「推奨焙煎度」を追加(表示のみ、`-`フォールバック付き)。
+- **新規テスト3件追加**(`test/method_template_test.dart`、既存4件+3件=7件): 020詳細に値が表示される、020編集→021で初期値が引き継がれる(スライダーの`Slider.onChanged`を直接呼ぶ既存の確立された手法、`roast_level_slider_test.dart`のコメント参照)、021新規登録でスライダー操作した値が`addMethod`に渡る。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全281件パス(既存278+新規3)、`flutter build web`成功。
+- **本番デプロイ**: GAS(`clasp push`+`clasp deploy`)・`firebase deploy`とも分類器ブロックなく直接成功、`main.dart.js`のMD5一致で反映確認。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ12メソッド)**: 「4:6メソッド」(既存データ、推奨焙煎度列は当然未設定)の020詳細で「推奨焙煎度: -」と正しく表示されることを確認したうえで、021編集でスライダーを「フレンチ」に設定→更新→**ページをフルリロードして再取得**し「推奨焙煎度: フレンチ」と表示されることを確認(サーバー側の永続化を確認)。検証後は同じ手順で「クリア」ボタンから未設定に戻し、フルリロードで「-」に戻ったことも確認済み(本番の実データを検証用の仮値のまま残さないための後始末)。
+- **新たな教訓**: 020編集→保存→pop直後は、020が編集前に受け取ったオブジェクトのスナップショットのままで表示が更新されず(一覧に戻って再訪問 or フルリロードが必要になる)、これは`BeanDetailScreen`等も同型のコンストラクタ引数設計であり全マスター詳細画面共通の既知の挙動と見られる。`rules/lessons_archive.md`のL89として記録(未修正、将来タスク化の余地あり)。
+- **次回セッションへの申し送り**: T3-47完了により**T3-48(おすすめレシピにメソッド追加、依存T3-47充足)**と**T3-52(上位モデル指定、依存T3-50・T3-47ともに充足)**の両方が新たに着手可能になった。
 
 ### -4.92 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-50完了=豆マスタに「最適条件を探索するか」を追加。本番デプロイ・確認まで完了。T3-50完全クローズ)
 

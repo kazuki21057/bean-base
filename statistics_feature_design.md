@@ -58,7 +58,9 @@ F1/F2/F5 は「振り返り・分析」目的のため統計画面に集約し�
 | F1 | n ≥ 30 かつ n ≥ 5×(説明変数の数) | 「データが不足しています (必要: {required}件, 現在: {n}件)」 |
 | F2 | n ≥ 3 (既存踏襲) | 既存実装のまま |
 | F5 | グループ n ≥ 3 で統計量表示、n ≥ 5 で検定実施 | グループごとに「n不足」バッジ表示 |
-| F4 | グループ重み付き有効サンプル数 n_eff ≥ 10 | 「この属性の推薦にはデータが不足しています」 |
+| F4 | **メソッドごとに** 重み付き有効サンプル数 n_eff ≥ 6.0 かつ 生データ行数 n ≥ 8 (T3-52 改訂) | 「この豆に近い記録が十分に集まっているメソッドがまだありません。」 |
+
+> **F4 の閾値は T3-52 で改訂した (旧: プールして n_eff ≥ 10)。** メソッド別に GP を分割フィットする方式に変わったため旧閾値では 1〜2 メソッドしか成立せず機能が破綻する。改訂の根拠(本番実測値)と GP が自己正則化する性質については **`docs/gp_multidim_design.md` §4.2** を参照。
 
 ---
 
@@ -158,7 +160,9 @@ k* = [k(x*, x₁), …, k(x*, x_n)]ᵀ
 
 実装は K の Cholesky 分解 `K = LLᵀ` を用い、`α = K⁻¹y` を前進・後退代入で解く (逆行列は作らない)。
 
-- 入力 d=3: 湯温(℃), brew ratio, 総抽出時間(秒)。各次元を訓練データの平均・標準偏差で標準化してからカーネルに入れる。
+- 入力 **d=4: 湯温(℃), brew ratio, 総抽出時間(秒), 正規化粒度 gNorm** (T3-52 で 3→4 に拡張)。各次元を訓練データの平均・標準偏差で標準化してからカーネルに入れる。
+  - `gNorm = クリック数 / そのミルの挽き目調整段階数` ∈ (0,1]。ミルごとに目盛りのスケールが違う (Timemore c3 pro=20 / Kingrinder K6=180) ため生値は投入できない。正規化規則・ミル間比較可能性の限界・ミル不一致の重み係数は **`docs/gp_multidim_design.md` §3** を参照。
+  - **メソッドはカテゴリ変数のため連続次元に入れない。** メソッドごとに別々の GP をフィットし、最良予測 μ を横断比較して「有望なメソッド」を提示する (同 §4)。
 - y は scoreOverall をそのまま使う (平均を引いた残差を GP に、平均を μ に足し戻す「ゼロ平均 GP + 定数平均」方式)。
 
 #### 2.3.2 ハイパーパラメータ
@@ -184,7 +188,9 @@ EI(x) = max(μ(x) − f* − ξ, 0)              (σ(x)=0)
 
 Φ, φ は標準正規の CDF/PDF (§4.3)。EI は「活用 (μ が高い) と探索 (σ が大きい) のバランス」を取る獲得関数であり、σ→0 の極限で貪欲な活用に一致する。
 
-候補点グリッド: 湯温 80–96℃ (刻み1)、brew ratio 14.0–18.0 (刻み0.5)、時間 120–240秒 (刻み15) の全組合せ (17×9×9=1377点)。全点で μ, σ, EI を評価し、(a) μ 最大点を「おすすめ」、(b) EI 最大点を「試してみる価値がある条件」として2種類提示する。
+候補点グリッド (**T3-52 で 2 段階探索に改訂**): 4 次元の全探索は 1 メソッドあたり約 1.9 万点になり Web で数秒フリーズするため、**粗グリッド 750 点 (ランキング用) → μ 最大点の周囲 ±1 粗ステップを細刻みで再探索 (最大 1575 点)** の 2 段階にする。刻み幅の一覧は **`docs/gp_multidim_design.md` §5.4** を参照。全評価点で μ, σ, EI を求め、(a) μ 最大点を「おすすめ」、(b) EI 最大点を「試してみる価値がある条件」として2種類提示する。
+
+> 旧仕様 (d=3、湯温17×比率9×時間9=1377点の全探索) は T3-52 で置き換えられた。
 
 ### 2.4 層別統計と平均差の検定 (F5)
 
@@ -578,23 +584,32 @@ class RecipeSuggestion {
 
 新規ファイル `lib/services/gp_service.dart`。
 
+**T3-52 (2026-07-30) で 4 次元化・メソッド別フィットに改訂。確定仕様は `docs/gp_multidim_design.md` §5 (API)・§6 (UI) が正本**であり、実装はそちらに従うこと。以下は要約。
+
 ```dart
-class GpModel { /* 学習済み: 標準化パラメータ, L, α, θ, f*, 訓練n_eff */ }
+typedef GpPoint = ({double t, double r, int s, double g}); // g = 正規化粒度 (0,1]
+
+class GpModel { /* 標準化パラメータ, L, α, θ, f*, n_eff, nRows, methodId */ }
 class GpPrediction { final double mean; final double sd; final double ei; }
 class GpService {
-  /// (originId, roastOrdinal) 向けの重み付き学習。重み: 同一グループ1.0 /
-  /// 同産地・焙煎差1以内 0.5 / その他 0.2。重みは K の対角ノイズを σ_n²/w にする形で反映。
-  GpModel? fit(List<CoffeeRecord> records, String originId, double roastOrdinal,
-      Map<String, OriginMaster> originById);
-  GpPrediction predict(GpModel model, double temperature, double brewRatio, int totalTimeSec);
-  ({GpPrediction best, ({double t, double r, int s}) bestX,
-    GpPrediction explore, ({double t, double r, int s}) exploreX}) optimize(GpModel model);
+  /// [methodId] のメソッドについて (originId, roastOrdinal, targetGrinderId) 向けに
+  /// 重み付き学習。重み = 産地/焙煎度の重み (同一1.0 / 同産地・焙煎差1以内0.5 / 他0.2)
+  ///        × ミル不一致係数 (目標ミルと同じ 1.0 / 違う 0.5)。
+  /// 重みは K の対角ノイズを σ_n²/w にする形で反映。
+  GpModel? fitForMethod(List<CoffeeRecord> records, {
+    required String methodId, required String originId, required double roastOrdinal,
+    required String targetGrinderId, required Map<String, int> grindStepsByGrinderId});
+  GpPrediction predict(GpModel model, double temperature, double brewRatio,
+      int totalTimeSec, double grindNorm);
+  ({GpPrediction best, GpPoint bestX, GpPrediction explore, GpPoint exploreX})
+      optimize(GpModel model, {bool refine = true});
 }
 ```
 
-- n_eff = Σwᵢ。n_eff < 10 なら fit は null。
+- n_eff = Σwᵢ。**n_eff < 6.0 または nRows < 8 なら fitForMethod は null** (§1.3 の改訂、根拠は `docs/gp_multidim_design.md` §4.2)。旧 3 次元の `fit()` は削除済み。
 - 重み付けの実装: 観測 i のノイズ分散を σ_n²/wᵢ とする (信頼度の低いデータほどノイズ大として扱う。heteroscedastic GP の最簡形)。
-- optimize は §2.3.3 のグリッド全探索。**抽出画面 (030、`brew_recipe_screen.dart`) に「レシピ探索」セクション (`lib/widgets/brew/gp_explorer_section.dart`、§1.2.1 決定事項) を置き**、産地×焙煎度を選ぶと湯温×比率の予測スコアヒートマップ (時間はグリッド上の μ 最大値で固定) を表示する。ヒートマップは fl_chart に無いため、`Table`+色付き `Container` (5℃×1.0比率の粗グリッド 4×5 に間引き) で実装する。
+- optimize は §2.3.3 の 2 段階グリッド。`refine: false` で粗グリッドのみ (メソッド横断ランキング用)。
+- **抽出画面 (030、`brew_recipe_screen.dart`) に「レシピ探索」セクション (`lib/widgets/brew/gp_explorer_section.dart`、§1.2.1 決定事項) を置く**。T3-52 で選択項目を **産地×焙煎度 → 豆 + ミル** に変更し (産地・焙煎度は `BeanMaster` から導出)、①メソッド比較表 (予測スコア μ + 95%予測区間 + 確信度バッジ、μ 降順) ②表示中メソッドの推奨条件カード (湯温/比率/時間/**粒度はクリック数に逆変換**) ③湯温×比率ヒートマップ (時間・粒度は推奨値で固定) を表示する。ヒートマップは fl_chart に無いため、`Table`+色付き `Container` (5℃×1.0比率の粗グリッド 4×5 に間引き) で実装する。
 
 ---
 
@@ -702,6 +717,8 @@ SE: 0.04049, 0.01880, 0.01880 / R²=0.99987, 調整済みR²=0.99983 /
 2. 訓練データから十分遠い点 (全次元で標準化後 +10) の sd ≈ σ_f (誤差1e-2)。
 3. EI 性質: μ(x)−f*−ξ = 0.5, σ=1e-9 のとき EI ≈ 0.5 (誤差1e-6)。μ−f*−ξ = −0.5, σ=1e-9 のとき EI < 1e-6。σ=1, μ=f*+ξ のとき EI = φ(0) = 0.398942 (誤差1e-4)。
 
+**T3-52 による改訂**: 1・2 は次元に依存しない性質なので、**テストデータ `xs` に 4 列目 (正規化粒度) を足し `predict` を 4 引数に直すだけで、期待値・許容誤差は上記のまま**使う (次元が増えると訓練点間距離が広がり K の条件数はむしろ改善するため σ_n=1e-6 でも Cholesky は安定)。4 列目に使う具体値と、新規追加する 6 件のテスト (grindSteps の解析 / keyMap 修正の型ガード回帰 / fitForMethod の行フィルタ・最小データ条件・ミル不一致の重み / optimize の粗細単調性) は **`docs/gp_multidim_design.md` §8** に定義済み。3 は無変更。
+
 ### 9.6 `test/preference_service_test.dart`
 
 グループA: [8,9,8,9,8] (n=5, 平均8.4, 不偏sd=0.547723)、残り: [5,6,5,6,5,6,5,6,5,6] (n=10, 平均5.5, 不偏sd=0.527046) → Welch t=9.788265, ν=7.816449, p=1.17011564e-05 (<0.001)、グループ数 m=1 として significant=true。平均・CI (T-22, t_{0.975,4}=2.776445 → 8.4±0.680087) を誤差1e-4 で確認。
@@ -737,7 +754,7 @@ Phase 1 完了時点でユーザーの移行作業 (実データの名寄せ確�
 
 ## 11. 本設計の既知の限界 (実装対象外・将来課題)
 
-1. 挽き目 (grindSize) は非構造化文字列のため v1 の全モデルから除外。グラインダー買い替え時の互換性問題も未解決。
+1. ~~挽き目 (grindSize) は非構造化文字列のため v1 の全モデルから除外。~~ **T3-52 で F4 (GP) にのみ導入済み** (ミルの挽き目調整段階数で正規化して 4 次元目に追加、`docs/gp_multidim_design.md` §3)。**ただし線形正規化はミル間の物理的な粒径一致を保証しない** — 本番実測では Timemore c3 pro の記録が gNorm 0.65–0.90、Kingrinder K6 が 0.36–0.69 とほとんど重ならず、素朴に混ぜると「別ミル＝別の粗さ」と誤学習する。暫定対処としてミル不一致の記録に重み係数 0.5 を掛けている (同 §3.2)。ミル間の粒径換算表を用意する / ARD カーネルでミルごとに length scale を持たせる、といった本質的な解決は将来課題。F1 (回帰)・F5 では引き続き挽き目を使わない。
 2. F5 の逐次検定 (記録のたびに検定を繰り返す) は本来 α エラーが膨らむ。Bonferroni はグループ数のみ補正しており時間方向の多重性は未補正 (学習ノートとして UI の情報ダイアログに記載する)。
 3. Gemini API キーのクライアント直持ちは既存構成の踏襲であり、本設計では変更しない。
 4. GP はグループごとに毎回学習し直すため、豆数×記録数が増えた場合の計算時間は将来の最適化課題 (現状 n≤300 想定では問題なし)。
