@@ -22,6 +22,7 @@ const ALLOWED_SHEETS = [
   'analysis_history',
   'recipe_suggestions',
   'store_master',
+  'bean_purchases',
 ];
 
 // 新規シートのヘッダー定義 (設計書§3.4.1)。ensureSheet_ が無ければ自動生成する。
@@ -38,6 +39,11 @@ const NEW_SHEET_HEADERS = {
     'オンライン販売', '実店舗', '焙煎所併設', '取扱豆の傾向', 'メモ',
     '店舗画像URL', 'SNS', '営業時間', '定休日', '電話番号', '開業年',
     '情報取得元', '情報取得日',
+  ],
+  // T3-62(docs/bean_purchase_design.md§2): 購入履歴、9列。
+  'bean_purchases': [
+    '購入ID', '豆ID', '購入日', '焙煎日', '購入量(g)',
+    '購入店ID', '購入店名', 'メモ', '登録日時',
   ],
 };
 

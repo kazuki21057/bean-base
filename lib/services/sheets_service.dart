@@ -10,6 +10,7 @@ import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
+import '../models/bean_purchase.dart';
 import 'data_service.dart';
 
 // URL Placeholder - User needs to provide this
@@ -473,6 +474,51 @@ class SheetsService implements DataService {
   @override
   Future<void> deleteStore(String id) async {
     await _postData('store_master', 'delete', {'購入店ID': id});
+  }
+
+  // --- Bean Purchases (T3-62, docs/bean_purchase_design.md§2) ---
+
+  Map<String, String> get _beanPurchaseKeyMap => {
+        '購入ID': 'id',
+        '豆ID': 'beanId',
+        '購入日': 'purchasedAt',
+        '焙煎日': 'roastDate',
+        '購入量(g)': 'quantityGrams',
+        '購入店ID': 'storeId',
+        '購入店名': 'storeName',
+        'メモ': 'memo',
+        '登録日時': 'createdAt',
+      };
+
+  @override
+  Future<List<BeanPurchase>> getBeanPurchases() async {
+    final keyMap = _beanPurchaseKeyMap;
+    return _fetchData('bean_purchases',
+        (map) => BeanPurchase.fromJson(_remapKeys(map, keyMap)));
+  }
+
+  Map<String, dynamic> _reverseMapBeanPurchase(BeanPurchase purchase) {
+    final reverseMap = {
+      for (final entry in _beanPurchaseKeyMap.entries) entry.value: entry.key,
+    };
+    return _mapToJson(purchase.toJson(), reverseMap);
+  }
+
+  @override
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {
+    final data = _reverseMapBeanPurchase(purchase);
+    await _postData('bean_purchases', 'add', data);
+  }
+
+  @override
+  Future<void> updateBeanPurchase(BeanPurchase purchase) async {
+    final data = _reverseMapBeanPurchase(purchase);
+    await _postData('bean_purchases', 'update', data);
+  }
+
+  @override
+  Future<void> deleteBeanPurchase(String id) async {
+    await _postData('bean_purchases', 'delete', {'購入ID': id});
   }
 
   // --- Analysis Snapshots (T4-1d) ---

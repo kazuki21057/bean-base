@@ -3,6 +3,22 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため、直近5セッション分を除く作業ログをここへ退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.77以前であればこのファイルを見ること。
 
+## -4.78 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)。ユーザー指示「日本語出力を徹底するようルールを見直して」への対応)
+
+**通常のマスタープラン選定ではなく、ユーザーが`/full_loop`の引数として直接与えた指示(ルール見直し)に対応した。**
+
+- **CLAUDE.md改訂**: 「Response Language & Documentation Conventions」節を全面拡充し、「日本語で応答する」の範囲がチャット応答だけでなく、ユーザー向けUI文言(SnackBar/AlertDialog等)・ログ出力(`[Antigravity]`プレフィックス以降の本文)・ドキュメント・commit/PRメッセージ・`AskUserQuestion`/`PushNotification`の文面・サブエージェントへの委譲指示にまで及ぶことを明示した。例外(コード識別子・固有名詞・`[Antigravity]`プレフィックス・ハーネス固定のコミットトレーラー)も明記。
+- **改訂の根拠となる実例を調査で発見・修正**: `lib/services/image_service.dart`(画像アップロード系ログ、一括画像インポート結果を表示する`AlertDialog`本文=`importMasterImages()`の返り値)と`lib/services/ai_analysis_service.dart`(`analyzeComponents()`のAI解釈失敗時の返り値、`Gemini Model $modelName failed`系ログ)に英語のままの出力が残っていた。ダイアログのタイトルは日本語(「インポート結果」)なのに本文が英語、という部分的な混在だったため`flutter analyze`/`test`では検出できず見落とされていたと判断。両ファイルのdebugPrint本文・ユーザー向け返却文字列をすべて日本語に統一した(`[Antigravity]`プレフィックス自体・エラーオブジェクトの`$e`補間はそのまま)。`lib/utils/firestore_migrator.dart`(Firestoreレガシー、実行時未使用)・`lib/main.dart`のFirebase初期化失敗ログ(レガシーFirebase Core init、極めて稀な失敗パスの1行)も英語のままだが、CLAUDE.mdの「Firestoreレガシーコードは明示指示が無い限り触らない」方針に従い今回はスコープ外として見送った。
+- **教訓を`rules/verification.md`に追記**: 上記の発見内容(部分的な言語混在は見落としやすい、静的解析では検出できない)を今後のレビュー観点として残した。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま、うち2件はtools配下)、`flutter test`全228件パス(既存どおり、文字列変更のみのためテスト内容自体は無変更)、`flutter build web`成功。
+- **デプロイ**: `firebase deploy --only hosting`成功。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **本番確認**: ローカル配信(build/web、本番と同一バイト列)+`claude-in-chrome`でダッシュボードを開き、本番GAS実データ(おすすめレシピ・残豆量等)が正常表示されコンソールエラー0件であることを確認。今回変更した文字列(画像インポート結果ダイアログ・AI解釈失敗時のメッセージ)はいずれもエラー/例外系のパスで、通常操作では再現しづらく、実行すると本番データを書き換える(画像アップロード)かGemini APIキー設定に依存するため、実際にその画面を能動的に踏んでの目視確認はしていない。文字列リテラルの変更のみで分岐ロジック・呼び出し経路は変更していないため、コードレビュー(diff確認)で妥当性を担保した。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **今回の対応はマスタープランのタスク表に対応する項目が無い**(ユーザーからのルール改善指示への直接対応のため)。進捗表の更新は不要。
+  2. 引き続き依存なしで着手できるのは**T3-68(購入店の一覧026/詳細027/新規028、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. **今後、新規の`debugPrint`やユーザー向け文字列(SnackBar/AlertDialog/例外メッセージ等)を書く際は、`[Antigravity]`プレフィックスと固有名詞以外がすべて日本語になっているか確認すること**(`CLAUDE.md`§Response Language & Documentation Conventions、`rules/verification.md`の新規教訓参照)。
+
 ## -4.77 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-67完了=購入店マスタのデータ基盤・本番デプロイ・確認まで完了)
 
 **依存なし・設計確定済み(`docs/store_master_design.md`)で「発明せずそのまま実装すればよい」タスクだったT3-67に着手し、実装・検証・デプロイ・本番確認まで完走した。**

@@ -11,6 +11,7 @@ import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/models/store_master.dart';
+import 'package:bean_base/models/bean_purchase.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/brew_evaluation_screen.dart';
 import 'package:bean_base/services/data_service.dart';
@@ -34,6 +35,14 @@ class _FakeDataService implements DataService {
   Future<void> updateStore(StoreMaster store) async {}
   @override
   Future<void> deleteStore(String id) async {}
+  @override
+  Future<List<BeanPurchase>> getBeanPurchases() async => [];
+  @override
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> updateBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> deleteBeanPurchase(String id) async {}
   CoffeeRecord? lastAddedRecord;
   final List<CoffeeRecord> addedRecords = [];
   final List<AnalysisSnapshot> savedSnapshots = [];

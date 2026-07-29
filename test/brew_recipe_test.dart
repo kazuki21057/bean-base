@@ -12,6 +12,7 @@ import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/models/store_master.dart';
+import 'package:bean_base/models/bean_purchase.dart';
 import 'package:bean_base/services/data_service.dart';
 
 import 'helpers/fake_master_notifiers.dart';
@@ -35,6 +36,14 @@ class _FakeDataService implements DataService {
   Future<void> updateStore(StoreMaster store) async {}
   @override
   Future<void> deleteStore(String id) async {}
+  @override
+  Future<List<BeanPurchase>> getBeanPurchases() async => [];
+  @override
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> updateBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> deleteBeanPurchase(String id) async {}
   final List<MethodMaster> methods;
   final List<PouringStep> steps;
   MethodMaster? lastUpdatedMethod;

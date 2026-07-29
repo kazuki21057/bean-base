@@ -10,6 +10,7 @@ import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
+import '../models/bean_purchase.dart';
 
 // Data Providers
 final coffeeRecordsProvider = FutureProvider<List<CoffeeRecord>>((ref) async {
@@ -127,6 +128,20 @@ class StoreMasterNotifier extends OptimisticListNotifier<StoreMaster> {
 
 final storeMasterProvider = AsyncNotifierProvider<StoreMasterNotifier, List<StoreMaster>>(
   StoreMasterNotifier.new,
+);
+
+/// T3-62(docs/bean_purchase_design.md): 購入履歴。011の追加購入・025で使用。
+class BeanPurchaseNotifier extends OptimisticListNotifier<BeanPurchase> {
+  @override
+  Future<List<BeanPurchase>> fetch() =>
+      ref.watch(dataServiceProvider).getBeanPurchases();
+  @override
+  String idOf(BeanPurchase item) => item.id;
+}
+
+final beanPurchasesProvider =
+    AsyncNotifierProvider<BeanPurchaseNotifier, List<BeanPurchase>>(
+  BeanPurchaseNotifier.new,
 );
 
 final pouringStepsProvider = FutureProvider<List<PouringStep>>((ref) async {

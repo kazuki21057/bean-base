@@ -8,6 +8,7 @@ import '../models/origin_master.dart';
 import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
+import '../models/bean_purchase.dart';
 import 'sheets_service.dart';
 
 /// Abstract data-access contract shared by all storage backends.
@@ -68,6 +69,12 @@ abstract class DataService {
   Future<void> addStore(StoreMaster store);
   Future<void> updateStore(StoreMaster store);
   Future<void> deleteStore(String id);
+
+  // --- Bean Purchases (T3-62, docs/bean_purchase_design.md§2) ---
+  Future<List<BeanPurchase>> getBeanPurchases();
+  Future<void> addBeanPurchase(BeanPurchase purchase);
+  Future<void> updateBeanPurchase(BeanPurchase purchase);
+  Future<void> deleteBeanPurchase(String id);
 
   // --- Analysis Snapshots (T4-1d, 設計書§3.4.3) ---
   Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type});

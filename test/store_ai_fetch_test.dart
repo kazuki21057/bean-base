@@ -12,6 +12,7 @@ import 'package:bean_base/models/origin_master.dart';
 import 'package:bean_base/models/analysis_snapshot.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/models/store_master.dart';
+import 'package:bean_base/models/bean_purchase.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/screens/create/store_create_screen.dart';
 import 'package:bean_base/services/ai_analysis_service.dart';
@@ -61,6 +62,14 @@ class _FakeDataService implements DataService {
   Future<void> updateStore(StoreMaster store) async {}
   @override
   Future<void> deleteStore(String id) async {}
+  @override
+  Future<List<BeanPurchase>> getBeanPurchases() async => [];
+  @override
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> updateBeanPurchase(BeanPurchase purchase) async {}
+  @override
+  Future<void> deleteBeanPurchase(String id) async {}
 
   // --- Unused by this test: minimal stubs to satisfy the interface ---
   @override
