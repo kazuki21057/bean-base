@@ -35,7 +35,9 @@ class _FakeDataService implements DataService {
   @override
   Future<List<BeanPurchase>> getBeanPurchases() async => [];
   @override
-  Future<void> addBeanPurchase(BeanPurchase purchase) async {}
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {
+    lastAddedPurchase = purchase;
+  }
   @override
   Future<void> updateBeanPurchase(BeanPurchase purchase) async {}
   @override
@@ -44,6 +46,7 @@ class _FakeDataService implements DataService {
   BeanMaster? lastAdded;
   BeanMaster? lastUpdated;
   String? lastDeletedId;
+  BeanPurchase? lastAddedPurchase;
 
   _FakeDataService(this.beans);
 
@@ -146,6 +149,7 @@ void main() {
         beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() => service.getBeans())),
         coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
         methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => <MethodMaster>[])),
+        storeMasterProvider.overrideWith(() => FakeStoreMasterNotifier(() => service.getStores())),
       ];
 
   setUp(() {
@@ -286,6 +290,121 @@ void main() {
 
     expect(fakeService.lastUpdated, isNull);
     expect(find.text('現在の残量: 200.0g'), findsOneWidget);
+  });
+
+  testWidgets('T3-63: 011の「追加購入」ボタンでダイアログが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('追加購入'));
+    await tester.pumpAndSettle();
+
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(find.descendant(of: dialog, matching: find.text('購入日')), findsOneWidget);
+    expect(find.text('焙煎日(任意)'), findsOneWidget);
+    expect(find.text('購入量(g)'), findsOneWidget);
+    expect(find.text('購入店'), findsOneWidget);
+    expect(find.text('メモ'), findsOneWidget);
+  });
+
+  testWidgets('T3-63: 追加購入ダイアログで保存するとaddBeanPurchaseとupdateBeanの両方が呼ばれ、stockBaselineGramsが「現在の残量+購入量」になる', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 初期購入量200g・抽出履歴なしのため、現在の残量は200.0g
+    expect(find.text('現在の残量: 200.0g'), findsOneWidget);
+
+    await tester.tap(find.text('追加購入'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '100');
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastAddedPurchase?.beanId, 'b1');
+    expect(fakeService.lastAddedPurchase?.quantityGrams, 100);
+    expect(fakeService.lastUpdated?.id, 'b1');
+    expect(fakeService.lastUpdated?.stockBaselineGrams, 300.0);
+    expect(fakeService.lastUpdated?.stockBaselineAt, isNotNull);
+    // 楽観的更新により、画面を離れずに残量表示が即座に更新される
+    expect(find.text('現在の残量: 300.0g'), findsOneWidget);
+    expect(find.text('追加購入を記録しました'), findsOneWidget);
+  });
+
+  testWidgets('T3-63: 焙煎日を未入力のまま追加購入を保存すると既存のroastDateが保持される', (tester) async {
+    beans[0] = beans[0].copyWith(roastDate: DateTime(2026, 6, 10));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('追加購入'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '50');
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(fakeService.lastUpdated?.roastDate, DateTime(2026, 6, 10));
+  });
+
+  testWidgets('T3-63: 焙煎日が購入日より後だとバリデーションエラーになり保存されない', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: BeanDetailScreen(bean: beans[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('追加購入'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '50');
+    await tester.pump();
+
+    // 購入日を当月5日に設定(月境界に依存しない固定日で検証する)
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('購入日')),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('5').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // 焙煎日を当月10日(購入日より後)に設定
+    await tester.tap(find.text('焙煎日(任意)'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('焙煎日は購入日より前の日付にしてください'), findsOneWidget);
+    expect(fakeService.lastAddedPurchase, isNull);
+    expect(fakeService.lastUpdated, isNull);
   });
 
   testWidgets('010の＋ボタン→012新規フォームで登録するとDataService.addBeanが呼ばれる', (tester) async {

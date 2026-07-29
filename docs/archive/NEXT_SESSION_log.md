@@ -1312,3 +1312,22 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
   2. **T3-54b(040/030の焙煎度入力をコンパクトスライダーに統一)が依存なしで着手可能**。設計は`docs/roast_slider_design.md`§5.3で確定済み、発明不要。オーバーフロー目視確認が必須(`Row`/`Expanded`内での縦幅増加に注意)。
   3. 引き続き依存なしで着手できるのは**T3-67(購入店マスタのデータ基盤、M、設計確定済み)・T3-54b(S〜M)・T3-60(M)・T3-59(M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
   4. 上位モデル指定で残っているのはT3-52・T3-53・T3-61の3件、いずれも依存元(T3-50/T3-60)が未完のため現時点では着手不可。
+
+### -4.79 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-68完了=購入店の一覧026/詳細027/新規028の3画面・本番デプロイ・確認まで完了)
+
+**依存なし・設計確定済み(`docs/store_master_design.md`§5)で「発明せずそのまま実装すればよい」タスクだったT3-68に着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **実装は設計書§5どおり**: ①`lib/routing/app_screen.dart`に`storeList('026', '購入店管理')`/`storeDetail('027', '購入店詳細')`/`storeNew('028', '新規購入店')`を追加し、`screen_registry.dart`に3件のcaseを追加(`storeDetail`はギャラリー単独遷移用に`master_mock_screens.dart`へ新設した`StoreDetailMockScreen`を割り当て、実データを伴う遷移は一覧からの`StoreDetailScreen(store: ...)`のみが担う既存の設計慣習を踏襲)。②`lib/screens/store_list_screen.dart`(026)は`MasterListTemplate<StoreMaster>`をそのまま使用、`subtitleOf`は都道府県+業態ラベル(焙煎所併設→「自家焙煎」、オンラインのみ→「オンラインのみ」)、絞り込みは実装せず。③`lib/screens/store_detail_screen.dart`(027)は`MasterDetailTemplate`を使用、`fields`に13項目(空欄は`'-'`)、`extraSections`に「この店で買った豆」→「統計(購入回数/総購入量/平均評価)」の順で2セクション(「この店の購入履歴」はT3-62未完了のため作らず)。④`lib/screens/create/store_create_screen.dart`(028)は`dripper_create_screen.dart`と同構成、必須は店名のみ、業態3つは`MockSwitchTile`、画像は`ImageUploadField`、エラーSnackBarは`SnackBarBehavior.floating`+下マージン(T3-44の教訓)。⑤`MasterSwitcherButton._entries`/`_categoryOf`(`master_template.dart`)と`MastersHubScreen.entries`(`masters_hub_screen.dart`)の両方に購入店を追加(CLAUDE.md「全マスタータブへの一律適用」規約)。
+- **設計書の記述から意図的に1点だけ簡略化した**: 「この店で買った豆」の突合は設計書では`b.storeId == store.id || (b.storeId.isEmpty && b.store == store.name)`だが、`BeanMaster`は**T3-69が未実施のため`storeId`フィールド自体がまだ存在しない**。そのため`b.store == store.name`(+設計書指定の「明暮焙煎所」↔旧表記「明暮焙煎研」の1件だけフォールバック)のみを実装した。T3-69で`storeId`を追加する際、この判定を設計書どおりの`storeId`優先ロジックへ差し替えること。
+- **新規テスト5件追加**(`test/store_template_test.dart`、`dripper_template_test.dart`と同型の`_FakeDataService`パターン): 026一覧表示→027詳細遷移/027の「この店で買った豆」・統計セクションが店名一致から正しく算出されること/027編集→`updateStore`呼び出し/027削除確認→`deleteStore`呼び出し/026の＋→028で店名必須バリデーション+`addStore`呼び出し。`test/helpers/fake_master_notifiers.dart`に`FakeStoreMasterNotifier`を追加。**「統計」セクションは`MockScreenScaffold`の`ListView`がビューポート外の子をレイアウトしないため、`tester.dragUntilVisible`でスクロールしてから検証する必要があった**(初回は`find.text`が0件になり原因調査した)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全233件パス(既存228+新規5)、`flutter build web`成功。
+- **ブラウザ確認で新知見(重要、既知の教訓の再発)**: ローカル配信直後、`masters_hub_screen.dart`に追加したはずの「購入店管理」がclaude-in-chromeの画面に表示されず、`build/web/main.dart.js`の中身も追加ロジックを含んでいないように見えて一時混乱した。**原因はビルド成果物ではなくブラウザ側のService Worker/Cacheキャッシュ**(既知の問題、過去セッションでも複数回発生)。`navigator.serviceWorker.getRegistrations()`→`unregister()`+`caches.keys()`→`caches.delete()`を実行してから再読み込みしたところ、購入店管理が正しく表示された。**なお`build/web/main.dart.js`はdart2jsが日本語文字列をASCII的な形にエンコードするため、`grep`で直接日本語文字列を検索しても常に0件になる(バイナリ判定にもならず紛らわしい)**。ビルド成果物の内容確認は文字列grepではなく実行結果で判断すべき、という点を`rules/verification.md`に教訓追記した。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: マスター管理ハブに「購入店管理」が表示され、026一覧に本番Sheetsの7店(Navy/神戸珈琲物語/HEISEI COFFEE The Factory/SORA/岬の焙煎所/明暮焙煎所/Youth Coffee)が日本語含め正しく表示されることを確認。Navyの027詳細で13項目の基本情報・「この店で買った豆」7件(Navyの実豆)・統計「購入回数7回」を確認、豆行タップで011豆詳細へ正しく遷移することも確認(豆詳細側の関連抽出履歴5件・画像プレースホルダも正常表示)。028新規作成フォームで店名未入力のまま保存すると「店名を入力してください」のSnackBarが出ることを確認(本番データは変更せずキャンセルで離脱)。コンソールエラーなし。**claude-in-chromeの`computer`ツールでのスクロール操作(マウスホイール・PageDown)は今回も反応しなかった(既知の問題、`rules/verification.md`既報)が、統計セクション残り2項目・「関連する抽出履歴」の値自体はwidget testで担保済みのため、粘らずロジック検証はテストに委ね目視は主要導線の確認に留めた**。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-68は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
+  2. **T3-70(新規購入店のAI自動取得)はT3-68完了により着手可能**だが、T3-69(豆マスタの`store`→`storeId`移行)は`T3-62`(購入履歴データ基盤、`⚠️`ではないが`T3-61`上位モデル設計待ち)にも依存しているため未着手のまま。
+  3. **T3-69実装時の必須対応(今回のメモ)**: `store_detail_screen.dart`の`_matchesBean()`を、設計書どおりの`b.storeId == store.id || (b.storeId.isEmpty && ...)`ロジックに差し替えること。現状は`storeId`フィールド不在のため`b.store == store.name`のみで代用している。
+  4. 引き続き依存なしで着手できるのは**T3-70(新規購入店のAI自動取得、M、設計確定済み)・T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  5. **`build/web/main.dart.js`の内容確認に`grep`で日本語文字列を探すのは無意味**(dart2jsのエンコードにより常に0件になる)。ビルドが最新変更を含むかはタイムスタンプ比較+実ブラウザでの動作確認(必要ならService Worker/Cacheクリア)で判断すること。
