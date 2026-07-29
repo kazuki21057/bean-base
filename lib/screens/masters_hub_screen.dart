@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'bean_list_screen.dart';
+import 'bean_purchase_history_screen.dart';
 import 'dripper_list_screen.dart';
 import 'filter_list_screen.dart';
 import 'grinder_list_screen.dart';
@@ -26,6 +27,7 @@ class MastersHubScreen extends StatelessWidget {
       (Icons.receipt_long_outlined, 'メソッド管理', '発案者/抽出回数', (_) => const MethodListScreen()),
       (Icons.settings_input_component_outlined, 'グラインダー管理', '', (_) => const GrinderListScreen()),
       (Icons.storefront_outlined, '購入店管理', '', (_) => const StoreListScreen()),
+      (Icons.shopping_bag_outlined, '購入履歴', '購入日/豆/購入先', (_) => const BeanPurchaseHistoryScreen()),
     ];
 
     return Scaffold(

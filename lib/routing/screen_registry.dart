@@ -24,6 +24,7 @@ import '../screens/filter_list_screen.dart';
 import '../screens/grinder_list_screen.dart';
 import '../screens/method_list_screen.dart';
 import '../screens/store_list_screen.dart';
+import '../screens/bean_purchase_history_screen.dart';
 
 /// 画面ID → Widget の解決テーブル。
 /// 全22画面がUIモック(見た目のみ・データ未接続)として登録済み。
@@ -66,6 +67,8 @@ Widget buildScreenWidget(AppScreen screen) {
       return const GrinderDetailMockScreen();
     case AppScreen.grinderNew:
       return const GrinderCreateScreen();
+    case AppScreen.beanPurchaseHistory:
+      return const BeanPurchaseHistoryScreen();
     case AppScreen.storeList:
       return const StoreListScreen();
     case AppScreen.storeDetail:

@@ -1,4 +1,5 @@
 import 'package:bean_base/models/bean_master.dart';
+import 'package:bean_base/models/bean_purchase.dart';
 import 'package:bean_base/models/equipment_masters.dart';
 import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/store_master.dart';
@@ -48,4 +49,11 @@ class FakeStoreMasterNotifier extends StoreMasterNotifier {
   final Future<List<StoreMaster>> Function() _fetcher;
   @override
   Future<List<StoreMaster>> fetch() => _fetcher();
+}
+
+class FakeBeanPurchaseNotifier extends BeanPurchaseNotifier {
+  FakeBeanPurchaseNotifier(this._fetcher);
+  final Future<List<BeanPurchase>> Function() _fetcher;
+  @override
+  Future<List<BeanPurchase>> fetch() => _fetcher();
 }

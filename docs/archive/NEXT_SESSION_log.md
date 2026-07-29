@@ -1,7 +1,19 @@
-# NEXT_SESSION 作業ログ アーカイブ(-4.84節以前 + 旧「2. 次回の着手点」)
+# NEXT_SESSION 作業ログ アーカイブ(-4.86節以前 + 旧「2. 次回の着手点」)
 
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.84以前であればこのファイルを見ること。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.86以前であればこのファイルを見ること。
+
+#### -4.86 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-63b完了=012の初回購入記録+遡及登録スクリプトを追加・本番デプロイ・実データ確認まで完了)
+
+**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-63bに着手し、`docs/bean_purchase_design.md`§5の設計をそのまま実装した。発明箇所なし。**
+
+- **実装は設計書§5どおり**: ①`lib/screens/create/bean_create_screen.dart`(012)の`_submit()`に、**新規登録時のみ**(`!_isEdit`)、購入日が入力されていれば(`_purchaseDate != null`)`BeanPurchase(id: 'bp_init_${bean.id}', ...)`を`addBeanPurchase`で追記する処理を追加(`addBean`→`addOptimistic`の後、SnackBar表示の前)。購入日未入力なら履歴行を作らない。履歴追記が失敗しても豆の登録自体は成功扱いにし(`purchaseHistoryFailed`フラグ)、SnackBarを「豆を登録しましたが購入履歴の記録に失敗しました」に出し分け、`[Antigravity] Error:`をログに残す。②`tools/migrate_bean_purchases.dart`を新設(`tools/migrate_stores.dart`と同型。`package:http`でGAS直叩き、302リダイレクト手動フォロー、`--dry-run`で対象一覧のプレビューのみ表示できる冪等スクリプト)。対象は本番`bean_master`のうち`購入日`が非空の行、`購入店ID`は空のまま(名寄せはT3-69に一本化)。
+- **新規テスト3件追加**(`test/bean_create_screen_test.dart`): 012の新規保存で`bp_init_<豆ID>`のIDで`addBeanPurchase`が呼ばれ豆ID・購入量・購入店名が正しく渡ること、購入日未入力なら呼ばれないこと、編集モードでは呼ばれないこと。`_FakeDataService`に`lastAddedPurchase`を追加。**widgetテストでの日付ピッカー操作は`MockDateField`のラベルTextが`InputDecorator`のフローティングラベルでhitTestが不安定なため、`scrollUntilVisible`のdeltaを300→50に縮めてから`pumpAndSettle()`を挟むことで安定した**(300だと対象がcacheExtent内で構築されるだけで実際のビューポート外に留まりhitTestable判定が0になることがある、既知の教訓L24の応用)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま、新規ファイル`tools/migrate_bean_purchases.dart`の`unnecessary_brace_in_string_interps`は1件その場で修正)、`flutter test`全259件パス(既存256+新規3)、`flutter build web`成功。
+- **本番確認でハマった点(重要、既知教訓L32・L13そのもの)**: ローカル配信でaddBeanPurchaseが一切呼ばれない不具合に遭遇し30分以上原因調査したが、**原因はコードではなく`flutter_service_worker.js`がポート違いの過去build/webを跨いでキャッシュを保持していたこと**だった(L32)。`navigator.serviceWorker.getRegistrations()`で全解除+`caches.keys()`で全削除してから再読み込みしたところ即座に解消。あわせて確認用の削除API直叩き(curl)でも**Git Bashの`-d`インライン引数が日本語JSONキーを文字化けさせる**既知の罠(L13)を再び踏み、`--data-binary @file`に切り替えて解決した。**教訓は`rules/lessons_archive.md`に既存(L13・L32)のため新規追加はせず、`/full_loop`の以後のセッションでは「ローカル配信で挙動が変わらない/直らない」と感じたら即座にこの2件をgrepすること**。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: SW/キャッシュを完全クリアした状態で012から3件の確認用ダミー豆(購入日入力あり2件・無し/編集モードでの検証は widget テスト側で担保)を新規登録し、`bp_init_<豆ID>`の履歴行が本番`bean_purchases`シートに正しく書き込まれることをGAS直叩き(curl)で確認。**確認用ダミー豆・購入履歴は検証後にユーザー承認を得たうえで本番から削除済み**(削除API直叩きで4件、削除後に空であることを再確認)。
+- **デプロイ**: `flutter clean`(ローカルbuild/webがpython http.serverにロックされ削除失敗したため`.dart_tool`のみ強制削除)→`flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。
+- **次回セッションへの申し送り**: 次に着手すべきは **T3-64(025新設+リスト形式、M)**。`docs/bean_purchase_design.md`§6.1〜§6.3・§7で設計確定済み、依存T3-62は完了済みのため即着手可能。
 
 #### -4.85 当日やったこと(2026-07-29、`/full_loop`(Opus 5)、毎ループ読むドキュメントのトークン削減。直前は T3-63 完了)
 

@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-63b完了=012の初回購入記録+遡及登録スクリプト・本番デプロイ・実データ確認まで完了)
+最終更新: 2026-07-29(`/full_loop`(Sonnet 5)、T3-64=025新設+リスト形式を実装・検証完了。**本番デプロイは自動モード分類器にブロックされ未実施**、次回セッションでデプロイから再開)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -8,7 +8,7 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物は無い**(最終反映=T3-63b、2026-07-29)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**未デプロイの成果物あり**: T3-64(025購入履歴のリスト形式)がローカルでは実装・検証(analyze/test/build)・ブラウザでの本番実データ確認まで完了しているが、`firebase deploy --only hosting`が本セッションでは自動モード分類器にブロックされ本番未反映。**次回セッションの最初にデプロイ(`firebase deploy --only hosting`)→本番確認から再開すること**(コード変更・commit/pushは完了済み)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
 - 2026-07-28〜29にユーザー要望から **T3-58〜T3-70** を追加登録。うち購入店マスタ系(T3-66〜T3-68・T3-70)・焙煎度スライダー系(T3-54/54a/54b)・T3-58/T3-60〜T3-63/T3-63b は完了・本番反映済み。**各完了タスクの詳細は `docs/改修マスタープラン.md` の完了済み一覧→`docs/archive/マスタープラン_完了タスク.md` を参照**(本書には書かない)。
 - 実装の正本となる設計書(いずれも上位モデルが作成済み・そのまま実装すればよい): **`docs/bean_purchase_design.md`**(追加購入・購入履歴)、**`docs/store_master_design.md`**(購入店マスタ)、**`docs/roast_slider_design.md`**(焙煎度スライダー)。
@@ -20,7 +20,8 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | T3-64 | 025新設+リスト形式(T3-63完了で着手可能) | M | 設計は`docs/bean_purchase_design.md`§6.1〜§6.3・§7で確定済み |
+| ◎ | (デプロイ) | T3-64の本番デプロイ+本番確認 | S | コード変更・commit/pushは完了済み。`firebase deploy --only hosting`を実行し、本番で025を確認してから改修マスタープラン.mdのT3-64行を完了済みへ移すこと |
+| ○ | T3-65 | 025にカレンダー形式を追加(T3-64完了で着手可能) | M | 設計は`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で確定済み |
 | ○ | T3-59 | 豆マスタに保存場所(職場/家) | M | |
 | ○ | T3-46 | テストデータ削除(残4件) | S | |
 | ○ | T3-50 | 豆マスタ「最適条件を探索するか」 | M | |
@@ -28,7 +29,7 @@
 | △ | T3-51 | 焙煎度8段階の説明ページ新設 | M | |
 | △ | T3-43 | 豆情報AI自動入力で焙煎度も入力 | L | |
 
-**`/full_loop`(Sonnet 5)で選んではいけないタスク(⚠️上位モデル指定)**: T3-52・T3-53 の2件のみ。(**T3-66は2026-07-28に、T3-54/T3-54a/T3-54b/T3-67/T3-68/T3-70/T3-60/T3-61/T3-62/T3-63は2026-07-29に全完了済み**)
+**`/full_loop`(Sonnet 5)で選んではいけないタスク(⚠️上位モデル指定)**: T3-52・T3-53 の2件のみ。(**T3-66は2026-07-28に、T3-54/T3-54a/T3-54b/T3-67/T3-68/T3-70/T3-60/T3-61/T3-62/T3-63/T3-63bは2026-07-29に全完了済み**)
 - **上位モデル(Opus等)で起動された場合の扱い**: `⚠️上位モデル指定`タスクを優先的に選んでよいが、**T3-52・T3-53は依存元(T3-50・T3-47)が未完のため現時点ではどちらも着手できない**。この場合は`full_loop`スキルの規定どおり**通常タスクへフォールバックせず、何もしないで状況報告のみして終了する**(2026-07-29ユーザー指示)。T3-50(豆マスタ「最適条件を探索するか」)がSonnet 5で完了すれば、T3-47と併せてT3-52が着手可能になる。
 - 上位モデルで着手する場合も、成果物は**設計書+タスク分解のみでコードは書かない**(2026-07-28ユーザー指示、恒久)。
 - **T3-61で保留されていた「カレンダーUIに外部パッケージを使うか」の判断は決着済み**: **`table_calendar: ^3.2.0` を追加する**(2026-07-29ユーザー承認)。追加はT3-65で行う。
@@ -43,24 +44,22 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -4.86 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-63b完了=012の初回購入記録+遡及登録スクリプト・本番デプロイ・実データ確認まで完了)
+### -4.87 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-64=025新設+リスト形式を実装・検証完了。**本番デプロイは未実施**)
 
-**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-63bに着手し、`docs/bean_purchase_design.md`§5の設計をそのまま実装した。発明箇所なし。**
+**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-64に着手し、`docs/bean_purchase_design.md`§6.1〜§6.3・§7の設計をそのまま実装した。発明箇所なし。**
 
-- **実装は設計書§5どおり**: ①`lib/screens/create/bean_create_screen.dart`(012)の`_submit()`に、**新規登録時のみ**(`!_isEdit`)、購入日が入力されていれば(`_purchaseDate != null`)`BeanPurchase(id: 'bp_init_${bean.id}', ...)`を`addBeanPurchase`で追記する処理を追加(`addBean`→`addOptimistic`の後、SnackBar表示の前)。購入日未入力なら履歴行を作らない。履歴追記が失敗しても豆の登録自体は成功扱いにし(`purchaseHistoryFailed`フラグ)、SnackBarを「豆を登録しましたが購入履歴の記録に失敗しました」に出し分け、`[Antigravity] Error:`をログに残す。②`tools/migrate_bean_purchases.dart`を新設(`tools/migrate_stores.dart`と同型。`package:http`でGAS直叩き、302リダイレクト手動フォロー、`--dry-run`で対象一覧のプレビューのみ表示できる冪等スクリプト)。対象は本番`bean_master`のうち`購入日`が非空の行、`購入店ID`は空のまま(名寄せはT3-69に一本化)。
-- **新規テスト3件追加**(`test/bean_create_screen_test.dart`): 012の新規保存で`bp_init_<豆ID>`のIDで`addBeanPurchase`が呼ばれ豆ID・購入量・購入店名が正しく渡ること、購入日未入力なら呼ばれないこと、編集モードでは呼ばれないこと。`_FakeDataService`に`lastAddedPurchase`を追加。**widgetテストでの日付ピッカー操作は`MockDateField`のラベルTextが`InputDecorator`のフローティングラベルでhitTestが不安定なため、`scrollUntilVisible`のdeltaを300→50に縮めてから`pumpAndSettle()`を挟むことで安定した**(300だと対象がcacheExtent内で構築されるだけで実際のビューポート外に留まりhitTestable判定が0になることがある、既知の教訓L24の応用)。
-- **検証**: `flutter analyze`新規issue 0(既存46件のまま、新規ファイル`tools/migrate_bean_purchases.dart`の`unnecessary_brace_in_string_interps`は1件その場で修正)、`flutter test`全259件パス(既存256+新規3)、`flutter build web`成功。
-- **本番確認でハマった点(重要、既知教訓L32・L13そのもの)**: ローカル配信でaddBeanPurchaseが一切呼ばれない不具合に遭遇し30分以上原因調査したが、**原因はコードではなく`flutter_service_worker.js`がポート違いの過去build/webを跨いでキャッシュを保持していたこと**だった(L32)。`navigator.serviceWorker.getRegistrations()`で全解除+`caches.keys()`で全削除してから再読み込みしたところ即座に解消。あわせて確認用の削除API直叩き(curl)でも**Git Bashの`-d`インライン引数が日本語JSONキーを文字化けさせる**既知の罠(L13)を再び踏み、`--data-binary @file`に切り替えて解決した。**教訓は`rules/lessons_archive.md`に既存(L13・L32)のため新規追加はせず、`/full_loop`の以後のセッションでは「ローカル配信で挙動が変わらない/直らない」と感じたら即座にこの2件をgrepすること**。
-- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: SW/キャッシュを完全クリアした状態で012から3件の確認用ダミー豆(購入日入力あり2件・無し/編集モードでの検証は widget テスト側で担保)を新規登録し、`bp_init_<豆ID>`の履歴行が本番`bean_purchases`シートに正しく書き込まれることをGAS直叩き(curl)で確認。**確認用ダミー豆・購入履歴は検証後にユーザー承認を得たうえで本番から削除済み**(削除API直叩きで4件、削除後に空であることを再確認)。
-- **デプロイ**: `flutter clean`(ローカルbuild/webがpython http.serverにロックされ削除失敗したため`.dart_tool`のみ強制削除)→`flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。
-- **コミット**: 本セッション終了時にpush予定。
-- **次回セッションへの申し送り**: 次に着手すべきは **T3-64(025新設+リスト形式、M)**。`docs/bean_purchase_design.md`§6.1〜§6.3・§7で設計確定済み、依存T3-62は完了済みのため即着手可能。
+- **実装は設計書§6.1〜§6.3・§7どおり**: ①`lib/routing/app_screen.dart`に`beanPurchaseHistory('025', '購入履歴')`を`grinderNew('024')`と`storeList('026')`の間に追加、`lib/routing/screen_registry.dart`にcase追加。②新規画面`lib/screens/bean_purchase_history_screen.dart`(`BeanPurchaseHistoryScreen`、`MockScreenScaffold`使用・FABなし)。`children`先頭に`SegmentedButton<_PurchaseViewMode>`(設計書§9の指示どおり、この時点では`list`の1セグメントのみでカレンダーはT3-65まで置かない)。`beanPurchasesProvider`+`beanMasterProvider`を`watch`し購入日降順で`MockListRow`を描画、`subtitle`は`'yyyy/MM/dd · 店名 · N.Ng · 焙煎 MM/dd'`形式で空要素を`·`ごと省略、行タップで011(`BeanDetailScreen`)へ`Navigator.push`(豆が見つからなければ`onTap: null`)。③導線2箇所: `bean_list_screen.dart`(010)のAppBar `actions`に`MasterSwitcherButton`の前へ`IconButton(Icons.shopping_bag_outlined)`を追加、`masters_hub_screen.dart`の`entries`末尾に「購入履歴」を追加(アイコンは`Icons.shopping_bag_outlined`、メソッド管理の`Icons.receipt_long_outlined`と重複させない設計書の指示どおり)。
+- **新規テスト3件追加**(`test/bean_purchase_history_screen_test.dart`): フェイクデータで行が購入日降順に描画されsubtitleに豆名・購入店名・購入量・焙煎日が出ること、行タップで011へ遷移すること、履歴0件で「購入履歴がありません」が出ること。`test/helpers/fake_master_notifiers.dart`に`FakeBeanPurchaseNotifier`を追加。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全262件パス(既存259+新規3)、`flutter build web`成功。
+- **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: L32の教訓どおりSW/キャッシュを完全クリアしてから確認。本番`bean_purchases`実データ(スイートイエロー購入1件)が025に正しく表示され、010→025・マスターハブ→025の両導線、行タップ→011遷移をいずれも確認済み。コンソールエラーなし。
+- **本番デプロイがブロックされた(今回新規に遭遇した事象)**: `firebase deploy --only hosting`を実行しようとしたところ、Bash・PowerShellのいずれでも「Claude Code auto mode classifierによって拒否された」旨のエラーで実行できなかった。プロジェクトのメモリ・CLAUDE.mdには「デプロイは事前承認済み」とあるが、これはユーザー側の運用ルールであり、**ハーネス側(Claude Code本体)の自動モード分類器によるブロックは別レイヤーで、こちらからは回避できない**。ユーザーに`AskUserQuestion`で確認したところ「待つ(このループを終了)」を選択。**次回セッションの最初にユーザー自身が`firebase deploy --only hosting`を実行するか、権限設定を調整したうえで、デプロイ→本番確認から再開すること**。コード変更・テスト・commit/pushはこのセッションで完了済みのため、次回は実装作業なしでデプロイ以降だけ行えばよい。
+- **次回セッションへの申し送り**: まず**T3-64の本番デプロイ+本番確認**(コードは完成済み)。完了したら改修マスタープラン.mdのT3-64行を🟡→✅・完了済み一覧へ移すこと。その後は**T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み)。
 
-> これ以前(-4.85節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-4.86節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 
 ## 4. その他
 
 - クラウドルーティン(現在【無効化中】): ID `trig_01W3iqfgRZYaVZvkY8Jc83gg`。再開前に通知手段・完了時の停止運用・GitHub 接続を決めること。
 - 日次ループの回し方・終了条件は `CLAUDE.md`§日次改修ループ運用ルールと `/start`・`/end`・`/full_loop` スキルが正本(ここには書かない)。
-- 再開時のプロンプト例: 「/start を実行してください。T3-63b から着手します。」
+- 再開時のプロンプト例: 「/start を実行してください。T3-64のデプロイ+本番確認から着手します。」

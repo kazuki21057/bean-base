@@ -7,6 +7,7 @@ import '../utils/bean_stock_calculator.dart';
 import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
 import 'bean_detail_screen.dart';
+import 'bean_purchase_history_screen.dart';
 import 'create/bean_create_screen.dart';
 import 'create/create_form_widgets.dart';
 import 'master_template.dart';
@@ -36,7 +37,20 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
 
     return MockScreenScaffold(
       screen: AppScreen.beanList,
-      actions: const [MasterSwitcherButton(current: AppScreen.beanList)],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.shopping_bag_outlined),
+          tooltip: '購入履歴(025)へ',
+          onPressed: () {
+            debugPrint('[Antigravity] Action: 豆管理010から購入履歴025へ遷移');
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BeanPurchaseHistoryScreen()),
+            );
+          },
+        ),
+        const MasterSwitcherButton(current: AppScreen.beanList),
+      ],
       floatingActionButton: MockAddFab(
         tooltip: '新規豆追加(012)へ',
         destinationBuilder: () => const BeanCreateScreen(),

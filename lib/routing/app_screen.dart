@@ -31,6 +31,7 @@ enum AppScreen {
   grinderList('022', 'グラインダー管理'),
   grinderDetail('023', 'グラインダー詳細'),
   grinderNew('024', '新規グラインダー'),
+  beanPurchaseHistory('025', '購入履歴'),
   storeList('026', '購入店管理'),
   storeDetail('027', '購入店詳細'),
   storeNew('028', '新規購入店'),
