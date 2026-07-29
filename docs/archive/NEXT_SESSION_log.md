@@ -1,7 +1,108 @@
-# NEXT_SESSION 作業ログ アーカイブ(-4.77節以前 + 旧「2. 次回の着手点」)
+# NEXT_SESSION 作業ログ アーカイブ(-4.84節以前 + 旧「2. 次回の着手点」)
 
-> 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため、直近5セッション分を除く作業ログをここへ退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.77以前であればこのファイルを見ること。
+> 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.84以前であればこのファイルを見ること。
+
+#### -4.84 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-63完了=011の追加購入ボタン+ダイアログ・本番デプロイ・実データ確認まで完了)
+
+**NEXT_SESSION.mdで◎最優先とされ、T3-62完了で依存が満たされたT3-63に着手し、`docs/bean_purchase_design.md`§3・§4の設計をそのまま実装した。発明箇所なし。**
+
+- **実装は設計書§3・§4どおり**: ①`lib/screens/bean_detail_screen.dart`(011)の「残量調整」`FormSection`を`'在庫・購入'`に改称(アイコン`Icons.inventory_2_outlined`)し、既存の「残量を調整」`OutlinedButton`と並べて「追加購入」`FilledButton`を`Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end)`で配置。②`_AddPurchaseDialog`(`StatefulWidget`、T3-60の教訓どおり`TextEditingController`のライフサイクルはウィジェット自身に持たせる)を新設。購入日(`MockDateField`、既定=今日)・焙煎日(任意、`MockDateField`+`_roastDate`変化ごとに`ValueKey`を切り替えて再構築するクリア可能な行)・購入量(g)(`MockTextField`、必須)・購入店(`DropdownButtonFormField<String>`、`storeMasterProvider`から、既定は豆の現在の`store`と店名一致する店)・メモを入力。加算後の残量をライブ表示(`現在の残量 85.5g → 135.5g`)。③保存は設計書§3.1どおり**必ず①`addBeanPurchase`(履歴追記)→②`updateBean`(豆マスタ更新)の順**で実行し、①失敗時は中断のみ、①成功・②失敗時は「購入履歴は記録しましたが、豆の残量・購入日の更新に失敗しました。もう一度お試しください」を明示。豆マスタ側は`purchaseDate`上書き/焙煎日未入力なら`roastDate`は上書きしない(`BeanMaster.copyWith`の`??`フォールバックにそのまま乗せられるため追加コード不要)/`initialQuantityGrams`は不変/`stockBaselineGrams = 現在の残量 + 購入量`・`stockBaselineAt = 現在時刻`/`isInStock = true`/店を選んだ場合のみ`store`を上書き。
+- **設計書に無かった対応が1点**: `storeMasterProvider`をダイアログを開く時点で`ref.read`すると非同期取得が未完了で空リストになりうる(既定店の一致判定が効かない)ため、`BeanDetailScreen.build()`内で先に`ref.watch(storeMasterProvider)`しておき、解決済みのリストをダイアログへ渡す形にした(他プロバイダ(`beanMasterProvider`/`coffeeRecordsProvider`)と同じ既存パターンに合わせただけで、新規の設計判断はしていない)。
+- **新規テスト4件追加**(`test/bean_detail_test.dart`、T3-60のテストと同型): ダイアログ描画(全項目のラベル表示)、保存で`addBeanPurchase`と`updateBean`の両方が呼ばれ`stockBaselineGrams`が「現在の残量+購入量」になること、焙煎日未入力時に既存`roastDate`が保持されること、焙煎日>購入日でバリデーションエラーになり何も保存されないこと。`overridesFor`に`storeMasterProvider.overrideWith(FakeStoreMasterNotifier)`を追加。**日付ピッカーのテストは月境界に依存しないよう当月5日・10日という固定日を使い、`find.text('購入日')`が背景画面の項目ラベルと衝突するため`find.descendant(of: find.byType(AlertDialog), ...)`でダイアログ内に絞った**(単純な`find.text`だと2件ヒットしてタップが失敗する)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全256件パス(既存252+新規4)、`flutter build web`成功。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: 実在の豆「スイートイエロー」(HEISEI COFFEE The Factory、残量85.5g)の011で「追加購入」→ダイアログの購入店ドロップダウンが**既定でHEISEI COFFEE The Factoryに自動一致**することを確認。購入量50gを入力しライブプレビューが`85.5g → 135.5g`に更新されることを確認後、実際に保存。画面を離れずに残量表示が135.5gへ即座更新されることを確認し、本番`bean_purchases`シートに履歴行(購入店ID`store_heisei`まで正しく解決)が、`bean_master`シートに`在庫基準量(g)=135.5`・`焙煎日`は変更前の値のまま保持・`初期購入量(g)`不変で書き込まれていることをGAS直叩き(curl)で確認した。空欄のまま保存を試みると「購入量を正しく入力してください」のSnackBarが出ることも確認。コンソールエラーなし。**この確認は実データへの意図的な書き込みであり(機能そのものの実地検証のため、T3-60等の過去セッションと同じ方針)、削除は伴わない**。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-63は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。
+  2. 引き続き着手可能なのは**T3-63b(012の初回購入記録+遡及登録、S〜M、設計確定済み)・T3-64(025新設+リスト形式、M、設計確定済み)**(T3-63と独立/後続)、および T3-59(M)・T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. `⚠️上位モデルで実施`の未着手タスクはT3-52・T3-53のみで、依存元(T3-50・T3-47)が未完のため引き続きブロック中(変更なし)。
+  4. **Material `DatePickerDialog`をwidgetテストで操作する際は、`find.text('OK')`で確定・当月内の固定日(例: 5日・10日)を`find.text('$day').first`でタップすると月境界非依存で安定する**(このプロジェクトで初めてdate pickerのUI操作テストを書いた際の知見)。
+
+## -4.83 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-62完了=購入履歴のデータ基盤・GASデプロイ・本番シート自動生成確認まで完了)
+
+**NEXT_SESSION.mdで◎最優先とされ、T3-61(上位モデル設計)完了で依存が満たされたT3-62に着手し、`docs/bean_purchase_design.md`§2の設計をそのまま実装した。発明箇所なし。**
+
+- **実装は設計書§2どおり**: ①`lib/models/bean_purchase.dart`(+手書き`.g.dart`、`build_runner`不安定のためT3-34/T3-67と同じ運用)を新規作成。9フィールド(`id`/`beanId`/`purchasedAt`/`roastDate`/`quantityGrams`/`storeId`/`storeName`/`memo`/`createdAt`)を設計書§2.1の順で定義し、`String`フィールド(`id`/`beanId`/`storeId`/`storeName`/`memo`)は全て`@JsonKey(defaultValue: '', fromJson: _parseString)`(`beanId`が数字のみになる既知の地雷=T3-67の`openedYear`と同型への対策)。日付/`double?`は`BeanMaster._parseDate`/`_parseDouble`と同型のヘルパーをコピー、`copyWith`は全9フィールド分完備。②`gas/Code.gs`の`ALLOWED_SHEETS`に`'bean_purchases'`、`NEW_SHEET_HEADERS['bean_purchases']`に日本語列名9個(`購入ID`/`豆ID`/`購入日`/`焙煎日`/`購入量(g)`/`購入店ID`/`購入店名`/`メモ`/`登録日時`)をこの順で追加。③`DataService`に`getBeanPurchases`/`addBeanPurchase`/`updateBeanPurchase`/`deleteBeanPurchase`を追加し`SheetsService`に`_beanPurchaseKeyMap`経由で実装(`_storeKeyMap`/`getStores`/`_reverseMapStore`と完全に同型)。`FirestoreService`にも`UnimplementedError`スタブ4件を追加。④`data_providers.dart`に`BeanPurchaseNotifier`/`beanPurchasesProvider`を`StoreMasterNotifier`と同型で追加(`OptimisticListNotifier<T>`基底)。
+- **`test/`配下14個の`_FakeDataService`すべてに4メソッドの空実装を追加**(設計書の注記どおり。忘れると全テストがコンパイルエラーになるT3-67の教訓に従い、`sed`/`perl`で一括挿入してから`flutter analyze`で漏れが無いことを確認)。うち`store_template_test.dart`のみ他13ファイルと`_FakeDataService`の形が異なり(Storeの実装がスタブでなく本実装のため)、`perl`一括置換の対象外として個別に`Edit`で追加した。
+- **新規テスト7件追加**(`test/bean_purchase_test.dart`、`store_master_test.dart`と同型): fromJson/toJson往復、**数字のみの`beanId`/`id`が文字列化されること**、空JSONでの既定値、Sheetsのスラッシュ・スペース区切り日付の解釈、購入量(g)の文字列→数値キャスト、`copyWith`の部分上書き。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全252件パス(既存245+新規7)、`flutter build web`成功。
+- **GASデプロイ**: `clasp push`→`clasp deploy --deploymentId <既存ID>`で`kGoogleSheetsApiUrl`のURLを変えずに反映(@13→@14)。本番エンドポイントに`?sheet=bean_purchases`でGETし空配列`[]`が返ること、パラメータ無しGETの`available_sheets`一覧に`bean_purchases`が追加されていることを確認し、`ensureSheet_`による自動生成(9列ヘッダー行付き)が本番で機能していることを確認した。
+- **本番確認の範囲**: T3-62はデータ基盤のみでUI画面が無い(011の追加購入ボタンはT3-63、025の画面自体はT3-64)ため、ブラウザでの機能目視確認は対象外。テスト検証成功後にトランザクション性が問題ないよう、本番へのテスト用ダミー行の追加・削除は行っていない(削除操作は都度確認が必要な範囲のため、データ基盤の存在確認はGETのみで完結させた)。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`は本タスクではUI変更が無いため実施していない(次にT3-63でUIが入った際にまとめてデプロイする)。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-62は完了**。マスタープラン§3の該当行を✅に更新済み。これにより**T3-63(011の追加購入ボタン)・T3-63b(012の初回購入記録+遡及登録)・T3-64(025新設+リスト形式)がSonnet 5で着手可能**になった(いずれも`docs/bean_purchase_design.md`で設計判断は完了済み)。
+  2. **T3-63から着手するのが着手順の目安どおり**(§3の「着手順の目安」参照。T3-64/T3-65はT3-63の後ろ)。ただしT3-63bはT3-63と依存関係が独立(011のダイアログと012の保存処理は別ファイル)なので、どちらから着手してもよい。
+  3. **`test/`配下に新たに`_FakeDataService`を追加する画面テストを書く際は、今後`bean_purchases`用の4メソッド空実装を最初から入れておくこと**(このセッションで14ファイルへの一括追加が必要だった二の舞を避けるため)。
+  4. 引き続きSonnet 5で依存なしで着手できるのは**T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。**`⚠️上位モデルで実施`の未着手タスクはT3-52・T3-53のみ**で依存元(T3-50・T3-47)未完のためブロック中(変更なし)。
+
+### -4.82 当日やったこと(2026-07-29、`/full_loop`(**Opus 5**)、T3-61完了=追加購入フローと購入履歴の統合**設計**。コード変更なし)
+
+**上位モデル(Opus 5)で起動されたため、`full_loop`スキルの規定に従い`⚠️上位モデルで実施`タスクを優先選定した。着手可能だったのはT3-61のみ(T3-52・T3-53は依存元T3-50/T3-47が未完でブロック中)。モデル分担ルールどおり成果物は設計書+タスク分解のみで、コードは1行も書いていない。**
+
+- **成果物: `docs/bean_purchase_design.md`(新規)**。タスク文の検討事項①〜⑥をすべて確定させ、T3-62〜T3-65が設計判断なしで実装できる粒度(シート列名・フィールド名・画面ID・引数表・書き込み順序・既知の地雷)まで具体化した。
+- **ユーザーへ4件確認し、全件承認を得た(`AskUserQuestion`+`PushNotification`)**:
+  1. **カレンダーは外部パッケージ`table_calendar`を追加する**(自前GridViewではない)。→ `flutter pub add --dry-run table_calendar`で解決を事前確認済み: **`table_calendar 3.2.0` + 推移依存`simple_gesture_detector 0.2.1`の2件のみ増え、他パッケージのバージョンは動かない**(`--dry-run`なので`pubspec.yaml`は未変更)。
+  2. **既存豆(23件超)の購入は遡及登録する**。→ 移行スクリプトで`bp_init_<豆ID>`固定IDの初回購入行を作る(冪等)。
+  3. **025への導線は010のAppBar+マスター管理ハブの2箇所**(ナビゲーションのタブは増やさない)。
+  4. **追加購入ダイアログで購入店も選択できるようにする**。→ 履歴には**購入店IDと購入店名の両方**を保存するため、**T3-69(豆マスタのstore→storeId移行)を待たずに025で購入先を表示できる**。
+- **設計上の主な決定(ユーザー確認事項以外)**:
+  - シート`bean_purchases`は**9列**(`購入ID`/`豆ID`/`購入日`/`焙煎日`/`購入量(g)`/`購入店ID`/`購入店名`/`メモ`/`登録日時`)。**豆名・豆画像は保存せず`beanId`から都度解決**(豆名変更時に履歴が古い名前で残るのを避けるため)。購入店だけは店マスタ未整備の既存データがあるため例外的に名前をスナップショットする。
+  - 豆マスタは**「最新購入の値で上書きし続ける」方針を維持**(履歴からの導出には切り替えない)。理由: `BeanMaster.roastDate`を統計処理の鮮度算出(`brewedAt.difference(roastDate).inDays`)が直接参照しており、導出化すると後方互換が壊れるため。`initialQuantityGrams`は「初回購入時の量」の意味のまま変更しない。焙煎日が未入力なら`roastDate`は上書きしない。
+  - **書き込み順序は「①履歴追記 → ②豆マスタ更新」で確定**。根拠: 在庫基準点を`現在の残量 + 購入量`という**絶対値**で書くため、②が失敗した状態でリトライしても`calculateBeanRemainingGrams`の結果が変わらず**二重加算にならない**。リトライで生じうる副作用は025の履歴行1件の重複のみで、購入IDが異なるため識別可能。
+  - **T3-63から`T3-63b`(012の初回購入記録+遡及登録スクリプト)を分離**した(011のダイアログと012の保存処理は別ファイル・別テストのため)。初回購入のIDを`bp_init_<豆ID>`固定にすることで、移行スクリプトを後から流しても012経由で作られた行と衝突しない。
+  - **`MasterSwitcherButton._entries`には購入履歴を追加しない**ことを明記した(購入履歴はマスターではないため、CLAUDE.mdの「全マスタータブへの一律適用」規約の対象外。Sonnet 5が規約を過剰適用しないよう先回りした)。
+- **調査して設計書に落とした「実装時の地雷」**(下位モデルが踏まないよう明記):
+  1. **`beanId`は`millisecondsSinceEpoch`由来で数字のみ**のため、Sheetsが数値セルに変換して返し、素の`as String?`だと本番データ取得時に型キャストエラーで落ちる(T3-67の`openedYear`・`FilterMaster.size`と同型)。→ `String`フィールドは全て`_parseString`を使うよう指定。
+  2. **`table_calendar`で`locale: 'ja_JP'`を使うには`main()`で`await initializeDateFormatting('ja_JP', null)`が必要**。`main.dart`に既にある`flutter_localizations`のdelegatesと`locale: Locale('ja')`は**intlの日付シンボルデータを初期化しない別物**で、呼ばないと実行時`LocaleDataException`で落ちる。
+  3. **`eventLoader`用のイベントMapは作る時も引く時も必ず`DateTime.utc(y,m,d)`で正規化する**(`DateTime`の等価比較は時刻を含むため、`purchasedAt`をそのままキーにすると絶対に一致しない)。→ 回帰防止のユニットテストをT3-65の終了条件に含めた。
+  4. 関数内`showDialog`直後の`TextEditingController.dispose()`禁止(T3-60の既知の不具合)を追加購入ダイアログにも明記。
+- **マスタープラン更新**: T3-61行を✅に、T3-62/T3-63/T3-64/T3-65の各行を設計書参照+具体手順に全面改訂、**T3-63b行を新設**、T3-69行に⑦(`bean_purchases.購入店ID`の名寄せ)・⑧(追加購入時の`BeanMaster.storeId`更新)を追記、§3冒頭の依存関係・着手可能リスト・モデル選定の記述も更新。
+- **検証・デプロイ**: **コード変更が無いため`analyze`/`test`/`build`/デプロイ/本番確認はいずれも実施していない**(`full_loop`スキルの上位モデル例外規定どおり)。変更したのは`docs/bean_purchase_design.md`(新規)・`docs/改修マスタープラン.md`・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`の4ファイルのみ。`pubspec.yaml`は`--dry-run`のため未変更であることを`git status`で確認済み。
+- **次回セッションへの申し送り**:
+  1. **T3-61は完了**。次にSonnet 5で着手すべきは **T3-62(購入履歴のデータ基盤、M)**。設計は`docs/bean_purchase_design.md`§2で確定済みで発明不要。
+  2. T3-62では **`test/`配下の`_FakeDataService`(12個以上)すべてに4メソッドの空実装を追加**する必要がある(忘れると全テストがコンパイルエラー。T3-67で実際に踏んだ作業)。
+  3. **`⚠️上位モデルで実施`の未着手タスクはT3-52・T3-53のみ**で、いずれも依存元(T3-50・T3-47)が未完のためブロック中。**次に上位モデルで`/full_loop`が起動された場合、選べるタスクが無いため何もせず状況報告のみして終了する**のが正しい挙動(2026-07-29ユーザー指示)。T3-50をSonnet 5で消化すればT3-52が着手可能になる。
+  4. 引き続きSonnet 5で依存なしで着手できるのは **T3-62(◎)・T3-59(M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+
+### -4.81 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-60完了=豆の残量手動調整(在庫基準点方式)・本番デプロイ・確認まで完了)
+
+**NEXT_SESSION.mdで◎最優先とされ、依存なし・実装方針がタスク表側で完全に確定済みだったT3-60に着手し、実装・検証・デプロイ・本番確認まで完走した。T3-61(追加購入+購入履歴の統合設計、上位モデル)のブロッカーを解消するタスク。**
+
+- **実装はタスク表の方針どおり**: ①`BeanMaster`に`double? stockBaselineGrams`(在庫基準点、基準時点の残量g)と`DateTime? stockBaselineAt`(基準時点)を追加(`.g.dart`は`build_runner`不安定のため手書き、T3-34以来の運用)。②`lib/utils/bean_stock_calculator.dart`に`calculateBeanRemainingGrams()`を新設し、`stockBaselineGrams`設定済みの豆は`基準点 - Σ(stockBaselineAtより後の該当豆記録のbeanWeight)`、未設定の豆は従来どおり`initialQuantityGrams`基準にフォールバックするロジックへ改修。`calculateBeanRemainingPercent()`の分母も`stockBaselineGrams ?? initialQuantityGrams`に変更(基準点設定直後は100%表示になる、タスク表の仕様どおり)。③011(`bean_detail_screen.dart`)に「残量調整」`FormSection`を追加し、「残量を調整」ボタン→ダイアログ(現在の残量gを編集)→保存で`stockBaselineGrams`=入力値・`stockBaselineAt`=現在時刻を`updateBean`+`updateOptimistic`で保存。④`SheetsService`のkeyMap/reverseMap両方に`'在庫基準量(g)'`/`'在庫基準日時'`を追加、`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に同2列を追加して`clasp push`+`clasp redeploy`(既存デプロイID宛、@13)。
+- **タスク表に無かった追加対応(011がこの画面上でも即座に更新されるようにするため)**: `BeanDetailScreen`はコンストラクタで渡された`bean`(遷移時点のスナップショット)をそのまま表示していたため、残量調整ダイアログで保存しても画面を離れずには反映されない設計上の問題があった(編集画面からの保存でも同型の問題が既存コードに潜在していたと判明)。`beanMasterProvider`を`ref.watch`し、`beans.firstWhere((b) => b.id == bean.id, orElse: () => bean)`で「最新のbean」を都度解決してから全フィールドに使う形に変更し、残量調整も編集も**同じ画面に留まったまま**表示が即座に更新されるようにした。
+- **実装中に発見・修正したバグ**: 残量調整ダイアログを関数内で`final controller = TextEditingController(...); final v = await showDialog(...); controller.dispose();`という素直な書き方で実装したところ、widgetテストで`A TextEditingController was used after being disposed`の例外が発生した。`showDialog`が値を返した直後(ダイアログを閉じるアニメーションがまだ残っているフレーム)にdisposeが走ってしまうことが原因。ダイアログ本体を専用の`_AdjustStockDialog`(`StatefulWidget`)に切り出し、コントローラの生成/破棄を`initState`/`dispose()`に持たせる形に修正して解決(`rules/verification.md`に教訓追記)。
+- **新規テスト6件追加**: `test/bean_stock_calculator_test.dart`に「T3-60 在庫基準点」グループ4件(基準点設定直後は100%・基準点より後の記録のみ差し引かれる・基準点未設定は後方互換・使用量超過でも0g未満にならない)、`test/bean_detail_test.dart`に011の残量調整ダイアログ2件(保存で`updateBean`が呼ばれ画面上の表示も即座に更新される・キャンセルで何も変わらない)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全245件パス(既存239+新規6)、`flutter build web`成功。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: 010(豆管理カード一覧)から実在の豆「スイートイエロー」の011詳細を開き、「残量調整」セクション(現在の残量: 100.0g)→「残量を調整」ボタン→ダイアログで`85.5`に変更→保存を実行。**画面を離れずに「現在の残量: 85.5g」へ即座に更新されること**(011自身のライブ更新)、010一覧に戻っても反映されていることを確認。コンソールエラー0件。本番Sheetsをcurlで直接確認し、`在庫基準量(g)=85.5`が該当行に保存され、かつ他の全行にも`在庫基準量(g)`/`在庫基準日時`列(空文字)が自動プロビジョニングされたことを確認(`ensureColumns_`はPOST時のみ動作するため、この保存操作がトリガーになった)。**この確認は実データへの意図的な書き込みであり(機能そのものの実地検証のため)、削除は伴わない**。
+- **デプロイ**: GAS `clasp push`+`clasp deploy --deploymentId <既存ID>`(@13)。`flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-60は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。これにより**T3-61(追加購入+購入履歴の統合設計、上位モデル)が着手可能**になった(上位モデルで起動された場合はこれを優先的に選んでよい)。
+  2. 引き続きSonnet 5で依存なしで着手できるのは**T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. **`BeanDetailScreen`は最新のbeanを`beanMasterProvider`から都度解決する設計に変更した**ため、他のマスター詳細画面(Grinder/Dripper/Filter/Method)でも同様に「画面に留まったまま更新した項目が反映されない」問題が潜在していないか、次にそれらの画面へ手を入れる際は確認するとよい(今回はBean detail限定の対応で、他マスターへの横展開はスコープ外として見送った)。
+  4. **関数内`showDialog`直後の`TextEditingController.dispose()`は避け、ダイアログ本体を`StatefulWidget`にしてライフサイクルを持たせること**(`rules/verification.md`の新規教訓参照)。
+
+### -4.80 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)、T3-70完了=新規購入店のAI自動取得・本番デプロイ・確認まで完了)
+
+**依存なし・設計確定済み(`docs/store_master_design.md`§8)で「発明せずそのまま実装すればよい」タスクだったT3-70に着手し、実装・検証・デプロイ・本番確認まで完走した。**
+
+- **実装は設計書§8どおり**: ①`lib/services/ai_analysis_service.dart`に`StoreInfoCandidate`(§2の13項目+`ambiguous`/`candidates`/`confidence`/`sourceUrls`)と`fetchStoreInfo({storeName, hintPrefecture, apiKey, preferredModel})`を追加。既存の`extractBeanInfoFromImage`と同型に`GenerationConfig(responseMimeType: 'application/json')`+`_modelOrder`フォールバックを使用。②`lib/screens/create/store_create_screen.dart`(028)の店名欄の右に「AIで自動入力」アイコンボタン(`Icons.auto_awesome_outlined`、012と同じ流儀)を追加し、確認ダイアログ(`_StoreInfoConfirmDialog`)を新設。③確認ダイアログはチェックボックス付きで、`confidence: low`と既に値が入っている項目は既定OFF(設計書§8.4どおり)。「反映」を押すとチェック済み項目のみフォームへ反映し`sourceUrl`(改行区切り)/`infoFetchedAt`(現在時刻)も設定。無条件保存はしない。④`ambiguous: true`のときは候補選択ダイアログを先に挟み、選ばなければ何も反映せず閉じる(選んだ場合は候補の説明文を店名に付加して再取得)。⑤APIキー未設定・取得失敗・JSONパース失敗はいずれも日本語SnackBar(floating+下マージン)で通知し手入力に継続できる。
+- **設計書に無かった調査事項**: Google検索グラウンディングの対応可否を`google_generative_ai: ^0.4.7`のソース(`Tool`クラス)で確認したところ、`functionDeclarations`/`codeExecution`のみで検索グラウンディング非対応と判明。設計書§8.1の指示どおりパッケージ追加はせず非グラウンディングで実装した。
+- **実装中に発見・修正したバグ**: 確認ダイアログ表示中も`_isFetchingInfo`(スピナー用フラグ)をtrueのままにしていたため、インジケータの回転アニメーションが止まらず、ウィジェットテストの`pumpAndSettle`が収束せずタイムアウトする不具合があった。通信中のみスピナーをtrueにし、確認・候補選択ダイアログの表示前にfalseへ戻すよう修正(ユーザー入力待ちとAPI通信中を明確に分離)。
+- **新規テスト9件追加**(`test/store_ai_fetch_test.dart`、`_FakeAiAnalysisService extends AiAnalysisService`でメソッドオーバーライドする方式): ウィジェットテスト3件(confidence:low・既存値ありの既定OFF/反映後にフォームへ反映されること、ambiguous時の候補選択ダイアログとキャンセルで何も反映されないこと、取得失敗時のSnackBarと手入力継続)+`StoreInfoCandidate.fromJson`の単体テスト3件(項目ごとのvalue/confidence読み取り、ambiguousのcandidates読み取り、空JSONでisEmpty)。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま)、`flutter test`全239件パス(既存233+新規6、`store_ai_fetch_test.dart`内訳はウィジェット3件+`StoreInfoCandidate.fromJson`単体3件)、`flutter build web`成功。
+- **本番確認(ローカル配信+Playwright、本番GAS実データ)**: `claude-in-chrome`の`computer`ツールでのNavigationRailクリックが今回も不安定だったため、Playwright MCPの`page.mouse.click`(実マウスイベント)+CanvasKit canvas直接ダンプ(`rules/verification.md`既知の手法)に切り替えて確認した。マスター管理ハブに「購入店管理」が表示され026一覧に本番7店が表示されること、028新規購入店フォームの店名欄の横に「AIで自動入力」ボタン(ツールチップ「AIで自動入力」)が表示されること、店名未入力のままボタンを押すと「先に店名を入力してください」のSnackBarが出ることを確認。コンソールエラー0件。**実際のGemini API呼び出し(確認ダイアログの表示・項目反映)は本番APIキーでの課金が発生するため実施していない**(ロジックはフェイクサービスを使ったウィジェットテストで担保)。
+- **デプロイ**: `flutter build web`→`firebase deploy --only hosting`成功(一発、ブロックされず)。デプロイ後、本番`main.dart.js`のMD5がローカル`build/web/main.dart.js`と完全一致することを確認。
+- **座標クリックでの新知見(`rules/verification.md`へ追記予定)**: この環境でのFlutter Web(CanvasKit)ナビゲーションは、`claude-in-chrome`の`computer`ツールおよび`browser_evaluate`での合成`PointerEvent`ディスパッチのどちらも、NavigationRailやAppBarの戻るボタンなど一部の要素で反応しない/誤った座標に当たることがあった。Playwright MCPの`browser_run_code_unsafe`で`page.mouse.click(x, y)`(Playwrightの本物のマウスイベント)を使うと確実に反応した。また、Read/画像表示ツールが示す「displayed」座標はビューポート座標そのものではなく縮小表示のため、`page.mouse.click`に渡す座標は**表示された画像上で読み取った座標に「original/displayed」の倍率(本セッションでは1.28)を掛けた値**を使う必要がある(生の表示座標をそのまま使うと隣接する行/要素を誤クリックする)。
+- **コミット**: 本セッション終了時にpush予定。
+- **次回セッションへの申し送り**:
+  1. **T3-70は完了・本番反映済み**。マスタープラン§3の該当行を✅に更新済み。これで購入店マスタ関連タスク(T3-66〜T3-68・T3-70)は完結し、残るはT3-69(豆マスタのstore→storeId移行、T3-62待ち)のみ。
+  2. 引き続き依存なしで着手できるのは**T3-60(在庫基準点、M)・T3-59(保存場所、M)**、および T3-46(残4件)・T3-50(M)・T3-47(M)・T3-51(M)・T3-43(L)。
+  3. **実ブラウザでのAI取得結果確認ダイアログの目視確認は依然として未実施**(本物のGemini APIキーでの課金を避けたため)。ユーザーが手元で`flutter run`し実際のAPIキーで一度試すことを推奨。
+  4. **Flutter Web(CanvasKit)への座標クリックはPlaywrightの`page.mouse.click`(`browser_run_code_unsafe`経由)を第一候補にするとよい**(`claude-in-chrome`の`computer`や`browser_evaluate`での合成PointerEventより安定していた、詳細は本節上の「座標クリックでの新知見」を参照)。
 
 ## -4.78 当日やったこと(2026-07-29、`/full_loop`(Sonnet 5)。ユーザー指示「日本語出力を徹底するようルールを見直して」への対応)
 

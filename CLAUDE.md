@@ -15,6 +15,28 @@ The project was originally developed with Google Antigravity; its main surviving
 - **Firestore code is legacy**: `FirestoreService`, `FirestoreMigrator`, and `firebase_options.dart` remain from Cycle 18 but are not used at runtime. Do not extend them unless a task explicitly says so.
 - The large-scale renovation is tracked in **`docs/改修マスタープラン.md`** (single source of truth for phases, tasks, and progress). Session handover lives in **`NEXT_SESSION.md`**. Next up: Phase 1 (Cycle 20), screen/navigation restructure.
 
+## 毎ループの読み取り最小セット(2026-07-29、トークン削減のため整理)
+
+1ループで**全読みしてよいのは以下だけ**。過去の記録はすべてアーカイブへ分離済みなので、必要になったとき **ID・日付・キーワードで grep して該当箇所だけ**読む(全読み禁止)。
+
+| 毎回読む(全読み可) | 用途 |
+|---|---|
+| `CLAUDE.md`(本ファイル) | 規約 |
+| `NEXT_SESSION.md` | 引き継ぎ。**直近1セッション分の作業ログのみ**を保つ |
+| `docs/改修マスタープラン.md` §2・§3の**未完了行** | 当日タスクの選定 |
+| `rules/verification.md` | 検証フロー+**教訓インデックス**(1行見出しのみ) |
+| `.claude/loop_state.md` / `.claude/loop_failures.txt` | しきい値確認 |
+
+| 通常は読まない(必要時に grep) | 中身 |
+|---|---|
+| `rules/lessons_archive.md` | 教訓の全文(インデックスの `L37` 等で引く) |
+| `docs/archive/マスタープラン_完了タスク.md` | 完了タスク行の詳細(タスクIDで引く) |
+| `docs/archive/マスタープラン_作業ログ.md` | 日付順の作業ログ(日付・IDで引く) |
+| `docs/archive/NEXT_SESSION_log.md` | 過去セッションの作業ログ |
+| `statistics_feature_design.md` ほか各設計書 | 統計・購入履歴・購入店・焙煎度スライダー。**該当タスクを実装するときだけ**、必要な節だけ読む |
+
+追記も同じ方針で行う: 完了タスクの実装詳細は上記アーカイブへ、教訓は `rules/lessons_archive.md` 末尾へ足し、毎回読むファイルは短いまま保つ。
+
 ## Commands
 
 ```bash
