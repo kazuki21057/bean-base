@@ -10,6 +10,7 @@ void main() {
         beanId: 'bean_1',
         originId: 'origin_1',
         roastLevel: '中煎り',
+        methodId: 'method_1',
         temperature: 92.0,
         brewRatio: 15.5,
         totalTimeSec: 180,
@@ -26,6 +27,7 @@ void main() {
       expect(restored.beanId, suggestion.beanId);
       expect(restored.originId, suggestion.originId);
       expect(restored.roastLevel, suggestion.roastLevel);
+      expect(restored.methodId, suggestion.methodId);
       expect(restored.temperature, suggestion.temperature);
       expect(restored.brewRatio, suggestion.brewRatio);
       expect(restored.totalTimeSec, suggestion.totalTimeSec);

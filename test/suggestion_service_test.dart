@@ -1,5 +1,6 @@
 import 'package:bean_base/models/bean_master.dart';
 import 'package:bean_base/models/coffee_record.dart';
+import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/services/suggestion_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,13 +14,16 @@ CoffeeRecord _record({
   required double beanWeight,
   required double totalWater,
   required int totalTime,
+  String methodId = 'm',
+  String grinderId = '',
+  String grindSize = '',
   DateTime? brewedAt,
 }) {
   return CoffeeRecord(
     id: id,
     brewedAt: brewedAt ?? DateTime(2026, 7, 1),
     beanId: 'other-bean',
-    methodId: 'm',
+    methodId: methodId,
     beanWeight: beanWeight,
     totalWater: totalWater,
     totalTime: totalTime,
@@ -32,11 +36,11 @@ CoffeeRecord _record({
     scoreFlavor: 0,
     taste: '',
     comment: '',
-    grindSize: '',
+    grindSize: grindSize,
     temperature: temperature,
     dripperId: '',
     filterId: '',
-    grinderId: '',
+    grinderId: grinderId,
     roastLevel: roastLevel,
     origin: '',
     originId: originId,
@@ -46,8 +50,21 @@ CoffeeRecord _record({
   );
 }
 
+MethodMaster _method(String id, {String? recommendedRoastLevel}) {
+  return MethodMaster(
+    id: id,
+    name: 'メソッド$id',
+    author: '',
+    baseBeanWeight: 15,
+    baseWaterAmount: 225,
+    description: '',
+    recommendedEquipment: '',
+    recommendedRoastLevel: recommendedRoastLevel,
+  );
+}
+
 void main() {
-  group('SuggestionService (T4-5a, group_bestのみ・GP未接続)', () {
+  group('SuggestionService.suggestFor (group_best、T3-48でメソッド絞り込みに対応)', () {
     final bean = BeanMaster(
       id: 'bean1',
       name: 'テスト豆',
@@ -57,17 +74,18 @@ void main() {
       isInStock: true,
     );
 
-    test('同グループ内でscoreOverallが最も高い記録の条件を提案する', () {
+    test('候補メソッドで淹れた記録のうちscoreOverallが最も高い条件を提案する', () {
       final records = [
-        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 6, temperature: 88, beanWeight: 15, totalWater: 225, totalTime: 150),
-        _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 20, totalWater: 300, totalTime: 180),
-        _record(id: 'r3', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 7, temperature: 90, beanWeight: 15, totalWater: 220, totalTime: 160),
+        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 6, temperature: 88, beanWeight: 15, totalWater: 225, totalTime: 150, methodId: 'm'),
+        _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 20, totalWater: 300, totalTime: 180, methodId: 'm'),
+        _record(id: 'r3', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 7, temperature: 90, beanWeight: 15, totalWater: 220, totalTime: 160, methodId: 'm'),
       ];
 
-      final suggestion = SuggestionService().suggestFor(bean, records, {});
+      final suggestion = SuggestionService().suggestFor(bean, records, {'m'});
 
       expect(suggestion, isNotNull);
       expect(suggestion!.rationale, 'group_best');
+      expect(suggestion.methodId, 'm');
       expect(suggestion.temperature, 92);
       expect(suggestion.brewRatio, closeTo(15.0, 1e-9)); // 300/20
       expect(suggestion.totalTimeSec, 180);
@@ -77,13 +95,35 @@ void main() {
       expect(suggestion.resultRecordId, '');
     });
 
+    test('候補メソッドに含まれないmethodIdの記録は、スコアが高くても除外する', () {
+      final records = [
+        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 10, temperature: 96, beanWeight: 15, totalWater: 225, totalTime: 150, methodId: 'other'),
+        _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 7, temperature: 90, beanWeight: 15, totalWater: 225, totalTime: 150, methodId: 'm'),
+      ];
+
+      final suggestion = SuggestionService().suggestFor(bean, records, {'m'});
+
+      expect(suggestion!.temperature, 90);
+      expect(suggestion.methodId, 'm');
+    });
+
+    test('候補メソッドが空集合なら提案しない', () {
+      final records = [
+        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 15, totalWater: 225, totalTime: 150),
+      ];
+
+      final suggestion = SuggestionService().suggestFor(bean, records, {});
+
+      expect(suggestion, isNull);
+    });
+
     test('スコアが同点の場合はより新しい記録を優先する', () {
       final records = [
         _record(id: 'old', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 8, temperature: 88, beanWeight: 15, totalWater: 225, totalTime: 150, brewedAt: DateTime(2026, 1, 1)),
         _record(id: 'new', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 8, temperature: 91, beanWeight: 15, totalWater: 225, totalTime: 150, brewedAt: DateTime(2026, 6, 1)),
       ];
 
-      final suggestion = SuggestionService().suggestFor(bean, records, {});
+      final suggestion = SuggestionService().suggestFor(bean, records, {'m'});
 
       expect(suggestion!.temperature, 91);
     });
@@ -94,7 +134,7 @@ void main() {
         _record(id: 'r2', originId: 'origin_1', roastLevel: '深煎り', scoreOverall: 10, temperature: 96, beanWeight: 15, totalWater: 225, totalTime: 150),
       ];
 
-      final suggestion = SuggestionService().suggestFor(bean, records, {});
+      final suggestion = SuggestionService().suggestFor(bean, records, {'m'});
 
       expect(suggestion, isNull);
     });
@@ -105,13 +145,13 @@ void main() {
         _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 8, temperature: 90, beanWeight: 15, totalWater: 225, totalTime: 150),
       ];
 
-      final suggestion = SuggestionService().suggestFor(bean, records, {});
+      final suggestion = SuggestionService().suggestFor(bean, records, {'m'});
 
       expect(suggestion!.temperature, 90);
     });
 
-    test('同グループの記録が無ければ提案しない(GP未接続のためnullを返す)', () {
-      final suggestion = SuggestionService().suggestFor(bean, [], {});
+    test('同グループの記録が無ければ提案しない', () {
+      final suggestion = SuggestionService().suggestFor(bean, [], {'m'});
       expect(suggestion, isNull);
     });
 
@@ -121,7 +161,7 @@ void main() {
         _record(id: 'r1', originId: '', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 15, totalWater: 225, totalTime: 150),
       ];
 
-      final suggestion = SuggestionService().suggestFor(beanNoOrigin, records, {});
+      final suggestion = SuggestionService().suggestFor(beanNoOrigin, records, {'m'});
 
       expect(suggestion, isNull);
     });
@@ -132,13 +172,13 @@ void main() {
         _record(id: 'r1', originId: 'origin_1', roastLevel: '謎の焙煎度', scoreOverall: 9, temperature: 92, beanWeight: 15, totalWater: 225, totalTime: 150),
       ];
 
-      final suggestion = SuggestionService().suggestFor(beanUnknownRoast, records, {});
+      final suggestion = SuggestionService().suggestFor(beanUnknownRoast, records, {'m'});
 
       expect(suggestion, isNull);
     });
   });
 
-  group('SuggestionService.suggestWithGp / shouldExplore (T4-6c)', () {
+  group('SuggestionService.suggestWithGp / shouldExplore (T4-6c、T3-52で4次元化、T3-48でメソッド選定を追加)', () {
     final bean = BeanMaster(
       id: 'bean1',
       name: 'テスト豆',
@@ -148,8 +188,12 @@ void main() {
       isInStock: true,
     );
 
-    // origin_1×浅煎りで12件 → 全て weight 1.0、n_eff=12 ≥ 10でGP経路に入る。
-    final gpRecords = () {
+    final matchingMethod = _method('m1', recommendedRoastLevel: '浅煎り');
+    final nonMatchingMethod = _method('m2', recommendedRoastLevel: '深煎り');
+    final grindStepsByGrinderId = {'g1': 40};
+
+    // origin_1×浅煎り×m1×g1で12件 → 全て weight 1.0、n_eff=12 ≥ 6でGP経路に入る。
+    List<CoffeeRecord> gpRecords({String grinderId = 'g1', String grindSize = '20'}) {
       final temps = [84.0, 86.0, 88.0, 90.0, 92.0, 94.0];
       final waters = [225.0, 240.0, 210.0, 225.0, 255.0, 210.0];
       final times = [150, 165, 135, 180, 150, 195];
@@ -165,15 +209,27 @@ void main() {
             beanWeight: 15,
             totalWater: waters[i % 6],
             totalTime: times[i % 6],
+            methodId: 'm1',
+            grinderId: grinderId,
+            grindSize: grindSize,
           ),
       ];
-    }();
+    }
 
-    test('n_eff≥10のときgp_meanを予測スコア+区間つきで返し、条件がグリッド範囲内', () {
-      final result = SuggestionService().suggestWithGp(bean, gpRecords, {});
+    test('候補メソッドが無ければ提案しない(推奨焙煎度が一致するメソッドが無い)', () {
+      final result = SuggestionService().suggestWithGp(
+          bean, gpRecords(), {}, [nonMatchingMethod], grindStepsByGrinderId);
+
+      expect(result, isNull);
+    });
+
+    test('n_eff≥6のときgp_meanを予測スコア+区間つき・選ばれたメソッドで返す', () {
+      final result = SuggestionService().suggestWithGp(
+          bean, gpRecords(), {}, [matchingMethod, nonMatchingMethod], grindStepsByGrinderId);
 
       expect(result, isNotNull);
       expect(result!.suggestion.rationale, 'gp_mean');
+      expect(result.suggestion.methodId, 'm1');
       expect(result.isGp, isTrue);
       expect(result.predMean, isNotNull);
       expect(result.predLower, isNotNull);
@@ -187,31 +243,44 @@ void main() {
     });
 
     test('explore=trueのときはgp_ei(EI最大点)を返す', () {
-      final result = SuggestionService().suggestWithGp(bean, gpRecords, {}, explore: true);
+      final result = SuggestionService().suggestWithGp(
+          bean, gpRecords(), {}, [matchingMethod], grindStepsByGrinderId,
+          explore: true);
 
       expect(result, isNotNull);
       expect(result!.suggestion.rationale, 'gp_ei');
       expect(result.predMean, isNotNull);
     });
 
-    test('n_eff<10のときはgroup_bestにフォールバックし予測値はnull', () {
+    test('n_eff<6のときはgroup_bestにフォールバックし予測値はnull', () {
       final fewRecords = [
-        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 8, temperature: 90, beanWeight: 15, totalWater: 225, totalTime: 150),
-        _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 15, totalWater: 225, totalTime: 150),
+        _record(id: 'r1', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 8, temperature: 90, beanWeight: 15, totalWater: 225, totalTime: 150, methodId: 'm1', grinderId: 'g1', grindSize: '20'),
+        _record(id: 'r2', originId: 'origin_1', roastLevel: '浅煎り', scoreOverall: 9, temperature: 92, beanWeight: 15, totalWater: 225, totalTime: 150, methodId: 'm1', grinderId: 'g1', grindSize: '20'),
       ];
 
-      final result = SuggestionService().suggestWithGp(bean, fewRecords, {});
+      final result = SuggestionService().suggestWithGp(
+          bean, fewRecords, {}, [matchingMethod], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
+      expect(result!.suggestion.rationale, 'group_best');
+      expect(result.suggestion.methodId, 'm1');
+      expect(result.isGp, isFalse);
+      expect(result.predMean, isNull);
+    });
+
+    test('過去記録にミルの記録が無ければGP経路をスキップしgroup_bestに落ちる', () {
+      final result = SuggestionService().suggestWithGp(
+          bean, gpRecords(grinderId: ''), {}, [matchingMethod], grindStepsByGrinderId);
 
       expect(result, isNotNull);
       expect(result!.suggestion.rationale, 'group_best');
       expect(result.isGp, isFalse);
-      expect(result.predMean, isNull);
     });
 
     test('shouldExplore: GP提案が6件たまると次の1件をEIに切り替える(7件に1回)', () {
       RecipeSuggestion gp(String r) => RecipeSuggestion(
             id: r, createdAt: DateTime(2026, 7, 1), beanId: 'b', originId: 'o', roastLevel: '浅煎り',
-            temperature: 90, brewRatio: 15, totalTimeSec: 150, rationale: r, accepted: '', resultRecordId: '');
+            methodId: 'm1', temperature: 90, brewRatio: 15, totalTimeSec: 150, rationale: r, accepted: '', resultRecordId: '');
 
       expect(SuggestionService.shouldExplore([]), isFalse);
       // gp_mean 6件 → 次(7件目)はEI。

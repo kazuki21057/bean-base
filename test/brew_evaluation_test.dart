@@ -506,6 +506,7 @@ void main() {
       beanId: 'b1',
       originId: 'origin_1',
       roastLevel: '浅煎り',
+      methodId: 'm1',
       temperature: 93,
       brewRatio: 15,
       totalTimeSec: 150,

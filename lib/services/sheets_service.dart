@@ -562,6 +562,7 @@ class SheetsService implements DataService {
         '豆ID': 'beanId',
         '産地ID': 'originId',
         '焙煎度': 'roastLevel',
+        'メソッドID': 'methodId',
         '湯温': 'temperature',
         '湯豆比': 'brewRatio',
         '抽出時間': 'totalTimeSec',

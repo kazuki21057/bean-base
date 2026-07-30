@@ -19,6 +19,8 @@ class RecipeSuggestion {
   final String originId;
   @JsonKey(defaultValue: '')
   final String roastLevel;
+  @JsonKey(defaultValue: '')
+  final String methodId;
   @JsonKey(fromJson: _parseDouble)
   final double temperature;
   @JsonKey(fromJson: _parseDouble)
@@ -38,6 +40,7 @@ class RecipeSuggestion {
     required this.beanId,
     required this.originId,
     required this.roastLevel,
+    required this.methodId,
     required this.temperature,
     required this.brewRatio,
     required this.totalTimeSec,
@@ -95,6 +98,7 @@ class RecipeSuggestion {
     String? beanId,
     String? originId,
     String? roastLevel,
+    String? methodId,
     double? temperature,
     double? brewRatio,
     int? totalTimeSec,
@@ -108,6 +112,7 @@ class RecipeSuggestion {
       beanId: beanId ?? this.beanId,
       originId: originId ?? this.originId,
       roastLevel: roastLevel ?? this.roastLevel,
+      methodId: methodId ?? this.methodId,
       temperature: temperature ?? this.temperature,
       brewRatio: brewRatio ?? this.brewRatio,
       totalTimeSec: totalTimeSec ?? this.totalTimeSec,

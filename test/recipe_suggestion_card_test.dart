@@ -122,6 +122,21 @@ class _FakeDataService implements DataService {
   Future<List<RecipeSuggestion>> fetchRecipeSuggestions() async => [];
 }
 
+// T3-48: 提案されるメソッドは対象豆の焙煎度に`recommendedRoastLevel`が一致する
+// ものに限られる。テストの既定豆はすべて'浅煎り'なので、既定メソッド'm'・
+// 既定ミル'g1'(挽き目調整段階40)を一致するものとして用意する。
+final _defaultMethod = MethodMaster(
+  id: 'm',
+  name: 'メソッドA',
+  author: '',
+  baseBeanWeight: 15,
+  baseWaterAmount: 225,
+  description: '',
+  recommendedEquipment: '',
+  recommendedRoastLevel: '浅煎り',
+);
+final _defaultGrinder = GrinderMaster(id: 'g1', name: 'ミル1', grindRange: '40');
+
 CoffeeRecord _record(
   String id, {
   required String beanId,
@@ -132,12 +147,15 @@ CoffeeRecord _record(
   double beanWeight = 15,
   double totalWater = 225,
   int totalTime = 150,
+  String methodId = 'm',
+  String grinderId = 'g1',
+  String grindSize = '20',
 }) {
   return CoffeeRecord(
     id: id,
     brewedAt: DateTime(2026, 7, 20),
     beanId: beanId,
-    methodId: 'm',
+    methodId: methodId,
     beanWeight: beanWeight,
     totalWater: totalWater,
     totalTime: totalTime,
@@ -150,11 +168,11 @@ CoffeeRecord _record(
     scoreFlavor: 0,
     taste: '',
     comment: '',
-    grindSize: '',
+    grindSize: grindSize,
     temperature: temperature,
     dripperId: '',
     filterId: '',
-    grinderId: '',
+    grinderId: grinderId,
     roastLevel: roastLevel,
     origin: '',
     originId: originId,
@@ -171,6 +189,8 @@ Future<void> _pump(
   List<OriginMaster> origins = const [],
   List<RecipeSuggestion> history = const [],
   DataService? service,
+  List<MethodMaster>? methods,
+  List<GrinderMaster>? grinders,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -180,6 +200,8 @@ Future<void> _pump(
         coffeeRecordsProvider.overrideWith((ref) async => records),
         originMasterProvider.overrideWith((ref) async => origins),
         recipeSuggestionsProvider.overrideWith((ref) async => history),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => methods ?? [_defaultMethod])),
+        grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => grinders ?? [_defaultGrinder])),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -213,7 +235,7 @@ void main() {
 
       expect(find.text('今日のおすすめレシピ'), findsOneWidget);
       expect(find.text('エチオピア ゲイシャ'), findsOneWidget);
-      expect(find.text('今日はこのレシピはいかが?'), findsOneWidget);
+      expect(find.text('メソッドAで淹れてみませんか?'), findsOneWidget);
       // 最高スコア(9点、r2)の条件が提案される: 93℃ / 1:15 / 2:30。
       expect(find.text('93℃'), findsOneWidget);
       expect(find.text('湯:豆 1:15.0'), findsOneWidget);
@@ -309,7 +331,7 @@ void main() {
         for (var i = 0; i < 6; i++)
           RecipeSuggestion(
             id: 'h$i', createdAt: DateTime(2026, 7, 1), beanId: 'b1', originId: 'origin_1',
-            roastLevel: '浅煎り', temperature: 90, brewRatio: 15, totalTimeSec: 150,
+            roastLevel: '浅煎り', methodId: 'm', temperature: 90, brewRatio: 15, totalTimeSec: 150,
             rationale: 'gp_mean', accepted: '', resultRecordId: ''),
       ];
       await _pump(tester, beans: [stockBean], records: gpRecords, history: history);

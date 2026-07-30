@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/bean_master.dart';
 import '../../models/coffee_record.dart';
+import '../../models/equipment_masters.dart';
+import '../../models/method_master.dart';
 import '../../models/origin_master.dart';
 import '../../models/pending_brew_info.dart';
 import '../../models/recipe_suggestion.dart';
@@ -27,6 +29,10 @@ import '../../utils/bean_stock_calculator.dart';
 /// T4-6cでGP(F4)に接続。n_eff≥10の豆はGP予測(gp_mean)を予測スコア+区間つきで
 /// 表示し、提案履歴が7件たまるごとに1件はEI提案(gp_ei、「実験的な提案です」)に
 /// 切り替える(`SuggestionService.shouldExplore`)。n_eff<10はgroup_bestに落ちる。
+///
+/// T3-48でメソッドを提案に組み込んだ。提案されるメソッドは対象豆の焙煎度に
+/// `recommendedRoastLevel`が一致するものに限られる(該当メソッドが無い豆は
+/// カードが表示されない)。
 class RecipeSuggestionCard extends ConsumerStatefulWidget {
   const RecipeSuggestionCard({super.key});
 
@@ -46,8 +52,15 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     final beansAsync = ref.watch(beanMasterProvider);
     final logs = ref.watch(coffeeRecordsProvider).value ?? const <CoffeeRecord>[];
     final origins = ref.watch(originMasterProvider).value ?? const <OriginMaster>[];
+    final methods = ref.watch(methodMasterProvider).value ?? const <MethodMaster>[];
+    final grinders = ref.watch(grinderMasterProvider).value ?? const <GrinderMaster>[];
     final history = ref.watch(recipeSuggestionsProvider).value ?? const <RecipeSuggestion>[];
     final originById = {for (final o in origins) o.id: o};
+    final methodById = {for (final m in methods) m.id: m};
+    final grindStepsByGrinderId = {
+      for (final g in grinders)
+        if (g.grindSteps != null) g.id: g.grindSteps!,
+    };
     // 設計書§7.4手順1: GP提案7件に1件をEI(探索)提案に切り替える。
     final explore = SuggestionService.shouldExplore(history);
 
@@ -58,12 +71,14 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
       children: [
         beansAsync.when(
           data: (beans) {
-            final candidates = _buildCandidates(beans, logs, originById, explore);
+            final candidates = _buildCandidates(
+                beans, logs, originById, methods, grindStepsByGrinderId, explore);
             if (candidates.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  'おすすめできる在庫豆がありません(在庫豆に過去の抽出記録が貯まると提案します)',
+                  'おすすめできる在庫豆がありません'
+                  '(在庫豆の焙煎度に合う推奨メソッドが未設定か、抽出記録がまだ足りません)',
                   style: TextStyle(color: kChalkMuted),
                 ),
               );
@@ -77,8 +92,9 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
                     child: _SuggestionTile(
                       bean: c.bean,
                       result: c.result,
+                      method: methodById[c.result.suggestion.methodId],
                       recommendedRoast: _recommendedRoastFor(c.bean, originById, profile),
-                      onBrew: () => _onBrew(c.bean, c.result.suggestion),
+                      onBrew: () => _onBrew(c.bean, methodById[c.result.suggestion.methodId], c.result.suggestion),
                       onPass: () => _onPass(c.bean, c.result.suggestion),
                     ),
                   ),
@@ -100,6 +116,8 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     List<BeanMaster> beans,
     List<CoffeeRecord> logs,
     Map<String, OriginMaster> originById,
+    List<MethodMaster> methods,
+    Map<String, int> grindStepsByGrinderId,
     bool explore,
   ) {
     final service = SuggestionService();
@@ -108,7 +126,9 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
       if (bean.name.isEmpty || bean.name == '-') continue;
       if (_handledBeanIds.contains(bean.id)) continue;
       if (calculateBeanRemainingPercent(bean, logs) <= 0) continue;
-      final suggestion = service.suggestWithGp(bean, logs, originById, explore: explore);
+      final suggestion = service.suggestWithGp(
+          bean, logs, originById, methods, grindStepsByGrinderId,
+          explore: explore);
       if (suggestion == null) continue;
       result.add(_Candidate(bean, suggestion));
     }
@@ -151,7 +171,7 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     return null;
   }
 
-  Future<void> _onBrew(BeanMaster bean, RecipeSuggestion suggestion) async {
+  Future<void> _onBrew(BeanMaster bean, MethodMaster? method, RecipeSuggestion suggestion) async {
     final service = ref.read(dataServiceProvider);
     final accepted = suggestion.copyWith(accepted: 'yes');
     try {
@@ -174,6 +194,7 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     final info = PendingBrewInfo(
       brewedAt: DateTime.now(),
       bean: bean,
+      method: method,
       beanWeight: defaultBeanWeight,
       totalWater: suggestion.brewRatio * defaultBeanWeight,
       totalTime: suggestion.totalTimeSec,
@@ -211,6 +232,7 @@ class _Candidate {
 class _SuggestionTile extends StatelessWidget {
   final BeanMaster bean;
   final SuggestionResult result;
+  final MethodMaster? method;
   final String? recommendedRoast;
   final VoidCallback onBrew;
   final VoidCallback onPass;
@@ -218,6 +240,7 @@ class _SuggestionTile extends StatelessWidget {
   const _SuggestionTile({
     required this.bean,
     required this.result,
+    required this.method,
     required this.recommendedRoast,
     required this.onBrew,
     required this.onPass,
@@ -261,9 +284,9 @@ class _SuggestionTile extends StatelessWidget {
           const SizedBox(height: 2),
           Row(
             children: [
-              const Text(
-                '今日はこのレシピはいかが?',
-                style: TextStyle(color: kChalkMuted, fontSize: 12),
+              Text(
+                method != null ? '${method!.name}で淹れてみませんか?' : '今日はこのレシピはいかが?',
+                style: const TextStyle(color: kChalkMuted, fontSize: 12),
               ),
               if (suggestion.rationale == 'gp_ei') ...[
                 const SizedBox(width: 8),

@@ -30,7 +30,7 @@ const NEW_SHEET_HEADERS = {
   'origin_master': ['産地ID', '国コード', '産地名', '産地名(英)', '地域'],
   'analysis_history': ['履歴ID', '作成日時', '種別', 'データ件数', '本文JSON'],
   'recipe_suggestions': [
-    '提案ID', '作成日時', '豆ID', '産地ID', '焙煎度',
+    '提案ID', '作成日時', '豆ID', '産地ID', '焙煎度', 'メソッドID',
     '湯温', '湯豆比', '抽出時間', '提案根拠', '採否', '結果記録ID',
   ],
   // T3-67(docs/store_master_design.md§2): 購入店マスタ、19列。
@@ -76,10 +76,12 @@ function ensureSheet_(ss, name) {
 // T3-50: bean_master に最適条件探索フラグの1列を追加(未回答/探索する/探索しない
 // の3値。空文字=未回答)。
 // T3-47: methods_master に推奨焙煎度の1列を追加。
+// T3-48: recipe_suggestions にメソッドID列を追加(おすすめレシピにメソッドを含める)。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
   'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL', '在庫基準量(g)', '在庫基準日時', '保存場所', '最適条件探索'],
   'coffee_data': ['産地ID'],
   'methods_master': ['推奨焙煎度'],
+  'recipe_suggestions': ['メソッドID'],
 };
 
 function ensureColumns_(sheet, sheetName) {
