@@ -8,6 +8,7 @@ class GrinderMaster {
   final String id;
   @JsonKey(defaultValue: '-')
   final String name;
+  @JsonKey(fromJson: _parseString)
   final String? grindRange; // description of range
   final String? description;
   final String? imageUrl;
@@ -39,6 +40,18 @@ class GrinderMaster {
       description: description ?? this.description,
       imageUrl: imageUrl ?? this.imageUrl,
     );
+  }
+
+  /// 挽き目調整段階を数値で返す。未設定・0・解析不能なら null。
+  int? get grindSteps {
+    final v = double.tryParse((grindRange ?? '').trim());
+    if (v == null || v <= 0) return null;
+    return v.round();
+  }
+
+  static String? _parseString(dynamic value) {
+    if (value == null) return null;
+    return value.toString();
   }
 }
 

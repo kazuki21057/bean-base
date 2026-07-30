@@ -16,6 +16,7 @@ class MethodMaster {
   final double baseWaterAmount;
   @JsonKey(defaultValue: 0.0)
   final double? temperature;
+  @JsonKey(fromJson: _parseString)
   final String? grindSize;
   @JsonKey(defaultValue: '')
   final String description;
@@ -42,4 +43,9 @@ class MethodMaster {
       _$MethodMasterFromJson(json);
 
   Map<String, dynamic> toJson() => _$MethodMasterToJson(this);
+
+  static String? _parseString(dynamic value) {
+    if (value == null) return null;
+    return value.toString();
+  }
 }

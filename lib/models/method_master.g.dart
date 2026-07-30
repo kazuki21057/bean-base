@@ -13,7 +13,7 @@ MethodMaster _$MethodMasterFromJson(Map<String, dynamic> json) => MethodMaster(
   baseBeanWeight: (json['baseBeanWeight'] as num?)?.toDouble() ?? 0.0,
   baseWaterAmount: (json['baseWaterAmount'] as num?)?.toDouble() ?? 0.0,
   temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
-  grindSize: json['grindSize'] as String?,
+  grindSize: MethodMaster._parseString(json['grindSize']),
   description: json['description'] as String? ?? '',
   recommendedEquipment: json['recommendedEquipment'] as String? ?? '',
   sourceUrl: json['sourceUrl'] as String?,

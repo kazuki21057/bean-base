@@ -235,7 +235,7 @@ class SheetsService implements DataService {
       '基準豆量(g)': 'baseBeanWeight',
       '基準湯量(ml)': 'baseWaterAmount',
       '湯温（℃）': 'temperature',
-      '粒度': 'grindSize', 
+      '挽き目（Kingrinder K6）': 'grindSize',
       '説明': 'description',
       '推奨機器': 'recommendedEquipment',
       'ソース': 'sourceUrl',
@@ -264,7 +264,7 @@ class SheetsService implements DataService {
     final keyMap = {
       'ミルID': 'id',
       'ミル名': 'name',
-      '挽き目範囲': 'grindRange',
+      '挽き目調整段階': 'grindRange',
       '説明': 'description',
       'ミル画像URL': 'imageUrl',
     };
@@ -687,7 +687,7 @@ class SheetsService implements DataService {
   }
 
   Map<String, dynamic> _reverseMapGrinder(GrinderMaster item) {
-    final reverseMap = { 'id': 'ミルID', 'name': 'ミル名', 'grindRange': '挽き目範囲', 'description': '説明', 'imageUrl': 'ミル画像URL' };
+    final reverseMap = { 'id': 'ミルID', 'name': 'ミル名', 'grindRange': '挽き目調整段階', 'description': '説明', 'imageUrl': 'ミル画像URL' };
     return _mapToJson(item.toJson(), reverseMap);
   }
 
@@ -705,7 +705,7 @@ class SheetsService implements DataService {
     final reverseMap = { 
        'id': 'メソッドID', 'name': 'メソッド名', 'author': '発案者', 
        'baseBeanWeight': '基準豆量(g)', 'baseWaterAmount': '基準湯量(ml)', 
-       'temperature': '湯温（℃）', 'grindSize': '粒度',
+       'temperature': '湯温（℃）', 'grindSize': '挽き目（Kingrinder K6）',
        'description': '説明', 'recommendedEquipment': '推奨機器', 'sourceUrl': 'ソース',
        'recommendedRoastLevel': '推奨焙煎度',
     };

@@ -10,7 +10,7 @@ GrinderMaster _$GrinderMasterFromJson(Map<String, dynamic> json) =>
     GrinderMaster(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '-',
-      grindRange: json['grindRange'] as String?,
+      grindRange: GrinderMaster._parseString(json['grindRange']),
       description: json['description'] as String?,
       imageUrl: json['imageUrl'] as String?,
     );
