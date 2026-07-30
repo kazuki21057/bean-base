@@ -1,7 +1,35 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
-> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.95以前であればこのファイルを見ること。
+> 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
+
+### -4.97 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、**T3-48着手・実装は一通り完了したが未検証のまま中断**(1ループのコスト上限$24超過、`.claude/loop_state.md`が$29.242を記録)。**コミット・pushはしていない**)
+
+- **選定理由**: NEXT_SESSION.mdの推奨どおり最優先(◎)のT3-48から着手。
+- **着手前にユーザー確認を実施**(設計書との食い違いを発見したため): `statistics_feature_design.md`§7.4(F3)はT3-52(2026-07-30完了)以前の3次元GP(`fitPooled`)を前提に書かれており、T3-52後の`fitForMethod`(4次元・メソッド別)が要求する`targetGrinderId`をF3(ダッシュボードの受動的カード、ミル選択UI無し)がどう決めるか未定義だった。`AskUserQuestion`でユーザーに確認し、**「対象豆と同じ産地×焙煎度の過去記録から最頻出のgrinderIdを採用し、該当記録が無ければGP経路をスキップしgroup_bestにフォールバックする」方針で承認を得た**。
+- **実装内容(すべてWIP、下記「未検証」参照)**:
+  - `lib/models/recipe_suggestion.dart`: `methodId`フィールドを追加(`recipe_suggestion.g.dart`も手編集で追従、下記参照)。
+  - `lib/services/sheets_service.dart`: `_recipeSuggestionKeyMap`に`'メソッドID': 'methodId'`を追加。
+  - `gas/Code.gs`: `NEW_SHEET_HEADERS.recipe_suggestions`と`EXISTING_SHEET_EXTRA_COLUMNS.recipe_suggestions`に`'メソッドID'`列を追加(**まだ`clasp push`していない=本番シートに列は無い**)。
+  - `lib/services/suggestion_service.dart`: 全面書き換え。`suggestWithGp`が`methods`(候補は`recommendedRoastLevel`が対象豆の焙煎度と一致するものに限定)・`grindStepsByGrinderId`を新たに受け取り、候補メソッドごとに`GpService.fitForMethod`を実行して予測スコアμ最大のメソッドを採用する。GP経路が使えない場合の`suggestFor`(group_best)フォールバックも候補メソッドのmethodIdに絞り込むよう変更(シグネチャが`(bean, records, originById)`→`(bean, records, candidateMethodIds)`に変わった破壊的変更)。
+  - `lib/widgets/dashboard/recipe_suggestion_card.dart`: `methodMasterProvider`/`grinderMasterProvider`を追加購読し、`suggestWithGp`に渡す。カード文言を「{メソッド名}で淹れてみませんか?」に変更、`_onBrew`で選ばれた`MethodMaster`を`PendingBrewInfo.method`に渡すようにした。
+  - テスト更新: `test/suggestion_service_test.dart`(全面書き換え、`suggestFor`/`suggestWithGp`とも新シグネチャに追従)・`test/recipe_suggestion_card_test.dart`(既定メソッド/ミルのprovider override追加、文言変更に追従)・`test/models/recipe_suggestion_test.dart`・`test/brew_evaluation_test.dart`(`RecipeSuggestion`コンストラクタに`methodId`引数を追加)。
+- **既知の重要な副作用(次回セッションで必ず踏まえること)**: T3-47(2026-07-30完了)の時点で本番`methods_master`の既存12メソッドはすべて`recommendedRoastLevel`が未設定(「-」)。T3-48の実装どおりだと**候補メソッドが1件も無い豆はF3のおすすめカードが一切表示されなくなる**(意図した仕様どおりだが、ユーザーが各メソッドの推奨焙煎度を設定するまでF3が実質的に空になる)。デプロイ前にこれをユーザーに伝えること。
+- **`dart run build_runner build --delete-conflicting-outputs`が既知の環境クラッシュ(`rules/lessons_archive.md` L63、Dart SDKと`analyzer`パッケージのバージョン不整合で`lib/firebase_options.dart`リンク時に`Exception: Missing implementation of visitDotShorthandPropertyAccess`)を起こし、**全モデルの`*.g.dart`が削除されたまま停止した**。L63の手順どおり`git checkout --`で全`*.g.dart`を復元し、`recipe_suggestion.g.dart`だけ`methodId`を手編集で追記済み(`fromJson`/`toJson`とも追加、他フィールドと同型)。**`pubspec.lock`の意図しない変更は無し(確認済み)**。
+- **中断時点の状態(次回セッションが最初にやること)**:
+  1. `git status`で今回の差分(上記ファイル一覧)が残っていることを確認。
+  2. `flutter analyze`→`flutter test`→`flutter build web`を実施(**このセッションでは未実施**、コード生成の手編集にミスが無いか含め要確認)。
+  3. 問題なければ本番デプロイ前に、上記「既知の重要な副作用」をユーザーに説明し、GASの列追加(`clasp push`+`clasp redeploy`)・`firebase deploy`・`git push`それぞれ許可を得てから実行。
+  4. `docs/改修マスタープラン.md`のT3-48行を完了に更新し、完了タスク一覧へ移す。
+
+### -4.96 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-52b・T3-52c・T3-52d完了=`GpService`の4次元化+030レシピ探索UIの作り直し+設計書整合確認。**T3-52は全サブタスク完了で完全クローズ**。ユーザー許可を得て本番デプロイ・push・ハッシュ一致確認まで完了)
+
+- **選定理由**: 前回セッションの申し送りどおり、依存充足済みで最優先のT3-52bから着手。T3-52bは`GpService`の`fit()`/`predict()`/`optimize()`のシグネチャを変更するため、b単体では`gp_explorer_section.dart`(旧UI)がコンパイル不能になる関係上、b・c・dを1ループで一括実装した(design書は`順序厳守(a→b→c、dはcと同時可)`としていたがセッションを跨いで壊れたビルドを残さないため)。
+- **実装**: `docs/gp_multidim_design.md`§5・§6どおり。`gp_service.dart`を4次元化(`fitForMethod`新設、`predict`4引数化、`optimize`の`refine`引数による2段階グリッド化、`GpModel`に`nRows`/`methodId`追加)。`gp_explorer_section.dart`を全面書き換え(豆+ミル選択、メソッド比較表(μ降順・確信度バッジ)、推奨条件カード(粒度→クリック数逆変換)、EI最大点カード、ヒートマップ、除外件数表示)。
+- **設計書の見落としを発見・対処(`rules/lessons_archive.md` L92に記録)**: 設計書は「旧`fit()`の呼び出し元は`gp_explorer_section.dart`のみ」としていたが、実際は`suggestion_service.dart`(F3レシピ提案)・`stats_status_screen.dart`(090稼働状況)からも呼ばれておりコンパイルエラーになった。スコープ外と判断し、旧3次元ロジックを`fitPooled`/`predictPooled`/`optimizePooled`として別名温存し挙動を変えずに共存させた。
+- **検証**: `flutter analyze`新規issue 0(既存46件のまま、旧2件のエラーは解消)。`flutter test`293件全パス(既存286+新規7)。`flutter build web`成功。ローカル配信+`claude-in-chrome`で本番実データ確認(豆=Colombia pinkブルボン、ミル=Kingrinder K6でORIGAMIウェーブ基本の予測スコア7.3[6.1,8.6]・確信度中・推奨条件湯温67℃/1:16.0/2:00/粒度95クリックが表示、ヒートマップ正常描画、コンソールエラー無し)。**初回アクセス時は同一originの古いHTTPキャッシュにより旧UIが表示された(既知パターン、`rules/lessons_archive.md` L32)。Ctrl+Shift+Rで解消。**
+- **T3-52dは追加作業不要だった**: `statistics_feature_design.md`の該当6節(§1.3/§2.3.1/§2.3.3/§7.5/§9.5/§11)は設計完了コミット(31b3d74)の時点で既に改訂済みで、実装との齟齬なし。
+- **デプロイ・push**: チャットでユーザーに説明し明示的な許可を得たうえで`firebase deploy --only hosting`(成功)→`git push`(`728d630..35b607e`)を実行。`curl`で本番`main.dart.js`のmd5とローカル`build/web/main.dart.js`のmd5が一致することを確認し、本番反映を検証済み。`claude-in-chrome`拡張は本番ドメインへの直接遷移をブロックするため(`docs/deploy.md`既知の制約)、ブラウザでの動作確認自体はデプロイ前にローカル配信(`build/web`を`python -m http.server`)+本番実データで実施済み。
 
 ### -4.95 当日やったこと(2026-07-30、`/full_loop`(Sonnet 5)、T3-52a完了=既存バグ修正(挽き目調整段階/挽き目のkeyMap不一致)。本番デプロイ・確認まで完了。**運用ルールの重要な変更あり(下記参照)**)
 
