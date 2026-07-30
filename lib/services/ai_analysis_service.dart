@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'math/encoding.dart';
 import 'regression_service.dart';
 import 'statistics_service.dart';
 
@@ -184,8 +185,8 @@ class AiAnalysisService {
       'store': Schema.string(description: '焙煎所または購入店名', nullable: true),
       'origin': Schema.string(description: '産地(国名・地域名、日本語カタカナ表記)', nullable: true),
       'roastLevel': Schema.enumString(
-        enumValues: const ['浅煎り', '中煎り', '中深煎り', '深煎り'],
-        description: '焙煎度',
+        enumValues: roastLevels8,
+        description: '焙煎度(8段階、浅い順: ${roastLevels8.join('/')})',
         nullable: true,
       ),
       'type': Schema.string(description: '品種・精製方法', nullable: true),
@@ -341,12 +342,19 @@ class AiAnalysisService {
 
   String _buildExtractionPrompt(List<String> knownOrigins) {
     final originHint = knownOrigins.isEmpty ? '' : '(既知の産地名の例: ${knownOrigins.join('、')})';
+    final roastScale = List.generate(
+      roastLevels8.length,
+      (i) => '${roastLevels8[i]}(${roastLevels8En[i]})',
+    ).join('/');
     return 'これはコーヒー豆のパッケージまたは説明カードの画像です。以下の項目を画像から読み取り、'
         '指定のJSONスキーマで出力してください。\n'
         '- name: 豆の名前(銘柄名)\n'
         '- store: 焙煎所または購入店名\n'
         '- origin: 産地(国名・地域名)。日本語カタカナ表記に変換すること$originHint\n'
-        '- roastLevel: 焙煎度。浅煎り/中煎り/中深煎り/深煎りのいずれかに分類できる場合のみ設定\n'
+        '- roastLevel: 焙煎度。浅い順に8段階($roastScale)のいずれか1つに分類できる場合のみ設定。'
+        'パッケージの表記は日本語(浅煎り/中煎り/深煎り等の粗い表記を含む)・英語(Light/Medium/City/French等)・'
+        '9段階のロースター独自表記などさまざまなので、その表記が8段階のどれに最も近いかを判断して、'
+        '必ずこの8段階のいずれかの日本語表記(ライト/シナモン/ミディアム/ハイ/シティ/フルシティ/フレンチ/イタリアン)で出力すること\n'
         '- type: 品種・精製方法(例: ウォッシュド、ナチュラル、ゲイシャ種など)\n'
         '- roastDate: 焙煎日(YYYY-MM-DD形式)。記載が無ければ設定しない\n'
         '画像から読み取れない項目、または確信が持てない項目は必ずnullにしてください。数値・文字列を推測で埋めないこと。';

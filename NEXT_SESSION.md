@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-31(`/full_loop`(Sonnet 5)、**T3-51完了・本番デプロイ・push済み**=焙煎度8段階ガイド(044)新設。次回は T3-43 / T3-49 / T3-69 のいずれかから)
+最終更新: 2026-07-31(`/full_loop`(Sonnet 5)、**T3-43完了・実ブラウザでのGemini呼び出しは未検証のまま本番デプロイ・push待ち**=豆情報AI自動入力の焙煎度enumValues/プロンプトを8段階へ更新。次回は T3-49 / T3-69 のいずれかから)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -8,9 +8,9 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-51のビルドはデプロイ済み・ハッシュ一致確認済み。working tree はクリーン、git push も完了済み**(2026-07-31時点)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-43はコード変更・検証(analyze/test/build)まで完了、デプロイ・push はユーザーの許可待ち**(2026-07-31時点)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
-- **T3-51(焙煎度8段階ガイド、画面ID 044新設)は2026-07-31に完了・検証・本番デプロイ済み**。詳細は下記「3. 直近の作業ログ」を参照。
+- **T3-43(豆情報AI自動入力の焙煎度enumValues/プロンプトを8段階へ更新)は2026-07-31に実装・`analyze`/`test`/`build`まで完了**。詳細は下記「3. 直近の作業ログ」を参照。**実ブラウザでのGemini呼び出し自体は未検証**(ローカル環境にAPIキー未設定+Flutter WebのファイルピッカーがOS標準ダイアログ経由でブラウザ拡張から操作できず、画像アップロード→AI抽出の実行まで到達できなかった)。ユーザーが実機/ローカルで最終確認することを推奨。
 - **本番`methods_master`のうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド、ミディアム〜シティ)のみ**。他11メソッドは未設定のためF3のおすすめレシピ候補にならない。**ユーザーに021から各メソッドの推奨焙煎度を設定するよう案内すること。**
 - 2026-07-28〜29にユーザー要望から追加した T3-58〜T3-70 は、T3-69 を除きすべて完了・本番反映済み。
 - 実装の正本となる設計書(いずれも上位モデルが作成済み・そのまま実装すればよい): **`docs/bean_purchase_design.md`**(追加購入・購入履歴)、**`docs/store_master_design.md`**(購入店マスタ)。
@@ -23,8 +23,7 @@
 
 | 優先 | ID | 内容 | サイズ | 備考 |
 |---|---|---|---|---|
-| ◎ | T3-43 | 豆情報AI自動入力で焙煎度も入力 | L | 依存(T3-42)は充足済み。**T3-51完了により044(焙煎度ガイド)の存在は参考にできるが直接の依存関係は無い** |
-| ○ | T3-49 | おすすめレシピカードの遷移先を030へ変更 | M | 依存T3-48は2026-07-31完了、着手可能。設計はマスタープラン該当行を参照(専用設計書なし) |
+| ◎ | T3-49 | おすすめレシピカードの遷移先を030へ変更 | M | 依存T3-48は2026-07-31完了、着手可能。設計はマスタープラン該当行を参照(専用設計書なし) |
 | △ | T3-69 | 豆マスタのstore→storeId移行 | M | 依存(T3-62, T3-68)は充足済み、着手可能 |
 
 **`/full_loop`(Sonnet 5)で選んではいけないタスク(⚠️上位モデル指定)**: **T3-53**(検証状況の可視化)。依存(T3-52)は充足済みで選べる状態だが、上位モデル指定のため`full_loop`(Sonnet 5)は自動選定しないこと。
@@ -42,22 +41,15 @@
 8. **本番`methods_master`12メソッドのうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド)のみ**。他11メソッドは未設定のためF3のおすすめカードに出てこない(未設定=候補外というユーザー決定による意図した挙動)。ユーザーへ「021からメソッドごとに範囲を設定してください」と案内すること。
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.00 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-51完了・本番デプロイ・push済み**=焙煎度8段階の説明ページ(画面ID 044)新設)
+### -5.01 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-43完了**=豆情報AI自動入力の焙煎度enumValues/プロンプトを8段階へ更新。デプロイ・pushはユーザー確認待ち)
 
-- **選定理由**: マスタープランのタスク表で最上位、NEXT_SESSION.mdでも◎優先度、依存(T3-42)は充足済みのため選定。
-- **内容調査**: Web検索(crowdroaster.com・hollys-corp.jpの記事)で焙煎度8段階(ライト/シナモン/ミディアム/ハイ/シティ/フルシティ/フレンチ/イタリアン)それぞれの見た目の色味・酸味/苦味/コクのバランス・適した抽出方法を調査し要約して執筆(コピペではなく要約・独自の文章で構成)。
-- **実装**:
-  - `lib/routing/app_screen.dart`: `roastGuide('044', '焙煎度8段階ガイド')`を追加(topLevelTabsには含めない)。
-  - `lib/routing/screen_registry.dart`: `AppScreen.roastGuide` → `RoastGuideScreen`のcaseを追加。
-  - `lib/screens/roast_guide_screen.dart`(新規): 041(`stats_theory_screen.dart`)と同じ構成パターン(`MockScreenScaffold`+目次`ActionChip`+`FormSection`+`Scrollable.ensureVisible`による自動スクロール)を踏襲。8段階それぞれをカードで表示し、`RoastLevelSlider`のグラデーション色(`kRoastLightest`〜`kRoastDarkest`)を8段階に補間した色見本も表示。`RoastGuideLink`(`StatsTheoryLink`と同型のIconButton)を新設し、`currentLabel`を渡すと該当段階まで自動スクロールする。
-  - `lib/screens/create/bean_create_screen.dart`: 012/011共通の`RoastLevelSlider`(011は編集モードでこのウィジェットを使う)の`trailing`に`RoastGuideLink(currentLabel: _roastLevel)`を追加。
-- **新規テスト**: `test/roast_guide_screen_test.dart`(4件)。8段階すべての日英表記表示・3ラベル(見た目の色味/バランス/適した抽出方法)の表示件数・`RoastGuideLink`タップでの画面遷移・未知の焙煎度ラベルでも例外にならないことを確認。`MockScreenScaffold`が`mainColorProvider`(Riverpod)に依存するため`ProviderScope`でラップする必要がある点に注意(忘れると`Bad state: No ProviderScope found`で落ちる)。
-- **検証**: `flutter analyze`新規issue0(既存46件のみ)・`flutter test`322件全パス(318+4)・`flutter build web`成功。
-- **ブラウザ確認**: `build/web`をローカル配信(`python -m http.server`)し`claude-in-chrome`で本番GAS実データに対し確認。豆編集画面(焙煎度=ハイに設定済みの豆)で情報アイコンをタップ→044へ遷移し、「ハイ(High) 4/8」セクションまで自動スクロールすることを確認。8段階すべてのカードが正しい内容で表示されることも確認。
-- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`を実行、本番`main.dart.js`のMD5ハッシュとローカルビルドの一致を確認(拡張が本番ドメインへの直接遷移をブロックするため、この方法で代替検証)。**GAS側の変更は無いため`clasp push`は不要**。ユーザーの許可を得て`git push`も実施済み。
-- **既知の注意**: `claude-in-chrome`でのスクリーンショットで一部の漢字がまれに文字化け(tofu box)して見えることがあったが、再スクリーンショットで正しく表示された(CanvasKitのフォントグリフ読み込みタイミングによる一時的な現象と推測、コード側の問題ではない)。
+- **選定理由**: マスタープランのタスク表で最上位(◎)、NEXT_SESSION.mdの推奨とも一致、依存(T3-42)は充足済みのため選定。
+- **実装**: `lib/services/ai_analysis_service.dart`の`extractBeanInfoFromImage`内`Schema.enumString`の`roastLevel`の`enumValues`を、旧4段階固定リスト(`['浅煎り','中煎り','中深煎り','深煎り']`)から`encoding.dart`の`roastLevels8`(T3-42で確定した8段階、`RoastLevelSlider`と同じ正本)に差し替え。`_buildExtractionPrompt`に8段階の日英併記リストを追加し、パッケージ表記が日本語(浅煎り等の粗い旧表記含む)・英語(Light/Medium/City/French等)・独自9段階いずれであっても8段階のどれかに丸めて日本語の正式表記(ライト/シナモン/…/イタリアン)で返すよう明示的に指示する文言にした。
+- **検証**: `flutter analyze`新規issue0(既存46件のみ)・`flutter test`322件全パス・`flutter build web`成功。
+- **実ブラウザでの確認は限定的**: 合成した英語表記(「City Roast」)のコーヒー袋ラベル画像を作成し、`build/web`をローカル配信して`claude-in-chrome`で012「パッケージ画像から自動入力(AI)」→「ファイルから選択」まで到達したが、**Flutter WebのファイルピッカーがOS標準の`showOpenFilePicker`系API(DOM上に`<input type=file>`が現れない)を使っているとみられ、ブラウザ拡張の`file_upload`ツールでは画像を選択できなかった**。加えてローカル環境の`localStorage`に`gemini_api_key`が保存されておらず(ユーザー環境固有のため)、いずれにせよ実際のGemini呼び出しまでは検証できなかった。よって**「Gemini が実際に8段階のいずれかを返すか」はコードレビューレベル(スキーマ・プロンプトの妥当性)の確認に留まる**。
+- **ユーザーへのお願い**: 実機/ローカルの`flutter run`でAPIキー設定済みの状態から、英語表記または旧5段階の日本語表記が書かれた実際のパッケージ画像で012のAI自動入力を試し、焙煎度スライダーに8段階のいずれかが反映されることを確認してほしい。
 
-> これ以前(-4.99節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.00節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 

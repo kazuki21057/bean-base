@@ -3,6 +3,21 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.00 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-51完了・本番デプロイ・push済み**=焙煎度8段階ガイド(044)新設)
+
+- **選定理由**: マスタープランのタスク表で最上位、NEXT_SESSION.mdでも◎優先度、依存(T3-42)は充足済みのため選定。
+- **内容調査**: Web検索(crowdroaster.com・hollys-corp.jpの記事)で焙煎度8段階(ライト/シナモン/ミディアム/ハイ/シティ/フルシティ/フレンチ/イタリアン)それぞれの見た目の色味・酸味/苦味/コクのバランス・適した抽出方法を調査し要約して執筆(コピペではなく要約・独自の文章で構成)。
+- **実装**:
+  - `lib/routing/app_screen.dart`: `roastGuide('044', '焙煎度8段階ガイド')`を追加(topLevelTabsには含めない)。
+  - `lib/routing/screen_registry.dart`: `AppScreen.roastGuide` → `RoastGuideScreen`のcaseを追加。
+  - `lib/screens/roast_guide_screen.dart`(新規): 041(`stats_theory_screen.dart`)と同じ構成パターン(`MockScreenScaffold`+目次`ActionChip`+`FormSection`+`Scrollable.ensureVisible`による自動スクロール)を踏襲。8段階それぞれをカードで表示し、`RoastLevelSlider`のグラデーション色(`kRoastLightest`〜`kRoastDarkest`)を8段階に補間した色見本も表示。`RoastGuideLink`(`StatsTheoryLink`と同型のIconButton)を新設し、`currentLabel`を渡すと該当段階まで自動スクロールする。
+  - `lib/screens/create/bean_create_screen.dart`: 012/011共通の`RoastLevelSlider`(011は編集モードでこのウィジェットを使う)の`trailing`に`RoastGuideLink(currentLabel: _roastLevel)`を追加。
+- **新規テスト**: `test/roast_guide_screen_test.dart`(4件)。8段階すべての日英表記表示・3ラベル(見た目の色味/バランス/適した抽出方法)の表示件数・`RoastGuideLink`タップでの画面遷移・未知の焙煎度ラベルでも例外にならないことを確認。`MockScreenScaffold`が`mainColorProvider`(Riverpod)に依存するため`ProviderScope`でラップする必要がある点に注意(忘れると`Bad state: No ProviderScope found`で落ちる)。
+- **検証**: `flutter analyze`新規issue0(既存46件のみ)・`flutter test`322件全パス(318+4)・`flutter build web`成功。
+- **ブラウザ確認**: `build/web`をローカル配信(`python -m http.server`)し`claude-in-chrome`で本番GAS実データに対し確認。豆編集画面(焙煎度=ハイに設定済みの豆)で情報アイコンをタップ→044へ遷移し、「ハイ(High) 4/8」セクションまで自動スクロールすることを確認。8段階すべてのカードが正しい内容で表示されることも確認。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`を実行、本番`main.dart.js`のMD5ハッシュとローカルビルドの一致を確認(拡張が本番ドメインへの直接遷移をブロックするため、この方法で代替検証)。**GAS側の変更は無いため`clasp push`は不要**。ユーザーの許可を得て`git push`も実施済み。
+- **既知の注意**: `claude-in-chrome`でのスクリーンショットで一部の漢字がまれに文字化け(tofu box)して見えることがあったが、再スクリーンショットで正しく表示された(CanvasKitのフォントグリフ読み込みタイミングによる一時的な現象と推測、コード側の問題ではない)。
+
 ### -4.99 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-48・T3-71a・T3-71bすべて完了・本番デプロイ・push済み**=おすすめレシピへのメソッド追加+推奨焙煎度の範囲対応。次回は T3-51 / T3-43 / T3-69 のいずれかから)
 
 - **選定理由**: NEXT_SESSION.mdの「2. 次回の着手点」で「最初にこれをやる」と指示されていたT3-48の検証仕上げから開始し、依存関係どおりT3-71a→T3-71bと連続実施した。
