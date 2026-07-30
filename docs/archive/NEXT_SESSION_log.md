@@ -3,6 +3,21 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -4.99 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-48・T3-71a・T3-71bすべて完了・本番デプロイ・push済み**=おすすめレシピへのメソッド追加+推奨焙煎度の範囲対応。次回は T3-51 / T3-43 / T3-69 のいずれかから)
+
+- **選定理由**: NEXT_SESSION.mdの「2. 次回の着手点」で「最初にこれをやる」と指示されていたT3-48の検証仕上げから開始し、依存関係どおりT3-71a→T3-71bと連続実施した。
+- **T3-48(検証仕上げ)**: 前セッションのコスト上限中断で残っていた作業ツリー差分(`RecipeSuggestion.methodId`追加、`SuggestionService`のメソッド選定対応、`recipe_suggestion_card.dart`のメソッド名表示)を`flutter analyze`(新規issue0)→`flutter test`(297件全パス)→`flutter build web`で検証しコミット。
+- **T3-71a(推奨焙煎度の範囲化)**: `docs/method_roast_range_design.md`どおり実装。`MethodMaster`に`recommendedRoastMin`/`recommendedRoastMax`追加(`.g.dart`手編集)、`SheetsService`keyMap/reverseMap両方に新2列追加、`lib/utils/roast_range.dart`新設(`resolveMethodRoastRange`/`methodMatchesRoastOrdinal`/`formatMethodRoastRange`)、`lib/widgets/roast_range_slider.dart`新設(`RangeSlider`ベース)、021/020を範囲UIに置換。新規テスト`roast_range_slider_test.dart`(ウィジェット7件+純関数テスト)、`method_template_test.dart`更新。
+- **T3-71b(F3の範囲判定化)**: `suggestion_service.dart`の候補絞り込みを`methodMatchesRoastOrdinal`に置換(副次的に、豆の旧5段階表記とメソッドの新8段階表記が同じ焙煎度でも一致しなかったバグも解消)。`suggestion_service_test.dart`に範囲判定テスト6件追加。
+- **検証**: `flutter analyze`新規issue0(既存warningのみ)・`flutter test`318件全パス(297+21)・`flutter build web`成功。
+- **本番反映(すべてユーザーの都度許可を得て実施)**:
+  1. `clasp push`+`clasp deploy --deploymentId <既存ID>`で`methods_master`に新2列を追加(URLは維持)。
+  2. ローカル配信(`python -m http.server`)+`claude-in-chrome`で本番GAS実データに対し確認。021で4:6メソッドの推奨焙煎度を実際に「ミディアム〜シティ」に設定・保存し、本番Sheetsの新2列に保存され旧列が空になることを`curl`で確認。ダッシュボードのF3カードが「4:6メソッドで淹れてみませんか?」と正しくメソッド名を表示するようになったことも確認(範囲判定バグ修正の効果を実データで確認)。
+  3. `firebase deploy --only hosting`でFirebase Hostingへデプロイ、本番`main.dart.js`のハッシュとローカルビルドのハッシュ一致を確認(拡張が本番ドメインへの直接遷移をブロックするため、この方法で代替検証)。
+  4. `git push`で2コミット(T3-48・T3-71a/b)をpush済み。
+- **新たな教訓**: `rules/lessons_archive.md` L93(Dartのnull安全flow analysisはbool変数越しでもnon-null促進するが、クロージャ内キャプチャでは促進されない)。
+- **既知の注意**: 本番`methods_master`12件のうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド)のみ。他11件は次回以降ユーザーが021から順次設定する運用(§1参照)。
+
 ### -4.98 当日やったこと(2026-07-30、`/full_loop`(上位モデル Opus 5)、**T3-71設計完了**=メソッドの推奨焙煎度を「幅」で設定できるようにする設計。成果物は `docs/method_roast_range_design.md`。**コードは1行も書いていない**。次回は T3-48 の検証仕上げ → T3-71a → T3-71b の順)
 
 - **選定理由**: ユーザーが`/full_loop`の引数で対象と担当モデル(上位モデル)を明示指定したため、タスク表からの自動選定ではなくこの要望を当日タスクとした(新規タスクIDは T3-71 を採番)。

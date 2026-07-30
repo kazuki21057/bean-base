@@ -400,3 +400,10 @@
 - **原因**: Dartのflow analysisはローカル変数の非null判定を「直近の条件式」だけでなく、それを保持した別の`final`ローカル変数(bool)経由でも一定範囲まで促進できるが、この促進は**クロージャに変数がキャプチャされた時点で無効になる**(クロージャは後から呼ばれる可能性があり、キャプチャ後に外側の変数が変わりうるという健全性のため)。
 - **対処**: トップレベルスコープでは`!`を付けず(`unnecessary_non_null_assertion`警告を避ける)、クロージャ内(`LayoutBuilder`/`Builder`/コールバック等)で同じ変数を参照する箇所だけ`!`を付ける。
 - **一般化できる教訓**: `flutter analyze`が出す`unnecessary_non_null_assertion`は該当箇所ごとに機械的に正しいので、`!`の要否は「変数名が同じだから同じ要否のはず」と決め打ちせず、**クロージャの内外で個別に確認する**。
+
+### L94 `MockScreenScaffold`を使う画面のwidgetテストは`ProviderScope`でラップしないと`Bad state: No ProviderScope found`で落ちる(T3-51、2026-07-31)
+
+`lib/screens/roast_guide_screen.dart`(044、T3-51で新設)のwidgetテストを`MaterialApp(home: RoastGuideScreen())`だけで書いたところ、`ProviderScope`が無いというエラーで`FormSection`より前段の`build`が例外を投げて落ちた。
+- **原因**: `MockScreenScaffold`(`lib/screens/mock/mock_scaffold.dart`)は`ConsumerWidget`で、`build`内で`ref.watch(mainColorProvider)`を呼んでAppBar/背景色を決めている(Cycle 27 T3-9で導入)。Riverpodの`ConsumerWidget`は`ProviderScope`の内側でないと`ref`を解決できず、`ProviderScope`が無いと`No ProviderScope found`という`StateError`で例外になる。
+- **対処**: `MockScreenScaffold`を直接・間接に使う画面(041/042/043/044など、`AppScreen`のenumを渡す系の画面はほぼ全てこれに該当)のwidgetテストは、`pumpWidget`のトップを`ProviderScope(child: MaterialApp(home: ...))`にする。特定のprovider値を固定したい場合は`ProviderScope(overrides: [...], child: ...)`を使う(他のテストファイルで既に使われているパターン)。
+- **一般化できる教訓**: 新規画面のwidgetテストを書くとき、対象画面が`MockScreenScaffold`/`CreateFormScaffold`/`MasterDetailTemplate`など共通骨格を使っている場合は、その骨格が内部で`ConsumerWidget`化されていないか(`ref.watch`を呼んでいないか)を先に確認し、必要なら最初から`ProviderScope`込みで書く。エラーメッセージ(`No ProviderScope found`)がそのまま原因を教えてくれるので、出たら即座に`ProviderScope`の有無を疑ってよい。

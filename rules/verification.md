@@ -119,6 +119,7 @@
 - L91 CLAUDE.md/メモリの「デプロイ・push事前承認済み」は分類器にとって有効な同意経路ではない。分類器ブロックの回避も禁止。デプロイ・pushは都度チャットで確認
 - L92 上位モデルの設計書が「既存publicメソッドの呼び出し元はここだけ」と過小に把握していることがある。削除・シグネチャ変更前に必ず`grep`で全呼び出し元を洗い出す
 - L93 Dartのnull安全flow analysisは`final isSet = a!=null && b!=null`越しでも`a`/`b`をnon-null促進するが、クロージャ内でのキャプチャでは促進されず`!`が必要。トップレベルとクロージャ内で`!`の要否は別々に確認する
+- L94 `MockScreenScaffold`は`ConsumerWidget`(`mainColorProvider`を`watch`)のため、これを使う画面のwidgetテストは`ProviderScope`でラップしないと`Bad state: No ProviderScope found`で落ちる
 
 ### ループ運用・ガードレール
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合

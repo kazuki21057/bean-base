@@ -41,6 +41,7 @@ enum AppScreen {
   statsTheory('041', '統計の理論と読み方'),
   statsStatus('042', '統計処理の稼働状況'),
   geminiModel('043', 'Geminiモデル設定'),
+  roastGuide('044', '焙煎度8段階ガイド'),
   settings('090', '設定');
 
   final String code;

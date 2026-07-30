@@ -14,6 +14,7 @@ import '../../services/image_service.dart';
 import '../../widgets/image_upload_field.dart';
 import '../../utils/bean_storage.dart';
 import '../../widgets/roast_level_slider.dart';
+import '../roast_guide_screen.dart';
 import 'create_form_widgets.dart';
 
 /// T4-1e(設計書§3.2): 産地マスタの地域選択肢(OriginMaster.region、固定4種)。
@@ -529,6 +530,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
             RoastLevelSlider(
               value: _roastLevel,
               onChanged: (v) => setState(() => _roastLevel = v),
+              trailing: RoastGuideLink(currentLabel: _roastLevel),
             ),
             MockChoiceChips(
               label: '保存場所',
