@@ -169,7 +169,7 @@ _FeatureStatus _f4Status(List<CoffeeRecord> records, Map<String, OriginMaster> o
   }
   final sample = records.last;
   final roastOrdinal = roastOrdinalMap[sample.roastLevel] ?? 4.0;
-  final model = GpService().fit(records, sample.originId, roastOrdinal, originById);
+  final model = GpService().fitPooled(records, sample.originId, roastOrdinal, originById);
   if (model == null) {
     return const _FeatureStatus(false, 'この属性の推薦にはデータが不足しています (n_eff < 10)');
   }

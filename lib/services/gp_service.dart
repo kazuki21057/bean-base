@@ -8,7 +8,10 @@ import 'math/distributions.dart';
 import 'math/encoding.dart';
 import 'math/linear_solve.dart';
 
-/// F4: ガウス過程回帰の学習済みモデル (設計書§7.5)。
+/// 探索空間上の1点 (設計書§5.1)。[g] は正規化粒度 (0,1]。
+typedef GpPoint = ({double t, double r, int s, double g});
+
+/// F4: ガウス過程回帰の学習済みモデル (設計書§5.1)。
 class GpModel {
   final List<List<double>> xTrain; // 標準化済み訓練入力
   final List<double> xMean;
@@ -21,6 +24,8 @@ class GpModel {
   final double sigmaN;
   final double fStar; // 訓練データの max(y) (生値、EI用)
   final double nEff; // 重み付き有効サンプルサイズ Σwᵢ
+  final int nRows; // 学習に使った生データ行数 (最小データ条件の n)
+  final String methodId; // このモデルがどのメソッドのものか (UIのランキング表示用)
 
   GpModel({
     required this.xTrain,
@@ -34,6 +39,8 @@ class GpModel {
     required this.sigmaN,
     required this.fStar,
     required this.nEff,
+    required this.nRows,
+    required this.methodId,
   });
 }
 
@@ -80,20 +87,80 @@ class _ModelFit {
   _ModelFit(this.model, this.logLik);
 }
 
-/// F4: GP 推薦エンジン (設計書§7.5)。
+/// F4: GP 推薦エンジン (設計書§5、T3-52で4次元化)。
 class GpService {
   static const _lengthScaleGrid = [0.5, 1.0, 2.0];
   static const _sigmaFGrid = [0.5, 1.0, 2.0];
   static const _sigmaNGrid = [0.5, 1.0, 1.5];
 
-  /// [originId]・[roastOrdinal] の豆向けに、全記録を重み付き学習データとして
-  /// GP をフィットする。重み (設計書§7.5): 同一グループ1.0 / 同産地・焙煎差1
-  /// 以内0.5 / その他0.2。n_eff = Σwᵢ < 10 なら null。
-  ///
-  /// [originById] は設計書のシグネチャ通り受け取るが、重み判定はoriginId・
-  /// roastOrdinalMapの直接比較のみで完結するため中身は参照しない
-  /// (suggestion_service.dartのoriginByIdと同じ扱い)。
-  GpModel? fit(
+  /// 粗グリッド (設計書§5.4)。
+  static const _coarseTemps = <double>[80, 84, 88, 92, 96];
+  static const _coarseRatios = <double>[14.0, 15.0, 16.0, 17.0, 18.0];
+  static const _coarseTimes = <int>[120, 150, 180, 210, 240];
+  static const _coarseGrinds = <double>[0.30, 0.43, 0.56, 0.69, 0.82, 0.95];
+
+  /// [methodId] のメソッドについて、(originId, roastOrdinal, targetGrinderId) 向けに
+  /// 重み付き GP をフィットする。最小データ条件 (n_eff >= 6.0 かつ nRows >= 8) を
+  /// 満たさない場合は null (設計書§5.2)。
+  GpModel? fitForMethod(
+    List<CoffeeRecord> records, {
+    required String methodId,
+    required String originId,
+    required double roastOrdinal,
+    required String targetGrinderId,
+    required Map<String, int> grindStepsByGrinderId,
+  }) {
+    final xsRaw = <List<double>>[];
+    final ys = <double>[];
+    final weights = <double>[];
+
+    for (final r in records) {
+      if (r.methodId != methodId) continue;
+      final ratio = r.brewRatio;
+      if (r.scoreOverall <= 0 || ratio == null || r.temperature <= 0 || r.totalTime <= 0) {
+        continue;
+      }
+      final clicks = double.tryParse(r.grindSize.trim());
+      if (clicks == null || clicks <= 0) continue;
+      final grindSteps = grindStepsByGrinderId[r.grinderId];
+      if (grindSteps == null) continue;
+
+      var gNorm = clicks / grindSteps;
+      if (gNorm > 1.0) gNorm = 1.0;
+
+      final recordRoastOrdinal = roastOrdinalMap[r.roastLevel];
+      double wOriginRoast;
+      if (r.originId == originId && recordRoastOrdinal == roastOrdinal) {
+        wOriginRoast = 1.0;
+      } else if (r.originId == originId &&
+          recordRoastOrdinal != null &&
+          (recordRoastOrdinal - roastOrdinal).abs() <= 1) {
+        wOriginRoast = 0.5;
+      } else {
+        wOriginRoast = 0.2;
+      }
+      final wGrinder = r.grinderId == targetGrinderId ? 1.0 : 0.5;
+      final weight = wOriginRoast * wGrinder;
+
+      xsRaw.add([r.temperature, ratio, r.totalTime.toDouble(), gNorm]);
+      ys.add(r.scoreOverall.toDouble());
+      weights.add(weight);
+    }
+
+    final nRows = xsRaw.length;
+    final nEff = weights.fold(0.0, (s, w) => s + w);
+    if (nEff < 6.0 || nRows < 8) return null;
+
+    return _fitGrid(xsRaw, ys, weights, nEff, nRows, methodId);
+  }
+
+  /// レガシー3次元版(湯温・比率・総抽出時間、メソッド/ミルを区別しない全記録
+  /// プール)。T3-52でメソッド別4次元の[fitForMethod]を追加した後も、
+  /// F3(`suggestion_service.dart`)・090の稼働状況表示(`stats_status_screen.dart`)
+  /// はメソッド・ミルを問わない集計のまま据え置く(T3-48でF3にメソッドを
+  /// 追加する際にあらためて移行する)ため、既存の重み付け(§7.5)・最小データ
+  /// 条件(n_eff<10)のまま残す。
+  GpModel? fitPooled(
     List<CoffeeRecord> records,
     String originId,
     double roastOrdinal,
@@ -127,16 +194,80 @@ class GpService {
     final nEff = weights.fold(0.0, (s, w) => s + w);
     if (nEff < 10) return null;
 
-    return _fitGrid(xsRaw, ys, weights, nEff);
+    return _fitGrid(xsRaw, ys, weights, nEff, xsRaw.length, '');
+  }
+
+  /// [fitPooled]の3次元モデル向け予測(湯温・比率・総抽出時間のみ)。
+  GpPrediction predictPooled(GpModel model, double temperature, double brewRatio, int totalTimeSec) {
+    final xRaw = [temperature, brewRatio, totalTimeSec.toDouble()];
+    final xStar = [
+      for (var j = 0; j < xRaw.length; j++) (xRaw[j] - model.xMean[j]) / model.xStd[j],
+    ];
+
+    final kStar = [
+      for (final xi in model.xTrain) _kernel(xStar, xi, model.lengthScale, model.sigmaF),
+    ];
+    final mean = _dot(kStar, model.alpha) + model.yMean;
+
+    final v = choleskySolve(model.cholL, kStar);
+    final kxx = model.sigmaF * model.sigmaF;
+    var variance = kxx - _dot(kStar, v);
+    if (variance < 0) variance = 0.0;
+    final sd = math.sqrt(variance);
+
+    final ei = expectedImprovement(mean, sd, model.fStar);
+
+    return GpPrediction(mean: mean, sd: sd, ei: ei);
+  }
+
+  /// [fitPooled]向けの候補グリッド探索(設計書§2.3.3旧版: 湯温80-96℃刻み1、
+  /// brew ratio 14.0-18.0刻み0.5、時間120-240秒刻み15)。
+  ({
+    GpPrediction best,
+    ({double t, double r, int s}) bestX,
+    GpPrediction explore,
+    ({double t, double r, int s}) exploreX,
+  }) optimizePooled(GpModel model) {
+    GpPrediction? bestPred;
+    ({double t, double r, int s})? bestX;
+    GpPrediction? explorePred;
+    ({double t, double r, int s})? exploreX;
+
+    for (var tInt = 80; tInt <= 96; tInt++) {
+      final t = tInt.toDouble();
+      for (var ri = 0; ri <= 8; ri++) {
+        final r = 14.0 + ri * 0.5;
+        for (var s = 120; s <= 240; s += 15) {
+          final pred = predictPooled(model, t, r, s);
+          if (bestPred == null || pred.mean > bestPred.mean) {
+            bestPred = pred;
+            bestX = (t: t, r: r, s: s);
+          }
+          if (explorePred == null || pred.ei > explorePred.ei) {
+            explorePred = pred;
+            exploreX = (t: t, r: r, s: s);
+          }
+        }
+      }
+    }
+
+    return (best: bestPred!, bestX: bestX!, explore: explorePred!, exploreX: exploreX!);
   }
 
   /// 固定グリッド (設計書§2.3.2) で対数周辺尤度 (T-20) 最大の (ℓ,σ_f,σ_n) を選ぶ。
-  GpModel? _fitGrid(List<List<double>> xsRaw, List<double> ys, List<double> weights, double nEff) {
+  GpModel? _fitGrid(
+    List<List<double>> xsRaw,
+    List<double> ys,
+    List<double> weights,
+    double nEff,
+    int nRows,
+    String methodId,
+  ) {
     _ModelFit? best;
     for (final l in _lengthScaleGrid) {
       for (final sf in _sigmaFGrid) {
         for (final sn in _sigmaNGrid) {
-          final fit = _buildModel(xsRaw, ys, weights, l, sf, sn, nEff);
+          final fit = _buildModel(xsRaw, ys, weights, l, sf, sn, nEff, nRows, methodId);
           if (fit == null) continue;
           if (best == null || fit.logLik > best.logLik) best = fit;
         }
@@ -148,7 +279,8 @@ class GpService {
   /// テスト容易性のため、θ (ℓ,σ_f,σ_n) を固定して直接フィットする入口を公開
   /// (設計書のクラス定義には無いが、regression_service.dartのfitDesignと同じ
   /// 理由づけ。§9.5のテストはグリッド探索やCoffeeRecordパイプラインを介さず
-  /// 特定のθでの予測分布の性質を検証する必要があるため)。
+  /// 特定のθでの予測分布の性質を検証する必要があるため)。次元数は
+  /// xsRaw[0].lengthから動的に決まる。
   GpModel? fitWithParams(
     List<List<double>> xsRaw,
     List<double> ys,
@@ -158,7 +290,17 @@ class GpService {
     required double sigmaN,
   }) {
     final nEff = weights.fold(0.0, (s, w) => s + w);
-    return _buildModel(xsRaw, ys, weights, lengthScale, sigmaF, sigmaN, nEff)?.model;
+    return _buildModel(
+      xsRaw,
+      ys,
+      weights,
+      lengthScale,
+      sigmaF,
+      sigmaN,
+      nEff,
+      xsRaw.length,
+      '',
+    )?.model;
   }
 
   _ModelFit? _buildModel(
@@ -169,6 +311,8 @@ class GpService {
     double sigmaF,
     double sigmaN,
     double nEff,
+    int nRows,
+    String methodId,
   ) {
     final n = xsRaw.length;
     final d = xsRaw[0].length;
@@ -235,13 +379,21 @@ class GpService {
       sigmaN: sigmaN,
       fStar: fStar,
       nEff: nEff,
+      nRows: nRows,
+      methodId: methodId,
     );
     return _ModelFit(model, logLik);
   }
 
-  /// 新規条件 (湯温・比率・総抽出時間秒) での予測 (T-18/T-19) + EI (T-21)。
-  GpPrediction predict(GpModel model, double temperature, double brewRatio, int totalTimeSec) {
-    final xRaw = [temperature, brewRatio, totalTimeSec.toDouble()];
+  /// 新規条件 (湯温・比率・総抽出時間秒・正規化粒度) での予測 (T-18/T-19) + EI (T-21)。
+  GpPrediction predict(
+    GpModel model,
+    double temperature,
+    double brewRatio,
+    int totalTimeSec,
+    double grindNorm,
+  ) {
+    final xRaw = [temperature, brewRatio, totalTimeSec.toDouble(), grindNorm];
     final xStar = [
       for (var j = 0; j < xRaw.length; j++) (xRaw[j] - model.xMean[j]) / model.xStd[j],
     ];
@@ -262,32 +414,56 @@ class GpService {
     return GpPrediction(mean: mean, sd: sd, ei: ei);
   }
 
-  /// 候補グリッド (設計書§2.3.3: 湯温80-96℃刻み1、brew ratio 14.0-18.0刻み0.5、
-  /// 時間120-240秒刻み15) の全点でμ・EIを評価し、μ最大点と EI 最大点を返す。
-  ({
-    GpPrediction best,
-    ({double t, double r, int s}) bestX,
-    GpPrediction explore,
-    ({double t, double r, int s}) exploreX,
-  }) optimize(GpModel model) {
+  /// 候補グリッド (設計書§5.4) の2段階探索。[refine]=false なら粗グリッドのみ
+  /// (ランキング用・高速)。μ最大点・EI最大点は粗+細の全評価点を通して選ぶ。
+  ({GpPrediction best, GpPoint bestX, GpPrediction explore, GpPoint exploreX}) optimize(
+    GpModel model, {
+    bool refine = true,
+  }) {
     GpPrediction? bestPred;
-    ({double t, double r, int s})? bestX;
+    GpPoint? bestX;
     GpPrediction? explorePred;
-    ({double t, double r, int s})? exploreX;
+    GpPoint? exploreX;
 
-    for (var tInt = 80; tInt <= 96; tInt++) {
-      final t = tInt.toDouble();
-      for (var ri = 0; ri <= 8; ri++) {
-        final r = 14.0 + ri * 0.5;
-        for (var s = 120; s <= 240; s += 15) {
-          final pred = predict(model, t, r, s);
-          if (bestPred == null || pred.mean > bestPred.mean) {
-            bestPred = pred;
-            bestX = (t: t, r: r, s: s);
+    void evalPoint(double t, double r, int s, double g) {
+      final pred = predict(model, t, r, s, g);
+      if (bestPred == null || pred.mean > bestPred!.mean) {
+        bestPred = pred;
+        bestX = (t: t, r: r, s: s, g: g);
+      }
+      if (explorePred == null || pred.ei > explorePred!.ei) {
+        explorePred = pred;
+        exploreX = (t: t, r: r, s: s, g: g);
+      }
+    }
+
+    for (final t in _coarseTemps) {
+      for (final r in _coarseRatios) {
+        for (final s in _coarseTimes) {
+          for (final g in _coarseGrinds) {
+            evalPoint(t, r, s, g);
           }
-          if (explorePred == null || pred.ei > explorePred.ei) {
-            explorePred = pred;
-            exploreX = (t: t, r: r, s: s);
+        }
+      }
+    }
+
+    if (refine) {
+      final center = bestX!;
+      final tLo = math.max(80.0, center.t - 4);
+      final tHi = math.min(96.0, center.t + 4);
+      final rLo = math.max(14.0, center.r - 1.0);
+      final rHi = math.min(18.0, center.r + 1.0);
+      final sLo = math.max(120, center.s - 30);
+      final sHi = math.min(240, center.s + 30);
+      final gLo = math.max(0.30, center.g - 0.13);
+      final gHi = math.min(0.95, center.g + 0.13);
+
+      for (var t = tLo; t <= tHi + 1e-9; t += 1) {
+        for (var r = rLo; r <= rHi + 1e-9; r += 0.5) {
+          for (var s = sLo; s <= sHi + 1e-9; s += 15) {
+            for (var g = gLo; g <= gHi + 1e-9; g += 0.05) {
+              evalPoint(t, r, s.round(), g);
+            }
           }
         }
       }

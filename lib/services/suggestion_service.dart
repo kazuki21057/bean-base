@@ -57,9 +57,9 @@ class SuggestionService {
     final roastOrdinal = roastOrdinalMap[bean.roastLevel];
     if (bean.originId.isNotEmpty && roastOrdinal != null) {
       final gp = GpService();
-      final model = gp.fit(records, bean.originId, roastOrdinal, originById);
+      final model = gp.fitPooled(records, bean.originId, roastOrdinal, originById);
       if (model != null) {
-        final opt = gp.optimize(model);
+        final opt = gp.optimizePooled(model);
         final pick = explore ? opt.exploreX : opt.bestX;
         final pred = explore ? opt.explore : opt.best;
         final totalSd = math.sqrt(pred.sd * pred.sd + model.sigmaN * model.sigmaN);

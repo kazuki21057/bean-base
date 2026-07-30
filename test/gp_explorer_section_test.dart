@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:bean_base/models/bean_master.dart';
 import 'package:bean_base/models/coffee_record.dart';
-import 'package:bean_base/models/origin_master.dart';
+import 'package:bean_base/models/equipment_masters.dart';
+import 'package:bean_base/models/method_master.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/widgets/brew/gp_explorer_section.dart';
 
-/// T4-6b(設計書§7.5): F4レシピ探索セクション(GP予測ヒートマップ)の検証。
-/// 産地×焙煎度に十分な記録があるとヒートマップ+推奨条件が表示されること、
-/// n_eff<10のときは最小データ案内、産地紐付け記録が無いときの案内を確認する。
+import 'helpers/fake_master_notifiers.dart';
+
+/// T3-52c(gp_multidim_design.md §6): F4レシピ探索セクション(4次元GP+メソッド別
+/// ランキング)の検証。豆・ミルに十分な記録があるとメソッド比較表+推奨条件が
+/// 表示されること、データ不足時は固定文言が出ることを確認する。
 CoffeeRecord _record(
   String id, {
+  required String methodId,
+  required String grinderId,
+  required String grindSize,
   required String originId,
   required String roastLevel,
   required int score,
@@ -23,7 +30,7 @@ CoffeeRecord _record(
     id: id,
     brewedAt: DateTime(2026, 7, 20),
     beanId: 'b1',
-    methodId: 'm',
+    methodId: methodId,
     beanWeight: beanWeight,
     totalWater: totalWater,
     totalTime: totalTime,
@@ -36,11 +43,11 @@ CoffeeRecord _record(
     scoreFlavor: 0,
     taste: '',
     comment: '',
-    grindSize: '',
+    grindSize: grindSize,
     temperature: temperature,
     dripperId: '',
     filterId: '',
-    grinderId: '',
+    grinderId: grinderId,
     roastLevel: roastLevel,
     origin: '',
     originId: originId,
@@ -53,13 +60,17 @@ CoffeeRecord _record(
 Future<void> _pump(
   WidgetTester tester, {
   required List<CoffeeRecord> records,
-  List<OriginMaster> origins = const [],
+  List<BeanMaster> beans = const [],
+  List<GrinderMaster> grinders = const [],
+  List<MethodMaster> methods = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         coffeeRecordsProvider.overrideWith((ref) async => records),
-        originMasterProvider.overrideWith((ref) async => origins),
+        beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => beans)),
+        grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => grinders)),
+        methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => methods)),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -72,76 +83,122 @@ Future<void> _pump(
 }
 
 void main() {
-  final origins = [
-    OriginMaster(id: 'origin_1', countryCode: 'ET', nameJa: 'エチオピア', nameEn: 'Ethiopia', region: 'Africa'),
+  final beans = [
+    BeanMaster(id: 'b1', name: 'エチオピア イルガチェフェ', roastLevel: 'ハイ', origin: '', originId: 'origin_1'),
+  ];
+  final grinders = [
+    GrinderMaster(id: 'g1', name: 'Kingrinder K6', grindRange: '180'),
+  ];
+  final methods = [
+    MethodMaster(
+      id: 'm1',
+      name: '4:6メソッド',
+      author: '',
+      baseBeanWeight: 15,
+      baseWaterAmount: 225,
+      description: '',
+      recommendedEquipment: '',
+    ),
   ];
 
-  group('GpExplorerSection (T4-6b)', () {
-    testWidgets('同グループに十分な記録があるとヒートマップと推奨条件を表示する', (tester) async {
-      // origin_1×中煎り(順序値3)で12件 → 全て weight 1.0、n_eff=12 ≥ 10。
-      // 条件を散らしてモデルが縮退しないようにする。
-      final temps = [84.0, 86.0, 88.0, 90.0, 92.0, 94.0];
-      final ratios = [225.0, 240.0, 210.0, 225.0, 255.0, 210.0];
-      final times = [150, 165, 135, 180, 150, 195];
-      final scores = [7, 8, 6, 9, 7, 8];
-      final records = [
-        for (var i = 0; i < 12; i++)
-          _record('r$i',
-              originId: 'origin_1',
-              roastLevel: '中煎り',
-              score: scores[i % 6],
-              temperature: temps[i % 6],
-              totalWater: ratios[i % 6],
-              totalTime: times[i % 6]),
-      ];
+  group('GpExplorerSection (T3-52c)', () {
+    testWidgets('豆とミルのドロップダウンが表示される', (tester) async {
+      await _pump(tester, records: const [], beans: beans, grinders: grinders, methods: methods);
 
-      await _pump(tester, records: records, origins: origins);
-
-      // デフォルト選択(産地=origin_1、焙煎度=中煎り)でヒートマップが描画される。
-      expect(find.textContaining('予測総合評価マップ'), findsOneWidget);
-      expect(find.text('おすすめの条件'), findsOneWidget);
-      expect(find.textContaining('95%予測区間'), findsOneWidget);
-      // ヒートマップのヘッダ(比率ラベル)が出ている。
-      expect(find.text('湯温\\比率'), findsOneWidget);
+      expect(find.text('豆'), findsOneWidget);
+      expect(find.text('ミル'), findsOneWidget);
     });
 
-    testWidgets('記録が少なくn_effが不足する場合は最小データ案内を表示する', (tester) async {
-      // origin_1×中煎りが3件のみ → n_eff=3 < 10。
+    testWidgets('メソッドに十分な記録があると比較表と推奨条件を表示する', (tester) async {
+      final temps = [84.0, 86.0, 88.0, 90.0, 92.0, 94.0, 96.0, 82.0];
+      final ratios = [14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0];
+      final times = [140, 150, 160, 170, 180, 190, 200, 210];
+      final grinds = ['80', '90', '100', '110', '120', '85', '95', '105'];
+      final scores = [6, 7, 8, 9, 6, 7, 8, 9];
+
+      final records = [
+        for (var i = 0; i < 8; i++)
+          _record(
+            'r$i',
+            methodId: 'm1',
+            grinderId: 'g1',
+            grindSize: grinds[i],
+            originId: 'origin_1',
+            roastLevel: 'ハイ',
+            score: scores[i],
+            temperature: temps[i],
+            totalWater: 15 * ratios[i],
+            totalTime: times[i],
+          ),
+      ];
+
+      await _pump(tester, records: records, beans: beans, grinders: grinders, methods: methods);
+
+      expect(find.textContaining('おすすめの条件'), findsOneWidget);
+      expect(find.textContaining('95%予測区間'), findsOneWidget);
+      expect(find.textContaining('予測総合評価マップ'), findsOneWidget);
+      expect(find.text('4:6メソッド'), findsWidgets);
+    });
+
+    testWidgets('記録が少なくどのメソッドも最小データ条件を満たさない場合は案内文を表示する', (tester) async {
       final records = [
         for (var i = 0; i < 3; i++)
-          _record('r$i', originId: 'origin_1', roastLevel: '中煎り', score: 7 + i),
+          _record(
+            'r$i',
+            methodId: 'm1',
+            grinderId: 'g1',
+            grindSize: '90',
+            originId: 'origin_1',
+            roastLevel: 'ハイ',
+            score: 7 + i,
+          ),
       ];
 
-      await _pump(tester, records: records, origins: origins);
+      await _pump(tester, records: records, beans: beans, grinders: grinders, methods: methods);
 
-      expect(find.textContaining('この属性の推薦にはデータが不足しています'), findsOneWidget);
-      expect(find.text('おすすめの条件'), findsNothing);
+      expect(find.textContaining('この豆に近い記録が十分に集まっているメソッドがまだありません'), findsOneWidget);
+      expect(find.textContaining('おすすめの条件'), findsNothing);
     });
 
-    testWidgets('産地が紐付いた記録が無い場合は案内文を表示する', (tester) async {
-      final records = [
-        _record('r0', originId: '', roastLevel: '中煎り', score: 8),
+    testWidgets('産地・焙煎度が登録された豆が無い場合は案内文を表示する', (tester) async {
+      final noOriginBeans = [
+        BeanMaster(id: 'b2', name: '産地未設定の豆', roastLevel: 'ハイ', origin: '', originId: ''),
       ];
 
-      await _pump(tester, records: records, origins: origins);
+      await _pump(tester, records: const [], beans: noOriginBeans, grinders: grinders, methods: methods);
 
-      expect(find.textContaining('産地が紐付いた抽出記録がまだありません'), findsOneWidget);
+      expect(find.textContaining('産地・焙煎度が登録された豆がまだありません'), findsOneWidget);
     });
 
-    testWidgets('T3-54b: モバイル幅(390)でも産地×焙煎度の選択行がオーバーフローしない', (tester) async {
+    testWidgets('T3-54b踏襲: モバイル幅(390)でもオーバーフローしない', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
+      final temps = [84.0, 86.0, 88.0, 90.0, 92.0, 94.0, 96.0, 82.0];
+      final ratios = [14.5, 15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0];
+      final times = [140, 150, 160, 170, 180, 190, 200, 210];
+      final grinds = ['80', '90', '100', '110', '120', '85', '95', '105'];
       final records = [
-        for (var i = 0; i < 12; i++)
-          _record('r$i', originId: 'origin_1', roastLevel: '中煎り', score: 7 + (i % 3)),
+        for (var i = 0; i < 8; i++)
+          _record(
+            'r$i',
+            methodId: 'm1',
+            grinderId: 'g1',
+            grindSize: grinds[i],
+            originId: 'origin_1',
+            roastLevel: 'ハイ',
+            score: 7 + (i % 3),
+            temperature: temps[i],
+            totalWater: 15 * ratios[i],
+            totalTime: times[i],
+          ),
       ];
 
-      await _pump(tester, records: records, origins: origins);
+      await _pump(tester, records: records, beans: beans, grinders: grinders, methods: methods);
 
-      expect(find.text('おすすめの条件'), findsOneWidget);
+      expect(find.textContaining('おすすめの条件'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
