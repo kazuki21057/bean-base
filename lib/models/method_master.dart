@@ -24,6 +24,8 @@ class MethodMaster {
   final String recommendedEquipment;
   final String? sourceUrl;
   final String? recommendedRoastLevel;
+  final String? recommendedRoastMin;
+  final String? recommendedRoastMax;
 
   MethodMaster({
     required this.id,
@@ -37,6 +39,8 @@ class MethodMaster {
     required this.recommendedEquipment,
     this.sourceUrl,
     this.recommendedRoastLevel,
+    this.recommendedRoastMin,
+    this.recommendedRoastMax,
   });
 
   factory MethodMaster.fromJson(Map<String, dynamic> json) =>

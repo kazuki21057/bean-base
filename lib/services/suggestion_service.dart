@@ -5,6 +5,7 @@ import '../models/coffee_record.dart';
 import '../models/method_master.dart';
 import '../models/origin_master.dart';
 import '../models/recipe_suggestion.dart';
+import '../utils/roast_range.dart';
 import 'gp_service.dart';
 import 'math/encoding.dart';
 
@@ -27,8 +28,9 @@ class SuggestionResult {
 
 /// F3: レシピ提案 (設計書§7.4)。T3-48でメソッドを提案に組み込んだ。
 ///
-/// 提案するメソッドは、T3-47で追加した`MethodMaster.recommendedRoastLevel`が
-/// 対象豆の焙煎度と一致するものに絞る(一致するメソッドが無ければ提案しない)。
+/// 提案するメソッドは、推奨焙煎度の範囲(`recommendedRoastMin`〜`recommendedRoastMax`、
+/// 旧単一値も後方互換で解決、`lib/utils/roast_range.dart`)に対象豆の焙煎度が
+/// 含まれるものに絞る(一致するメソッドが無ければ提案しない)。
 /// 湯温はメソッド依存にするため、GP経路は`GpService.fitForMethod`(T3-52で4次元化・
 /// メソッド別フィット)を候補メソッドごとに実行し、予測スコアμが最大のメソッドを
 /// 採用する。group_best経路(GPが使えないときのフォールバック)も同様に候補メソッド
@@ -53,8 +55,9 @@ class SuggestionService {
 
   /// GP優先の提案(設計書§7.4手順1・2、T3-48でメソッド選定を追加)。
   ///
-  /// [methods]の中から`recommendedRoastLevel`が[bean]の焙煎度と一致するものを
-  /// 候補とし、GPがフィットできれば候補メソッドの中で予測スコアμが最大のものを
+  /// [methods]の中から推奨焙煎度の範囲(旧単一値も後方互換で解決)に[bean]の
+  /// 焙煎度が含まれるものを候補とし、GPがフィットできれば候補メソッドの中で
+  /// 予測スコアμが最大のものを
   /// (rationale='gp_mean'、[explore]時は'gp_ei')、できなければ候補メソッドの
   /// group_bestへフォールバックする(rationale='group_best')。候補メソッドが
   /// 1つも無い、またどちらの経路も提案を作れなければnull。
@@ -70,7 +73,7 @@ class SuggestionService {
     if (bean.originId.isEmpty || roastOrdinal == null) return null;
 
     final candidateMethods =
-        methods.where((m) => m.recommendedRoastLevel == bean.roastLevel).toList();
+        methods.where((m) => methodMatchesRoastOrdinal(m, roastOrdinal)).toList();
     if (candidateMethods.isEmpty) return null;
 
     final targetGrinderId = _mostFrequentGrinderId(records, bean.originId, roastOrdinal);

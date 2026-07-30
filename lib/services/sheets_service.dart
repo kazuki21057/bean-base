@@ -240,6 +240,8 @@ class SheetsService implements DataService {
       '推奨機器': 'recommendedEquipment',
       'ソース': 'sourceUrl',
       '推奨焙煎度': 'recommendedRoastLevel',
+      '推奨焙煎度(最浅)': 'recommendedRoastMin',
+      '推奨焙煎度(最深)': 'recommendedRoastMax',
     };
     return _fetchData('methods_master', (map) => MethodMaster.fromJson(_remapKeys(map, keyMap)));
   }
@@ -709,6 +711,8 @@ class SheetsService implements DataService {
        'temperature': '湯温（℃）', 'grindSize': '挽き目（Kingrinder K6）',
        'description': '説明', 'recommendedEquipment': '推奨機器', 'sourceUrl': 'ソース',
        'recommendedRoastLevel': '推奨焙煎度',
+       'recommendedRoastMin': '推奨焙煎度(最浅)',
+       'recommendedRoastMax': '推奨焙煎度(最深)',
     };
     return _mapToJson(item.toJson(), reverseMap);
   }

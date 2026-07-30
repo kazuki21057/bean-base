@@ -9,6 +9,7 @@ import '../models/pouring_step.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
+import '../utils/roast_range.dart';
 import '../utils/youtube_util.dart';
 import '../widgets/method_steps_editor.dart';
 import '../widgets/youtube_embed.dart';
@@ -55,9 +56,7 @@ class MethodDetailScreen extends ConsumerWidget {
         ('湯温', (method.temperature == null || method.temperature == 0) ? '-' : '${method.temperature!.toStringAsFixed(1)}℃'),
         ('推奨挽き目', method.grindSize ?? '-'),
         ('推奨器具', method.recommendedEquipment.isEmpty ? '-' : method.recommendedEquipment),
-        ('推奨焙煎度', (method.recommendedRoastLevel == null || method.recommendedRoastLevel!.isEmpty)
-            ? '-'
-            : method.recommendedRoastLevel!),
+        ('推奨焙煎度', formatMethodRoastRange(method)),
         ('説明', method.description.isEmpty ? '-' : method.description),
         ('抽出回数', '$extractionCount回'),
       ],

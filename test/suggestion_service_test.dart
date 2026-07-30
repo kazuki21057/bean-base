@@ -50,7 +50,7 @@ CoffeeRecord _record({
   );
 }
 
-MethodMaster _method(String id, {String? recommendedRoastLevel}) {
+MethodMaster _method(String id, {String? recommendedRoastLevel, String? min, String? max}) {
   return MethodMaster(
     id: id,
     name: 'メソッド$id',
@@ -60,6 +60,8 @@ MethodMaster _method(String id, {String? recommendedRoastLevel}) {
     description: '',
     recommendedEquipment: '',
     recommendedRoastLevel: recommendedRoastLevel,
+    recommendedRoastMin: min,
+    recommendedRoastMax: max,
   );
 }
 
@@ -289,6 +291,86 @@ void main() {
       // group_bestは分母に数えない。
       final withGroupBest = [gp('group_best'), gp('group_best')];
       expect(SuggestionService.shouldExplore(withGroupBest), isFalse);
+    });
+  });
+
+  group('SuggestionService.suggestWithGp 候補判定(T3-71: 推奨焙煎度の範囲判定)', () {
+    CoffeeRecord fewRecord(String id, {required String roastLevel, String methodId = 'm1'}) => _record(
+          id: id,
+          originId: 'origin_1',
+          roastLevel: roastLevel,
+          scoreOverall: 8,
+          temperature: 90,
+          beanWeight: 15,
+          totalWater: 225,
+          totalTime: 150,
+          methodId: methodId,
+          grinderId: 'g1',
+          grindSize: '20',
+        );
+    final grindStepsByGrinderId = {'g1': 40};
+
+    test('豆がハイ(4.0)、メソッド範囲がミディアム〜シティ(3〜5)なら候補になる', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: 'ハイ', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', min: 'ミディアム', max: 'シティ');
+      final records = [fewRecord('r1', roastLevel: 'ハイ'), fewRecord('r2', roastLevel: 'ハイ')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
+      expect(result!.suggestion.methodId, 'm1');
+    });
+
+    test('豆がハイ、メソッド範囲がフレンチ〜イタリアン(7〜8)なら候補外', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: 'ハイ', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', min: 'フレンチ', max: 'イタリアン');
+      final records = [fewRecord('r1', roastLevel: 'ハイ'), fewRecord('r2', roastLevel: 'ハイ')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNull);
+    });
+
+    test('豆が旧表記の中煎り(=ハイ、4.0)でもミディアム〜シティ範囲の候補になる(表記ゆれの回帰テスト)', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: '中煎り', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', min: 'ミディアム', max: 'シティ');
+      final records = [fewRecord('r1', roastLevel: '中煎り'), fewRecord('r2', roastLevel: '中煎り')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
+      expect(result!.suggestion.methodId, 'm1');
+    });
+
+    test('新2列が空で旧単一値recommendedRoastLevelのみのメソッドは後方互換で候補になる', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: 'ハイ', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', recommendedRoastLevel: 'ハイ');
+      final records = [fewRecord('r1', roastLevel: 'ハイ'), fewRecord('r2', roastLevel: 'ハイ')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
+      expect(result!.suggestion.methodId, 'm1');
+    });
+
+    test('範囲の下限ちょうど(ミディアム)の豆も候補になる', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: 'ミディアム', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', min: 'ミディアム', max: 'シティ');
+      final records = [fewRecord('r1', roastLevel: 'ミディアム'), fewRecord('r2', roastLevel: 'ミディアム')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
+    });
+
+    test('範囲の上限ちょうど(シティ)の豆も候補になる', () {
+      final bean = BeanMaster(id: 'b1', name: '豆', roastLevel: 'シティ', origin: '', originId: 'origin_1', isInStock: true);
+      final method = _method('m1', min: 'ミディアム', max: 'シティ');
+      final records = [fewRecord('r1', roastLevel: 'シティ'), fewRecord('r2', roastLevel: 'シティ')];
+
+      final result = SuggestionService().suggestWithGp(bean, records, {}, [method], grindStepsByGrinderId);
+
+      expect(result, isNotNull);
     });
   });
 }

@@ -3,8 +3,8 @@ import '../screens/create/create_form_widgets.dart';
 import '../services/math/encoding.dart';
 
 // 浅煎り(ベージュ)→深煎り(ダークブラウン)のグラデーション色(T3-54、設計書§3.3)。
-const _kRoastLightest = Color(0xFFC8A87C);
-const _kRoastDarkest = Color(0xFF3B2314);
+const kRoastLightest = Color(0xFFC8A87C);
+const kRoastDarkest = Color(0xFF3B2314);
 
 /// 焙煎度(1〜8段階の順序尺度)を入力するスライダー。
 ///
@@ -62,7 +62,7 @@ class RoastLevelSlider extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
                 gradient: const LinearGradient(
-                  colors: [_kRoastLightest, _kRoastDarkest],
+                  colors: [kRoastLightest, kRoastDarkest],
                 ),
               ),
             ),

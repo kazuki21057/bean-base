@@ -30,9 +30,9 @@ import '../../utils/bean_stock_calculator.dart';
 /// 表示し、提案履歴が7件たまるごとに1件はEI提案(gp_ei、「実験的な提案です」)に
 /// 切り替える(`SuggestionService.shouldExplore`)。n_eff<10はgroup_bestに落ちる。
 ///
-/// T3-48でメソッドを提案に組み込んだ。提案されるメソッドは対象豆の焙煎度に
-/// `recommendedRoastLevel`が一致するものに限られる(該当メソッドが無い豆は
-/// カードが表示されない)。
+/// T3-48でメソッドを提案に組み込んだ。T3-71で推奨焙煎度が範囲対応になり、
+/// 提案されるメソッドは対象豆の焙煎度が推奨焙煎度の範囲(旧単一値も後方互換で
+/// 解決)に含まれるものに限られる(該当メソッドが無い豆はカードが表示されない)。
 class RecipeSuggestionCard extends ConsumerStatefulWidget {
   const RecipeSuggestionCard({super.key});
 

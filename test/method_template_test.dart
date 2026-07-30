@@ -208,6 +208,8 @@ void main() {
         description: '前半4割で味、後半6割で濃度を調整する',
         recommendedEquipment: 'V60',
         recommendedRoastLevel: 'シティ',
+        recommendedRoastMin: 'ミディアム',
+        recommendedRoastMax: 'フルシティ',
       ),
       MethodMaster(
         id: 'm2',
@@ -328,7 +330,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('シティ'), findsOneWidget);
+    expect(find.text('ミディアム 〜 フルシティ'), findsOneWidget);
   });
 
   testWidgets('020詳細の編集→021で推奨焙煎度の初期値が引き継がれる', (tester) async {
@@ -343,10 +345,10 @@ void main() {
     await tester.tap(find.byIcon(Icons.edit_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('シティ (City)'), findsOneWidget);
+    expect(find.textContaining('ミディアム 〜 フルシティ'), findsOneWidget);
   });
 
-  testWidgets('021新規登録で推奨焙煎度をスライダーで設定するとMethodMasterに保存される', (tester) async {
+  testWidgets('021新規登録で推奨焙煎度を範囲スライダーで設定するとMethodMasterに保存される', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overridesFor(fakeService),
@@ -359,13 +361,14 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, 'Hoffmann 1cup');
-    final slider = tester.widget<Slider>(find.byType(Slider));
-    slider.onChanged!(5.0);
+    final rangeSlider = tester.widget<RangeSlider>(find.byType(RangeSlider));
+    rangeSlider.onChanged!(const RangeValues(3, 6));
     await tester.pump();
 
     await tester.tap(find.text('メソッドを登録する'));
     await tester.pumpAndSettle();
 
-    expect(fakeService.lastAddedMethod?.recommendedRoastLevel, 'シティ');
+    expect(fakeService.lastAddedMethod?.recommendedRoastMin, 'ミディアム');
+    expect(fakeService.lastAddedMethod?.recommendedRoastMax, 'フルシティ');
   });
 }
