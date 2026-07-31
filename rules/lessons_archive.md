@@ -429,3 +429,10 @@
 - **原因**: `Bash`ツールは Git Bash(POSIX sh)であり、PowerShell の here-string 構文を解釈しない。ツール説明にも「PowerShell here-strings(`@'...'@`)を使うな、多行文字列は heredoc を使え」と明記されている。同一セッションで `PowerShell` ツールと `Bash` ツールの両方が使えるため、PowerShell 側の作法を無意識に持ち込みやすい。
 - **対処**: `Bash` では `<< 'EOF' ... EOF` の heredoc を使うか、メッセージをファイルに書いて `git commit -F <file>` を使う。日本語を含む多行メッセージはファイル経由が最も安全。
 - **一般化できる教訓**: このプロジェクトは Windows 上で `PowerShell` と `Bash` の2つのシェルツールを併用するため、**コマンドを書く前にどちらのツールに渡すのかを確認する**。特に多行文字列・変数展開・リダイレクト(`2>$null` vs `2>/dev/null`)・パス区切りは両者で作法が違う。commit 直後は `git log -1 --format=%B` で件名と末尾を確認してから push する。
+
+### L98 `claude-in-chrome`の`computer scroll`が効かないFlutter Web(CanvasKit)画面でも、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`要素へ`dispatchEvent`すると内部スクロールが効くことがある(T3-53c、2026-08-01)
+
+045画面(`exploration_status_screen.dart`、`MockScreenScaffold`の`ListView`)の本番確認で、L08と同様に`computer`ツールの`scroll`(マウスホイール)・`Page_Down`キーとも画面が一切動かなかった。
+- **対処**: `javascript_tool`で`document.querySelector('flt-glass-pane')`を取得し、`new WheelEvent('wheel', {deltaY: 1500, deltaMode: 0, bubbles: true, cancelable: true, clientX, clientY})`を組み立てて`dispatchEvent`したところ、Flutter側のスクロールが実際に進み、画面下部のセクション(スコアの推移・試した条件の分布)まで目視確認できた。
+- **既知の副作用**: この合成イベント直後に`computer screenshot`を呼ぶと、まれにCDPの`Page.captureScreenshot`がタイムアウトし(L66と同系)、復帰後の画面が実寸と異なる拡大率で描画されることがある(致命的ではなく、再度`navigate`し直せば直る)。
+- **一般化できる教訓**: L08の「粘らず代表1件で妥協する」という回避策に加え、**この`javascript_tool`によるWheelEvent合成という第二の回避策がある**。ページ最下部(試行の一覧など)まで確認したいが`computer scroll`が効かない場合、まずこれを試してから諦め判断をすること。ただし多用するとスクリーンショットが不安定になりやすいので、必要な箇所だけに絞る。

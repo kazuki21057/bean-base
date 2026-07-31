@@ -17,6 +17,7 @@ import '../screens/statistics_screen.dart';
 import '../screens/stats_theory_screen.dart';
 import '../screens/stats_status_screen.dart';
 import '../screens/roast_guide_screen.dart';
+import '../screens/exploration_status_screen.dart';
 import '../screens/gemini_model_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/bean_list_screen.dart';
@@ -88,6 +89,8 @@ Widget buildScreenWidget(AppScreen screen) {
       return const StatsStatusScreen();
     case AppScreen.roastGuide:
       return const RoastGuideScreen();
+    case AppScreen.explorationStatus:
+      return const ExplorationStatusScreen();
     case AppScreen.geminiModel:
       return const GeminiModelScreen();
     case AppScreen.settings:

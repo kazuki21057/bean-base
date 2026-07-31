@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-31(`/full_loop`(Sonnet 5)、**T3-53a・T3-53b完了・本番デプロイ・push済み**=ヒートマップの`GpHeatmap`切り出しと`ExplorationStatusService`新設。**次回はT3-53c(045画面新設)から着手可能**)
+最終更新: 2026-08-01(`/full_loop`(Sonnet 5)、**T3-53c完了・本番デプロイ・push待ち**=045画面「探索の検証状況」新設+030/011の導線2箇所。**次回はT3-53d(理論ページ追記等、S)から着手可能**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -8,8 +8,8 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-53a・T3-53bのビルドはデプロイ済み・本番実データで確認済み。working tree はクリーン、git push も完了済み**(2026-07-31時点)。
-- ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理(現行デプロイ @19)。T3-53a・T3-53bはGAS変更無し。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-53cのビルドはデプロイ済み・本番実データで確認済み(main.dart.jsハッシュ一致)。commit待ち/push可否は次回セッション開始時に`git status`で確認すること**(2026-08-01時点)。
+- ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理(現行デプロイ @19)。T3-53cはGAS変更無し。
 - **T3-58〜T3-69(2026-07-28〜29ユーザー要望グループ)はこれで全14件完了・本番反映済み**。最後まで残っていた**T3-69(豆マスタのstore→storeId移行)は2026-07-31に完了**。詳細は下記「3. 直近の作業ログ」を参照。
 - **本番`methods_master`のうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド、ミディアム〜シティ)のみ**。他11メソッドは未設定のためF3のおすすめレシピ候補にならない。**ユーザーに021から各メソッドの推奨焙煎度を設定するよう案内すること。**
 - 実装の正本となる設計書(いずれも上位モデルが作成済み・そのまま実装すればよい): **`docs/bean_purchase_design.md`**(追加購入・購入履歴)、**`docs/store_master_design.md`**(購入店マスタ、T3-69で全節が実装済みになった)。
@@ -20,18 +20,18 @@
 
 **タスクの正本は `docs/改修マスタープラン.md` §3。**
 
-**T3-53a・T3-53bが2026-07-31に完了・本番反映済みのため、次は T3-53c(045画面新設)。**
+**T3-53cが2026-08-01に完了・本番反映済みのため、次は T3-53d(理論ページ041追記等、S)。**
 
 | ID | 内容 | 状態 |
 |---|---|---|
 | ~~T3-53a~~ | ~~ヒートマップを`lib/widgets/brew/gp_heatmap.dart`へ切り出し+実測点overlay対応(S)~~ | **完了(2026-07-31)** |
 | ~~T3-53b~~ | ~~`ExplorationStatusService`新設+ユニットテスト6件(M)~~ | **完了(2026-07-31、テスト8件)** |
-| **T3-53c** | 045画面新設+ルーティング登録+030/011の導線+widgetテスト5件(L) | **着手可能。依存(T3-53a・T3-53b)は充足済み** |
-| T3-53d | 理論ページ041追記・画面インベントリ・設計書ポインタ(S) | T3-53c完了後 |
+| ~~T3-53c~~ | ~~045画面新設+ルーティング登録+030/011の導線+widgetテスト5件(L)~~ | **完了(2026-08-01、テスト5件)** |
+| **T3-53d** | 理論ページ041のGP節にEIの意味と3段階閾値を追記、マスタープラン§4画面インベントリに045行追加、`statistics_feature_design.md`§7.5末尾にポインタ追記(S) | **着手可能。依存(T3-53c)は充足済み** |
 | T3-1 / T3-4 / T3-20 | モバイル実機確認・全体UI磨き込み・Ubuntu環境セットアップ | いずれもユーザー自身の実施が前提 |
 | T3-57 | Youthシリーズ3件のパッケージ画像未設定 | ユーザーからの写真提供待ち |
 
-**実装の正本は `docs/exploration_status_design.md`。** T3-53cは特に §3(画面引数)・§7(画面構成)・§8(導線2箇所)・§10.2(widgetテスト5件)・§12(地雷12件)を着手前に必ず読むこと。**§12-1「`seekOptimalConditions`は本番全件null、★でフィルタしない」・§12-3「`optimize(refine: true)`は表示中メソッドで1回だけ(build毎に全メソッド回すとWebで数秒フリーズ)」・§12-8「`screen_registry.dart`のswitchは網羅的、case追加漏れはコンパイルエラーで気付ける」が実装時の最大の落とし穴。**
+**実装の正本は `docs/exploration_status_design.md`。** T3-53dは§9(理論ページ追記内容)を着手前に読むこと。
 
 **上位モデル(Opus等)で起動された場合の扱い**: **選べる`⚠️上位モデル指定`タスクは現時点で無い**(T3-53の設計が完了したため)。`full_loop`スキルの2026-07-29ユーザー指示に従い、通常タスクへフォールバックせず何もせずに終了すること。
 
@@ -49,15 +49,15 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.06 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-53a・T3-53b完了・本番デプロイ・push済み**=GpHeatmap切り出し+ExplorationStatusService新設)
+### -5.07 当日やったこと(2026-08-01、`/full_loop`(Sonnet 5)、**T3-53c完了・本番デプロイ済み**=045画面「探索の検証状況」新設+030/011の導線2箇所)
 
-- **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53a/T3-53bを選定(依存なし・並行可、設計書はT3-53(上位モデル)で完了済み)。1ループ内で両方実装した。
-- **実装**: ①`lib/widgets/brew/gp_heatmap.dart`(新規)に`GpHeatmap`/`GpHeatmapPoint`を切り出し(設計書§5)。実測点のセル対応`|Δt|<=2.5 && |Δr|<=0.5`・件数バッジ`●n`を追加、`overlay`が空のときは見た目が完全に不変であることを既存テストで担保。`gp_explorer_section.dart`のprivate実装(`_buildHeatmap`/`_labelCell`/`_valueCell`)を削除し`GpHeatmap`呼び出しに置換。②`lib/services/exploration_status_service.dart`(新規)に`ExplorationStatusService`(`summarize`/`judgeProgress`)+関連型(`ExplorationTrial`/`ExplorationSummary`/`ExplorationProgress`)を設計書§4・§6どおり実装。
-- **検証**: `flutter analyze`変更ファイルに新規issue0(既存47件のみ)。`flutter test`は既存324件+新規`test/exploration_status_service_test.dart`8件(設計書§10.1の最低6件を超過、`uniqueConditionCount`の丸め例示数値は設計書の記載に軽微な計算誤りがあったため実際に丸めが一致する値に置き換えて検証)で計332件全パス、`gp_explorer_section_test.dart`は無修正でパス(=切り出しが等価である証拠)。`flutter build web`成功。
-- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030(レシピ探索セクション)を確認、`GpHeatmap`切り出し後もメソッド比較表・推奨条件・予測総合評価マップが正常表示されることを確認(**`claude-in-chrome`のスクロールが不安定な既知の問題(`rules/lessons_archive.md` L87)に複数回遭遇したため粘らず切り上げ、332件のテストスイートを主な担保とした**)。ユーザーの許可を得て`git push`も実施。
-- **次にやること**: T3-53c(045画面新設。設計書§3・§7・§8・§10.2、地雷12件を参照)。
+- **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53c(依存T3-53a・T3-53bは充足済み)を選定。
+- **実装**: `docs/exploration_status_design.md`のとおり①`lib/screens/exploration_status_screen.dart`(新規)に045画面本体を実装(セレクタ・探索サマリ+次に試すと良い条件カード+進捗ゲージ・スコアの推移(fl_chart)・試した条件の分布(GpHeatmap+overlay)・試行の一覧)。②`lib/routing/app_screen.dart`に`explorationStatus('045','探索の検証状況')`追加、`screen_registry.dart`にcase追加。③`gp_explorer_section.dart`(030)のEIカード直下に「この豆の検証状況を見る」ボタンを追加(選択中の豆・ミル・メソッドを引き継ぐ)。④`bean_detail_screen.dart`(011)の「在庫・購入」直後に「最適条件の探索」FormSectionを追加。⑤`gp_heatmap.dart`の軸定数`_heatmapTemps`/`_heatmapRatios`を`temps`/`ratios`に公開化(045の実測セル数カウントで共用するため)。**地雷対策(設計書§12-3)**: `GpService.optimize(refine:true)`は表示中メソッドで1回だけ呼び、`_OptimizeResult`型として結果をEIカード・分布セクション両方で使い回す実装にした(最初の実装では2回呼んでいたため気付いて修正)。
+- **検証**: `flutter analyze`新規issue 0(既存47件のみ)。`flutter test`は既存332件+新規`test/exploration_status_screen_test.dart`5件(設計書§10.2どおり)で計337件全パス、`gp_explorer_section_test.dart`・`bean_detail_test.dart`とも無修正でパス。`flutter build web`成功。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030→045・011→045の両導線、探索サマリ(試行16回等)・スコア推移折れ線・試した条件の分布ヒートマップ(実測●バッジ)まで正常表示を確認(**新教訓**: `computer scroll`が効かない既知の問題(L08)に対し、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`へ`dispatchEvent`する回避策が有効だった。`rules/lessons_archive.md` L98に追記)。コンソールエラー無し。
+- **次にやること**: T3-53d(理論ページ041のGP節にEIの意味・3段階閾値を追記、マスタープラン§4画面インベントリに045行追加、`statistics_feature_design.md`§7.5末尾にポインタ追記。§9を参照)。
 
-> これ以前(-5.05節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.06節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 

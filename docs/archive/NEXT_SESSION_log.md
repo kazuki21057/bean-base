@@ -1670,3 +1670,11 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **本番確認(ローカル配信+claude-in-chrome、本番GAS実データ)**: `build/web`を`python -m http.server 8642`でローカル配信し、SW/キャッシュを完全クリアしてから確認(教訓L32)。マスター管理ハブ→「購入履歴」→025リスト表示で本番`bean_purchases`実データ(スイートイエロー、2026/07/30購入、HEISEI COFFEE The Factory、50.0g)が正しく表示されること、行タップで011(豆詳細)へ遷移し残量135.5g等の詳細が表示されることを確認。コンソールエラーなし。確認後、ローカルサーバは停止済み。
 - **ドキュメント更新**: `docs/改修マスタープラン.md`のT3-64行を✅に更新し`docs/archive/マスタープラン_完了タスク.md`へ移動(本番デプロイ完了の経緯も記載)、完了済みリストを9件→10件に更新。次に着手可能なのはT3-65(025カレンダー形式)。
 - **次回セッションへの申し送り**: **T3-65(025にカレンダー形式を追加)**に進む(`docs/bean_purchase_design.md`§6.2・§6.4・§6.4.1で設計確定済み。`table_calendar: ^3.2.0`の追加はユーザー承認済み)。実装時は既知の地雷(§6.4.1の`initializeDateFormatting`・`DateTime.utc`正規化)に注意。
+
+### -5.06 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-53a・T3-53b完了・本番デプロイ・push済み**=GpHeatmap切り出し+ExplorationStatusService新設)
+
+- **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53a/T3-53bを選定(依存なし・並行可、設計書はT3-53(上位モデル)で完了済み)。1ループ内で両方実装した。
+- **実装**: ①`lib/widgets/brew/gp_heatmap.dart`(新規)に`GpHeatmap`/`GpHeatmapPoint`を切り出し(設計書§5)。実測点のセル対応`|Δt|<=2.5 && |Δr|<=0.5`・件数バッジ`●n`を追加、`overlay`が空のときは見た目が完全に不変であることを既存テストで担保。`gp_explorer_section.dart`のprivate実装(`_buildHeatmap`/`_labelCell`/`_valueCell`)を削除し`GpHeatmap`呼び出しに置換。②`lib/services/exploration_status_service.dart`(新規)に`ExplorationStatusService`(`summarize`/`judgeProgress`)+関連型(`ExplorationTrial`/`ExplorationSummary`/`ExplorationProgress`)を設計書§4・§6どおり実装。
+- **検証**: `flutter analyze`変更ファイルに新規issue0(既存47件のみ)。`flutter test`は既存324件+新規`test/exploration_status_service_test.dart`8件(設計書§10.1の最低6件を超過、`uniqueConditionCount`の丸め例示数値は設計書の記載に軽微な計算誤りがあったため実際に丸めが一致する値に置き換えて検証)で計332件全パス、`gp_explorer_section_test.dart`は無修正でパス(=切り出しが等価である証拠)。`flutter build web`成功。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030(レシピ探索セクション)を確認、`GpHeatmap`切り出し後もメソッド比較表・推奨条件・予測総合評価マップが正常表示されることを確認(**`claude-in-chrome`のスクロールが不安定な既知の問題(`rules/lessons_archive.md` L87)に複数回遭遇したため粘らず切り上げ、332件のテストスイートを主な担保とした**)。ユーザーの許可を得て`git push`も実施。
+- **次にやること**: T3-53c(045画面新設。設計書§3・§7・§8・§10.2、地雷12件を参照)。

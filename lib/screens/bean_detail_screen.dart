@@ -12,6 +12,7 @@ import '../utils/image_utils.dart';
 import '../widgets/bean_image.dart';
 import 'create/bean_create_screen.dart';
 import 'create/create_form_widgets.dart';
+import 'exploration_status_screen.dart';
 import 'master_template.dart';
 
 /// 011 豆管理(詳細)。
@@ -82,6 +83,33 @@ class BeanDetailScreen extends ConsumerWidget {
                   ],
                 ),
               ],
+            ),
+          ],
+        ),
+        FormSection(
+          icon: Icons.explore_outlined,
+          title: '最適条件の探索',
+          children: [
+            Text(
+              currentBean.seekOptimalConditions == true
+                  ? 'この豆は最適条件の探索対象です。'
+                  : 'この豆は探索対象に設定されていません(編集画面から設定できます)。',
+              style: const TextStyle(fontSize: 12, color: kMocha),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () {
+                debugPrint(
+                  '[Antigravity] Action: 豆詳細011から検証状況画面(045)へ遷移 (id=${currentBean.id})',
+                );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ExplorationStatusScreen(initialBeanId: currentBean.id),
+                  ),
+                );
+              },
+              child: const Text('検証状況を見る'),
             ),
           ],
         ),

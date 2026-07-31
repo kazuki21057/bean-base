@@ -42,6 +42,7 @@ enum AppScreen {
   statsStatus('042', '統計処理の稼働状況'),
   geminiModel('043', 'Geminiモデル設定'),
   roastGuide('044', '焙煎度8段階ガイド'),
+  explorationStatus('045', '探索の検証状況'),
   settings('090', '設定');
 
   final String code;

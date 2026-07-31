@@ -40,8 +40,11 @@ class GpHeatmap extends StatelessWidget {
     this.overlay = const [],
   });
 
-  static const _heatmapTemps = <double>[80, 85, 90, 95];
-  static const _heatmapRatios = <double>[14, 15, 16, 17, 18];
+  /// 湯温軸(045の実測セル数カウントでも共用、T3-53c)。
+  static const temps = <double>[80, 85, 90, 95];
+
+  /// 比率軸(045の実測セル数カウントでも共用、T3-53c)。
+  static const ratios = <double>[14, 15, 16, 17, 18];
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +52,9 @@ class GpHeatmap extends StatelessWidget {
     final grid = <List<double>>[];
     var muMin = double.infinity;
     var muMax = double.negativeInfinity;
-    for (final t in _heatmapTemps) {
+    for (final t in temps) {
       final row = <double>[];
-      for (final r in _heatmapRatios) {
+      for (final r in ratios) {
         final mu = service.predict(model, t, r, fixedTime, fixedGrind).mean;
         row.add(mu);
         muMin = math.min(muMin, mu);
@@ -71,12 +74,12 @@ class GpHeatmap extends StatelessWidget {
     }
 
     // セル↔実測点の対応(設計書§5): 軸刻みの半分 (湯温±2.5, 比率±0.5)。
-    final counts = List.generate(_heatmapTemps.length, (_) => List.filled(_heatmapRatios.length, 0));
+    final counts = List.generate(temps.length, (_) => List.filled(ratios.length, 0));
     for (final p in overlay) {
-      for (var i = 0; i < _heatmapTemps.length; i++) {
-        if ((p.temperature - _heatmapTemps[i]).abs() > 2.5) continue;
-        for (var j = 0; j < _heatmapRatios.length; j++) {
-          if ((p.brewRatio - _heatmapRatios[j]).abs() > 0.5) continue;
+      for (var i = 0; i < temps.length; i++) {
+        if ((p.temperature - temps[i]).abs() > 2.5) continue;
+        for (var j = 0; j < ratios.length; j++) {
+          if ((p.brewRatio - ratios[j]).abs() > 0.5) continue;
           counts[i][j]++;
         }
       }
@@ -89,14 +92,14 @@ class GpHeatmap extends StatelessWidget {
         TableRow(
           children: [
             _labelCell('湯温\\比率', bold: true),
-            for (final r in _heatmapRatios) _labelCell('1:${r.toStringAsFixed(0)}', bold: true),
+            for (final r in ratios) _labelCell('1:${r.toStringAsFixed(0)}', bold: true),
           ],
         ),
-        for (var i = 0; i < _heatmapTemps.length; i++)
+        for (var i = 0; i < temps.length; i++)
           TableRow(
             children: [
-              _labelCell('${_heatmapTemps[i].toStringAsFixed(0)}℃', bold: true),
-              for (var j = 0; j < _heatmapRatios.length; j++)
+              _labelCell('${temps[i].toStringAsFixed(0)}℃', bold: true),
+              for (var j = 0; j < ratios.length; j++)
                 _valueCell(
                   grid[i][j],
                   (grid[i][j] - muMin) / range,

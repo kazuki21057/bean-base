@@ -9,6 +9,7 @@ import '../../models/equipment_masters.dart';
 import '../../models/method_master.dart';
 import '../../providers/data_providers.dart';
 import '../../screens/create/create_form_widgets.dart';
+import '../../screens/exploration_status_screen.dart';
 import '../../screens/stats_theory_screen.dart';
 import '../../services/gp_service.dart';
 import '../../services/math/encoding.dart';
@@ -533,7 +534,30 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.history_toggle_off, size: 18),
+            label: const Text('この豆の検証状況を見る'),
+            onPressed: () {
+              debugPrint(
+                '[Antigravity] Action: 検証状況画面(045)へ遷移 beanId=$_selectedBeanId methodId=$_selectedMethodId',
+              );
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExplorationStatusScreen(
+                    initialBeanId: _selectedBeanId,
+                    initialGrinderId: _selectedGrinderId,
+                    initialMethodId: _selectedMethodId,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           '予測総合評価マップ (${selected.method.name} / 時間 ${_formatTime(bestX.s)}・${formatGrind(bestX.g)} 固定)',
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kEspresso),
