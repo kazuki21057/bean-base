@@ -12,6 +12,7 @@ import '../../screens/create/create_form_widgets.dart';
 import '../../screens/stats_theory_screen.dart';
 import '../../services/gp_service.dart';
 import '../../services/math/encoding.dart';
+import 'gp_heatmap.dart';
 
 /// F4: レシピ探索セクション (設計書§7.5、T3-52で4次元化+メソッド別GP)。
 /// 抽出画面(030)に配置する。
@@ -45,10 +46,6 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
   String? _selectedBeanId;
   String? _selectedGrinderId;
   String? _selectedMethodId;
-
-  /// 粗グリッド (設計書§6.4のヒートマップに使う湯温×比率、時間・粒度は固定)。
-  static const _heatmapTemps = <double>[80, 85, 90, 95];
-  static const _heatmapRatios = <double>[14, 15, 16, 17, 18];
 
   @override
   Widget build(BuildContext context) {
@@ -542,55 +539,7 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kEspresso),
         ),
         const SizedBox(height: 8),
-        _buildHeatmap(selected.model, bestX.s, bestX.g),
-      ],
-    );
-  }
-
-  Widget _buildHeatmap(GpModel model, int fixedTime, double fixedGrind) {
-    final service = GpService();
-    final grid = <List<double>>[];
-    var muMin = double.infinity;
-    var muMax = double.negativeInfinity;
-    for (final t in _heatmapTemps) {
-      final row = <double>[];
-      for (final r in _heatmapRatios) {
-        final mu = service.predict(model, t, r, fixedTime, fixedGrind).mean;
-        row.add(mu);
-        muMin = math.min(muMin, mu);
-        muMax = math.max(muMax, mu);
-      }
-      grid.add(row);
-    }
-
-    var bestI = 0, bestJ = 0;
-    for (var i = 0; i < grid.length; i++) {
-      for (var j = 0; j < grid[i].length; j++) {
-        if (grid[i][j] > grid[bestI][bestJ]) {
-          bestI = i;
-          bestJ = j;
-        }
-      }
-    }
-
-    final range = (muMax - muMin).abs() < 1e-9 ? 1.0 : (muMax - muMin);
-    return Table(
-      defaultColumnWidth: const FlexColumnWidth(1),
-      children: [
-        TableRow(
-          children: [
-            _labelCell('湯温\\比率', bold: true),
-            for (final r in _heatmapRatios) _labelCell('1:${r.toStringAsFixed(0)}', bold: true),
-          ],
-        ),
-        for (var i = 0; i < _heatmapTemps.length; i++)
-          TableRow(
-            children: [
-              _labelCell('${_heatmapTemps[i].toStringAsFixed(0)}℃', bold: true),
-              for (var j = 0; j < _heatmapRatios.length; j++)
-                _valueCell(grid[i][j], (grid[i][j] - muMin) / range, highlighted: i == bestI && j == bestJ),
-            ],
-          ),
+        GpHeatmap(model: selected.model, fixedTime: bestX.s, fixedGrind: bestX.g),
       ],
     );
   }
@@ -602,38 +551,6 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: kEspresso),
         ),
       );
-
-  Widget _labelCell(String text, {bool bold = false}) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-            color: kEspresso,
-          ),
-        ),
-      );
-
-  Widget _valueCell(double mu, double t, {bool highlighted = false}) {
-    final bg = Color.lerp(kCream, kAccent, t.clamp(0.0, 1.0)) ?? kCream;
-    final textColor = t > 0.55 ? Colors.white : kEspresso;
-    return Container(
-      margin: const EdgeInsets.all(1),
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
-        border: highlighted ? Border.all(color: kEspresso, width: 2) : null,
-      ),
-      child: Text(
-        mu.toStringAsFixed(1),
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 11, color: textColor, fontWeight: highlighted ? FontWeight.bold : FontWeight.normal),
-      ),
-    );
-  }
 
   String _formatTime(int seconds) {
     final m = seconds ~/ 60;
