@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.04 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-69完了・本番デプロイ・移行実行・本番確認まで完了**=豆マスタのstore→storeId移行)
+
+- **選定理由**: マスタープランのタスク表・NEXT_SESSION.mdの推奨と一致(唯一の依存充足済み・上位モデル指定なしタスク)のため選定。これでT3-58〜T3-69グループ(14件)が全完了。
+- **実装**: `docs/store_master_design.md`§9・タスク表の実装方針どおり。①`BeanMaster.storeId`追加(`OriginMaster.originId`と同パターン、`.g.dart`手動編集)。②`SheetsService`のkeyMap/reverseMap両方に`'購入店ID': 'storeId'`追加。③`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS['bean_master']`に`'購入店ID'`追加→`clasp push`+`clasp deploy --deploymentId <既存ID>`(@19)。④012/011の購入店欄を`storeMasterProvider`のドロップダウン+「新規購入店追加」ダイアログへ置換(産地選択UIと同じ流儀。AI画像抽出結果の店名も既存店へ自動照合するよう拡張)。⑤011の追加購入ダイアログ(T3-63)は`currentStoreId`優先(無ければ店名一致でフォールバック)で選択・保存し、保存時に`BeanMaster.storeId`も更新するよう修正。⑥027は`_matchesBean`を`b.storeId == store.id`のみに単純化し、`docs/store_master_design.md`§5.3どおり「この店の購入履歴」セクション(`bean_purchases`のstoreId一致分を購入日降順)を追加。⑦`tools/migrate_bean_store_id.dart`(`--dry-run`対応・冪等)を新設し、設計書§3.2の名寄せ規則どおりbean_master 25件にstoreIdを設定(内訳: Navy7/神戸珈琲物語4/HEISEI4/SORA3/岬3/明暮焙煎研1/Youth3)、`ドリップバッグ`/`コロンビア`/`グアテマラ`の3件は意図どおり空のまま残した。同スクリプトはbean_purchasesの`購入店ID`空欄行も対応するbeanの解決済みstoreIdで埋める設計(実行時点では対象0件)。
+- **検証**: `flutter analyze`新規issue 0(既存47件のみ)。`flutter test`は最初2件失敗(`_storeController`廃止で自由テキスト入力を前提にしていた旧テスト、027の店名一致を前提にしていた旧テスト)→両方を新UI(店選択ドロップダウン・storeId一致)に合わせて更新。さらに`OptimisticListNotifier.addOptimistic`が追加直後にバックグラウンド再同期(`fetch()`)を走らせる際、fakeサービスの`getStores()`が固定で空リストを返す実装のままだと追加した店舗がテスト内で消えるバグを発見、fakeサービス側の`addStore`/`getStores`をorigin側と同じ「実際にリストへ追記→そのリストを返す」実装に修正(`rules/lessons_archive.md` L96に教訓追記)。最終的に全324件パス。`flutter build web`成功。
+- **本番反映**: ユーザーの許可を得て①`clasp push`+`clasp deploy --deploymentId <既存ID>`(@19)②移行スクリプトを`--dry-run`で対象一覧提示後に本実行(bean_master 25件更新、再実行で0件=冪等性確認済み)③`firebase deploy --only hosting`の順で実施。`build/web`をローカル配信(`python -m http.server`)し`claude-in-chrome`で本番実データに対し確認: 027のNavy詳細で「この店で買った豆」に7件全件が表示され(旧`store`文字列フォールバック無しでも一致)、「この店の購入履歴」セクションも新規表示、011のNavy豆の編集画面で購入店ドロップダウンが「Navy」を正しく選択済み表示。ユーザーの許可を得て`git push`も実施予定(このセッション末尾で実施)。
+- **副産物・今後**: `docs/store_master_design.md`はT3-69の実装により全節(§2〜§9)が反映済みになった。今回のテスト修正で見つかった`OptimisticListNotifier`+fakeサービスの背景再同期問題は、今後store/bean/grinder等の他マスタで同種の「新規追加ダイアログ」テストを書く際にも起こりうるため、`rules/lessons_archive.md` L96を参照すること。
+
 ### -5.03 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**ユーザー報告バグ調査・本番データ修正**=030注湯ステップの湯量係数データ不整合を修正)
 
 - **経緯**: ユーザーから「レシピページのポアリングステップスの湯量がおかしい」と報告。マスタープランのタスクではなく、ユーザー指定の調査依頼として着手。
