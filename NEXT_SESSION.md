@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-07-31(`/full_loop`(Sonnet 5)、**T3-49完了・本番デプロイ済み(pushは未実施、ユーザー許可待ち)**=おすすめレシピカードの遷移先を030(抽出レシピ画面)へ変更。次回は T3-69 から)
+最終更新: 2026-07-31(`/full_loop`(Sonnet 5)、**T3-49完了・本番デプロイ・push済み**=おすすめレシピカードの遷移先を030(抽出レシピ画面)へ変更。次回は T3-69 から)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -8,7 +8,7 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-49のビルドはデプロイ済み・ハッシュ一致確認済み。ただしgit pushはユーザー許可待ちで未実施**(2026-07-31時点、`git status`は3ファイル変更でcommit待ち)。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-49のビルドはデプロイ済み・ハッシュ一致確認済み。working tree はクリーン、git push も完了済み**(2026-07-31時点)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理。
 - **T3-49(おすすめレシピカードの遷移先を030へ変更)は2026-07-31に完了・検証・本番デプロイ済み**。詳細は下記「3. 直近の作業ログ」を参照。
 - **本番`methods_master`のうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド、ミディアム〜シティ)のみ**。他11メソッドは未設定のためF3のおすすめレシピ候補にならない。**ユーザーに021から各メソッドの推奨焙煎度を設定するよう案内すること。**
@@ -40,12 +40,12 @@
 8. **本番`methods_master`12メソッドのうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド)のみ**。他11メソッドは未設定のためF3のおすすめカードに出てこない(未設定=候補外というユーザー決定による意図した挙動)。ユーザーへ「021からメソッドごとに範囲を設定してください」と案内すること。
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.02 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-49完了・本番デプロイ済み(pushは許可待ち)**=おすすめレシピカードの遷移先を030へ変更)
+### -5.02 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-49完了・本番デプロイ・push済み**=おすすめレシピカードの遷移先を030へ変更)
 
 - **選定理由**: マスタープランのタスク表で最上位(◎)、NEXT_SESSION.mdの推奨とも一致、依存(T3-48)は充足済みのため選定。
 - **実装**: `lib/widgets/dashboard/recipe_suggestion_card.dart`の`_onBrew`を、031(`BrewEvaluationScreen`)への直接遷移から030(`BrewRecipeScreen`)経由に変更(`initialMethodId`/`initialBeanWeight`/`initialBean`/`pendingSuggestion`を渡す)。`BrewRecipeScreen`(030)に`initialBean`(`BeanMaster?`)・`pendingSuggestion`(`RecipeSuggestion?`)引数を追加し、`pendingSuggestion`が渡された場合のみ画面上部に「おすすめレシピから引き継いだ条件」バナー(`_SuggestedConditionsBanner`、湯温/比率/抽出時間のチップ)を表示。030の`_finishAndEvaluate`で`PendingBrewInfo.bean`(`initialBean`)・`temperature`(`pendingSuggestion?.temperature`)と`pendingSuggestion`自体を031へそのまま引き継ぐ(031側の湯温プリフィル・`resultRecordId`書き戻しロジックはT4-5bで既存のため無改修で動作)。
 - **検証**: `flutter analyze`新規issue0(既存46件のみ)・`flutter test`324件全パス(新規2件: バナー表示確認、030→031→登録までの一気通貫で湯温プリフィル・提案への結果紐付けを確認)・`flutter build web`成功。`build/web`をローカル配信し`claude-in-chrome`で本番実データ(GAS)に対し、ダッシュボードの「この条件で淹れる」→030遷移→バナー表示(85℃/湯:豆1:15.0/3:00)→メソッド自動選択(4:6メソッド)まで目視確認(030下部の「抽出を終えて評価へ」ボタンまでのスクロールは`claude-in-chrome`側の既知の不安定挙動により断念し、widgetテストで代替済み)。
-- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`を実行、本番`main.dart.js`のMD5ハッシュとローカルビルドの一致を確認。GAS側の変更は無いため`clasp push`は不要。**`git push`は次回ユーザー許可を得てから実施**(このセッションではcommitのみ)。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`を実行、本番`main.dart.js`のMD5ハッシュとローカルビルドの一致を確認。GAS側の変更は無いため`clasp push`は不要。ユーザーの許可を得て`git push`も実施済み(29fc73f)。
 - **副産物**: ブラウザ確認中に本番`recipe_suggestions`シートへ`accepted='yes'`のレコードが1件増えている(030到達前の仕様上の既存挙動、`resultRecordId`は空のまま)。
 
 > これ以前(-5.01節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
