@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.02 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-49完了・本番デプロイ・push済み**=おすすめレシピカードの遷移先を030(抽出レシピ画面)へ変更)
+
+- **選定理由**: マスタープランのタスク表で最上位(◎)、NEXT_SESSION.mdの推奨とも一致、依存(T3-48)は充足済みのため選定。
+- **実装**: `lib/widgets/dashboard/recipe_suggestion_card.dart`の`_onBrew`を、031(`BrewEvaluationScreen`)への直接遷移から030(`BrewRecipeScreen`)経由に変更(`initialMethodId`/`initialBeanWeight`/`initialBean`/`pendingSuggestion`を渡す)。`BrewRecipeScreen`(030)に`initialBean`(`BeanMaster?`)・`pendingSuggestion`(`RecipeSuggestion?`)引数を追加し、`pendingSuggestion`が渡された場合のみ画面上部に「おすすめレシピから引き継いだ条件」バナー(`_SuggestedConditionsBanner`、湯温/比率/抽出時間のチップ)を表示。030の`_finishAndEvaluate`で`PendingBrewInfo.bean`(`initialBean`)・`temperature`(`pendingSuggestion?.temperature`)と`pendingSuggestion`自体を031へそのまま引き継ぐ(031側の湯温プリフィル・`resultRecordId`書き戻しロジックはT4-5bで既存のため無改修で動作)。
+- **検証**: `flutter analyze`新規issue0(既存46件のみ)・`flutter test`324件全パス(新規2件: バナー表示確認、030→031→登録までの一気通貫で湯温プリフィル・提案への結果紐付けを確認)・`flutter build web`成功。`build/web`をローカル配信し`claude-in-chrome`で本番実データ(GAS)に対し、ダッシュボードの「この条件で淹れる」→030遷移→バナー表示(85℃/湯:豆1:15.0/3:00)→メソッド自動選択(4:6メソッド)まで目視確認(030下部の「抽出を終えて評価へ」ボタンまでのスクロールは`claude-in-chrome`側の既知の不安定挙動により断念し、widgetテストで代替済み)。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`を実行、本番`main.dart.js`のMD5ハッシュとローカルビルドの一致を確認。GAS側の変更は無いため`clasp push`は不要。ユーザーの許可を得て`git push`も実施済み(29fc73f)。
+- **副産物**: ブラウザ確認中に本番`recipe_suggestions`シートへ`accepted='yes'`のレコードが1件増えている(030到達前の仕様上の既存挙動、`resultRecordId`は空のまま)。
+
 ### -5.01 当日やったこと(2026-07-31、`/full_loop`(Sonnet 5)、**T3-43完了・本番デプロイ・push済み**=豆情報AI自動入力の焙煎度enumValues/プロンプトを8段階へ更新)
 
 - **選定理由**: マスタープランのタスク表で最上位(◎)、NEXT_SESSION.mdの推奨とも一致、依存(T3-42)は充足済みのため選定。

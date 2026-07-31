@@ -407,3 +407,11 @@
 - **原因**: `MockScreenScaffold`(`lib/screens/mock/mock_scaffold.dart`)は`ConsumerWidget`で、`build`内で`ref.watch(mainColorProvider)`を呼んでAppBar/背景色を決めている(Cycle 27 T3-9で導入)。Riverpodの`ConsumerWidget`は`ProviderScope`の内側でないと`ref`を解決できず、`ProviderScope`が無いと`No ProviderScope found`という`StateError`で例外になる。
 - **対処**: `MockScreenScaffold`を直接・間接に使う画面(041/042/043/044など、`AppScreen`のenumを渡す系の画面はほぼ全てこれに該当)のwidgetテストは、`pumpWidget`のトップを`ProviderScope(child: MaterialApp(home: ...))`にする。特定のprovider値を固定したい場合は`ProviderScope(overrides: [...], child: ...)`を使う(他のテストファイルで既に使われているパターン)。
 - **一般化できる教訓**: 新規画面のwidgetテストを書くとき、対象画面が`MockScreenScaffold`/`CreateFormScaffold`/`MasterDetailTemplate`など共通骨格を使っている場合は、その骨格が内部で`ConsumerWidget`化されていないか(`ref.watch`を呼んでいないか)を先に確認し、必要なら最初から`ProviderScope`込みで書く。エラーメッセージ(`No ProviderScope found`)がそのまま原因を教えてくれるので、出たら即座に`ProviderScope`の有無を疑ってよい。
+
+### L95 「030の注湯ステップの湯量がおかしい」というユーザー報告の原因はアプリのコードではなく、本番`pouring_steps`シートの`湯量係数`(waterRatio)列の一部が固定15gで割った値になっていたこと(実際のメソッド基準豆量では割られていなかった)(2026-07-31)
+
+`scaledStepWaterAmount`(`lib/utils/pouring_step_scaling.dart`)は`waterRatio`が設定されていれば`waterAmount`を無視して`ratio × currentWeight`を優先する。この関数自体はT3-58で導入された正しい設計(030でユーザーが手動編集した値を、以降の豆量変更でも保持するための仕組み)で、単体テスト(`test/pouring_step_scaling_test.dart`)の期待値も妥当だった。
+- **原因**: 本番`pouring_steps`シートの`湯量係数`列は、アプリ導入前の個人用スプレッドシート時代に`=加算湯量/15`という**固定15g割りの数式**で作られていた列で、各メソッドの実際の`基準豆量(g)`(`methods_master`)を見ていなかった。基準豆量がたまたま15g(または15.5g)のメソッドでは誤差が出ないため長年気付かれず、基準豆量が8g・20g・21g・25gなど15gから離れたメソッド(7件・21ステップ)でのみ、最大+22%程度の表示・スケール誤差が出ていた。
+- **調査方法**: GAS Web Appの`?sheet=methods_master`と`?sheet=pouring_steps`をGETで直接取得し(`kGoogleSheetsApiUrl`)、Pythonで「各メソッドの`加算湯量`合計が`基準湯量`と一致するか」「`湯量係数`が`加算湯量/基準豆量`と一致するか」を全メソッド横断で突合したところ、系統的に`/15`固定の痕跡(例: 基準豆量20gのメソッドで`湯量係数`が常に`加算湯量/15`)が見つかった。
+- **対処**: 誤っていた21ステップのみ、`湯量係数 = 加算湯量 ÷ 該当メソッドの実際の基準豆量`で再計算し、GAS `action=update`のPOSTで本番シートを直接修正(コード変更なし)。**`waterAmount`が0で`waterRatio`のみが正データの行(例: method001)は対象から除外**した(触ると逆に壊れる)。修正後、再度GETで取得し直し、各メソッドの基準豆量における合計湯量が`methods_master`の`基準湯量(ml)`と一致することを確認した。
+- **一般化できる教訓**: 「表示された数値がおかしい」という報告は、まずコードのロジック(単体テストがある場合は特に)を疑う前に、**そのロジックが信頼している入力データ自体が内部的に整合しているか**(例えば`比率 × 基準値 == 元の値`のような不変条件)を実データで横断的に突合してから判断する。この種のバグはコードは正しいまま特定のデータ行だけが壊れているため、コードレビューやテストでは発見できず、実データ突合でしか見つからない。
