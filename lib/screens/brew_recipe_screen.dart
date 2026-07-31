@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
+import '../models/bean_master.dart';
 import '../models/method_master.dart';
 import '../models/pouring_step.dart';
 import '../models/pending_brew_info.dart';
+import '../models/recipe_suggestion.dart';
 import '../routing/app_screen.dart';
 import '../services/data_service.dart';
 import '../utils/pouring_step_scaling.dart';
@@ -32,14 +34,23 @@ import 'mock/mock_scaffold.dart';
 /// 021の通常の新規登録フロー(_submit)で行う。
 /// Cycle 20 T3-5: 豆/グラインダー/ドリッパー/フィルター選択と抽出日時は
 /// 031(評価画面)側の入力欄に移動した。030はメソッド選択と豆量のみを扱う。
+/// T3-49: F3(おすすめレシピカード)からの遷移を031直行から030経由に変更した。
+/// [pendingSuggestion]が渡された場合、030のUIには表示されない湯温・比率・
+/// 抽出時間を「引き継いだ条件」バッジで提示し、[initialBean]とあわせて
+/// 031(評価画面)へそのまま持ち越す(030の実際の注湯ステップからは再計算しない、
+/// あくまで提案の参考情報)。
 class BrewRecipeScreen extends ConsumerStatefulWidget {
   final String? initialMethodId;
   final double? initialBeanWeight;
+  final BeanMaster? initialBean;
+  final RecipeSuggestion? pendingSuggestion;
 
   const BrewRecipeScreen({
     super.key,
     this.initialMethodId,
     this.initialBeanWeight,
+    this.initialBean,
+    this.pendingSuggestion,
   });
 
   @override
@@ -361,17 +372,25 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
 
     final info = PendingBrewInfo(
       brewedAt: DateTime.now(),
+      bean: widget.initialBean,
       method: method,
       beanWeight: currentWeight,
       totalWater: totalWater,
       totalTime: totalTime,
       bloomingWater: bloomingWater,
       bloomingTime: bloomingTime,
+      // T3-49: F3提案から引き継いだ湯温(030のUIには表示欄が無いため)。
+      temperature: widget.pendingSuggestion?.temperature,
     );
 
     debugPrint(
         '[Antigravity] 030→031 遷移: 抽出情報を引き継ぎ (method=${method?.name ?? "未選択"}, ${info.beanWeight}g, ${info.totalWater.toStringAsFixed(1)}ml, ${info.totalTime}s)');
-    Navigator.push(context, MaterialPageRoute(builder: (_) => BrewEvaluationScreen(info: info)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BrewEvaluationScreen(info: info, pendingSuggestion: widget.pendingSuggestion),
+      ),
+    );
   }
 
   @override
@@ -383,6 +402,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
       screen: AppScreen.brewRecipe,
       maxWidth: 560,
       children: [
+        if (widget.pendingSuggestion != null)
+          _SuggestedConditionsBanner(suggestion: widget.pendingSuggestion!),
         FormSection(
           icon: Icons.tune,
           title: 'レシピ選択',
@@ -529,5 +550,93 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     final minutes = (milliseconds ~/ 60000).toString().padLeft(2, '0');
     final seconds = ((milliseconds % 60000) ~/ 1000).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+/// T3-49: F3(おすすめレシピカード)経由で030に遷移した場合に表示する、
+/// 030のUIには表示欄が無い湯温・比率・抽出時間の「引き継いだ条件」バッジ。
+/// 値は031(評価画面)へそのまま持ち越される(030の注湯ステップからは再計算しない、
+/// あくまで提案時点の参考情報)。
+class _SuggestedConditionsBanner extends StatelessWidget {
+  final RecipeSuggestion suggestion;
+
+  const _SuggestedConditionsBanner({required this.suggestion});
+
+  String _formatTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kEspresso,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome_outlined, color: kAccent, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'おすすめレシピから引き継いだ条件',
+                style: TextStyle(color: kCream, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SuggestedConditionChip(
+                  icon: Icons.thermostat, text: '${suggestion.temperature.toStringAsFixed(0)}℃'),
+              _SuggestedConditionChip(
+                  icon: Icons.percent, text: '湯:豆 1:${suggestion.brewRatio.toStringAsFixed(1)}'),
+              _SuggestedConditionChip(
+                  icon: Icons.timer_outlined, text: _formatTime(suggestion.totalTimeSec)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '湯温は評価画面(031)の入力欄にあらかじめ入ります。比率・時間は目安として、'
+            '下のメソッド選択・注湯ステップで実際に淹れる内容を調整してください。',
+            style: TextStyle(color: kLatte, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestedConditionChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _SuggestedConditionChip({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: kMocha.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: kLatte),
+          const SizedBox(width: 6),
+          Text(text, style: const TextStyle(color: kCream, fontSize: 12)),
+        ],
+      ),
+    );
   }
 }

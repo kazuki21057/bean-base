@@ -6,10 +6,9 @@ import '../../models/coffee_record.dart';
 import '../../models/equipment_masters.dart';
 import '../../models/method_master.dart';
 import '../../models/origin_master.dart';
-import '../../models/pending_brew_info.dart';
 import '../../models/recipe_suggestion.dart';
 import '../../providers/data_providers.dart';
-import '../../screens/create/brew_evaluation_screen.dart';
+import '../../screens/brew_recipe_screen.dart';
 import '../../screens/create/create_form_widgets.dart';
 import '../../services/data_service.dart';
 import '../../services/math/encoding.dart';
@@ -188,24 +187,20 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
     if (!mounted) return;
     setState(() => _handledBeanIds.add(bean.id));
 
-    // 031(評価画面)へ条件をプリフィルして遷移。記録保存完了時に
-    // resultRecordId を書き戻すため、採用済みの提案を引き継ぐ。
+    // T3-49: 031へ直行せず030(抽出レシピ画面)を経由する。030のUIには表示欄が
+    // 無い湯温・比率・抽出時間は「引き継いだ条件」バッジで提示し、豆・採用済み
+    // 提案(記録保存完了時のresultRecordId書き戻し用)は030から031へそのまま
+    // 持ち越す。
     const defaultBeanWeight = 15.0;
-    final info = PendingBrewInfo(
-      brewedAt: DateTime.now(),
-      bean: bean,
-      method: method,
-      beanWeight: defaultBeanWeight,
-      totalWater: suggestion.brewRatio * defaultBeanWeight,
-      totalTime: suggestion.totalTimeSec,
-      bloomingWater: 0,
-      bloomingTime: 0,
-      temperature: suggestion.temperature,
-    );
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BrewEvaluationScreen(info: info, pendingSuggestion: accepted),
+        builder: (_) => BrewRecipeScreen(
+          initialMethodId: method?.id,
+          initialBeanWeight: defaultBeanWeight,
+          initialBean: bean,
+          pendingSuggestion: accepted,
+        ),
       ),
     );
   }

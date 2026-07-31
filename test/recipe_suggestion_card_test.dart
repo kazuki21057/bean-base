@@ -12,6 +12,8 @@ import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/models/bean_purchase.dart';
 import 'package:bean_base/providers/data_providers.dart';
+import 'package:bean_base/screens/brew_recipe_screen.dart';
+import 'package:bean_base/screens/create/brew_evaluation_screen.dart';
 import 'package:bean_base/services/data_service.dart';
 import 'package:bean_base/widgets/dashboard/recipe_suggestion_card.dart';
 
@@ -242,6 +244,51 @@ void main() {
       expect(find.text('2:30'), findsOneWidget);
       expect(find.text('この条件で淹れる'), findsOneWidget);
       expect(find.text('今回はパス'), findsOneWidget);
+    });
+
+    testWidgets('[この条件で淹れる]で030(抽出レシピ画面)へ遷移し、湯温・比率・時間を引き継ぎバッジで表示する(T3-49)', (tester) async {
+      await _pump(tester, beans: [bean], records: records);
+
+      await tester.tap(find.text('この条件で淹れる'));
+      await tester.pumpAndSettle();
+
+      // 031へ直行せず030に遷移し、030のUIには表示欄が無い項目を
+      // 「引き継いだ条件」バッジで確認できる(バッジは画面上部にあるためスクロール不要)。
+      expect(find.byType(BrewRecipeScreen), findsOneWidget);
+      expect(find.text('おすすめレシピから引き継いだ条件'), findsOneWidget);
+      expect(find.text('93℃'), findsOneWidget);
+      expect(find.text('湯:豆 1:15.0'), findsOneWidget);
+      expect(find.text('2:30'), findsOneWidget);
+
+      // 030はListView(遅延ビルド)のため、下部の「抽出を終えて評価へ」ボタンは
+      // スクロールしないとビルドされない(brew_recipe_test.dartと同じ作法)。
+      await tester.drag(find.byType(ListView), const Offset(0, -1500));
+      await tester.pumpAndSettle();
+      expect(find.text('抽出を終えて評価へ (031)'), findsOneWidget);
+    });
+
+    testWidgets('030から評価へ進むと031で湯温がプリフィルされ、引き継ぎ提案が結果記録に紐付く(T3-49)', (tester) async {
+      final service = _FakeDataService();
+      await _pump(tester, beans: [bean], records: records, service: service);
+
+      await tester.tap(find.text('この条件で淹れる'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -1500));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('抽出を終えて評価へ (031)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BrewEvaluationScreen), findsOneWidget);
+      // T4-5b由来のロジック: F3提案の湯温(93℃)が031の湯温欄にプリフィルされる。
+      expect(find.text('93'), findsOneWidget);
+
+      await tester.tap(find.text('評価を登録する'));
+      await tester.pumpAndSettle();
+
+      // 採用済み提案(accepted='yes')に結果記録のIDが書き戻される。
+      expect(service.updated.length, 1);
+      expect(service.updated.single.accepted, 'yes');
+      expect(service.updated.single.resultRecordId, isNotEmpty);
     });
 
     testWidgets('[今回はパス]でaccepted=noが保存され、カードが消える', (tester) async {
