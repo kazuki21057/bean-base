@@ -422,3 +422,10 @@
 - **原因**: `OptimisticListNotifier.addOptimistic`(`lib/providers/data_providers.dart`)は`state`へ即座に追加した直後、`_syncInBackground()`を呼んで`fetch()`(=`DataService.getStores()`等)の結果で`state`を丸ごと置き換える。テスト用fakeサービスの`getStores()`が(元のoriginマスタ用fakeを流用して)常に`async => []`のような固定値を返す実装のままだと、この背景再同期が`pumpAndSettle()`で消化されるタイミングで`state`が空リストに巻き戻り、直前の楽観的追加が消える。
 - **対処**: fakeサービス側の`addStore`/`getStores`を、origin側の`saveOriginMaster`/`fetchOriginMasters`と同じパターン(`addStore`が内部リストに追記し、`getStores`がそのリストを返す)に揃えることで、背景再同期後も追加した項目が残るようにした。
 - **一般化できる教訓**: `AsyncNotifierProvider`+`OptimisticListNotifier`系のprovider(store/bean/grinder等の各マスタ一覧)を操作するwidgetテストで、対象の「新規追加」フローを検証する場合、fakeサービスの`addXxx`が対応する`getXxx`のバッキングリストを実際に更新しているかを確認すること。していないと、楽観的追加の直後に発火する背景再同期でテストデータが消え、原因不明に見えるアサーション失敗(値が空になる)として現れる。
+
+### L97 `Bash`ツールに PowerShell の here-string(`@'...'@`)を渡すとコミットメッセージの先頭・末尾に `@` 行が混入する(2026-07-31)
+
+`git commit -m @'...'@` を `Bash`ツール(Git Bash)で実行したところ、`@` が単なる文字として扱われ、コミットメッセージの1行目が `@`(=これが件名になる)、最終行にも `@` が残る形で commit されてしまった。`--amend -F <file>` で修正するのに3ターン余計にかかった。
+- **原因**: `Bash`ツールは Git Bash(POSIX sh)であり、PowerShell の here-string 構文を解釈しない。ツール説明にも「PowerShell here-strings(`@'...'@`)を使うな、多行文字列は heredoc を使え」と明記されている。同一セッションで `PowerShell` ツールと `Bash` ツールの両方が使えるため、PowerShell 側の作法を無意識に持ち込みやすい。
+- **対処**: `Bash` では `<< 'EOF' ... EOF` の heredoc を使うか、メッセージをファイルに書いて `git commit -F <file>` を使う。日本語を含む多行メッセージはファイル経由が最も安全。
+- **一般化できる教訓**: このプロジェクトは Windows 上で `PowerShell` と `Bash` の2つのシェルツールを併用するため、**コマンドを書く前にどちらのツールに渡すのかを確認する**。特に多行文字列・変数展開・リダイレクト(`2>$null` vs `2>/dev/null`)・パス区切りは両者で作法が違う。commit 直後は `git log -1 --format=%B` で件名と末尾を確認してから push する。
