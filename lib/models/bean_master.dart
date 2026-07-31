@@ -75,6 +75,11 @@ class BeanMaster {
   @JsonKey(fromJson: _parseNullableBool)
   final bool? seekOptimalConditions;
 
+  /// T3-69(設計書§9): 選択されたStoreMasterのid。`store`(自由入力文字列)は
+  /// 後方互換のため残し、保存時に選択した店名を同時コピーする(originIdと同じパターン)。
+  @JsonKey(defaultValue: '', fromJson: _parseString)
+  final String storeId;
+
   BeanMaster({
     required this.id,
     required this.name,
@@ -96,6 +101,7 @@ class BeanMaster {
     this.stockBaselineAt,
     this.storageLocation = '',
     this.seekOptimalConditions,
+    this.storeId = '',
   });
 
   factory BeanMaster.fromJson(Map<String, dynamic> json) =>
@@ -179,6 +185,7 @@ class BeanMaster {
     DateTime? stockBaselineAt,
     String? storageLocation,
     bool? seekOptimalConditions,
+    String? storeId,
   }) {
     return BeanMaster(
       id: id ?? this.id,
@@ -201,6 +208,7 @@ class BeanMaster {
       stockBaselineAt: stockBaselineAt ?? this.stockBaselineAt,
       storageLocation: storageLocation ?? this.storageLocation,
       seekOptimalConditions: seekOptimalConditions ?? this.seekOptimalConditions,
+      storeId: storeId ?? this.storeId,
     );
   }
 }

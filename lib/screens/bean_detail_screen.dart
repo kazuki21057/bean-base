@@ -144,6 +144,7 @@ class BeanDetailScreen extends ConsumerWidget {
         currentRemainingGrams: currentRemainingGrams,
         stores: stores,
         currentStoreName: currentBean.store,
+        currentStoreId: currentBean.storeId,
       ),
     );
 
@@ -189,6 +190,7 @@ class BeanDetailScreen extends ConsumerWidget {
         stockBaselineAt: DateTime.now(),
         isInStock: true,
         store: result.storeName.isNotEmpty ? result.storeName : null,
+        storeId: result.storeId.isNotEmpty ? result.storeId : null,
       );
       await ref.read(dataServiceProvider).updateBean(updated);
       ref.read(beanMasterProvider.notifier).updateOptimistic(updated);
@@ -378,11 +380,13 @@ class _AddPurchaseDialog extends StatefulWidget {
   final double currentRemainingGrams;
   final List<StoreMaster> stores;
   final String currentStoreName;
+  final String currentStoreId;
 
   const _AddPurchaseDialog({
     required this.currentRemainingGrams,
     required this.stores,
     required this.currentStoreName,
+    required this.currentStoreId,
   });
 
   @override
@@ -402,8 +406,14 @@ class _AddPurchaseDialogState extends State<_AddPurchaseDialog> {
     _purchasedAt = DateTime.now();
     _quantityController = TextEditingController();
     _memoController = TextEditingController();
-    final match = widget.stores.where((s) => s.name == widget.currentStoreName);
-    _selectedStoreId = match.isNotEmpty ? match.first.id : null;
+    // T3-69: storeIdが設定済みならそちらを優先し、未設定(旧データ)の場合のみ
+    // 店名文字列の一致でフォールバックする(§9で決めた突合優先順位)。
+    if (widget.currentStoreId.isNotEmpty) {
+      _selectedStoreId = widget.currentStoreId;
+    } else {
+      final match = widget.stores.where((s) => s.name == widget.currentStoreName);
+      _selectedStoreId = match.isNotEmpty ? match.first.id : null;
+    }
   }
 
   @override

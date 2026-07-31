@@ -210,7 +210,7 @@ void main() {
     expect(find.text('焙煎所併設'), findsOneWidget);
   });
 
-  testWidgets('027詳細: この店で買った豆・統計セクションが店名一致の豆から算出される', (tester) async {
+  testWidgets('027詳細: この店で買った豆・統計セクションがstoreId一致の豆から算出される', (tester) async {
     final beans = [
       BeanMaster(
         id: 'b1',
@@ -218,6 +218,7 @@ void main() {
         roastLevel: '',
         origin: '',
         store: 'Navy',
+        storeId: 's1',
         initialQuantityGrams: 200,
       ),
       BeanMaster(
@@ -226,6 +227,7 @@ void main() {
         roastLevel: '',
         origin: '',
         store: 'SORA',
+        storeId: 's2',
         initialQuantityGrams: 100,
       ),
     ];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/bean_master.dart';
+import '../models/bean_purchase.dart';
 import '../models/store_master.dart';
 import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
@@ -15,30 +16,37 @@ import 'mock/mock_scaffold.dart';
 
 /// 027 購入店詳細。
 ///
-/// T3-68: `docs/store_master_design.md`§5.3のとおり実装。
-/// `bean_purchases`(T3-62)は未実装のため「この店の購入履歴」セクションは
-/// 作らず、統計はこの店の豆の件数・初期購入量合計で代用する
-/// (設計書の指示どおり、T3-69/T3-62完了後に切り替える)。
+/// T3-68: `docs/store_master_design.md`§5.3のとおり実装。T3-69で
+/// `BeanMaster.storeId`が導入されたため、「この店で買った豆」の突合は
+/// `store`文字列フォールバックを廃し`storeId`一致のみに単純化し、
+/// 「この店の購入履歴」セクションを追加した(設計書の指示どおり)。
 class StoreDetailScreen extends ConsumerWidget {
   final StoreMaster store;
 
   const StoreDetailScreen({super.key, required this.store});
 
-  /// 旧表記「明暮焙煎研」は`明暮焙煎所`の誤記(設計書§3.2)。
-  /// `BeanMaster.storeId`はT3-69未完了のため、店名の文字列一致で代用する。
-  bool _matchesBean(BeanMaster b) {
-    if (b.store == store.name) return true;
-    if (store.name == '明暮焙煎所' && b.store == '明暮焙煎研') return true;
-    return false;
-  }
+  bool _matchesBean(BeanMaster b) => b.storeId == store.id;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final beansAsync = ref.watch(beanMasterProvider);
     final logsAsync = ref.watch(coffeeRecordsProvider);
+    final purchasesAsync = ref.watch(beanPurchasesProvider);
 
     final matchedBeans = beansAsync.value?.where(_matchesBean).toList() ?? const <BeanMaster>[];
     final matchedBeanIds = matchedBeans.map((b) => b.id).toSet();
+
+    final storePurchases = (purchasesAsync.value ?? const <BeanPurchase>[])
+        .where((p) => p.storeId == store.id)
+        .toList()
+      ..sort((a, b) {
+        final ad = a.purchasedAt;
+        final bd = b.purchasedAt;
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return bd.compareTo(ad);
+      });
 
     final scores = (logsAsync.value ?? const [])
         .where((log) => matchedBeanIds.contains(log.beanId))
@@ -94,6 +102,36 @@ class StoreDetailScreen extends ConsumerWidget {
           ],
         ),
         FormSection(
+          icon: Icons.receipt_long_outlined,
+          title: 'この店の購入履歴',
+          children: [
+            if (storePurchases.isEmpty)
+              const Text('この店の購入履歴はまだありません')
+            else
+              Column(
+                children: [
+                  for (final p in storePurchases)
+                    MockListRow(
+                      icon: Icons.coffee,
+                      imageUrl: ImageUtils.getOptimizedImageUrl(
+                        _findBean(beansAsync.value ?? const [], p.beanId)?.imageUrl,
+                      ),
+                      title: _findBean(beansAsync.value ?? const [], p.beanId)?.name ?? '(削除された豆)',
+                      subtitle: _formatPurchaseSubtitle(p),
+                      onTap: () {
+                        final b = _findBean(beansAsync.value ?? const [], p.beanId);
+                        if (b == null) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => BeanDetailScreen(bean: b)),
+                        );
+                      },
+                    ),
+                ],
+              ),
+          ],
+        ),
+        FormSection(
           icon: Icons.insights_outlined,
           title: '統計',
           children: [
@@ -128,6 +166,26 @@ class StoreDetailScreen extends ConsumerWidget {
         }
       },
     );
+  }
+
+  static BeanMaster? _findBean(List<BeanMaster> beans, String beanId) {
+    for (final b in beans) {
+      if (b.id == beanId) return b;
+    }
+    return null;
+  }
+
+  static String _formatPurchaseSubtitle(BeanPurchase p) {
+    final parts = <String>[
+      p.purchasedAt == null ? '' : _formatDate(p.purchasedAt),
+      p.quantityGrams == null ? '' : '${_formatGrams(p.quantityGrams!)}g',
+    ];
+    return parts.where((e) => e.isNotEmpty).join(' · ');
+  }
+
+  static String _formatGrams(double grams) {
+    if (grams == grams.roundToDouble()) return grams.toStringAsFixed(1);
+    return grams.toString();
   }
 
   static String _orDash(String value) => value.isEmpty ? '-' : value;

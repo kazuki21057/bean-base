@@ -35,6 +35,9 @@ BeanMaster _$BeanMasterFromJson(Map<String, dynamic> json) => BeanMaster(
   seekOptimalConditions: BeanMaster._parseNullableBool(
     json['seekOptimalConditions'],
   ),
+  storeId: json['storeId'] == null
+      ? ''
+      : BeanMaster._parseString(json['storeId']),
 );
 
 Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
@@ -59,4 +62,5 @@ Map<String, dynamic> _$BeanMasterToJson(BeanMaster instance) =>
       'stockBaselineAt': instance.stockBaselineAt?.toIso8601String(),
       'storageLocation': instance.storageLocation,
       'seekOptimalConditions': instance.seekOptimalConditions,
+      'storeId': instance.storeId,
     };

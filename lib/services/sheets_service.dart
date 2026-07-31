@@ -222,6 +222,7 @@ class SheetsService implements DataService {
       '在庫基準日時': 'stockBaselineAt',
       '保存場所': 'storageLocation',
       '最適条件探索': 'seekOptimalConditions',
+      '購入店ID': 'storeId',
     };
     return _fetchData('bean_master', (map) => BeanMaster.fromJson(_remapKeys(map, keyMap)));
   }
@@ -685,6 +686,7 @@ class SheetsService implements DataService {
       'stockBaselineGrams': '在庫基準量(g)', 'stockBaselineAt': '在庫基準日時',
       'storageLocation': '保存場所',
       'seekOptimalConditions': '最適条件探索',
+      'storeId': '購入店ID',
     };
     return _mapToJson(bean.toJson(), reverseMap);
   }

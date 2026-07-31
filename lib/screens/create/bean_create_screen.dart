@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bean_master.dart';
 import '../../models/bean_purchase.dart';
 import '../../models/origin_master.dart';
+import '../../models/store_master.dart';
 import '../../providers/data_providers.dart';
 import '../../routing/app_screen.dart';
 import '../../services/ai_analysis_service.dart';
@@ -35,7 +36,6 @@ class BeanCreateScreen extends ConsumerStatefulWidget {
 
 class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   final _nameController = TextEditingController();
-  final _storeController = TextEditingController();
   final _typeController = TextEditingController();
   final _initialQuantityController = TextEditingController();
   String? _roastLevel;
@@ -53,6 +53,11 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   /// T4-1e(設計書§3.2): 産地はOriginMaster選択に置換(自由入力の`_originController`は廃止)。
   String? _selectedOriginId;
 
+  /// T3-69(設計書§9): 購入店はStoreMaster選択に置換(自由入力の`_storeController`は廃止)。
+  /// 未選択の場合、編集時は既存の`store`自由入力文字列を保存時にそのまま残す
+  /// (店名不明な旧データ・非店舗値3件の後方互換のため)。
+  String? _selectedStoreId;
+
   bool get _isEdit => widget.editData != null;
 
   @override
@@ -60,7 +65,6 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     super.initState();
     final edit = widget.editData;
     _nameController.text = edit?.name ?? '';
-    _storeController.text = edit?.store ?? '';
     _typeController.text = edit?.type ?? '';
     _initialQuantityController.text = edit?.initialQuantityGrams?.toStringAsFixed(1) ?? '';
     _roastLevel = (edit?.roastLevel.isNotEmpty ?? false) ? edit!.roastLevel : null;
@@ -74,6 +78,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     _beanImageUrl = edit?.beanImageUrl;
     _infoImageUrl = edit?.infoImageUrl;
     _selectedOriginId = (edit?.originId.isNotEmpty ?? false) ? edit!.originId : null;
+    _selectedStoreId = (edit?.storeId.isNotEmpty ?? false) ? edit!.storeId : null;
   }
 
   /// T3-50: `bool?`(未回答/探索する/探索しない)を`MockChoiceChips`の3択と
@@ -103,7 +108,6 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _storeController.dispose();
     _typeController.dispose();
     _initialQuantityController.dispose();
     super.dispose();
@@ -191,6 +195,59 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     }
   }
 
+  /// T3-69(設計書§5.4): 購入店マスタに未登録の店を最小構成(店名のみ、028の
+  /// 必須項目と同じ)で追加する。詳細情報は後で027の編集画面から補完する想定。
+  Future<void> _addNewStore() async {
+    final nameController = TextEditingController();
+
+    final created = await showDialog<StoreMaster>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('新規購入店追加'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(labelText: '店名(必須)'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isEmpty) return;
+                Navigator.of(dialogContext).pop(
+                  StoreMaster(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: name,
+                  ),
+                );
+              },
+              child: const Text('追加'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (created == null) return;
+    try {
+      await ref.read(dataServiceProvider).addStore(created);
+      debugPrint('[Antigravity] Action: 購入店マスタ追加 (id=${created.id})');
+      ref.read(storeMasterProvider.notifier).addOptimistic(created);
+      setState(() => _selectedStoreId = created.id);
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 購入店マスタ追加に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('購入店の追加に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   /// T3-30/T3-35/T3-41: パッケージ/説明カード画像(ファイル選択またはカメラ撮影)を
   /// Gemini Visionに渡し豆情報を抽出、抽出できた項目のみフォームへ反映する
   /// (専用ページは作らず012内で完結)。カメラ撮影の場合は、撮影画像をAI抽出に
@@ -227,6 +284,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     setState(() => _isExtracting = true);
     try {
       final origins = ref.read(originMasterProvider).value ?? const [];
+      final stores = ref.read(storeMasterProvider).value ?? const [];
       final preferredModel = prefs.getString('gemini_model');
       debugPrint('[Antigravity] Action: 豆情報のAI抽出を実行 (file=$filename, camera=$saveAsInfoImage)');
       final extracted = await ref.read(aiAnalysisServiceProvider).extractBeanInfoFromImage(
@@ -236,7 +294,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
             apiKey: apiKey,
             preferredModel: preferredModel,
           );
-      _applyExtractedInfo(extracted, origins);
+      _applyExtractedInfo(extracted, origins, stores);
 
       if (saveAsInfoImage) {
         final url = await ref.read(imageServiceProvider).saveImage(
@@ -285,7 +343,11 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     }
   }
 
-  void _applyExtractedInfo(ExtractedBeanInfo extracted, List<OriginMaster> origins) {
+  void _applyExtractedInfo(
+    ExtractedBeanInfo extracted,
+    List<OriginMaster> origins,
+    List<StoreMaster> stores,
+  ) {
     if (extracted.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -307,14 +369,26 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       }
     }
 
+    // T3-69: 購入店も産地と同じくAI抽出結果を既存の購入店マスタへ自動照合する。
+    final unmatchedStore = extracted.store;
+    StoreMaster? matchedStore;
+    if (extracted.store != null) {
+      for (final s in stores) {
+        if (s.name == extracted.store || s.name.contains(extracted.store!) || extracted.store!.contains(s.name)) {
+          matchedStore = s;
+          break;
+        }
+      }
+    }
+
     setState(() {
       if (extracted.name != null) {
         _nameController.text = extracted.name!;
         filled.add('豆の名前');
       }
-      if (extracted.store != null) {
-        _storeController.text = extracted.store!;
-        filled.add('焙煎所/購入店');
+      if (matchedStore != null) {
+        _selectedStoreId = matchedStore.id;
+        filled.add('購入店');
       }
       if (extracted.type != null) {
         _typeController.text = extracted.type!;
@@ -336,6 +410,9 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
 
     if (!mounted) return;
     var message = filled.isEmpty ? '反映できる項目がありませんでした。' : '自動入力しました: ${filled.join('、')}(内容を確認してください)';
+    if (extracted.store != null && matchedStore == null) {
+      message += '\n購入店「$unmatchedStore」は既存の購入店に一致しなかったため未選択です。必要なら「新規購入店追加」から登録してください。';
+    }
     if (extracted.origin != null && matchedOrigin == null) {
       message += '\n産地「$unmatchedOrigin」は既存の産地に一致しなかったため未選択です。必要なら「新規産地追加」から登録してください。';
     }
@@ -381,6 +458,10 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     // (既存のCoffeeRecord.originコピー処理・後方互換を壊さないため)。
     final origins = ref.read(originMasterProvider).value ?? const [];
     final selectedOrigin = _resolveById(origins, _selectedOriginId, (o) => o.id);
+    // T3-69(設計書§9): 選択されたStoreMasterのnameをstoreへ同時コピーする
+    // (originIdと同じパターン。未選択時は既存のstore自由入力文字列を維持=後方互換)。
+    final stores = ref.read(storeMasterProvider).value ?? const [];
+    final selectedStore = _resolveById(stores, _selectedStoreId, (s) => s.id);
     final bean = BeanMaster(
       id: _isEdit ? edit!.id : DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
@@ -388,7 +469,8 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
       origin: selectedOrigin?.nameJa ?? edit?.origin ?? '',
       originId: _selectedOriginId ?? '',
       roastDate: _roastDate,
-      store: _storeController.text.trim(),
+      store: selectedStore?.name ?? edit?.store ?? '',
+      storeId: _selectedStoreId ?? '',
       type: _typeController.text.trim(),
       imageUrl: _imageUrl,
       beanImageUrl: _beanImageUrl,
@@ -428,6 +510,7 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
           purchasedAt: _purchaseDate,
           roastDate: _roastDate,
           quantityGrams: bean.initialQuantityGrams,
+          storeId: bean.storeId,
           storeName: bean.store,
           createdAt: DateTime.now(),
         );
@@ -491,11 +574,41 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
               required: true,
               controller: _nameController,
             ),
-            MockTextField(
-              label: '焙煎所 / 購入店',
-              hint: '例: 〇〇コーヒーロースターズ',
-              controller: _storeController,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ref.watch(storeMasterProvider).when(
+                        data: (stores) => DropdownButtonFormField<StoreMaster>(
+                          decoration: const InputDecoration(labelText: '購入店'),
+                          value: _resolveById(stores, _selectedStoreId, (s) => s.id),
+                          isExpanded: true,
+                          items: [
+                            for (final s in stores)
+                              DropdownMenuItem(value: s, child: Text(s.name)),
+                          ],
+                          onChanged: (v) => setState(() => _selectedStoreId = v?.id),
+                        ),
+                        loading: () => const LinearProgressIndicator(),
+                        error: (e, s) => Text('購入店読み込みエラー: $e'),
+                      ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  tooltip: '新規購入店追加',
+                  onPressed: _addNewStore,
+                ),
+              ],
             ),
+            if ((_selectedStoreId == null || _selectedStoreId!.isEmpty) &&
+                (widget.editData?.store.isNotEmpty ?? false))
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Text(
+                  '未紐付けの旧データ: 「${widget.editData!.store}」(該当する購入店があれば上で選択してください)',
+                  style: const TextStyle(fontSize: 12, color: kMocha),
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

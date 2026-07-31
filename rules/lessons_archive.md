@@ -415,3 +415,10 @@
 - **調査方法**: GAS Web Appの`?sheet=methods_master`と`?sheet=pouring_steps`をGETで直接取得し(`kGoogleSheetsApiUrl`)、Pythonで「各メソッドの`加算湯量`合計が`基準湯量`と一致するか」「`湯量係数`が`加算湯量/基準豆量`と一致するか」を全メソッド横断で突合したところ、系統的に`/15`固定の痕跡(例: 基準豆量20gのメソッドで`湯量係数`が常に`加算湯量/15`)が見つかった。
 - **対処**: 誤っていた21ステップのみ、`湯量係数 = 加算湯量 ÷ 該当メソッドの実際の基準豆量`で再計算し、GAS `action=update`のPOSTで本番シートを直接修正(コード変更なし)。**`waterAmount`が0で`waterRatio`のみが正データの行(例: method001)は対象から除外**した(触ると逆に壊れる)。修正後、再度GETで取得し直し、各メソッドの基準豆量における合計湯量が`methods_master`の`基準湯量(ml)`と一致することを確認した。
 - **一般化できる教訓**: 「表示された数値がおかしい」という報告は、まずコードのロジック(単体テストがある場合は特に)を疑う前に、**そのロジックが信頼している入力データ自体が内部的に整合しているか**(例えば`比率 × 基準値 == 元の値`のような不変条件)を実データで横断的に突合してから判断する。この種のバグはコードは正しいまま特定のデータ行だけが壊れているため、コードレビューやテストでは発見できず、実データ突合でしか見つからない。
+
+### L96 `OptimisticListNotifier.addOptimistic`はローカル追加直後に`_syncInBackground`(`fetch()`の再取得)が走るため、fakeサービスの`getXxx()`が固定で空リストを返すwidgetテストでは、追加した項目が非同期に消えることがある(T3-69、2026-07-31)
+
+`bean_create_screen_test.dart`の新規購入店ダイアログテストで、`_addNewStore`実行後に`ref.read(storeMasterProvider.notifier).addOptimistic(created)`で店舗を即座に追加したにもかかわらず、後続の`_submit()`が`ref.read(storeMasterProvider).value`を読んだ時点では追加した店舗が消えており、`bean.store`が空文字列のまま保存されるテスト失敗になった。
+- **原因**: `OptimisticListNotifier.addOptimistic`(`lib/providers/data_providers.dart`)は`state`へ即座に追加した直後、`_syncInBackground()`を呼んで`fetch()`(=`DataService.getStores()`等)の結果で`state`を丸ごと置き換える。テスト用fakeサービスの`getStores()`が(元のoriginマスタ用fakeを流用して)常に`async => []`のような固定値を返す実装のままだと、この背景再同期が`pumpAndSettle()`で消化されるタイミングで`state`が空リストに巻き戻り、直前の楽観的追加が消える。
+- **対処**: fakeサービス側の`addStore`/`getStores`を、origin側の`saveOriginMaster`/`fetchOriginMasters`と同じパターン(`addStore`が内部リストに追記し、`getStores`がそのリストを返す)に揃えることで、背景再同期後も追加した項目が残るようにした。
+- **一般化できる教訓**: `AsyncNotifierProvider`+`OptimisticListNotifier`系のprovider(store/bean/grinder等の各マスタ一覧)を操作するwidgetテストで、対象の「新規追加」フローを検証する場合、fakeサービスの`addXxx`が対応する`getXxx`のバッキングリストを実際に更新しているかを確認すること。していないと、楽観的追加の直後に発火する背景再同期でテストデータが消え、原因不明に見えるアサーション失敗(値が空になる)として現れる。

@@ -19,10 +19,11 @@ import 'package:bean_base/services/data_service.dart';
 /// T4-1e: 012(新規豆追加)の産地マスタ選択ドロップダウン・新規産地追加・
 /// 焙煎日入力の検証。
 class _FakeDataService implements DataService {
+  final List<StoreMaster> stores = [];
   @override
-  Future<List<StoreMaster>> getStores() async => [];
+  Future<List<StoreMaster>> getStores() async => stores;
   @override
-  Future<void> addStore(StoreMaster store) async {}
+  Future<void> addStore(StoreMaster store) async => stores.add(store);
   @override
   Future<void> updateStore(StoreMaster store) async {}
   @override
@@ -293,7 +294,12 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, '豆の名前').hitTestable(), '豆D');
-    await tester.enterText(find.widgetWithText(TextField, '焙煎所 / 購入店').hitTestable(), 'テスト焙煎所');
+
+    await tester.tap(find.byTooltip('新規購入店追加'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, '店名(必須)'), 'テスト焙煎所');
+    await tester.tap(find.text('追加'));
+    await tester.pumpAndSettle();
 
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
@@ -319,11 +325,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeService.lastAdded, isNotNull);
+    expect(fakeService.lastAdded?.store, 'テスト焙煎所');
+    expect(fakeService.lastAdded?.storeId, isNotEmpty);
     expect(fakeService.lastAddedPurchase, isNotNull);
     expect(fakeService.lastAddedPurchase?.id, 'bp_init_${fakeService.lastAdded!.id}');
     expect(fakeService.lastAddedPurchase?.beanId, fakeService.lastAdded!.id);
     expect(fakeService.lastAddedPurchase?.quantityGrams, 200);
     expect(fakeService.lastAddedPurchase?.storeName, 'テスト焙煎所');
+    expect(fakeService.lastAddedPurchase?.storeId, fakeService.lastAdded?.storeId);
   });
 
   testWidgets('T3-63b: 012の新規登録で購入日を入力しなければ初回購入は記録されない', (tester) async {

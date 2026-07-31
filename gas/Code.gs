@@ -78,8 +78,9 @@ function ensureSheet_(ss, name) {
 // T3-47: methods_master に推奨焙煎度の1列を追加。
 // T3-48: recipe_suggestions にメソッドID列を追加(おすすめレシピにメソッドを含める)。
 // T3-71: methods_master に推奨焙煎度の範囲2列を追加(既存の推奨焙煎度は後方互換で残す)。
+// T3-69: bean_master に購入店ID列を追加(購入店マスタ参照、自由入力の購入店舗は後方互換で残す)。
 const EXISTING_SHEET_EXTRA_COLUMNS = {
-  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL', '在庫基準量(g)', '在庫基準日時', '保存場所', '最適条件探索'],
+  'bean_master': ['産地ID', '焙煎日', '初期購入量(g)', '豆粒画像URL', '情報画像URL', '在庫基準量(g)', '在庫基準日時', '保存場所', '最適条件探索', '購入店ID'],
   'coffee_data': ['産地ID'],
   'methods_master': ['推奨焙煎度', '推奨焙煎度(最浅)', '推奨焙煎度(最深)'],
   'recipe_suggestions': ['メソッドID'],
