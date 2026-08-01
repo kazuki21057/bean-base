@@ -137,6 +137,17 @@ Development proceeds in numbered Cycles. When starting a new cycle, check the hi
 
 セッション開始/終了の具体的な手順は `/start`・`/end` スキル(`.claude/skills/start/`・`.claude/skills/end/`)に定義されている。二重管理を避けるため、ここには詳細を書かない。
 
+## トークン運用規約(2026-08-02、実測に基づく)
+
+1ループのコストは **「リクエスト数 × 平均コンテキスト長」** でほぼ決まる(実測: cacheRが全体の6割)。
+さらに **コンテキストが200kトークンを超えると単価が約2倍**になる。以下を必ず守る。詳細と実測値は `docs/token_optimization_design.md`。
+
+1. **独立したツール呼び出しは1メッセージにまとめる**(直近ループでは143リクエスト中125が1ツールずつの直列実行だった)。
+2. **一度Readしたファイルを再Readしない**。特に**Edit/Write直後の確認Readは禁止**(失敗すればツールがエラーを返すため確認不要)。
+3. **300行超のファイルは全文Readしない**。`Grep`(必要なら`-A`/`-B`)か `Read(offset/limit)` で必要箇所だけ読む。
+4. **検証コマンドは短出力形**(`rules/verification.md` §必須検証フロー)を使う。**失敗したときだけ**詳細を取り直す。
+5. **ブラウザ確認は `get_page_text`/`find`/`read_console_messages(pattern指定)` を優先**し、スクリーンショットは最終確認の1〜2枚に限る(1枚≒1.5kトークンが以後ずっとコンテキストに残る)。
+
 ## 統計解析・予測機能の実装ルール
 
 正本は `statistics_feature_design.md`。本節と食い違う場合は設計書が優先。

@@ -4,8 +4,13 @@
 
 ## 必須検証フロー
 
-1. **静的解析**: `flutter analyze` — 新規のエラー・警告をすべて解消する(既存 issue はスコープ外)。
-2. **自動テスト**: `flutter test` — 全件パス。ロジックを追加した場合は対応する単体テストも追加する。
+> **出力は必ず絞る(2026-08-02)**: `analyze`/`test` の全文出力は1回で7k〜13k文字あり、以後のリクエスト全部に課金され続ける(`CLAUDE.md`§トークン運用規約)。下記の短出力形を既定とし、**失敗したときだけ**詳細を取り直す。
+
+1. **静的解析**: 既存 issue はスコープ外。新規分だけを見るため件数の差分で判定する。
+   - PowerShell: `flutter analyze 2>&1 | Select-String -Pattern "issues found|error •" | Select-Object -Last 5`
+   - Bash: `flutter analyze 2>&1 | grep -E "issues found|error •" | tail -5`
+   - 既存件数のベースラインは `.claude/analyze_baseline.txt`(数値1行)。件数が増えていたら**そのときだけ** `flutter analyze 2>&1 | tail -100` で内容を確認する。
+2. **自動テスト**: `flutter test 2>&1 | tail -15` — 全件パス。失敗したときだけ `| tail -150` で詳細を取り直す。ロジックを追加した場合は対応する単体テストも追加する。
 3. **実行時検証**: `flutter run -d chrome` で以下を確認する。
    - **安定性**: クラッシュせず起動し、コンソールに `Exception`/`Error` ログが出ない。
    - **UI**: Overflow 警告(黄黒ストライプ)が出ない。
