@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-01(`/full_loop`(Sonnet 5)、**T3-53d完了・本番デプロイ済み**=理論ページ041のGP節追記+ドキュメント更新。**T3-53全4サブタスク完了。次回はマスタープラン§3から次の未完了タスクを選定**)
+最終更新: 2026-08-02(`/full_loop`(Sonnet 5)、**T3-73a・T3-73d完了(コード変更無し、デプロイ不要)**=計測スクリプト`tools/analyze_transcript.js`追加+`full_loop`スキルへセッション分割(S1)組み込み。**次回はT3-73e(要ユーザー確認)またはT3-72グループから選定**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
@@ -22,13 +22,13 @@
 
 **T3-53dが2026-08-01に完了・本番反映済みのため、T3-53グループ(a〜d)は全完了。Phase 3追加分(T3-40〜T3-56)もこれで全件完了。**
 
-**2026-08-02にタスクを補充した。着手可能なタスクがある。**
+**2026-08-02にタスクを補充した。T3-73a・T3-73dは2026-08-02に完了済み。着手可能なタスクがある。**
 
 **推奨着手順**:
 
-1. **T3-73a + T3-73d**(トークン消費削減。設計書 `docs/token_optimization_design.md`。Flutterコードに触れないので同一ループで可)
-2. **T3-72d**(マスター詳細画面の保存後表示更新バグ。L89の実バグ、全マスターへ一律適用が必要でサイズL)
-3. T3-72a(初期購入量の`bean_purchases`からの一括投入)/ T3-72b(軽微)/ T3-72c(未確認3画面の目視)/ T3-72e(GpService旧ロジック整理)
+1. **T3-72d**(マスター詳細画面の保存後表示更新バグ。L89の実バグ、全マスターへ一律適用が必要でサイズL)
+2. T3-72a(初期購入量の`bean_purchases`からの一括投入)/ T3-72b(軽微)/ T3-72c(未確認3画面の目視)/ T3-72e(GpService旧ロジック整理)
+3. **T3-73e**(firebaseプラグイン・playwright MCPの無効化。グローバル設定に触れるため要ユーザー確認、設計書§5)
 
 **ユーザー実施待ちで着手不可**: T3-1 / T3-4 / T3-20(モバイル実機確認・UI磨き込み・Ubuntu環境)、T3-57(Youth3件の写真提供待ち)、T3-72f(11メソッドの推奨焙煎度設定)。
 
@@ -54,15 +54,15 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.07 当日やったこと(2026-08-01、`/full_loop`(Sonnet 5)、**T3-53c完了・本番デプロイ済み**=045画面「探索の検証状況」新設+030/011の導線2箇所)
+### -5.08 当日やったこと(2026-08-02、`/full_loop`(Sonnet 5)、**T3-73a・T3-73d完了**=トークン消費削減の計測基盤+セッション分割の仕組み。Flutterコード変更無し)
 
-- **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53c(依存T3-53a・T3-53bは充足済み)を選定。
-- **実装**: `docs/exploration_status_design.md`のとおり①`lib/screens/exploration_status_screen.dart`(新規)に045画面本体を実装(セレクタ・探索サマリ+次に試すと良い条件カード+進捗ゲージ・スコアの推移(fl_chart)・試した条件の分布(GpHeatmap+overlay)・試行の一覧)。②`lib/routing/app_screen.dart`に`explorationStatus('045','探索の検証状況')`追加、`screen_registry.dart`にcase追加。③`gp_explorer_section.dart`(030)のEIカード直下に「この豆の検証状況を見る」ボタンを追加(選択中の豆・ミル・メソッドを引き継ぐ)。④`bean_detail_screen.dart`(011)の「在庫・購入」直後に「最適条件の探索」FormSectionを追加。⑤`gp_heatmap.dart`の軸定数`_heatmapTemps`/`_heatmapRatios`を`temps`/`ratios`に公開化(045の実測セル数カウントで共用するため)。**地雷対策(設計書§12-3)**: `GpService.optimize(refine:true)`は表示中メソッドで1回だけ呼び、`_OptimizeResult`型として結果をEIカード・分布セクション両方で使い回す実装にした(最初の実装では2回呼んでいたため気付いて修正)。
-- **検証**: `flutter analyze`新規issue 0(既存47件のみ)。`flutter test`は既存332件+新規`test/exploration_status_screen_test.dart`5件(設計書§10.2どおり)で計337件全パス、`gp_explorer_section_test.dart`・`bean_detail_test.dart`とも無修正でパス。`flutter build web`成功。
-- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030→045・011→045の両導線、探索サマリ(試行16回等)・スコア推移折れ線・試した条件の分布ヒートマップ(実測●バッジ)まで正常表示を確認(**新教訓**: `computer scroll`が効かない既知の問題(L08)に対し、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`へ`dispatchEvent`する回避策が有効だった。`rules/lessons_archive.md` L98に追記)。コンソールエラー無し。
-- **次にやること**: T3-53d(理論ページ041のGP節にEIの意味・3段階閾値を追記、マスタープラン§4画面インベントリに045行追加、`statistics_feature_design.md`§7.5末尾にポインタ追記。§9を参照)。
+- **選定理由**: `NEXT_SESSION.md`の推奨(「T3-73a + T3-73d(Flutterコードに触れないので同一ループで可)」)どおり選定。
+- **実装**: ①`tools/analyze_transcript.js`(新規、Node依存なし)を追加。`.jsonl`のtranscriptを`message.id`で重複排除しつつ集計し、`uniqueRequests`/`totalToolCalls`/`toolsPerRequest`ヒストグラム/`avgCtx`/`maxCtx`/`cacheR`/`cacheW`/`out`/概算コスト(200k超のリクエストは単価2倍で計上)/ツール別結果文字数/上位25件の大きなツール結果を標準出力する(設計書`docs/token_optimization_design.md`§5どおり)。②`.claude/skills/full_loop/SKILL.md`にセッション分割(S1)の2分岐を追加: (a)手順3.5として、手順4(検証)着手前に当ループcost>$7または触れたファイル数>5なら実装内容を「検証待ち」としてNEXT_SESSION.mdに記載しcommitのみでセッションを終える分岐、(b)手順1に、NEXT_SESSION.mdに「検証待ち」の記載があれば手順2・3をスキップして手順4から再開する分岐。
+- **検証**: `node tools/analyze_transcript.js`を実セッションのtranscript(`feaadbe7-...jsonl`)に対して実行し、設計書§2と同形式(リクエスト数81、cacheR等)で出力されることを確認。Flutterコードは触れていないため`flutter analyze`/`test`/`build`は対象外(設計書§6・タスク表の「T3-73a・T3-73dは互いに独立、Flutterコードに触れないため同一ループでまとめて実施してよい」に基づく)。
+- **本番反映**: 対象外(コード変更・デプロイ無し)。
+- **次にやること**: マスタープラン§3のT3-73実施順序どおり次はT3-73e(firebaseプラグイン・playwright MCPの無効化、要ユーザー確認)。または依存の無いT3-72グループ(a〜e)から選定してもよい。
 
-> これ以前(-5.06節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.07節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 
