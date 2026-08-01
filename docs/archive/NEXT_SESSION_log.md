@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.07 当日やったこと(2026-08-01、`/full_loop`(Sonnet 5)、**T3-53c完了・本番デプロイ済み**=045画面「探索の検証状況」新設+030/011の導線2箇所)
+
+- **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53c(依存T3-53a・T3-53bは充足済み)を選定。
+- **実装**: `docs/exploration_status_design.md`のとおり①`lib/screens/exploration_status_screen.dart`(新規)に045画面本体を実装(セレクタ・探索サマリ+次に試すと良い条件カード+進捗ゲージ・スコアの推移(fl_chart)・試した条件の分布(GpHeatmap+overlay)・試行の一覧)。②`lib/routing/app_screen.dart`に`explorationStatus('045','探索の検証状況')`追加、`screen_registry.dart`にcase追加。③`gp_explorer_section.dart`(030)のEIカード直下に「この豆の検証状況を見る」ボタンを追加(選択中の豆・ミル・メソッドを引き継ぐ)。④`bean_detail_screen.dart`(011)の「在庫・購入」直後に「最適条件の探索」FormSectionを追加。⑤`gp_heatmap.dart`の軸定数`_heatmapTemps`/`_heatmapRatios`を`temps`/`ratios`に公開化(045の実測セル数カウントで共用するため)。**地雷対策(設計書§12-3)**: `GpService.optimize(refine:true)`は表示中メソッドで1回だけ呼び、`_OptimizeResult`型として結果をEIカード・分布セクション両方で使い回す実装にした(最初の実装では2回呼んでいたため気付いて修正)。
+- **検証**: `flutter analyze`新規issue 0(既存47件のみ)。`flutter test`は既存332件+新規`test/exploration_status_screen_test.dart`5件(設計書§10.2どおり)で計337件全パス、`gp_explorer_section_test.dart`・`bean_detail_test.dart`とも無修正でパス。`flutter build web`成功。
+- **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030→045・011→045の両導線、探索サマリ(試行16回等)・スコア推移折れ線・試した条件の分布ヒートマップ(実測●バッジ)まで正常表示を確認(**新教訓**: `computer scroll`が効かない既知の問題(L08)に対し、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`へ`dispatchEvent`する回避策が有効だった。`rules/lessons_archive.md` L98に追記)。コンソールエラー無し。
+- **次にやること**: T3-53d(理論ページ041のGP節にEIの意味・3段階閾値を追記、マスタープラン§4画面インベントリに045行追加、`statistics_feature_design.md`§7.5末尾にポインタ追記。§9を参照)。
+
 ### -5.05 当日やったこと(2026-07-31、`/full_loop`(**Opus 5 = 上位モデル**)、**T3-53の設計完了**=最適条件探索の「検証状況」可視化。コードは1行も書いていない)
 
 - **選定理由**: 上位モデルで起動されたため、`full_loop`スキルの例外規定に従い`⚠️上位モデルで実施`タスクを優先。依存(T3-52)充足済みで選べるのはT3-53のみだった。**モデル分担ルール(2026-07-28恒久)どおり成果物は設計書+タスク分解のみで、実装・`analyze`/`test`/`build`/デプロイは行っていない。**
