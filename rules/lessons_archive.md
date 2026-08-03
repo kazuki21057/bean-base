@@ -445,3 +445,11 @@
 - **影響範囲**: `OptimisticListNotifier`を継承する全マスター(Bean/Grinder/Dripper/Filter/Method/Store)の`updateOptimistic`/`addOptimistic`/`removeOptimistic`すべてに共通する構造のため、特定のマスターに固有の不具合ではない。
 - **今後の修正案(未着手、タスク化候補)**: (a) `updateOptimistic`/`addOptimistic`直後の`_syncInBackground()`を削除し楽観的更新のみに倒す(サーバー側で正規化される値がなければ再取得は不要)、(b) 再取得に一定の遅延を入れる、(c) 再取得結果が呼び出し直前の楽観値と矛盾する場合は楽観値を優先する、のいずれか。着手時はGASの`doPost`側で`SpreadsheetApp.flush()`を呼んでいるか(L87/L360)も合わせて確認すること。
 - **本番確認時の注意**: 編集→保存→pop直後の1回のスクリーンショットだけで「反映されていない」と判断せず、**フルリロードして最終的な永続化結果を確認する**こと(L89と同種の注意)。
+
+### L100 T3-74a: L99の修正は案(a)`_syncInBackground()`削除を採用。本番の`addBean`/`updateBean`等がvoidで正規化値を返さない設計上、削除が安全かつレースを根本的に解消できる(2026-08-03)
+
+- **選定理由**: `SheetsService`の`addXxx`/`updateXxx`はGAS書き込み成功/失敗のみを返しvoid(正規化された値やサーバー採番IDを返さない)。呼び出し元は書き込み前に自前でIDを採番し、`addOptimistic`/`updateOptimistic`へ渡す`item`は書き込んだデータそのものなので、直後の全件再取得(`_syncInBackground`)は正しい値をリスクを冒して上書きするだけで実質的な同期上のメリットが無いと判断し、L99末尾の案(a)(削除)を採用した。案(b)(遅延)・案(c)(楽観値優先)はGAS `doPost`側の`flush()`有無に依存する対症療法であり、`gas/Code.gs`を確認したところ`SpreadsheetApp.flush()`は1箇所も呼ばれていなかった(=書き込み反映タイミングが保証されない)ため、そもそもの再取得自体をやめる案(a)の方が根本的。
+- **実装**: `lib/providers/data_providers.dart`の`OptimisticListNotifier.addOptimistic`/`updateOptimistic`/`removeOptimistic`から`_syncInBackground()`呼び出しを削除し、メソッド自体も削除(未使用の`debugPrint`と、それが唯一の使用箇所だった`import 'package:flutter/foundation.dart'`も併せて削除)。楽観的更新のみで確定させる。
+- **テストで発覚した副作用(重要)**: `test/bean_create_screen_test.dart`の`_FakeDataService.getStores()`が内部の可変リスト`stores`を**コピーせずそのまま返して**おり、`addStore()`がその同じリストへ`.add()`で直接追記する実装だった。これまでは`_syncInBackground()`によるバックグラウンド再取得が、二重加算された楽観的リストを正しい単一リストで上書きして矛盾を隠していたが、削除後は「豆の新規登録画面(012)で店を新規追加→購入店ドロップダウンに同一店舗が2件表示される」という重複バグとして顕在化し、`DropdownButtonFormField`の一意性assertionでテストが失敗した。**本番の`SheetsService`は`getStores()`のたびにHTTPレスポンスをJSONから新規デシリアライズするため、この種のリスト参照エイリアシングは起きない**(テストダブル特有の問題)。修正は`_FakeDataService.getStores()`を`List.of(stores)`でコピーを返すよう変更するのみ。
+- **一般化できる教訓**: `OptimisticListNotifier`系の楽観的更新をテストする`Fake`/`Mock`の`DataService`実装で、内部バッキングリストを`getXxx()`が**参照のまま返している**場合、`addXxx()`がそのリストへ直接`.add()`する実装だと、楽観的更新(`state.value`への追加)と二重に加算され重複が生じる。新しく`Fake`実装を書く、または既存の`Fake`で同様の対称的でない挙動(get側は参照直渡し・add側は同一参照を破壊的変更)が無いか、テスト失敗時にまず疑うこと。
+- **影響範囲の確認**: `flutter test`のフルスイート(338件)を実行し、この1件以外に`_syncInBackground`削除起因の失敗が無いことを確認済み(L96が指摘していた「fakeの`getXxx`が固定で空リストを返す」パターンの既存fakeは、削除後も該当テストが通っているため実害なし)。

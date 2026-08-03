@@ -21,7 +21,10 @@ import 'package:bean_base/services/data_service.dart';
 class _FakeDataService implements DataService {
   final List<StoreMaster> stores = [];
   @override
-  Future<List<StoreMaster>> getStores() async => stores;
+  // T3-74a: 呼び出しごとにコピーを返す。addStore()が同じリストへ直接
+  // add()する実装のため、参照をそのまま返すとOptimisticListNotifierの
+  // 楽観的更新(state.value + item)と二重に加算され重複が生じる。
+  Future<List<StoreMaster>> getStores() async => List.of(stores);
   @override
   Future<void> addStore(StoreMaster store) async => stores.add(store);
   @override

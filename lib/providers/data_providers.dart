@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/data_service.dart';
 import '../models/coffee_record.dart';
@@ -32,34 +31,27 @@ abstract class OptimisticListNotifier<T> extends AsyncNotifier<List<T>> {
   Future<List<T>> build() => fetch();
 
   /// 新規追加直後、一覧にすぐ反映するためのローカル追加。
+  /// T3-74a(L99): 呼び出し元はGAS書き込み成功後にのみこれを呼ぶため、
+  /// `item`は既に正(サーバーは値を正規化・再割当しない)。直後の全件再取得は
+  /// GAS書き込み反映のラグと競合し、この正しい値を古いデータで上書きする
+  /// レースの原因だったため廃止し、楽観的更新のみで確定させる。
   void addOptimistic(T item) {
     state = AsyncData([...?state.value, item]);
-    _syncInBackground();
   }
 
-  /// 更新直後、一覧の該当行だけをローカルで即時差し替える。
+  /// 更新直後、一覧の該当行だけをローカルで即時差し替える(T3-74a、理由は上記)。
   void updateOptimistic(T item) {
     final current = state.value;
     if (current == null) return;
     final id = idOf(item);
     state = AsyncData([for (final e in current) idOf(e) == id ? item : e]);
-    _syncInBackground();
   }
 
-  /// 削除直後、一覧から該当行をローカルで即時除去する。
+  /// 削除直後、一覧から該当行をローカルで即時除去する(T3-74a、理由は上記)。
   void removeOptimistic(String id) {
     final current = state.value;
     if (current == null) return;
     state = AsyncData([for (final e in current) if (idOf(e) != id) e]);
-    _syncInBackground();
-  }
-
-  Future<void> _syncInBackground() async {
-    try {
-      state = AsyncData(await fetch());
-    } catch (e) {
-      debugPrint('[Antigravity] Error: 一覧のバックグラウンド再同期に失敗 $e');
-    }
   }
 }
 
