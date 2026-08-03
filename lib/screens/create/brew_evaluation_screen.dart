@@ -197,6 +197,20 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
     final beanWeight = double.tryParse(_beanWeightController.text) ?? info.beanWeight;
     final totalWater = double.tryParse(_totalWaterController.text) ?? info.totalWater;
     final temperature = double.tryParse(_temperatureController.text) ?? 0.0;
+    // T3-75b: 豆未選択・湯温未入力のまま保存できてしまうと統計・残豆量の母数を汚すため、
+    // 保存前に必須チェックする。
+    if (_bean == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('豆を選択してください'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (temperature <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('湯温を入力してください'), backgroundColor: Colors.red),
+      );
+      return;
+    }
     final isTasteApplicable = _isTasteApplicable;
     // ref.invalidate(coffeeRecordsProvider)後は再取得中(loading)になり得るため、
     // 好みプロファイル自動更新(T4-4b)用に保存前の記録一覧を先に確保しておく。

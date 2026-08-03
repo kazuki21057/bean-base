@@ -138,6 +138,102 @@ class _FakeDataService implements DataService {
 
 void main() {
   testWidgets(
+      'BrewEvaluationScreen: T3-75b 豆未選択のまま登録しようとするとエラーが表示され、CoffeeRecordは保存されない',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 8, 4, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 湯温は入力しているが豆は未選択のまま登録しようとする。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('豆を選択してください'), findsOneWidget);
+    expect(fakeService.addedRecords, isEmpty);
+  });
+
+  testWidgets(
+      'BrewEvaluationScreen: T3-75b 湯温未入力のまま登録しようとするとエラーが表示され、CoffeeRecordは保存されない',
+      (WidgetTester tester) async {
+    final fakeService = _FakeDataService();
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
+    final info = PendingBrewInfo(
+      brewedAt: DateTime(2026, 8, 4, 9, 0),
+      method: MethodMaster(
+        id: 'm1',
+        name: '4:6メソッド',
+        author: '粕谷 哲',
+        baseBeanWeight: 20,
+        baseWaterAmount: 300,
+        temperature: 92,
+        description: '',
+        recommendedEquipment: '',
+      ),
+      bean: bean,
+      beanWeight: 20,
+      totalWater: 300,
+      totalTime: 210,
+      bloomingWater: 40,
+      bloomingTime: 45,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataServiceProvider.overrideWithValue(fakeService),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [info.method!])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
+          dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
+        ],
+        child: MaterialApp(home: BrewEvaluationScreen(info: info)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 豆は引き継がれているが湯温は未入力(空欄)のまま登録しようとする。
+    await tester.tap(find.text('評価を登録する'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('湯温を入力してください'), findsOneWidget);
+    expect(fakeService.addedRecords, isEmpty);
+  });
+
+  testWidgets(
       'BrewEvaluationScreen: 030からは豆/グラインダー/ドリッパー/フィルター未選択で引き継ぎ、031で選択して登録するとCoffeeRecordに反映される',
       (WidgetTester tester) async {
     final fakeService = _FakeDataService();
@@ -214,6 +310,10 @@ void main() {
     await tester.tap(find.text('ペーパー').last);
     await tester.pumpAndSettle();
 
+    // T3-75b: 豆・湯温は必須のため湯温も入力する。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('評価を登録する'));
     await tester.pumpAndSettle();
 
@@ -275,6 +375,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // T3-75b: 湯温は必須のため入力する。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
+    await tester.pumpAndSettle();
+
     // 1件目登録
     await tester.tap(find.text('評価を登録する'));
     await tester.pumpAndSettle();
@@ -315,6 +419,7 @@ void main() {
       description: '',
       recommendedEquipment: '',
     );
+    final bean = BeanMaster(id: 'b1', name: 'エチオピア', roastLevel: '浅煎り', origin: 'エチオピア', isInStock: true);
     // T3-15: 030でメソッドを選ばずに031へ進んだ状態を再現(method: null)。
     final info = PendingBrewInfo(
       brewedAt: DateTime(2026, 7, 20, 9, 0),
@@ -331,7 +436,7 @@ void main() {
         overrides: [
           dataServiceProvider.overrideWithValue(fakeService),
           methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [v60Method])),
-          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => <BeanMaster>[])),
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
           grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => <GrinderMaster>[])),
           dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => <DripperMaster>[])),
           filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => <FilterMaster>[])),
@@ -357,6 +462,17 @@ void main() {
     // 豆量・総湯量もこの画面で編集できる(T3-17)。
     await tester.enterText(find.widgetWithText(TextField, '豆量'), '25');
     await tester.enterText(find.widgetWithText(TextField, '総湯量'), '400');
+    await tester.pumpAndSettle();
+
+    // T3-75b: 豆・湯温は必須のため入力する。豆ドロップダウンは画面外になりうる
+    // ため先にスクロールする(brew_recipe_test.dartと同じパターン)。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<BeanMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('エチオピア').last);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('評価を登録する'));
@@ -412,6 +528,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // T3-75b: 湯温は必須のため入力する。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('評価を登録する'));
     await tester.pumpAndSettle();
 
@@ -461,6 +581,10 @@ void main() {
         child: MaterialApp(home: BrewEvaluationScreen(info: info)),
       ),
     );
+    await tester.pumpAndSettle();
+
+    // T3-75b: 湯温は必須のため入力する。
+    await tester.enterText(find.widgetWithText(TextField, '湯温'), '92');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('評価を登録する'));
