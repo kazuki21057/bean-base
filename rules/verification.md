@@ -82,6 +82,7 @@
 - L98 `computer scroll`が効かないFlutter Web画面でも、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`へ`dispatchEvent`するとスクロールできることがある
 - L102 「画像URLが入っている」と「ブラウザで画像が出る」は別問題。同じURLでも`fetch`は200で`<img>`はonerrorになりうる(Drive/lh3)。プレースホルダーへのフォールバックはコンソールに何も出さないので壊れても気付けない
 - L103 `claude-in-chrome`のタブでビューポートが451x73に固定され`resize_window`でも戻らないことがある → `tabs_create_mcp`でタブを作り直す
+- L104 L06(初回描画時の漢字トウフ)は、本番URLでは**2〜3秒待って再描画すると同一画面内で正常な文字に回復する**一過性の事象であることが多い。1枚のスクリーンショットだけで「常に読めない」と判定しない。フォント取得自体は`performance.getEntriesByType('resource')`で`fonts.gstatic.com`の`transferSize`/`decodedBodySize`を見れば成否が数値で分かる(失敗していないのに描画だけ遅れることがある)
 
 ### GAS / Sheets / Drive 連携
 - L01 ID 型キャスト
@@ -101,6 +102,7 @@
 - L79 `sheets_service.dart`の`_postData`が呼ぶGAS `delete`アクションのペイロードキーは英語の`id`ではなく、…
 - L81 Google Sheetsは「数字だけの文字列」を書き込むと自動的に数値型セルに変換することがあり、対応するDartフィールドが`String`型で…
 - L95 「湯量がおかしい」の原因はコードでなく本番`pouring_steps`の`湯量係数`が固定15g割りだったこと。データ整合性は実データ突合でのみ発見できる
+- L105 本番シートのID列名はシートごとに不統一(`methods_master`は`メソッドID`であって`抽出方法ID`ではない)。突合スクリプトで「ID or ID」のフォールバックに頼ると存在しないキーで空集合になり大量の偽陽性未解決が出る。**必ず実際のJSONキー一覧を1回`print`してから列名を書く**
 
 ### 統計・設計書 (statistics_feature_design.md)
 - L04 Firestore はレガシー

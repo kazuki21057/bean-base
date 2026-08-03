@@ -1753,3 +1753,11 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **検証**: `flutter analyze`変更ファイルに新規issue0(既存47件のみ)。`flutter test`は既存324件+新規`test/exploration_status_service_test.dart`8件(設計書§10.1の最低6件を超過、`uniqueConditionCount`の丸め例示数値は設計書の記載に軽微な計算誤りがあったため実際に丸めが一致する値に置き換えて検証)で計332件全パス、`gp_explorer_section_test.dart`は無修正でパス(=切り出しが等価である証拠)。`flutter build web`成功。
 - **本番反映**: ユーザーの許可を得て`firebase deploy --only hosting`実行、本番`main.dart.js`のMD5ハッシュ一致を確認。GAS変更は無いため`clasp push`は不要。`build/web`をローカル配信し`claude-in-chrome`で本番実データに対し030(レシピ探索セクション)を確認、`GpHeatmap`切り出し後もメソッド比較表・推奨条件・予測総合評価マップが正常表示されることを確認(**`claude-in-chrome`のスクロールが不安定な既知の問題(`rules/lessons_archive.md` L87)に複数回遭遇したため粘らず切り上げ、332件のテストスイートを主な担保とした**)。ユーザーの許可を得て`git push`も実施。
 - **次にやること**: T3-53c(045画面新設。設計書§3・§7・§8・§10.2、地雷12件を参照)。
+
+### -5.14 当日やったこと(2026-08-03、`/full_loop`(Sonnet 5)、**T3-75f完了**=リリースビルドのコンソール生データ流出を修正、本番デプロイまで完了)
+
+- **選定理由**: ユーザー指示「検証ではなく修正項目に取り組んで」により、検証専用タスクT3-75h(本番URL再確認)は着手せず修正タスクへ直接着手。T3-75a・T3-75eは本番Origin依存で未確認(localhost限定の可能性)だったため、環境に依存せず確実にバグと言えるT3-75f(サイズS)を選定。
+- **実装**: `lib/services/sheets_service.dart`の`_fetchData`/`_postData`内の`print(`呼び出し18箇所を全て削除。生データダンプ(`Raw Body Sample`・`First raw item`・`Payload`・`Response Body`等)は完全削除し、状態ログ(取得成功・エラー等)のみ`debugPrint('[Antigravity] ...')`(日本語メッセージ)に置き換えた。あわせて`catch (err, stack)`の未使用`stack`引数を削除、`throw e;`を`rethrow;`に修正(スタックトレース保持)。
+- **検証**: `flutter analyze`新規issue0・`flutter test`338件全パス・`flutter build web`成功。`sheets_service.dart`内の`print(`が0件になったことをgrepで確認。ローカル配信(`http://localhost:8124`)+`claude-in-chrome`でコンソール確認を試みたが、サンドボックス環境からGASへの通信が503でブロックされ(既知の制約、CLAUDE.md記載)実データでの動的確認はできず。ソースコード上生データを出力する経路自体が無いことで完了条件を満たしていると判断。
+- **デプロイ**: ユーザーに確認のうえ`firebase deploy --only hosting`を実行、成功。`build/web/main.dart.js`のmd5(`22359c57286754b82deba776c603d09f`)が本番配信物と一致することを確認。
+- **次にやること**: T3-75h(本番URLでの再確認、`docs/production_verification_guide.md`に従う)→ 確認できたらT3-75a/T3-75e。T3-75b(バリデーション追加)は環境非依存のため次点で着手可能。
