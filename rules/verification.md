@@ -80,6 +80,8 @@
 - L66 `claude-in-chrome`の`computer`(`zoom`)でCDPの`Page.captureScreenshot`がタイムアウトす…
 - L80 この環境でのFlutter Web(CanvasKit)ナビゲーションは、`claude-in-chrome`の`computer`ツールおよびPl…
 - L98 `computer scroll`が効かないFlutter Web画面でも、`javascript_tool`で合成`WheelEvent`を`flt-glass-pane`へ`dispatchEvent`するとスクロールできることがある
+- L102 「画像URLが入っている」と「ブラウザで画像が出る」は別問題。同じURLでも`fetch`は200で`<img>`はonerrorになりうる(Drive/lh3)。プレースホルダーへのフォールバックはコンソールに何も出さないので壊れても気付けない
+- L103 `claude-in-chrome`のタブでビューポートが451x73に固定され`resize_window`でも戻らないことがある → `tabs_create_mcp`でタブを作り直す
 
 ### GAS / Sheets / Drive 連携
 - L01 ID 型キャスト

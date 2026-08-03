@@ -459,3 +459,21 @@
 - **経緯**: T3-52bの設計書は`GpService`の`fitPooled`/`predictPooled`/`optimizePooled`を「旧3次元ロジック」としてひとまとめに扱っていた(L92の教訓どおり呼び出し元をgrepしたのはこの3つを1グループとして、だった)。T3-72eで個別にgrepし直した結果、実際は一律ではなかった: `fitPooled`は`stats_status_screen.dart`(090稼働状況表示)が現役で使用中、しかし`predictPooled`は`optimizePooled`内部からしか呼ばれておらず、その`optimizePooled`自体はlib全体・testのどこからも呼び出されていない完全な未使用コードだった。
 - **一般化できる教訓**: 「A/B/Cはセットで導入された旧ロジック」という説明があっても、B・Cのうち一部がA経由でしか到達されない補助メソッドである場合、Aだけが生き残ってB・Cが枯れ木になっていることがある。削除・整理の判断は3つをまとめて1回grepするのではなく、**メソッドごとに個別に呼び出し元をgrep**し、内部呼び出し(同ファイル内の別メソッドから)と外部呼び出し(他ファイルから)を区別すること。
 - **今回の判断**: 呼び出し元ゼロの`predictPooled`/`optimizePooled`は削除。現役の`fitPooled`は、090の表示が「メソッド・ミルを問わない概況判定」という設計意図(新4次元版`fitForMethod`はメソッド・ターゲットミル指定必須で意味が変わる)のため、削除せず「090専用」とdocコメントで明記して残した。
+
+## L102 「画像URLが入っている」と「ブラウザで画像が出る」は別問題。fetchが200でも`<img>`は失敗しうる
+
+2026-08-03の本番棚卸しで、`bean_master`28件中24件に`豆画像URL`が入っているのに豆管理(011)のカードが全件プレースホルダーだった。`ImageUtils.getOptimizedImageUrl`によるlh3(`https://lh3.googleusercontent.com/d/<ID>`)への変換自体は効いていた(L17時点の対策は入っている)。ブラウザのページコンテキストで実測すると、
+
+| URL形式 | `fetch()` | `new Image()` |
+|---|---|---|
+| `drive.google.com/uc?export=view&id=` | THROW(Originヘッダ付きcurlでも403) | onerror |
+| `lh3.googleusercontent.com/d/<ID>` | **200 / `image/jpeg` / type=cors** | **onerror** |
+| `drive.google.com/thumbnail?id=<ID>&sz=w800` | THROW | **onload 450x600** |
+
+というように`fetch`と`<img>`で結果が逆転する。さらに`performance.getEntriesByType('resource')`ではlh3への34リクエストが全て`transferSize`1857バイトで、`curl`で直接取ると51,147バイトのJPEGが返る(ブラウザ経由だけ別レスポンスになっている)。
+
+**教訓**: 画像が出ないときは(1)データにURLが入っているか、(2)変換ロジックが効いているか、(3)そのURLがブラウザから`fetch`できるか、(4)そのURLが`<img>`から読めるか、を**4段階に分けて実測する**。`curl`が通ることは何の保証にもならない(Origin/Refererヘッダの有無でGoogle側のレスポンスが変わる)。またプレースホルダーへフォールバックする実装は**コンソールにエラーを出さない**ため、目視で気付くまで壊れたまま本番に残る。
+
+## L103 `claude-in-chrome`のタブでビューポートが極小(451x73)に固定され、`resize_window`でも戻らないことがある
+
+2026-08-03、豆管理(011)の目視中に突然スクリーンショットが451x73(モバイル`NavigationBar`だけ)になった。`innerWidth/innerHeight`は451x73なのに`outerWidth/outerHeight`は2560x1392で、`mcp__claude-in-chrome__resize_window`を呼んでも`navigate`し直しても`innerWidth`は451のまま戻らなかった。**対処: `tabs_create_mcp`で新しいタブを作り直す**(これで1568x744に復帰した)。L66(`Page.captureScreenshot`のタイムアウト)と同時に起きやすい。
