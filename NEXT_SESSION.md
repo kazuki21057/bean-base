@@ -8,7 +8,7 @@
 ## 1. 現状サマリ
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
-- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-72dは2026-08-03にユーザー許可を得て`firebase deploy --only hosting`済み**。**T3-74a(本節末尾参照)はコード変更・ローカル配信での本番確認まで完了したが、`firebase deploy`は未実施(次回セッションでユーザー許可を得てから実行すること)**。
+- 本番: https://beanbase-app-2016.web.app (Firebase Hosting)。**T3-72d・T3-74aとも2026-08-03にユーザー許可を得て`firebase deploy --only hosting`済み・デプロイ後の`build/web`をローカル配信して本番GAS実データに対し最終確認済み**。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GAS は `gas/Code.gs` を clasp で管理(現行デプロイ @19)。T3-53d はドキュメント+理論ページ追記のみでGAS変更無し。
 - **T3-58〜T3-69(2026-07-28〜29ユーザー要望グループ)はこれで全14件完了・本番反映済み**。最後まで残っていた**T3-69(豆マスタのstore→storeId移行)は2026-07-31に完了**。詳細は下記「3. 直近の作業ログ」を参照。
 - **本番`methods_master`のうち推奨焙煎度が設定済みなのは`method001`(4:6メソッド、ミディアム〜シティ)のみ**。他11メソッドは未設定のためF3のおすすめレシピ候補にならない。**ユーザーに021から各メソッドの推奨焙煎度を設定するよう案内すること。**
@@ -22,16 +22,15 @@
 
 **T3-53dが2026-08-01に完了・本番反映済みのため、T3-53グループ(a〜d)は全完了。Phase 3追加分(T3-40〜T3-56)もこれで全件完了。**
 
-**2026-08-03: T3-74a完了**(L99のレース条件を`_syncInBackground()`削除で解消、詳細は`rules/lessons_archive.md` L100)。**`firebase deploy`は未実施のため、次回セッション冒頭でユーザーに許可を得てデプロイ・本番最終確認・`git push`を行うこと**(このセッションではcommitのみでpush・deployはしていない)。
+**2026-08-03: T3-74a完了**(L99のレース条件を`_syncInBackground()`削除で解消、詳細は`rules/lessons_archive.md` L100)。ユーザー許可を得て`firebase deploy --only hosting`・デプロイ後の本番最終確認・`git push`まで完走。
 
 **T3-72aについて重要な発見(2026-08-03、未解決のまま持ち越し)**: タスク文の前提「本番`bean_purchases`に`bp_init_<豆ID>`行が記録済み」は**誤り**。直接GAS APIで確認したところ`bean_purchases`は1件(2026-07-30の実購入)のみで`bp_init_`行は0件、`tools/migrate_bean_purchases.dart`(順方向migration)は本番未実行のままだった。逆方向の一括投入スクリプト`tools/backfill_bean_initial_purchase.dart`を作成し`--dry-run`確認したが対象0件(28豆中24豆が`初期購入量(g)`未入力・ソースとなるデータがどこにも無い)。**自動移行できる元データが存在しないため、ユーザーが手入力する以外に解決策が無い。次回セッションでT3-72aをクローズしてT3-72fに統合するかユーザーに確認すること。**
 
 **推奨着手順**:
 
-1. まず今回のT3-74a変更のデプロイ許可をユーザーに確認(`firebase deploy --only hosting`→ローカル配信での本番最終確認→`git push`)
-2. T3-72e(GpService旧ロジック整理)
-3. **T3-73e**(firebaseプラグイン・playwright MCPの無効化。グローバル設定に触れるため要ユーザー確認、設計書§5)
-4. T3-72aの扱いをユーザーに確認(クローズ→T3-72fへ統合 が妥当と思われる)
+1. T3-72e(GpService旧ロジック整理)
+2. **T3-73e**(firebaseプラグイン・playwright MCPの無効化。グローバル設定に触れるため要ユーザー確認、設計書§5)
+3. T3-72aの扱いをユーザーに確認(クローズ→T3-72fへ統合 が妥当と思われる)
 
 **ユーザー実施待ちで着手不可**: T3-1 / T3-4 / T3-20(モバイル実機確認・UI磨き込み・Ubuntu環境)、T3-57(Youth3件の写真提供待ち)、T3-72f(11メソッドの推奨焙煎度設定)。
 
@@ -45,7 +44,7 @@
 2. ~~`claude-in-chrome`の一覧グリッドのスクロールが不安定(L87)~~ → **T3-72bで2026-08-03に`rules/verification.md`へ回避策(L98)を明記済み**
 3. ~~実ブラウザ目視が未実施の画面~~ → **T3-72cで2026-08-03に3箇所とも確認済み(コンソール例外・Overflow無し)**
 4. **設計書`docs/store_master_design.md`§9の未解決4件(SORA・Navy・神戸珈琲物語のどの店舗か・Youth Coffeeの詳細)はユーザー確認待ち**。027の編集画面(028編集モード)からいつでも補完可能。
-5. ~~マスター詳細画面(011/020等)は編集→保存→pop直後、表示が古いスナップショットのまま更新されない~~(L89) → **T3-72dで2026-08-03修正済み**。~~本番確認時に別原因(`OptimisticListNotifier`のレース、L99)で稀に古い値が一瞬見えることがある~~ → **T3-74aで2026-08-03解消済み(`_syncInBackground()`削除、L100)**。デプロイ後の本番最終確認が必要。
+5. ~~マスター詳細画面(011/020等)は編集→保存→pop直後、表示が古いスナップショットのまま更新されない~~(L89) → **T3-72dで2026-08-03修正済み**。~~本番確認時に別原因(`OptimisticListNotifier`のレース、L99)で稀に古い値が一瞬見えることがある~~ → **T3-74aで2026-08-03解消済み(`_syncInBackground()`削除、L100)。デプロイ・本番最終確認まで完了**。
 6. **`GpService`に旧3次元ロジック(`fitPooled`/`predictPooled`/`optimizePooled`)が残存**(`stats_status_screen.dart`が使用中) → **T3-72e**
 7. **本番`methods_master`12メソッドのうち推奨焙煎度設定済みは`method001`のみ** → **T3-72f(ユーザー実施)**
 8. **327fb7a5(New Hybrid Method)は注湯ステップの加算湯量・湯量係数が全行0のまま**。**ユーザー確認済み(2026-07-31): ユーザー自身が021から入力予定。対応不要。**
@@ -63,8 +62,8 @@
 - **実装**: L99末尾の修正案(a)を採用。`lib/providers/data_providers.dart`の`OptimisticListNotifier.addOptimistic`/`updateOptimistic`/`removeOptimistic`から`_syncInBackground()`呼び出しとメソッド自体を削除(未使用になった`debugPrint`用の`import 'package:flutter/foundation.dart'`も削除)。選定理由と詳細は`rules/lessons_archive.md` L100。
 - **テストで発覚した副次バグも修正**: `_syncInBackground`削除により`test/bean_create_screen_test.dart`の1件が新規失敗(`_FakeDataService.getStores()`が内部の可変リストをコピーせず直接返しており、`addStore()`の破壊的追加と楽観的更新が二重に効いて店舗が重複表示される問題が顕在化)。`getStores()`を`List.of(stores)`に変更して修正。本番の`SheetsService`は毎回新規デシリアライズするため実害無し(テストダブル特有の問題)。
 - **検証**: `flutter analyze`新規issue0(ベースライン47件と一致)・`flutter test`338件全パス・`flutter build web`成功。`python -m http.server`でローカル配信し`claude-in-chrome`で本番GAS実データに対しグラインダー詳細(Timemore c3 pro)の説明・メモを編集→保存→pop直後(フルリロード無し)に正しい新しい値が即時表示されることを確認(以前はここでレースが起きていた)。フルリロード後も同じ値が保持されることも確認。検証用に変更したメモは元の値「家用」に復元済み。コンソールエラー無し。
-- **本番反映**: **未実施**。コード変更はcommit済みだが`firebase deploy --only hosting`・`git push`はユーザー許可待ち(次回セッション、または本セッション終了時にユーザーへ確認すること)。
-- **次にやること**: ①T3-74aのデプロイ許可をユーザーに確認→デプロイ→本番最終確認→push ②依存の無いT3-72e ③T3-73e(要ユーザー確認)④T3-72aの扱い(T3-72fへ統合してクローズするか)をユーザーに確認。
+- **本番反映**: ユーザーに許可を得て`firebase deploy --only hosting`実行→成功。デプロイ後の`build/web`をローカル配信し(本番ドメイン直接アクセスは拡張の制約でブロックされるため)、グラインダー詳細(Timemore c3 pro)でメモ「家用」が正しく表示されていること・コンソールエラー無しを確認。
+- **次にやること**: ①依存の無いT3-72e ②T3-73e(要ユーザー確認)③T3-72aの扱い(T3-72fへ統合してクローズするか)をユーザーに確認。
 
 > これ以前(-5.09節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
