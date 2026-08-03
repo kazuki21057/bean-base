@@ -155,11 +155,12 @@ class GpService {
   }
 
   /// レガシー3次元版(湯温・比率・総抽出時間、メソッド/ミルを区別しない全記録
-  /// プール)。T3-52でメソッド別4次元の[fitForMethod]を追加した後も、
-  /// F3(`suggestion_service.dart`)・090の稼働状況表示(`stats_status_screen.dart`)
-  /// はメソッド・ミルを問わない集計のまま据え置く(T3-48でF3にメソッドを
-  /// 追加する際にあらためて移行する)ため、既存の重み付け(§7.5)・最小データ
-  /// 条件(n_eff<10)のまま残す。
+  /// プール)。**090専用(削除しない、T3-72eで確定)**: 090の稼働状況表示は
+  /// 「メソッド・ミルを問わずF4機能が使える最低限のデータ量か」という概況
+  /// 判定であり、[fitForMethod]のようにメソッド・ターゲットミルを1つ選ぶと
+  /// 表示仕様そのものが変わってしまう。そのため既存の重み付け(§7.5)・
+  /// 最小データ条件(n_eff<10)のまま残す。旧`predictPooled`/`optimizePooled`は
+  /// 呼び出し元が無い完全な未使用コードだったため削除済み(T3-72e)。
   GpModel? fitPooled(
     List<CoffeeRecord> records,
     String originId,
@@ -195,63 +196,6 @@ class GpService {
     if (nEff < 10) return null;
 
     return _fitGrid(xsRaw, ys, weights, nEff, xsRaw.length, '');
-  }
-
-  /// [fitPooled]の3次元モデル向け予測(湯温・比率・総抽出時間のみ)。
-  GpPrediction predictPooled(GpModel model, double temperature, double brewRatio, int totalTimeSec) {
-    final xRaw = [temperature, brewRatio, totalTimeSec.toDouble()];
-    final xStar = [
-      for (var j = 0; j < xRaw.length; j++) (xRaw[j] - model.xMean[j]) / model.xStd[j],
-    ];
-
-    final kStar = [
-      for (final xi in model.xTrain) _kernel(xStar, xi, model.lengthScale, model.sigmaF),
-    ];
-    final mean = _dot(kStar, model.alpha) + model.yMean;
-
-    final v = choleskySolve(model.cholL, kStar);
-    final kxx = model.sigmaF * model.sigmaF;
-    var variance = kxx - _dot(kStar, v);
-    if (variance < 0) variance = 0.0;
-    final sd = math.sqrt(variance);
-
-    final ei = expectedImprovement(mean, sd, model.fStar);
-
-    return GpPrediction(mean: mean, sd: sd, ei: ei);
-  }
-
-  /// [fitPooled]向けの候補グリッド探索(設計書§2.3.3旧版: 湯温80-96℃刻み1、
-  /// brew ratio 14.0-18.0刻み0.5、時間120-240秒刻み15)。
-  ({
-    GpPrediction best,
-    ({double t, double r, int s}) bestX,
-    GpPrediction explore,
-    ({double t, double r, int s}) exploreX,
-  }) optimizePooled(GpModel model) {
-    GpPrediction? bestPred;
-    ({double t, double r, int s})? bestX;
-    GpPrediction? explorePred;
-    ({double t, double r, int s})? exploreX;
-
-    for (var tInt = 80; tInt <= 96; tInt++) {
-      final t = tInt.toDouble();
-      for (var ri = 0; ri <= 8; ri++) {
-        final r = 14.0 + ri * 0.5;
-        for (var s = 120; s <= 240; s += 15) {
-          final pred = predictPooled(model, t, r, s);
-          if (bestPred == null || pred.mean > bestPred.mean) {
-            bestPred = pred;
-            bestX = (t: t, r: r, s: s);
-          }
-          if (explorePred == null || pred.ei > explorePred.ei) {
-            explorePred = pred;
-            exploreX = (t: t, r: r, s: s);
-          }
-        }
-      }
-    }
-
-    return (best: bestPred!, bestX: bestX!, explore: explorePred!, exploreX: exploreX!);
   }
 
   /// 固定グリッド (設計書§2.3.2) で対数周辺尤度 (T-20) 最大の (ℓ,σ_f,σ_n) を選ぶ。

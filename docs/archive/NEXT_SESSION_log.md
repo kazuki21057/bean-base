@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.11 当日やったこと(2026-08-03、`/full_loop`(Sonnet 5)、**T3-74a完了**=L99のレース条件を修正・本番でローカル配信確認まで実施、`firebase deploy`は未実施)
+
+- **選定理由**: NEXT_SESSION.mdの推奨着手順どおり、依存無しのT3-72e/T3-74aから、実際のバグ修正であるT3-74aを選定。
+- **実装**: L99末尾の修正案(a)を採用。`lib/providers/data_providers.dart`の`OptimisticListNotifier.addOptimistic`/`updateOptimistic`/`removeOptimistic`から`_syncInBackground()`呼び出しとメソッド自体を削除(未使用になった`debugPrint`用の`import 'package:flutter/foundation.dart'`も削除)。選定理由と詳細は`rules/lessons_archive.md` L100。
+- **テストで発覚した副次バグも修正**: `_syncInBackground`削除により`test/bean_create_screen_test.dart`の1件が新規失敗(`_FakeDataService.getStores()`が内部の可変リストをコピーせず直接返しており、`addStore()`の破壊的追加と楽観的更新が二重に効いて店舗が重複表示される問題が顕在化)。`getStores()`を`List.of(stores)`に変更して修正。本番の`SheetsService`は毎回新規デシリアライズするため実害無し(テストダブル特有の問題)。
+- **検証**: `flutter analyze`新規issue0(ベースライン47件と一致)・`flutter test`338件全パス・`flutter build web`成功。`python -m http.server`でローカル配信し`claude-in-chrome`で本番GAS実データに対しグラインダー詳細(Timemore c3 pro)の説明・メモを編集→保存→pop直後(フルリロード無し)に正しい新しい値が即時表示されることを確認(以前はここでレースが起きていた)。フルリロード後も同じ値が保持されることも確認。検証用に変更したメモは元の値「家用」に復元済み。コンソールエラー無し。
+- **本番反映**: ユーザーに許可を得て`firebase deploy --only hosting`実行→成功。デプロイ後の`build/web`をローカル配信し(本番ドメイン直接アクセスは拡張の制約でブロックされるため)、グラインダー詳細(Timemore c3 pro)でメモ「家用」が正しく表示されていること・コンソールエラー無しを確認。
+- **次にやること**: ①依存の無いT3-72e ②T3-73e(要ユーザー確認)③T3-72aの扱い(T3-72fへ統合してクローズするか)をユーザーに確認。
+
 ### -5.10 当日やったこと(2026-08-03、`/full_loop`(Sonnet 5)、**T3-72dデプロイ完了・T3-72b/T3-72c完了・T3-72a前提崩壊を発見**)
 
 - **選定理由**: 前回セッションの引き継ぎどおり、まずT3-72d(実装済み・未デプロイ)のデプロイから着手。ユーザーに許可を得て`firebase deploy --only hosting`実行→成功。
