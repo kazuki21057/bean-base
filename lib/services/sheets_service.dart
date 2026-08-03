@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';
@@ -25,7 +26,7 @@ class SheetsService implements DataService {
   Future<List<T>> _fetchData<T>(
       String sheetName, T Function(Map<String, dynamic>) fromJson) async {
     if (_baseUrl.isEmpty) {
-      print('Warning: API URL is not set.');
+      debugPrint('[Antigravity] 警告: API URLが未設定です。');
       return [];
     }
 
@@ -33,24 +34,15 @@ class SheetsService implements DataService {
       final response = await _client.get(Uri.parse('$_baseUrl?sheet=$sheetName'));
 
       if (response.statusCode == 200) {
-        print('DEBUG: Raw API Response for $sheetName (Status 200)');
-        // Print first 500 chars of body to avoid spamming console but allow inspection
-        final rawBody = response.body;
-        print('DEBUG: Raw Body Sample: ${rawBody.length > 500 ? rawBody.substring(0, 500) : rawBody}...');
-        
         final dynamic decoded = json.decode(response.body);
-        
+
         // Guard: Check if response is actually a List
         if (decoded is! List) {
-          print('Error: Expected List for $sheetName but got ${decoded.runtimeType}. Response: $decoded');
+          debugPrint('[Antigravity] エラー: $sheetName はList型を期待していましたが ${decoded.runtimeType} でした。');
           return [];
         }
 
         final List<dynamic> data = decoded;
-        print('DEBUG: Decoded list length for $sheetName: ${data.length}');
-        if (data.isNotEmpty) {
-           print('DEBUG: First raw item in $sheetName: ${data.first}');
-        }
 
         final List<T> validItems = [];
         for (var i = 0; i < data.length; i++) {
@@ -58,7 +50,7 @@ class SheetsService implements DataService {
            try {
              if (e == null) continue;
              if (e is! Map) {
-                print('Warning: Item at index $i in $sheetName is not a Map: $e');
+                debugPrint('[Antigravity] 警告: $sheetName のインデックス$iがMap型ではありません。');
                 continue;
              }
              
@@ -75,21 +67,9 @@ class SheetsService implements DataService {
              // So we pass the raw map to `fromJson` callback, but the callback relies on `_remapKeys` to do the heavy lifting.
              
              validItems.add(fromJson(map));
-           } catch (err, stack) {
-             print('Error parsing record #$i in $sheetName: $err');
-             print('Record content: $e');
-             // print('Stack trace: $stack'); // Uncomment for deep debug
+           } catch (err) {
+             debugPrint('[Antigravity] エラー: $sheetName のレコード#$iの解析に失敗しました: $err');
              // Continue to next item, don't crash entire list
-           }
-        }
-        print('DEBUG: Successfully parsed ${validItems.length} items from $sheetName');
-        if (validItems.isNotEmpty) {
-           // Try to print ID or Name if available, otherwise just toString
-           try {
-             // Use dynamic to access fields loosely if possible, or just toString
-             print('DEBUG: First parsed item: ${validItems.first}');
-           } catch (e) {
-             print('DEBUG: First parsed item (toString failed?): $e');
            }
         }
         return validItems;
@@ -98,7 +78,7 @@ class SheetsService implements DataService {
         throw Exception('Failed to load $sheetName: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error fetching $sheetName: $e');
+      debugPrint('[Antigravity] エラー: $sheetName の取得に失敗しました: $e');
       return [];
     }
   }
@@ -745,9 +725,6 @@ class SheetsService implements DataService {
 
   Future<void> _postData(String sheetName, String action, Map<String, dynamic> data) async {
      if (_baseUrl.isEmpty) return;
-     
-     print('DEBUG: Sending $action request to $sheetName');
-     print('DEBUG: Payload: $data');
 
      try {
        final response = await _client.post(
@@ -762,15 +739,14 @@ class SheetsService implements DataService {
        );
 
        if (response.statusCode == 200 || response.statusCode == 302) {
-         print('DEBUG: Successfully posted to $sheetName ($action)');
-         print('DEBUG: Response Body: ${response.body}');
+         debugPrint('[Antigravity] $sheetName への$action送信に成功しました。');
        } else {
-         print('ERROR: Failed to post to $sheetName: ${response.statusCode} ${response.body}');
+         debugPrint('[Antigravity] エラー: $sheetName への$action送信に失敗しました: ${response.statusCode}');
          throw Exception('Failed to post to $sheetName: ${response.statusCode}');
        }
      } catch (e) {
-       print('Error posting to $sheetName: $e');
-       throw e; 
+       debugPrint('[Antigravity] エラー: $sheetName への送信中にエラーが発生しました: $e');
+       rethrow;
      }
   }
 }
