@@ -16,6 +16,7 @@
    - **UI**: Overflow 警告(黄黒ストライプ)が出ない。
    - **外部サービス(重要)**: Google Sheets(GAS Web App)・Google Drive(画像)・Gemini API との通信が成功する。認証・データ送受信・パースを確認し、タイムアウトやエラーが握りつぶされていないこと。
 4. **視覚検証**: コードを読むだけでなく、ブラウザ(必要なら Playwright)で実際の挙動を確認する(例: 画像アップロードボタンが実際にクリックできるか)。Playwright の snapshot・スクリーンショットはコスト抑制のため要所のみ。
+   - **`claude-in-chrome`の`computer scroll`がFlutter Web(CanvasKit)画面で効かない場合**: `javascript_tool`で`document.querySelector('flt-glass-pane')`を取得し、合成`WheelEvent`(`new WheelEvent('wheel', {deltaY: 1500, deltaMode: 0, bubbles: true, cancelable: true, clientX, clientY})`)を`dispatchEvent`すると内部スクロールが効くことがある(L98)。この直後の`screenshot`はまれに拡大率がずれることがあるが、`navigate`し直せば直る。
 
 ## コーディング規約
 

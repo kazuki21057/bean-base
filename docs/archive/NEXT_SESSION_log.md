@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.09 当日やったこと(2026-08-03、`/full_loop`(Sonnet 5)、**T3-72d完了(未デプロイ)**=マスター詳細画面の編集後表示更新バグ修正+新規レース条件の発見・タスク化)
+
+- **選定理由**: NEXT_SESSION.mdの推奨着手順どおりT3-72d(依存なし、実バグ、サイズL)を選定。
+- **実装**: `bean_detail_screen.dart`(T3-60で対応済み)と同じ「コンストラクタ引数はそのまま、対応する`*MasterProvider`をwatchしIDで`firstWhere`+`orElse`して最新値を`current*`として使う」パターンを`grinder_detail_screen.dart`/`dripper_detail_screen.dart`/`filter_detail_screen.dart`/`method_detail_screen.dart`に適用。**タスク文には無いが「全マスター詳細画面」という終了条件に合わせ`store_detail_screen.dart`(027)にも同様に適用**。`test/grinder_template_test.dart`に新規widgetテストを1件追加(編集→保存→pop後に最新値が表示されることを確認)。
+- **検証**: `flutter analyze`新規issue0(ベースライン47件と一致)・`flutter test`338件全パス・`flutter build web`成功。`python -m http.server`でローカル配信し`claude-in-chrome`で本番GAS実データに対しグラインダー詳細(Timemore c3 pro)の編集→保存→pop→フルリロードの流れを確認、最終的に正しい値が表示されることを確認(検証用に一時変更したメモは元の値「家用」に復元済み)。
+- **本番確認中の新規発見(L99としてタスク化)**: 編集→保存→pop直後(フルリロード無し)は稀に更新前の値が表示されることがあった。原因はT3-72dの修正(watching by id)とは別で、`lib/providers/data_providers.dart`の`OptimisticListNotifier.updateOptimistic()`が正しい楽観的更新の直後に呼ぶ`_syncInBackground()`(GAS再取得)が、GAS書き込み反映のラグ(L87/L360)により古いデータで上書きしてしまうレース。フルリロードすれば正しい値になるため、T3-72d自体の修正は正しく機能していると判断。詳細は`rules/lessons_archive.md` L99、修正タスクはマスタープラン§3の**T3-74a**として新規追加。
+- **本番反映**: 未実施。`flutter build web`まで完了しローカルでは本番データに対し確認済みだが、Firebase Hostingへの`deploy`・`git push`はユーザー許可待ち。
+- **次にやること**: ①T3-72dのデプロイ・本番最終確認(ユーザー許可を得てから`firebase deploy --only hosting`)②その後は依存の無いT3-72a/b/c/e・T3-74aから選定、またはT3-73e(要ユーザー確認)。
+
 ### -5.08 当日やったこと(2026-08-02、`/full_loop`(Sonnet 5)、**T3-73a・T3-73d完了**=トークン消費削減の計測基盤+セッション分割の仕組み。Flutterコード変更無し)
 
 - **選定理由**: `NEXT_SESSION.md`の推奨(「T3-73a + T3-73d(Flutterコードに触れないので同一ループで可)」)どおり選定。
