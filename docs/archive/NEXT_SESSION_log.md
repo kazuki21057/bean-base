@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.08 当日やったこと(2026-08-02、`/full_loop`(Sonnet 5)、**T3-73a・T3-73d完了**=トークン消費削減の計測基盤+セッション分割の仕組み。Flutterコード変更無し)
+
+- **選定理由**: `NEXT_SESSION.md`の推奨(「T3-73a + T3-73d(Flutterコードに触れないので同一ループで可)」)どおり選定。
+- **実装**: ①`tools/analyze_transcript.js`(新規、Node依存なし)を追加。`.jsonl`のtranscriptを`message.id`で重複排除しつつ集計し、`uniqueRequests`/`totalToolCalls`/`toolsPerRequest`ヒストグラム/`avgCtx`/`maxCtx`/`cacheR`/`cacheW`/`out`/概算コスト(200k超のリクエストは単価2倍で計上)/ツール別結果文字数/上位25件の大きなツール結果を標準出力する(設計書`docs/token_optimization_design.md`§5どおり)。②`.claude/skills/full_loop/SKILL.md`にセッション分割(S1)の2分岐を追加: (a)手順3.5として、手順4(検証)着手前に当ループcost>$7または触れたファイル数>5なら実装内容を「検証待ち」としてNEXT_SESSION.mdに記載しcommitのみでセッションを終える分岐、(b)手順1に、NEXT_SESSION.mdに「検証待ち」の記載があれば手順2・3をスキップして手順4から再開する分岐。
+- **検証**: `node tools/analyze_transcript.js`を実セッションのtranscript(`feaadbe7-...jsonl`)に対して実行し、設計書§2と同形式(リクエスト数81、cacheR等)で出力されることを確認。Flutterコードは触れていないため`flutter analyze`/`test`/`build`は対象外(設計書§6・タスク表の「T3-73a・T3-73dは互いに独立、Flutterコードに触れないため同一ループでまとめて実施してよい」に基づく)。
+- **本番反映**: 対象外(コード変更・デプロイ無し)。
+- **次にやること**: マスタープラン§3のT3-73実施順序どおり次はT3-73e(firebaseプラグイン・playwright MCPの無効化、要ユーザー確認)。または依存の無いT3-72グループ(a〜e)から選定してもよい。
+
 ### -5.07 当日やったこと(2026-08-01、`/full_loop`(Sonnet 5)、**T3-53c完了・本番デプロイ済み**=045画面「探索の検証状況」新設+030/011の導線2箇所)
 
 - **選定理由**: マスタープラン・NEXT_SESSION.mdの推奨どおりT3-53c(依存T3-53a・T3-53bは充足済み)を選定。

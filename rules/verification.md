@@ -58,6 +58,7 @@
 - L72 `Map`リテラルの宣言順が、実行時のロジックに直接影響することがある
 - L78 同じ計算を画面本体とその子ウィジェットで二重に実装すると、片方だけ仕様変更されて静かに食い違う
 - L84 widgetテストでMaterialの`showDatePicker`(`DatePickerDialog`)を実際に操作する場合、「今日」を基準に…
+- L99 `OptimisticListNotifier.updateOptimistic`等の直後の`_syncInBackground()`が、GAS書き込み直後だと稀に更新前データで上書きする(フルリロードすれば正しい値になる)
 - L96 `OptimisticListNotifier.addOptimistic`は追加直後に`_syncInBackground`で`fetch()`を再取得するため、fakeサービスの`getXxx()`が固定で空リストを返すテストでは追加した項目が消える。fakeの`addXxx`は対応する`getXxx`のバッキングリストを実際に更新すること
 
 ### ブラウザ目視確認 (claude-in-chrome / Playwright)

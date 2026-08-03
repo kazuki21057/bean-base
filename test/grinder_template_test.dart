@@ -197,6 +197,28 @@ void main() {
     expect(fakeService.lastUpdated?.id, 'g1');
   });
 
+  testWidgets('T3-72d: 023詳細の編集→保存→pop後に最新値が表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overridesFor(fakeService),
+        child: MaterialApp(home: GrinderDetailScreen(grinder: grinders[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'コマンダンテ C40 MK4');
+    await tester.tap(find.text('グラインダーを更新する'));
+    await tester.pumpAndSettle();
+
+    // 編集フォームは保存後に023詳細へpopして戻るため、遷移時点の
+    // スナップショットではなく最新値(grinderMasterProvider)が表示されるはず。
+    expect(find.text('コマンダンテ C40 MK4'), findsWidgets);
+    expect(find.text('コマンダンテ C40'), findsNothing);
+  });
+
   testWidgets('023詳細の削除確認→DataService.deleteGrinderが呼ばれる', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

@@ -20,32 +20,37 @@ class GrinderDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
+    // (遷移時点のスナップショット)ではなくgrinderMasterProviderの最新値を使う。
+    final grinders = ref.watch(grinderMasterProvider).value;
+    final currentGrinder = grinders?.firstWhere((g) => g.id == grinder.id, orElse: () => grinder) ?? grinder;
+
     return MasterDetailTemplate(
       screen: AppScreen.grinderDetail,
       icon: Icons.settings_input_component_outlined,
-      title: grinder.name,
-      imageUrl: ImageUtils.getOptimizedImageUrl(grinder.imageUrl),
+      title: currentGrinder.name,
+      imageUrl: ImageUtils.getOptimizedImageUrl(currentGrinder.imageUrl),
       fields: [
-        ('名前', grinder.name),
-        ('挽き目レンジ', grinder.grindRange ?? '-'),
-        ('説明・メモ', grinder.description ?? '-'),
+        ('名前', currentGrinder.name),
+        ('挽き目レンジ', currentGrinder.grindRange ?? '-'),
+        ('説明・メモ', currentGrinder.description ?? '-'),
       ],
-      relatedLogFilter: (log) => log.grinderId == grinder.id,
+      relatedLogFilter: (log) => log.grinderId == currentGrinder.id,
       onEdit: () {
-        debugPrint('[Antigravity] Action: グラインダー詳細023から編集画面へ遷移 (id=${grinder.id})');
+        debugPrint('[Antigravity] Action: グラインダー詳細023から編集画面へ遷移 (id=${currentGrinder.id})');
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => GrinderCreateScreen(editData: grinder)),
+          MaterialPageRoute(builder: (_) => GrinderCreateScreen(editData: currentGrinder)),
         );
       },
       onDelete: () async {
-        debugPrint('[Antigravity] Action: グラインダー削除 (id=${grinder.id})');
+        debugPrint('[Antigravity] Action: グラインダー削除 (id=${currentGrinder.id})');
         try {
-          if (grinder.imageUrl != null && grinder.imageUrl!.isNotEmpty) {
-            await ref.read(imageServiceProvider).deleteImage(grinder.imageUrl!);
+          if (currentGrinder.imageUrl != null && currentGrinder.imageUrl!.isNotEmpty) {
+            await ref.read(imageServiceProvider).deleteImage(currentGrinder.imageUrl!);
           }
-          await ref.read(dataServiceProvider).deleteGrinder(grinder.id);
-          ref.read(grinderMasterProvider.notifier).removeOptimistic(grinder.id);
+          await ref.read(dataServiceProvider).deleteGrinder(currentGrinder.id);
+          ref.read(grinderMasterProvider.notifier).removeOptimistic(currentGrinder.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: グラインダー削除に失敗 $e');
           rethrow;

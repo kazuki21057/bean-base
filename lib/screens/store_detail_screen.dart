@@ -32,12 +32,16 @@ class StoreDetailScreen extends ConsumerWidget {
     final beansAsync = ref.watch(beanMasterProvider);
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final purchasesAsync = ref.watch(beanPurchasesProvider);
+    // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
+    // (遷移時点のスナップショット)ではなくstoreMasterProviderの最新値を使う。
+    final stores = ref.watch(storeMasterProvider).value;
+    final currentStore = stores?.firstWhere((s) => s.id == store.id, orElse: () => store) ?? store;
 
     final matchedBeans = beansAsync.value?.where(_matchesBean).toList() ?? const <BeanMaster>[];
     final matchedBeanIds = matchedBeans.map((b) => b.id).toSet();
 
     final storePurchases = (purchasesAsync.value ?? const <BeanPurchase>[])
-        .where((p) => p.storeId == store.id)
+        .where((p) => p.storeId == currentStore.id)
         .toList()
       ..sort((a, b) {
         final ad = a.purchasedAt;
@@ -59,22 +63,22 @@ class StoreDetailScreen extends ConsumerWidget {
     return MasterDetailTemplate(
       screen: AppScreen.storeDetail,
       icon: Icons.storefront_outlined,
-      title: store.name,
-      imageUrl: ImageUtils.getOptimizedImageUrl(store.imageUrl),
+      title: currentStore.name,
+      imageUrl: ImageUtils.getOptimizedImageUrl(currentStore.imageUrl),
       fields: [
-        ('店名', store.name),
-        ('正式名称', _orDash(store.formalName)),
-        ('URL', _orDash(store.url)),
-        ('都道府県', _orDash(store.prefecture)),
-        ('住所', _orDash(store.address)),
-        ('業態', _businessTypeSummary(store)),
-        ('取扱豆の傾向', _orDash(store.beanTendency)),
-        ('メモ', _orDash(store.memo)),
-        ('SNS', _orDash(store.snsUrl)),
-        ('営業時間', _orDash(store.businessHours)),
-        ('定休日', _orDash(store.closedDays)),
-        ('電話番号', _orDash(store.phone)),
-        ('開業年', _orDash(store.openedYear)),
+        ('店名', currentStore.name),
+        ('正式名称', _orDash(currentStore.formalName)),
+        ('URL', _orDash(currentStore.url)),
+        ('都道府県', _orDash(currentStore.prefecture)),
+        ('住所', _orDash(currentStore.address)),
+        ('業態', _businessTypeSummary(currentStore)),
+        ('取扱豆の傾向', _orDash(currentStore.beanTendency)),
+        ('メモ', _orDash(currentStore.memo)),
+        ('SNS', _orDash(currentStore.snsUrl)),
+        ('営業時間', _orDash(currentStore.businessHours)),
+        ('定休日', _orDash(currentStore.closedDays)),
+        ('電話番号', _orDash(currentStore.phone)),
+        ('開業年', _orDash(currentStore.openedYear)),
       ],
       extraSections: [
         FormSection(
@@ -146,20 +150,20 @@ class StoreDetailScreen extends ConsumerWidget {
       ],
       relatedLogFilter: (log) => matchedBeanIds.contains(log.beanId),
       onEdit: () {
-        debugPrint('[Antigravity] Action: 購入店詳細027から編集画面へ遷移 (id=${store.id})');
+        debugPrint('[Antigravity] Action: 購入店詳細027から編集画面へ遷移 (id=${currentStore.id})');
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => StoreCreateScreen(editData: store)),
+          MaterialPageRoute(builder: (_) => StoreCreateScreen(editData: currentStore)),
         );
       },
       onDelete: () async {
-        debugPrint('[Antigravity] Action: 購入店削除 (id=${store.id})');
+        debugPrint('[Antigravity] Action: 購入店削除 (id=${currentStore.id})');
         try {
-          if (store.imageUrl != null && store.imageUrl!.isNotEmpty) {
-            await ref.read(imageServiceProvider).deleteImage(store.imageUrl!);
+          if (currentStore.imageUrl != null && currentStore.imageUrl!.isNotEmpty) {
+            await ref.read(imageServiceProvider).deleteImage(currentStore.imageUrl!);
           }
-          await ref.read(dataServiceProvider).deleteStore(store.id);
-          ref.read(storeMasterProvider.notifier).removeOptimistic(store.id);
+          await ref.read(dataServiceProvider).deleteStore(currentStore.id);
+          ref.read(storeMasterProvider.notifier).removeOptimistic(currentStore.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: 購入店削除に失敗 $e');
           rethrow;

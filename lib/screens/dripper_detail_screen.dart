@@ -20,32 +20,37 @@ class DripperDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
+    // (遷移時点のスナップショット)ではなくdripperMasterProviderの最新値を使う。
+    final drippers = ref.watch(dripperMasterProvider).value;
+    final currentDripper = drippers?.firstWhere((d) => d.id == dripper.id, orElse: () => dripper) ?? dripper;
+
     return MasterDetailTemplate(
       screen: AppScreen.dripperDetail,
       icon: Icons.filter_alt_outlined,
-      title: dripper.name,
-      imageUrl: ImageUtils.getOptimizedImageUrl(dripper.imageUrl),
+      title: currentDripper.name,
+      imageUrl: ImageUtils.getOptimizedImageUrl(currentDripper.imageUrl),
       fields: [
-        ('名前', dripper.name),
-        ('素材', dripper.material ?? '-'),
-        ('形状', dripper.shape ?? '-'),
+        ('名前', currentDripper.name),
+        ('素材', currentDripper.material ?? '-'),
+        ('形状', currentDripper.shape ?? '-'),
       ],
-      relatedLogFilter: (log) => log.dripperId == dripper.id,
+      relatedLogFilter: (log) => log.dripperId == currentDripper.id,
       onEdit: () {
-        debugPrint('[Antigravity] Action: ドリッパー詳細014から編集画面へ遷移 (id=${dripper.id})');
+        debugPrint('[Antigravity] Action: ドリッパー詳細014から編集画面へ遷移 (id=${currentDripper.id})');
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => DripperCreateScreen(editData: dripper)),
+          MaterialPageRoute(builder: (_) => DripperCreateScreen(editData: currentDripper)),
         );
       },
       onDelete: () async {
-        debugPrint('[Antigravity] Action: ドリッパー削除 (id=${dripper.id})');
+        debugPrint('[Antigravity] Action: ドリッパー削除 (id=${currentDripper.id})');
         try {
-          if (dripper.imageUrl != null && dripper.imageUrl!.isNotEmpty) {
-            await ref.read(imageServiceProvider).deleteImage(dripper.imageUrl!);
+          if (currentDripper.imageUrl != null && currentDripper.imageUrl!.isNotEmpty) {
+            await ref.read(imageServiceProvider).deleteImage(currentDripper.imageUrl!);
           }
-          await ref.read(dataServiceProvider).deleteDripper(dripper.id);
-          ref.read(dripperMasterProvider.notifier).removeOptimistic(dripper.id);
+          await ref.read(dataServiceProvider).deleteDripper(currentDripper.id);
+          ref.read(dripperMasterProvider.notifier).removeOptimistic(currentDripper.id);
         } catch (e) {
           debugPrint('[Antigravity] Error: ドリッパー削除に失敗 $e');
           rethrow;

@@ -436,3 +436,12 @@
 - **対処**: `javascript_tool`で`document.querySelector('flt-glass-pane')`を取得し、`new WheelEvent('wheel', {deltaY: 1500, deltaMode: 0, bubbles: true, cancelable: true, clientX, clientY})`を組み立てて`dispatchEvent`したところ、Flutter側のスクロールが実際に進み、画面下部のセクション(スコアの推移・試した条件の分布)まで目視確認できた。
 - **既知の副作用**: この合成イベント直後に`computer screenshot`を呼ぶと、まれにCDPの`Page.captureScreenshot`がタイムアウトし(L66と同系)、復帰後の画面が実寸と異なる拡大率で描画されることがある(致命的ではなく、再度`navigate`し直せば直る)。
 - **一般化できる教訓**: L08の「粘らず代表1件で妥協する」という回避策に加え、**この`javascript_tool`によるWheelEvent合成という第二の回避策がある**。ページ最下部(試行の一覧など)まで確認したいが`computer scroll`が効かない場合、まずこれを試してから諦め判断をすること。ただし多用するとスクリーンショットが不安定になりやすいので、必要な箇所だけに絞る。
+
+### L99 `OptimisticListNotifier.updateOptimistic`等が呼ぶ`_syncInBackground()`(即座に`fetch()`で全件再取得)は、GAS書き込み直後だと稀に更新前のデータで上書きしてしまう(T3-72d本番確認、2026-08-03)
+
+- **T3-72dで「マスター詳細画面をコンストラクタ引数でなくプロバイダのid経由watchに直す」修正を本番(`claude-in-chrome`+ローカル配信の`build/web`)で確認した際、グラインダー詳細の「説明・メモ」を編集→保存→pop直後の画面が、更新前の値のまま表示されるケースが再現した**。ただし直後にページを**フルリロード**すると正しい更新後の値が表示され、GAS側の書き込み自体は成功していた。
+- **原因**: `lib/providers/data_providers.dart`の`OptimisticListNotifier.updateOptimistic()`は、①ローカルstateを正しい新データへ即時差し替え → ②直後に`_syncInBackground()`を呼び`fetch()`(GAS再取得)で丸ごと上書き、という2段構成になっている。L87/L360で確立した「GASの`doPost`はリダイレクト前の時点で処理が完了しているとは限らない(実際の書き込み反映にラグがあり得る)」という挙動と組み合わさると、②の再取得が①より先に完了し、**まだ書き込み前の古いデータで正しい①の値を上書きしてしまう**ことがある。この上書き後の状態はフルリロードするまで(=`build()`が呼ばれ`fetch()`し直すまで)そのまま残る。
+- **T3-72d自体の修正(idでプロバイダをwatchする設計への変更)は正しく機能している**(フルリロードで即座に正しい値が出ることで確認済み)。この教訓が指すのは、その先で発生し得る別のレースであり、T3-72dの範囲では未修正。
+- **影響範囲**: `OptimisticListNotifier`を継承する全マスター(Bean/Grinder/Dripper/Filter/Method/Store)の`updateOptimistic`/`addOptimistic`/`removeOptimistic`すべてに共通する構造のため、特定のマスターに固有の不具合ではない。
+- **今後の修正案(未着手、タスク化候補)**: (a) `updateOptimistic`/`addOptimistic`直後の`_syncInBackground()`を削除し楽観的更新のみに倒す(サーバー側で正規化される値がなければ再取得は不要)、(b) 再取得に一定の遅延を入れる、(c) 再取得結果が呼び出し直前の楽観値と矛盾する場合は楽観値を優先する、のいずれか。着手時はGASの`doPost`側で`SpreadsheetApp.flush()`を呼んでいるか(L87/L360)も合わせて確認すること。
+- **本番確認時の注意**: 編集→保存→pop直後の1回のスクリーンショットだけで「反映されていない」と判断せず、**フルリロードして最終的な永続化結果を確認する**こと(L89と同種の注意)。

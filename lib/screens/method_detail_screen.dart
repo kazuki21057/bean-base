@@ -29,15 +29,19 @@ class MethodDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final stepsAsync = ref.watch(pouringStepsProvider);
+    // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
+    // (遷移時点のスナップショット)ではなくmethodMasterProviderの最新値を使う。
+    final methods = ref.watch(methodMasterProvider).value;
+    final currentMethod = methods?.firstWhere((m) => m.id == method.id, orElse: () => method) ?? method;
 
     final extractionCount = logsAsync.maybeWhen(
-      data: (logs) => logs.where((l) => l.methodId == method.id).length,
+      data: (logs) => logs.where((l) => l.methodId == currentMethod.id).length,
       orElse: () => 0,
     );
 
     final steps = stepsAsync.maybeWhen(
       data: (all) {
-        final methodSteps = all.where((s) => s.methodId == method.id).toList()
+        final methodSteps = all.where((s) => s.methodId == currentMethod.id).toList()
           ..sort((a, b) => a.stepOrder.compareTo(b.stepOrder));
         return methodSteps;
       },
@@ -47,17 +51,17 @@ class MethodDetailScreen extends ConsumerWidget {
     return MasterDetailTemplate(
       screen: AppScreen.methodDetail,
       icon: Icons.menu_book_outlined,
-      title: method.name,
+      title: currentMethod.name,
       fields: [
-        ('メソッド名', method.name),
-        ('発案者', method.author.isEmpty ? '-' : method.author),
-        ('基準豆量', '${method.baseBeanWeight.toStringAsFixed(1)}g'),
-        ('基準湯量', '${method.baseWaterAmount.toStringAsFixed(1)}g'),
-        ('湯温', (method.temperature == null || method.temperature == 0) ? '-' : '${method.temperature!.toStringAsFixed(1)}℃'),
-        ('推奨挽き目', method.grindSize ?? '-'),
-        ('推奨器具', method.recommendedEquipment.isEmpty ? '-' : method.recommendedEquipment),
-        ('推奨焙煎度', formatMethodRoastRange(method)),
-        ('説明', method.description.isEmpty ? '-' : method.description),
+        ('メソッド名', currentMethod.name),
+        ('発案者', currentMethod.author.isEmpty ? '-' : currentMethod.author),
+        ('基準豆量', '${currentMethod.baseBeanWeight.toStringAsFixed(1)}g'),
+        ('基準湯量', '${currentMethod.baseWaterAmount.toStringAsFixed(1)}g'),
+        ('湯温', (currentMethod.temperature == null || currentMethod.temperature == 0) ? '-' : '${currentMethod.temperature!.toStringAsFixed(1)}℃'),
+        ('推奨挽き目', currentMethod.grindSize ?? '-'),
+        ('推奨器具', currentMethod.recommendedEquipment.isEmpty ? '-' : currentMethod.recommendedEquipment),
+        ('推奨焙煎度', formatMethodRoastRange(currentMethod)),
+        ('説明', currentMethod.description.isEmpty ? '-' : currentMethod.description),
         ('抽出回数', '$extractionCount回'),
       ],
       extraSections: [
@@ -68,12 +72,12 @@ class MethodDetailScreen extends ConsumerWidget {
             MethodStepsEditor(
               initialSteps: steps,
               isEditing: false,
-              baseBeanWeight: method.baseBeanWeight,
+              baseBeanWeight: currentMethod.baseBeanWeight,
               onStepsChanged: (_) {},
             ),
           ],
         ),
-        if (method.sourceUrl != null && method.sourceUrl!.isNotEmpty)
+        if (currentMethod.sourceUrl != null && currentMethod.sourceUrl!.isNotEmpty)
           FormSection(
             icon: Icons.link,
             title: '参考URL',
@@ -81,14 +85,14 @@ class MethodDetailScreen extends ConsumerWidget {
               // T3-24: YouTube URL なら埋め込みプレーヤーを表示し、その下に
               // 従来の外部リンクも残す(外部ブラウザで開きたい人向け)。
               // YouTube 以外はリンクのみ(従来どおり)。
-              if (youtubeVideoId(method.sourceUrl) case final videoId?) ...[
+              if (youtubeVideoId(currentMethod.sourceUrl) case final videoId?) ...[
                 YoutubeEmbed(videoId: videoId),
                 const SizedBox(height: 8),
               ],
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () async {
-                  final uri = Uri.tryParse(method.sourceUrl!);
+                  final uri = Uri.tryParse(currentMethod.sourceUrl!);
                   if (uri != null && await canLaunchUrl(uri)) {
                     await launchUrl(uri);
                   } else if (context.mounted) {
@@ -97,27 +101,27 @@ class MethodDetailScreen extends ConsumerWidget {
                   }
                 },
                 child: Text(
-                  method.sourceUrl!,
+                  currentMethod.sourceUrl!,
                   style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
                 ),
               ),
             ],
           ),
       ],
-      relatedLogFilter: (log) => log.methodId == method.id,
+      relatedLogFilter: (log) => log.methodId == currentMethod.id,
       onEdit: () {
-        debugPrint('[Antigravity] Action: メソッド詳細020から編集画面へ遷移 (id=${method.id})');
+        debugPrint('[Antigravity] Action: メソッド詳細020から編集画面へ遷移 (id=${currentMethod.id})');
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => MethodCreateScreen(editData: method)),
+          MaterialPageRoute(builder: (_) => MethodCreateScreen(editData: currentMethod)),
         );
       },
       onDelete: () async {
-        debugPrint('[Antigravity] Action: メソッド削除 (id=${method.id})');
+        debugPrint('[Antigravity] Action: メソッド削除 (id=${currentMethod.id})');
         try {
-          await ref.read(dataServiceProvider).deletePouringStepsForMethod(method.id);
-          await ref.read(dataServiceProvider).deleteMethod(method.id);
-          ref.read(methodMasterProvider.notifier).removeOptimistic(method.id);
+          await ref.read(dataServiceProvider).deletePouringStepsForMethod(currentMethod.id);
+          await ref.read(dataServiceProvider).deleteMethod(currentMethod.id);
+          ref.read(methodMasterProvider.notifier).removeOptimistic(currentMethod.id);
           ref.invalidate(pouringStepsProvider);
         } catch (e) {
           debugPrint('[Antigravity] Error: メソッド削除に失敗 $e');
