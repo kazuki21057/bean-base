@@ -21,11 +21,46 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T3-14: 各行左側のアイコンを、該当する豆のマスター画像(未設定なら
 /// プレースホルダアイコン)に変更した。`MockListRow`が既に対応していた
 /// `imageUrl`引数を渡すだけで実現できた。
-class LogListScreen extends ConsumerWidget {
+/// Phase 3 T3-77: 豆・メソッド・期間で絞り込めるフィルタ行を追加。
+/// ローカル状態(setState)のみで、画面を離れると条件はリセットされる。
+class LogListScreen extends ConsumerStatefulWidget {
   const LogListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LogListScreen> createState() => _LogListScreenState();
+}
+
+class _LogListScreenState extends ConsumerState<LogListScreen> {
+  String? _filterBeanId;
+  String? _filterMethodId;
+  DateTimeRange? _filterDateRange;
+
+  int get _activeFilterCount =>
+      (_filterBeanId != null ? 1 : 0) +
+      (_filterMethodId != null ? 1 : 0) +
+      (_filterDateRange != null ? 1 : 0);
+
+  void _resetFilters() {
+    setState(() {
+      _filterBeanId = null;
+      _filterMethodId = null;
+      _filterDateRange = null;
+    });
+  }
+
+  bool _matchesFilter(CoffeeRecord log) {
+    if (_filterBeanId != null && log.beanId != _filterBeanId) return false;
+    if (_filterMethodId != null && log.methodId != _filterMethodId) return false;
+    if (_filterDateRange != null) {
+      final start = DateTime(_filterDateRange!.start.year, _filterDateRange!.start.month, _filterDateRange!.start.day);
+      final end = DateTime(_filterDateRange!.end.year, _filterDateRange!.end.month, _filterDateRange!.end.day, 23, 59, 59);
+      if (log.brewedAt.isBefore(start) || log.brewedAt.isAfter(end)) return false;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final beansAsync = ref.watch(beanMasterProvider);
     final methodsAsync = ref.watch(methodMasterProvider);
@@ -48,6 +83,7 @@ class LogListScreen extends ConsumerWidget {
             style: TextStyle(fontSize: 12, color: kMocha),
           ),
         ),
+        _buildFilterBar(beansAsync.valueOrNull, methodsAsync.valueOrNull),
         logsAsync.when(
           data: (logs) {
             final validLogs = logs.where((l) => l.methodId.isNotEmpty && l.totalTime > 0).toList();
@@ -57,6 +93,24 @@ class LogListScreen extends ConsumerWidget {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(child: Text('抽出履歴がありません')),
+              );
+            }
+
+            final filteredLogs = validLogs.where(_matchesFilter).toList();
+
+            if (filteredLogs.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('条件に一致する記録がありません'),
+                      const SizedBox(height: 8),
+                      TextButton(onPressed: _resetFilters, child: const Text('フィルタをリセット')),
+                    ],
+                  ),
+                ),
               );
             }
 
@@ -77,7 +131,7 @@ class LogListScreen extends ConsumerWidget {
 
             return Column(
               children: [
-                for (final log in validLogs)
+                for (final log in filteredLogs)
                   Dismissible(
                     key: ValueKey('log_${log.id}'),
                     direction: DismissDirection.endToStart,
@@ -132,6 +186,145 @@ class LogListScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// フィルタ行(豆・メソッド・期間)。選択中の件数をバッジ表示し、
+  /// 1件でも選択中ならリセットボタンを出す。
+  Widget _buildFilterBar(List<BeanMaster>? beans, List<MethodMaster>? methods) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kLatte),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.filter_list, size: 18, color: kMocha),
+              const SizedBox(width: 6),
+              const Text('絞り込み', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: kEspresso)),
+              if (_activeFilterCount > 0) ...[
+                const SizedBox(width: 6),
+                CircleAvatar(
+                  radius: 9,
+                  backgroundColor: kAccent,
+                  child: Text('$_activeFilterCount', style: const TextStyle(fontSize: 11, color: Colors.white)),
+                ),
+              ],
+              const Spacer(),
+              if (_activeFilterCount > 0)
+                TextButton(
+                  onPressed: _resetFilters,
+                  child: const Text('リセット'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildDropdownChip<String>(
+                value: _filterBeanId,
+                selected: _filterBeanId != null,
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('豆: すべて')),
+                  for (final b in beans ?? const <BeanMaster>[])
+                    DropdownMenuItem(value: b.id, child: Text(b.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _filterBeanId = v),
+              ),
+              _buildDropdownChip<String>(
+                value: _filterMethodId,
+                selected: _filterMethodId != null,
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('メソッド: すべて')),
+                  for (final m in methods ?? const <MethodMaster>[])
+                    DropdownMenuItem(value: m.id, child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _filterMethodId = v),
+              ),
+              _buildDateRangeChip(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownChip<T>({
+    required T? value,
+    required bool selected,
+    required List<DropdownMenuItem<T?>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: selected ? kAccent.withValues(alpha: 0.15) : kCream,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: selected ? kAccent : kLatte),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T?>(
+          value: value,
+          isDense: true,
+          icon: const Icon(Icons.arrow_drop_down, size: 18, color: kMocha),
+          style: TextStyle(fontSize: 13, color: selected ? kEspresso : kMocha),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateRangeChip() {
+    final selected = _filterDateRange != null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () async {
+        final picked = await showDateRangePicker(
+          context: context,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now(),
+          initialDateRange: _filterDateRange,
+        );
+        if (picked != null) setState(() => _filterDateRange = picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? kAccent.withValues(alpha: 0.15) : kCream,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? kAccent : kLatte),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_today, size: 14, color: selected ? kEspresso : kMocha),
+            const SizedBox(width: 6),
+            Text(
+              selected
+                  ? '${_formatDate(_filterDateRange!.start)}〜${_formatDate(_filterDateRange!.end)}'
+                  : '期間: すべて',
+              style: TextStyle(fontSize: 13, color: selected ? kEspresso : kMocha),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () => setState(() => _filterDateRange = null),
+                child: const Icon(Icons.close, size: 14, color: kMocha),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -200,5 +393,11 @@ class LogListScreen extends ConsumerWidget {
     final h = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
     return '${d.year}/$m/$day $h:$min';
+  }
+
+  String _formatDate(DateTime d) {
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '${d.year}/$m/$day';
   }
 }
