@@ -74,4 +74,55 @@ void main() {
     expect(find.text('明るい'), findsOneWidget);
     expect(find.text('軽い'), findsOneWidget);
   });
+
+  testWidgets('T3-75i: マスタ取得失敗時にドリッパー名が生IDのまま出ず「不明」と表示される', (tester) async {
+    final record = CoffeeRecord(
+      id: 'r2',
+      brewedAt: DateTime(2026, 8, 4, 8, 30),
+      beanId: '',
+      methodId: '',
+      beanWeight: 15,
+      totalWater: 225,
+      totalTime: 150,
+      scoreOverall: 8,
+      scoreFragrance: 7,
+      scoreAcidity: 8,
+      scoreBitterness: 5,
+      scoreSweetness: 7,
+      scoreComplexity: 6,
+      scoreFlavor: 8,
+      taste: '',
+      comment: '',
+      grindSize: '',
+      temperature: 92,
+      dripperId: 'c31836bd',
+      filterId: '',
+      grinderId: '',
+      roastLevel: '',
+      origin: '',
+      originId: '',
+      concentration: '',
+      bloomingWater: 0,
+      bloomingTime: 0,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [])),
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [])),
+          grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
+          dripperMasterProvider.overrideWith(
+            () => FakeDripperMasterNotifier(() async => throw Exception('Failed to load dripper_master: 404')),
+          ),
+          filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
+        ],
+        child: MaterialApp(home: LogDetailScreen(log: record)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('不明'), findsOneWidget);
+    expect(find.text('c31836bd'), findsNothing);
+  });
 }

@@ -35,9 +35,9 @@ class LogDetailScreen extends ConsumerWidget {
           for (final item in list) {
             if (item.id == id) return item.name as String;
           }
-          return id;
+          return '不明';
         },
-        orElse: () => id,
+        orElse: () => '不明',
       );
     }
 
