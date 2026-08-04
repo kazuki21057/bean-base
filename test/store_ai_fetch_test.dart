@@ -20,9 +20,9 @@ import 'package:bean_base/services/data_service.dart';
 
 import 'helpers/fake_master_notifiers.dart';
 
-/// T3-70(設計書`docs/store_master_design.md`§8): 新規購入店のAI自動取得。
+/// T3-70(設計書`docs/store_master_design.md`§8)・T3-78: 新規購入店のAI自動取得。
 /// マスタープランの終了条件どおり、①confidence:low・既存値ありは既定OFF、
-/// ②ambiguousのとき候補選択を挟み選ばなければ何も反映しない、
+/// ②candidatesが空でなければ必ず候補選択を挟み選ばなければ何も反映しない、
 /// ③取得失敗時に手入力へ落とせること、の3点を検証する。
 class _FakeAiAnalysisService extends AiAnalysisService {
   StoreInfoCandidate? Function(String storeName)? onFetch;
@@ -33,6 +33,17 @@ class _FakeAiAnalysisService extends AiAnalysisService {
   Future<StoreInfoCandidate> fetchStoreInfo({
     required String storeName,
     String? hintPrefecture,
+    String? hintAddress,
+    String? hintUrl,
+    String? hintPhone,
+    String? hintBusinessHours,
+    String? hintClosedDays,
+    String? hintOpenedYear,
+    bool? hintHasOnlineShop,
+    bool? hintHasPhysicalStore,
+    bool? hintHasRoastery,
+    String? hintBeanTendency,
+    String? hintSnsUrl,
     required String apiKey,
     String? preferredModel,
   }) async {
@@ -221,19 +232,18 @@ void main() {
     expect(find.widgetWithText(TextField, '兵庫県'), findsOneWidget);
   });
 
-  testWidgets('ambiguous:trueのとき候補選択が出て、選ばなければ何も反映されない', (tester) async {
+  testWidgets('candidatesが返るとき候補選択が出て、選ばなければ何も反映されない', (tester) async {
     await pumpStoreCreateScreen(tester);
     await tester.enterText(find.byType(TextField).first, 'SORA');
 
     fakeAi.onFetch = (name) => const StoreInfoCandidate(
-          ambiguous: true,
           candidates: ['SORA(神戸市北区有馬)', 'SORA(伊勢原市)'],
         );
 
     await tester.tap(find.byTooltip('AIで自動入力'));
     await tester.pumpAndSettle();
 
-    expect(find.text('同名の店舗が複数見つかりました'), findsOneWidget);
+    expect(find.text('店舗の候補を確認してください'), findsOneWidget);
     expect(find.text('SORA(神戸市北区有馬)'), findsOneWidget);
 
     // キャンセルすると何も反映されない(確認ダイアログも出ない)。
@@ -242,6 +252,32 @@ void main() {
 
     expect(find.text('AIによる取得結果の確認'), findsNothing);
     expect(fakeAi.callCount, 1, reason: '候補選択で何も選ばなければ2回目の取得は行わない');
+  });
+
+  testWidgets('T3-78: 候補が1件でも必ず候補選択を挟み、選ぶと確定情報を再取得して確認ダイアログに進む', (tester) async {
+    await pumpStoreCreateScreen(tester);
+    await tester.enterText(find.byType(TextField).first, 'テスト珈琲');
+
+    fakeAi.onFetch = (name) {
+      if (!name.contains('(')) {
+        return const StoreInfoCandidate(candidates: ['テスト珈琲(神戸市)']);
+      }
+      return const StoreInfoCandidate(
+        formalName: 'テスト珈琲株式会社',
+        confidence: {'formalName': 'high'},
+      );
+    };
+
+    await tester.tap(find.byTooltip('AIで自動入力'));
+    await tester.pumpAndSettle();
+
+    // 候補が1件のみでも候補選択ダイアログを必ず経由する。
+    expect(find.text('店舗の候補を確認してください'), findsOneWidget);
+    await tester.tap(find.text('テスト珈琲(神戸市)'));
+    await tester.pumpAndSettle();
+
+    expect(fakeAi.callCount, 2, reason: '候補選択後に確定情報を再取得する');
+    expect(find.text('AIによる取得結果の確認'), findsOneWidget);
   });
 
   testWidgets('取得失敗時はエラーSnackBarが出て手入力を継続できる', (tester) async {
@@ -264,14 +300,12 @@ void main() {
   group('StoreInfoCandidate.fromJson', () {
     test('項目ごとのvalue/confidenceを読み取る', () {
       final candidate = StoreInfoCandidate.fromJson({
-        'ambiguous': false,
         'formalName': {'value': 'テスト珈琲株式会社', 'confidence': 'high'},
         'hasOnlineShop': {'value': true, 'confidence': 'medium'},
         'phone': {'value': '', 'confidence': 'low'},
         'sourceUrls': ['https://example.com/a'],
       });
 
-      expect(candidate.ambiguous, isFalse);
       expect(candidate.formalName, 'テスト珈琲株式会社');
       expect(candidate.confidence['formalName'], 'high');
       expect(candidate.hasOnlineShop, isTrue);
@@ -281,15 +315,14 @@ void main() {
       expect(candidate.sourceUrls, ['https://example.com/a']);
     });
 
-    test('ambiguous:trueのときcandidatesを読み取る', () {
+    test('candidatesを最大5件まで読み取る(T3-78: 1件のみでも列挙される)', () {
       final candidate = StoreInfoCandidate.fromJson({
-        'ambiguous': true,
         'candidates': ['SORA(神戸市北区有馬)', 'SORA(伊勢原市)'],
       });
 
-      expect(candidate.ambiguous, isTrue);
       expect(candidate.candidates, ['SORA(神戸市北区有馬)', 'SORA(伊勢原市)']);
-      expect(candidate.isEmpty, isFalse);
+      // T3-78: candidatesの有無はisEmptyに影響しない(詳細項目のみで判定する)。
+      expect(candidate.isEmpty, isTrue);
     });
 
     test('全項目null・空JSONならisEmptyがtrue', () {

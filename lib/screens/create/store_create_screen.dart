@@ -92,8 +92,10 @@ class _StoreCreateScreenState extends ConsumerState<StoreCreateScreen> {
   }
 
   /// T3-70(設計書§8.2①): 028の店名欄横の「AIで自動入力」ボタンから起動する。
-  /// 取得結果は即座に反映せず、ambiguousなら候補選択→確認ダイアログの順で
-  /// ユーザーの確認を経てから反映する(§8.4、無条件保存の禁止)。
+  /// T3-78: 似た店名を誤って断定するリスクを避けるため、候補(`candidates`)が
+  /// 1件でもあれば必ず候補選択ダイアログを経てから確定情報を再取得する。
+  /// 取得結果は即座に反映せず、確認ダイアログでのユーザー確認を経てから反映する
+  /// (§8.4、無条件保存の禁止)。
   Future<void> _fetchStoreInfoWithAi() async {
     final storeName = _nameController.text.trim();
     if (storeName.isEmpty) {
@@ -124,7 +126,7 @@ class _StoreCreateScreenState extends ConsumerState<StoreCreateScreen> {
     if (mounted) setState(() => _isFetchingInfo = false);
     if (candidate == null) return;
 
-    if (candidate.ambiguous) {
+    if (candidate.candidates.isNotEmpty) {
       if (!mounted) return;
       final selected = await _showCandidateSelectionDialog(candidate.candidates);
       if (selected == null || !mounted) return;
@@ -132,18 +134,6 @@ class _StoreCreateScreenState extends ConsumerState<StoreCreateScreen> {
       candidate = await _runStoreInfoFetch('$storeName($selected)', hint, apiKey, preferredModel);
       if (mounted) setState(() => _isFetchingInfo = false);
       if (candidate == null) return;
-      if (candidate.ambiguous || candidate.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('候補を選んでも情報を絞り込めませんでした。手動で入力してください。'),
-              behavior: SnackBarBehavior.floating,
-              margin: EdgeInsets.fromLTRB(16, 0, 16, 80),
-            ),
-          );
-        }
-        return;
-      }
     }
 
     if (candidate.isEmpty) {
@@ -162,17 +152,30 @@ class _StoreCreateScreenState extends ConsumerState<StoreCreateScreen> {
     if (mounted) await _showConfirmDialogAndApply(candidate);
   }
 
+  /// T3-78: フォームに入力済みの項目を検索の絞り込みヒントとして渡す(空欄は渡さない)。
   Future<StoreInfoCandidate?> _runStoreInfoFetch(
     String storeName,
     String? hint,
     String apiKey,
     String? preferredModel,
   ) async {
+    String? nonEmpty(String v) => v.trim().isEmpty ? null : v.trim();
     try {
       debugPrint('[Antigravity] Action: 購入店情報のAI取得を実行 (store=$storeName)');
       return await ref.read(aiAnalysisServiceProvider).fetchStoreInfo(
             storeName: storeName,
             hintPrefecture: hint,
+            hintAddress: nonEmpty(_addressController.text),
+            hintUrl: nonEmpty(_urlController.text),
+            hintPhone: nonEmpty(_phoneController.text),
+            hintBusinessHours: nonEmpty(_businessHoursController.text),
+            hintClosedDays: nonEmpty(_closedDaysController.text),
+            hintOpenedYear: nonEmpty(_openedYearController.text),
+            hintHasOnlineShop: _hasOnlineShop ? true : null,
+            hintHasPhysicalStore: _hasPhysicalStore ? true : null,
+            hintHasRoastery: _hasRoastery ? true : null,
+            hintBeanTendency: nonEmpty(_beanTendencyController.text),
+            hintSnsUrl: nonEmpty(_snsUrlController.text),
             apiKey: apiKey,
             preferredModel: preferredModel,
           );
@@ -192,27 +195,18 @@ class _StoreCreateScreenState extends ConsumerState<StoreCreateScreen> {
     }
   }
 
+  /// [candidates]は呼び出し側で非空であることを保証済み(T3-78)。
   Future<String?> _showCandidateSelectionDialog(List<String> candidates) {
-    if (candidates.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('同名の別店舗が複数考えられますが、候補を特定できませんでした。手動で入力してください。'),
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 80),
-        ),
-      );
-      return Future.value(null);
-    }
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('同名の店舗が複数見つかりました'),
+        title: const Text('店舗の候補を確認してください'),
         content: SizedBox(
           width: 420,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('該当する店舗を選んでください。'),
+              const Text('AIが検索した候補です。該当する店舗を選んでください。'),
               const SizedBox(height: 12),
               for (final c in candidates)
                 ListTile(

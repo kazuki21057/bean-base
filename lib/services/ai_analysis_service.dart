@@ -51,10 +51,12 @@ class ExtractedBeanInfo {
 /// T3-70(設計書`docs/store_master_design.md`§8.3): 新規購入店の情報をAIで自動取得した結果。
 /// `StoreMaster`の13項目(id/name/memo/imageUrl/sourceUrl/infoFetchedAtを除く)を対象とし、
 /// 項目ごとに`confidence`(high/medium/low)を必ず併記する。値が確信できない項目はnull。
+///
+/// T3-78: 似た店名を誤って断定するリスクを避けるため、AIは常に該当しそうな店舗を
+/// 最大5件`candidates`に列挙する(1件しか無い場合もその1件を返す)。呼び出し側は
+/// `candidates`が空でない限り常に候補選択を挟んでから、選ばれた候補で確定情報を
+/// 再取得する(`ambiguous`による分岐は廃止)。
 class StoreInfoCandidate {
-  /// 同名の別店舗が複数存在し、AIが1つに絞れなかった場合はtrue。
-  /// この場合、他のフィールドはすべて空(候補提示のみ)。
-  final bool ambiguous;
   final List<String> candidates;
 
   final String? formalName;
@@ -76,7 +78,6 @@ class StoreInfoCandidate {
   final List<String> sourceUrls;
 
   const StoreInfoCandidate({
-    this.ambiguous = false,
     this.candidates = const [],
     this.formalName,
     this.url,
@@ -96,7 +97,6 @@ class StoreInfoCandidate {
   });
 
   bool get isEmpty =>
-      !ambiguous &&
       formalName == null &&
       url == null &&
       prefecture == null &&
@@ -134,7 +134,6 @@ class StoreInfoCandidate {
     }
 
     return StoreInfoCandidate(
-      ambiguous: json['ambiguous'] == true,
       candidates: (json['candidates'] as List?)?.whereType<String>().toList() ?? const [],
       formalName: readString('formalName'),
       url: readString('url'),
@@ -236,6 +235,17 @@ class AiAnalysisService {
   Future<StoreInfoCandidate> fetchStoreInfo({
     required String storeName,
     String? hintPrefecture,
+    String? hintAddress,
+    String? hintUrl,
+    String? hintPhone,
+    String? hintBusinessHours,
+    String? hintClosedDays,
+    String? hintOpenedYear,
+    bool? hintHasOnlineShop,
+    bool? hintHasPhysicalStore,
+    bool? hintHasRoastery,
+    String? hintBeanTendency,
+    String? hintSnsUrl,
     required String apiKey,
     String? preferredModel,
   }) async {
@@ -243,7 +253,21 @@ class AiAnalysisService {
       throw Exception('APIキーが設定されていません。設定画面でGemini APIキーを入力してください。');
     }
 
-    final prompt = _buildStoreInfoPrompt(storeName, hintPrefecture);
+    final prompt = _buildStoreInfoPrompt(
+      storeName,
+      hintPrefecture,
+      hintAddress: hintAddress,
+      hintUrl: hintUrl,
+      hintPhone: hintPhone,
+      hintBusinessHours: hintBusinessHours,
+      hintClosedDays: hintClosedDays,
+      hintOpenedYear: hintOpenedYear,
+      hintHasOnlineShop: hintHasOnlineShop,
+      hintHasPhysicalStore: hintHasPhysicalStore,
+      hintHasRoastery: hintHasRoastery,
+      hintBeanTendency: hintBeanTendency,
+      hintSnsUrl: hintSnsUrl,
+    );
     final schema = _storeInfoSchema();
 
     Object? lastError;
@@ -290,10 +314,10 @@ class AiAnalysisService {
     final s = Schema.string(nullable: true);
     final b = Schema.boolean(nullable: true);
     return Schema.object(properties: {
-      'ambiguous': Schema.boolean(description: '同名の別店舗が複数あり1つに絞れない場合はtrue', nullable: true),
       'candidates': Schema.array(
         items: Schema.string(),
-        description: 'ambiguousがtrueのときの候補一覧(店名+所在地の簡単な説明)',
+        description: '該当しそうな店舗の候補(店名+所在地の簡単な説明)。確信度に関わらず最大5件、'
+            '該当が1件のみでもその1件を列挙する',
         nullable: true,
       ),
       'formalName': _storeInfoField(s, '法人名・正式屋号'),
@@ -317,16 +341,46 @@ class AiAnalysisService {
     });
   }
 
-  String _buildStoreInfoPrompt(String storeName, String? hintPrefecture) {
-    final hint = (hintPrefecture == null || hintPrefecture.isEmpty) ? '' : '(手がかり: 都道府県「$hintPrefecture」)';
+  /// T3-78: [hintPrefecture]以外にも、フォームに入力済みの項目があれば検索の
+  /// 絞り込みヒントとして渡す(空欄の項目は渡さない)。
+  String _buildStoreInfoPrompt(
+    String storeName,
+    String? hintPrefecture, {
+    String? hintAddress,
+    String? hintUrl,
+    String? hintPhone,
+    String? hintBusinessHours,
+    String? hintClosedDays,
+    String? hintOpenedYear,
+    bool? hintHasOnlineShop,
+    bool? hintHasPhysicalStore,
+    bool? hintHasRoastery,
+    String? hintBeanTendency,
+    String? hintSnsUrl,
+  }) {
+    final hints = <String>[
+      if (hintPrefecture != null && hintPrefecture.isNotEmpty) '都道府県: $hintPrefecture',
+      if (hintAddress != null && hintAddress.isNotEmpty) '住所: $hintAddress',
+      if (hintUrl != null && hintUrl.isNotEmpty) '公式サイトURL: $hintUrl',
+      if (hintPhone != null && hintPhone.isNotEmpty) '電話番号: $hintPhone',
+      if (hintBusinessHours != null && hintBusinessHours.isNotEmpty) '営業時間: $hintBusinessHours',
+      if (hintClosedDays != null && hintClosedDays.isNotEmpty) '定休日: $hintClosedDays',
+      if (hintOpenedYear != null && hintOpenedYear.isNotEmpty) '開業年: $hintOpenedYear',
+      if (hintHasOnlineShop == true) 'オンライン販売あり',
+      if (hintHasPhysicalStore == true) '実店舗あり',
+      if (hintHasRoastery == true) '焙煎所併設あり',
+      if (hintBeanTendency != null && hintBeanTendency.isNotEmpty) '取扱豆の傾向: $hintBeanTendency',
+      if (hintSnsUrl != null && hintSnsUrl.isNotEmpty) 'SNS URL: $hintSnsUrl',
+    ];
+    final hintText = hints.isEmpty ? '' : '(手がかり: ${hints.join('、')})';
     return 'あなたはコーヒー店・自家焙煎コーヒーショップの情報収集アシスタントです。\n'
         '以下の購入店について、公式サイトやSNS等から分かる情報を調べ、指定のJSONスキーマで出力してください。\n'
-        '店名: $storeName $hint\n\n'
+        '店名: $storeName $hintText\n\n'
         '絶対規則:\n'
+        '- 該当しそうな店舗を、確信度に関わらず最大5件candidatesに列挙してください(店名+所在地の簡単な説明)。'
+        '該当が1件しかない場合でも、その1件を候補として返してください。似ているが別の店を1件だけ'
+        '高確度で断定することは避けてください。\n'
         '- 確信が持てない項目は必ずvalueをnullにしてください。推測で埋めてはいけません。\n'
-        '- 同名または類似名の別店舗が複数存在し、どの店か1つに絞れない場合は、'
-        'ambiguousをtrueにしてcandidatesに候補(店名+所在地の簡単な説明)を列挙し、'
-        '他の項目はすべてnullにしてください。\n'
         '- 各項目には必ずconfidence(high/medium/low)を付けてください。\n'
         '- sourceUrlsに情報の出典としたURLを列挙してください。\n'
         '- 出力は日本語にしてください。住所は郵便番号を含めてよいです。\n'

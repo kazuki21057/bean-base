@@ -64,6 +64,7 @@
 - L106 画面に新規の必須バリデーション(早期return)を追加すると、既存widgetテストのfixtureがまとめて不合格になることがある。テストのバグか実装のバグかを`[E]`のスタックトレースで切り分け、fixture側を新条件に合わせて更新する。バリデーションが効くこと自体の否定的テストも追加する
 - L107 「入力データの形によって分岐が変わる」ロジックの不具合は、コードを読むだけでなく本番の実データ(`curl`+`node -e`等)で境界パターンを洗い出してから再現ケースを特定する。ロジックは`_State`のprivateメソッドに置きっぱなしにせず`lib/utils/`の純粋関数に切り出すとwidgetテスト無しで直接検証できる
 - L108 widgetテストで`DropdownButton`(選択中の項目)を選ぶと、閉じたボタン自身が選択ラベルを表示するため、同じテキストがリスト行にもあると`find.text(...)`が2件ヒットして`findsOneWidget`が失敗する。絞り込み結果の検証は選択していない側の値が消えたことで判定する
+- L109 Gemini APIキー(`shared_preferences`キー`gemini_api_key`)はブラウザのオリジン単位で保存されるため、`build/web`を本番と別ポート(`localhost:XXXX`)でローカル配信して確認するときは本番オリジンに保存済みのキーを引き継げない。AI機能(購入店情報取得・画像からの豆情報抽出等)を絡む変更の本番確認では、APIキー入力ダイアログが出た時点で実フローの確認は打ち切り、ロジックはwidgetテスト(fakeサービス)で担保する。APIキーの手入力は資格情報を扱う操作のため実施しない
 - L99 `OptimisticListNotifier.updateOptimistic`等の直後の`_syncInBackground()`が、GAS書き込み直後だと稀に更新前データで上書きする問題 → **L100で`_syncInBackground()`自体を削除し解消済み**
 - L96 (L100で`_syncInBackground`を削除したため前提が解消・参考情報として残す) `OptimisticListNotifier.addOptimistic`は追加直後に`_syncInBackground`で`fetch()`を再取得するため、fakeサービスの`getXxx()`が固定で空リストを返すテストでは追加した項目が消える。fakeの`addXxx`は対応する`getXxx`のバッキングリストを実際に更新すること
 
