@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.20 当日やったこと(2026-08-04、`/full_loop`(Sonnet 5)、**T3-78完了・本番デプロイ済み**=購入店AI自動取得を常に候補選択→確定情報取得のフローに変更)
+
+- **選定理由**: NEXT_SESSION.mdの推奨着手順1位のT3-78(購入店AI自動取得の候補常時表示化、依存なし・サイズM)を選定。
+- **実装**: `lib/services/ai_analysis_service.dart`の`StoreInfoCandidate`から`ambiguous`フィールドを削除(`isEmpty`は詳細項目の有無のみで判定するよう変更)。`_storeInfoSchema`の`ambiguous`キーを削除し、`candidates`の説明文を「確信度に関わらず最大5件、該当が1件のみでもその1件を列挙」に変更。`_buildStoreInfoPrompt`を拡張し、`hintPrefecture`に加え住所・URL・電話番号・営業時間・定休日・開業年・オンライン/実店舗/焙煎所の有無・豆の傾向・SNS URLの各ヒントを(空欄でない項目のみ)プロンプトへ組み込むようにし、`fetchStoreInfo`のシグネチャにも同じ引数群を追加。`lib/screens/create/store_create_screen.dart`の`_fetchStoreInfoWithAi`を、`candidate.ambiguous`ではなく`candidate.candidates.isNotEmpty`で分岐する形に変更(=候補が1件でも必ず候補選択ダイアログを経由してから選択候補で`fetchStoreInfo`を再実行)、`_runStoreInfoFetch`にフォーム入力済み項目を渡す処理を追加、`_showCandidateSelectionDialog`は呼び出し側で非空を保証する前提に簡素化しダイアログ文言も「店舗の候補を確認してください」に変更。
+- **検証**: `flutter analyze`(新規issue0)→`flutter test`(354件全パス、+1件新規)→`flutter build web`成功。`test/store_ai_fetch_test.dart`の`_FakeAiAnalysisService.fetchStoreInfo`を拡張後のシグネチャに合わせて更新し、`ambiguous`参照を`candidates`ベースに書き換え、「候補が1件でも必ず候補選択を挟み、選ぶと確定情報を再取得して確認ダイアログに進む」ケースを新規追加した(2回目の`fetchStoreInfo`呼び出しが行われることを`callCount`で検証)。
+- **本番確認の制約**: `build/web`をpython http.serverで8652番へローカル配信し028画面(新規購入店)を開いたが、**このローカル配信オリジンにはGemini APIキーが保存されていない**ため(`shared_preferences`はオリジン単位で、本番`beanbase-app-2016.web.app`とは別オリジン)、「AIで自動入力」を押すとAPIキー入力ダイアログが出るのみで実際のAI応答・候補選択フローは確認できなかった。APIキーの手入力は資格情報を扱う操作のため実施していない。028画面自体の表示・APIキー未設定時の挙動は正常でコンソールエラーも0件。**新フローの実際の分岐ロジックはwidgetテスト(上記)で担保している**。
+- **デプロイ**: ユーザーにチャットで許可を得たうえで`firebase deploy --only hosting`実行済み(2026-07-30改訂の運用どおり事前許可を確認)。AI実フロー確認自体がAPIキーのオリジン制約により本番でも不可なため、デプロイ後の追加ブラウザ確認は省略。
+- **次にやること**: `git push`の許可確認→推奨着手順(T3-75c/d/g等)。
+
 ### -5.19 当日やったこと(2026-08-04、`/full_loop`(Sonnet 5)、**T3-77完了・本番デプロイ済み**=抽出履歴一覧(002)に豆・メソッド・期間の絞り込みフィルタを追加)
 
 - **選定理由**: NEXT_SESSION.mdの推奨着手順1位のT3-77(抽出履歴002のフィルタ機能、依存なし・サイズM)を選定。
