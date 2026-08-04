@@ -1,7 +1,4 @@
 {
-  "enabledPlugins": {
-    "firebase@firebase": false
-  },
   "permissions": {
     "allow": [
       "Bash",
