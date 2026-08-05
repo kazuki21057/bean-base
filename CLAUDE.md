@@ -83,11 +83,11 @@ Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero 
 
 大規模改修は**1日1回のループ**で進める。**`docs/改修マスタープラン.md`が単一の真実**、§3のタスク表から「依存が満たされた最上位のタスク」を選ぶ。
 
-**流れ**: `/start` → タスク選択 → 実装 → 検証(`analyze`→`test`→`run`)→ OKならcommit/push+進捗表更新 / NGなら`NEXT_SESSION.md`に引き継ぎ → `/end`。
+**流れ**: `/start` → タスク選択 → 実装(`implementer`へ委譲) → 検証(`verifier`へ委譲、`analyze`→`test`→`run`)→ OKならcommit/push+進捗表更新 / NGなら`NEXT_SESSION.md`に引き継ぎ → `/end`。
 
 **終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。
 
-**運用ルール(詳細は`docs/archive/マスタープラン_作業ログ.md`「T3-73f」)**: ユーザー確認が要る場面(`AskUserQuestion`・着手可否・終了報告・リスク操作)は`PushNotification`でも通知。**モデル分担ルール(恒久)**: 上位モデルは方針・実装内容の検討まで、実装は必ずSonnet 5に回す(`⚠️上位モデルで実施`の成果物は設計書+タスク分解のみでコードは書かない。`/full_loop`は既定で選ばないが上位モデル起動時は優先可)。開始/終了手順は`/start`・`/end`スキルが正本。
+**運用ルール(詳細は`docs/archive/マスタープラン_作業ログ.md`「T3-73f」)**: ユーザー確認が要る場面(`AskUserQuestion`・着手可否・終了報告・リスク操作)は`PushNotification`でも通知。**モデル分担ルール(恒久、2026-08-05にサブエージェント委譲へ移行)**: 上位モデルは方針・実装内容の検討まで、実装は必ずSonnet 5に回す(`⚠️上位モデルで実施`の成果物は設計書+タスク分解のみでコードは書かない。`/full_loop`は既定で選ばないが上位モデル起動時は優先可)。**この分担は`.claude/agents/`のサブエージェントで実行する**: 設計・原因究明=`architect`(opus)、コード実装=`implementer`(sonnet)、検証=`verifier`(sonnet)。親セッションは選定・判断・ユーザー確認・commit/push/デプロイのみを担い、**コードの実装と検証は自分で行わず担当エージェントに委譲する**(モデルは各定義の`model:`で自動選択されるので`Agent`ツールに`model`を渡さない)。`architect`を呼ぶのは「⚠️上位モデルで実施」タスク・原因不明/再発バグ・implementerが2回失敗した時・フィールド名/画面ID等の新規決定を伴う時。委譲先は`CLAUDE.md`の文脈を持たないため、**日本語で報告する指示と確定済み仕様をプロンプトに書き出して渡す**。デプロイ・push・本番データ削除は委譲せず親がユーザー許可を得て実行する(分類器ブロックの回避目的の委譲は禁止)。詳細は`/full_loop`スキル§サブエージェントへの委譲。開始/終了手順は`/start`・`/end`スキルが正本。
 
 ## トークン運用規約(実測に基づく)
 
