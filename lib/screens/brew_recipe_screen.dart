@@ -96,6 +96,12 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     final methodSteps = allSteps.where((s) => s.methodId == method.id).toList()
       ..sort((a, b) => a.stepOrder.compareTo(b.stepOrder));
 
+    // T3-80: メソッド切替時は前のメソッドの計測時間を引き継がず、タイマーをリセットする。
+    _timer?.cancel();
+    _timer = null;
+    _stopwatch.stop();
+    _stopwatch.reset();
+
     setState(() {
       _selectedMethod = method;
       _beanWeightController.text = method.baseBeanWeight.toStringAsFixed(1);
@@ -159,12 +165,13 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
     });
   }
 
-  /// T2-3c/T3-79: 経過時間から現在のステップindexを求める(タイマー未動作時はnull)。
-  /// 実際の判定ロジックは[activeStepIndex]([pouring_step_highlight.dart])に
+  /// T2-3c/T3-79/T3-80: 経過時間から現在点灯すべきステップindex集合を求める。
+  /// リセット直後(未計測)のみ消灯し、一時停止中は直前の位置を保持する(H5)。
+  /// 実際の判定ロジックは[activeStepIndexes]([pouring_step_highlight.dart])に
   /// 切り出してテスト可能にしている。
-  int? get _activeStepIndex {
-    if (!_stopwatch.isRunning) return null;
-    return activeStepIndex(_workingSteps, _stopwatch.elapsedMilliseconds / 1000);
+  Set<int> get _activeStepIndexes {
+    if (_stopwatch.elapsedMilliseconds == 0) return const <int>{};
+    return activeStepIndexes(_workingSteps, _stopwatch.elapsedMilliseconds / 1000);
   }
 
   double get _currentWeight => double.tryParse(_beanWeightController.text) ?? 15.0;
@@ -484,7 +491,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
                 isEditing: true,
                 baseBeanWeight: _currentWeight,
                 methodBaseBeanWeight: _selectedMethod?.baseBeanWeight,
-                activeStepIndex: _activeStepIndex,
+                activeStepIndexes: _activeStepIndexes,
                 onStepsChanged: (newSteps) => _workingSteps = newSteps,
               ),
             if (_selectedMethod != null) ...[

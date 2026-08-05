@@ -1,38 +1,46 @@
 import '../models/pouring_step.dart';
 
-/// タイマー連動のハイライト対象ステップ(0始まりindex)を、経過秒数と
-/// ステップ一覧から求める。抽出タイマー未動作時にnullを返すかどうかは
-/// 呼び出し側の責務(このファイルはelapsedSecが渡された前提で計算する)。
+/// タイマー連動で点灯させるステップ(0始まりindex)の集合を返す。
 ///
-/// 「加算時間(秒)」が0のステップ(例: 蒸らし開始などの瞬間アクション)は
-/// それ自体の待機区間を持たない。直後の非ゼロステップに**独自の説明文が
-/// 無い場合のみ**(単なる待機の継続とみなせる場合)、その待機区間の
-/// ハイライトを0秒ステップ側へ譲る。直後のステップが独自の説明文を
-/// 持つ場合(例: 井崎式メソッドの2投目・3投目の指示)はそのステップ自身を
-/// ハイライトする。
+/// 各ステップの「操作時刻」は、先頭からそのステップまでの「加算時間(秒)」の
+/// 累計であり、画面の「経過時間」列に表示されている値と一致する。
+/// `加算時間`は**そのステップの操作を行うまでの待ち時間**であって、操作自体の
+/// 所要時間ではない(本番データで確認済み。例: 4:6メソッドは 0:00 蒸らし →
+/// 0:45 / 1:30 / 2:10 / 2:45 に注湯 → 3:30 ドリッパーを外す)。
 ///
-/// 過去バージョンは説明文の有無を見ずに常に0秒ステップ側へ譲っていたため、
-/// 独自の指示を持つステップが一度もハイライトされず、抽出が進むほど
-/// ハイライトと実際の注湯タイミングがずれて見える不具合があった(T3-79)。
-int? activeStepIndex(List<PouringStep> steps, double elapsedSec) {
-  int cumulative = 0;
-  int? zeroGroupStart;
-  for (var i = 0; i < steps.length; i++) {
-    final start = cumulative;
-    final step = steps[i];
-    final duration = step.duration;
-    if (duration == 0) {
-      zeroGroupStart ??= i;
-      continue;
-    }
-    cumulative += duration;
-    if (elapsedSec >= start && elapsedSec < cumulative) {
-      if (step.description.trim().isEmpty && zeroGroupStart != null) {
-        return zeroGroupStart;
-      }
-      return i;
-    }
-    zeroGroupStart = null;
+/// そのため、あるステップは**自分の操作時刻が到来してから、次の操作時刻が
+/// 到来するまで**点灯し続ける。操作時刻が同じステップが複数ある場合
+/// (0秒ステップとその直後など)は、それらを**同時に**点灯させる。
+/// 最後の操作時刻を過ぎた後は最終ステップを点灯させ続ける。
+///
+/// 過去バージョンは点灯区間を[前の操作時刻, 自分の操作時刻)としていたため、
+/// 常に1ステップ先を点灯させており、実際の注湯タイミングとずれていた(T3-80)。
+Set<int> activeStepIndexes(List<PouringStep> steps, double elapsedSec) {
+  if (steps.isEmpty) return const <int>{};
+
+  final actionTimes = <int>[];
+  var cumulative = 0;
+  for (final step in steps) {
+    cumulative += step.duration;
+    actionTimes.add(cumulative);
   }
-  return null;
+
+  // 最初の操作時刻より前は、直後に来る先頭ステップを予告点灯する。
+  if (elapsedSec < actionTimes.first) return <int>{0};
+
+  // 直近に到来した操作時刻を求める(最後の操作時刻を過ぎた後はそれを保持)。
+  var current = actionTimes.first;
+  for (final t in actionTimes) {
+    if (t <= elapsedSec) {
+      current = t;
+    } else {
+      break;
+    }
+  }
+
+  final result = <int>{};
+  for (var i = 0; i < actionTimes.length; i++) {
+    if (actionTimes[i] == current) result.add(i);
+  }
+  return result;
 }

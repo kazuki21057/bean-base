@@ -15,9 +15,10 @@ class MethodStepsEditor extends StatefulWidget {
 
   final Function(List<PouringStep>) onStepsChanged;
 
-  /// タイマー連動のハイライト対象ステップ(0始まりindex)。
-  /// Cycle 20 T2-3c: null(デフォルト)なら従来どおりハイライトなし。
-  final int? activeStepIndex;
+  /// タイマー連動のハイライト対象ステップ(0始まりindex)の集合。
+  /// Cycle 20 T2-3c: 空集合(デフォルト)なら従来どおりハイライトなし。
+  /// T3-80: 同一操作時刻の複数ステップを同時にハイライトできるようSetに変更。
+  final Set<int> activeStepIndexes;
 
   const MethodStepsEditor({
     super.key,
@@ -26,7 +27,7 @@ class MethodStepsEditor extends StatefulWidget {
     this.baseBeanWeight = 15.0,
     this.methodBaseBeanWeight,
     required this.onStepsChanged,
-    this.activeStepIndex,
+    this.activeStepIndexes = const <int>{},
   });
 
   @override
@@ -82,12 +83,16 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
 
       rows.add(DataRow(
         color: WidgetStateProperty.resolveWith((states) {
-          return i == widget.activeStepIndex ? Colors.amber.shade100 : null;
+          return widget.activeStepIndexes.contains(i) ? Colors.amber.shade100 : null;
         }),
         cells: [
          // Time Column
-         DataCell(widget.isEditing 
+         // T3-80: ステップIDに基づくキーを付け、メソッド切替で_stepsが入れ替わっても
+         // Elementが再利用されて古いテキストが残留する問題(湯量列と異なりキーが
+         // 無かったため発生)を解消する。
+         DataCell(widget.isEditing
            ? TextFormField(
+               key: ValueKey('time_${s.id}'),
                initialValue: _formatTime(stepEndTime),
                keyboardType: TextInputType.datetime,
                onChanged: (v) {
@@ -124,6 +129,7 @@ class _MethodStepsEditorState extends State<MethodStepsEditor> {
             : Text('${stepEndWater.toStringAsFixed(1)}ml')),
          DataCell(widget.isEditing
             ? TextFormField(
+                key: ValueKey('desc_${s.id}'),
                 initialValue: s.description,
                 onChanged: (v) => _updateStep(i, _copyWithStep(s, description: v)),
               )

@@ -64,4 +64,29 @@ void main() {
     expect(find.widgetWithText(TextFormField, '60.0'), findsOneWidget); // 30 * 2
     expect(find.widgetWithText(TextFormField, '300.0'), findsOneWidget); // (30+120) * 2
   });
+
+  testWidgets('T3-80: activeStepIndexesに複数indexを渡すと該当する複数行が同時にハイライトされる',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MethodStepsEditor(
+          initialSteps: steps,
+          isEditing: true,
+          baseBeanWeight: 15.0,
+          methodBaseBeanWeight: 15.0,
+          onStepsChanged: (_) {},
+          activeStepIndexes: const {0, 1},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // DataRowはWidgetではないため、DataTable.rowsから直接検証する。
+    final table = tester.widget<DataTable>(find.byType(DataTable));
+    expect(table.rows.length, 2);
+    for (final row in table.rows) {
+      final color = row.color?.resolve(<WidgetState>{});
+      expect(color, Colors.amber.shade100);
+    }
+  });
 }
