@@ -116,6 +116,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L117 L116の恒久対処: 素の`pub upgrade`は不可(未使用の`riverpod_generator`がanalyzerを固定)、死に依存の削除+限定upgrade+`build_runner --force-jit`で解消。`--delete-conflicting-outputs`は廃止済み、`clean`はソースの`.g.dart`を消さない
 - L116 Ubuntu環境で`build_runner build`がDart SDK/analyzer版数不整合で無限ハングしうる。CPU%でなく`/proc/<pid>/io`の不変で停止確定、killしたら削除済み`.g.dart`を`git checkout`で復元
 - L115 新しいUbuntu環境でのAndroid開発セットアップ: `sudo`はBashツールからも`!`プレフィックスからもパスワード入力できない(別ターミナルでユーザー実行が必要)/Flutter 3.38.9はAndroid SDK 36+Build-Tools 28.0.3を要求する
 - L85 Bashツールで`git commit -m @'…'@`(PowerShellのhere-string)を使うと、エラーにならず件名が`@`だけの壊れた…

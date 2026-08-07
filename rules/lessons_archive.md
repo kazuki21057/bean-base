@@ -569,3 +569,15 @@ T3-80で本番`pouring_steps`の全12メソッドを取得し直したところ�
 さらに、`build_runner build --delete-conflicting-outputs`は**既存の`.g.dart`を先に削除してから**再生成する動作のため、生成完了前にハング(または外部からkill)すると**リポジトリの`.g.dart`が削除されたまま残る**(`git status`が10件前後の`D`行になる)。この状態を見逃すと後続の`flutter analyze`/`flutter test`が軒並み壊れる。**復旧は`git checkout -- <該当.g.dartファイル>`で足りる**(コミット済みのため)。
 
 **教訓**: (1) バックグラウンドの長時間タスクを監視する際、CPU%の推移だけで「動いている/止まっている」を判断しない。`/proc/<pid>/io`のカウンタ(`read_bytes`/`write_bytes`)が2回の観測間で完全に不変なら停止と確定してよい。(2) `build_runner build`系のコマンドを自動化スクリプト(`verify.sh`等)に組み込む場合は**タイムアウト付き実行**(例: `timeout 120 dart run build_runner build ...`)を必須にする。無制限実行は環境依存のハングをそのまま無人ループの停止に持ち込む。(3) この不整合の恒久対応(`flutter pub upgrade`等での`analyzer`更新)は影響範囲がプロジェクト全体に及ぶため、ユーザー判断待ち(2026-08-07時点で未着手、次回architectへ委譲予定)。
+
+## L117 L116のanalyzer版数不整合の恒久対処: 素の`flutter pub upgrade`では直らない、死に依存の除去+限定upgrade+`--force-jit`が必要だった(T5-A1、2026-08-08)
+
+2026-08-08、L116のハングをarchitectが根治した過程での発見。**素の`flutter pub upgrade`はこの問題を解決しない**: `analyzer 8.0.0`以降(Dart 3.10構文に対応、`_currentVersion`定数で確認できる)が必要だが、`riverpod_generator`が依存する`riverpod_analyzer_utils ^7.0.0`が`analyzer`を7系に固定していた。`riverpod_generator`の`analyzer ^8`対応版は`riverpod_generator 3.0.0-dev`系のみで、これは`riverpod_annotation`のメジャー更新(→`flutter_riverpod 3.x`)を強制する破壊的変更であり、Riverpod 2系のまま`pub upgrade`しても行き詰まる。
+
+突破口は**`riverpod_generator`/`riverpod_annotation`がこのプロジェクトで完全に未使用と判明したこと**(`grep -rn "riverpod_annotation\|@riverpod\|@Riverpod"`が0件、`lib/**/*.g.dart`は全て`json_serializable`製で`part`宣言も`lib/models/`の10ファイルのみ、`build.yaml`も無し)。この2パッケージを削除すれば`flutter_riverpod`本体(実使用中、56ファイル)に触れずにanalyzerを上げられる。**pub.dev の制約表(`flutter pub deps`や個別パッケージのpubspec)を読まずに「pub upgradeが効かない」で対応を止めない**——固定源のパッケージを1つずつ特定すれば局所的な回避が見つかることがある。
+
+analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビルダーをAOTコンパイルするが、依存グラフ中の`path_provider_foundation`→`objective_c`が持つ`hook/build.dart`(Dartのbuild hook機構)によりDart 3.10.8の`dart compile`が`'dart compile' does not support build hooks, use 'dart build' instead`で失敗する。**`--force-jit`フラグ(build_runner 2.15.1で追加)でJITコンパイルに切り替えると回避できる**(ビルダーコンパイルに数秒余分にかかるだけで実害なし)。
+
+副産物として3点判明: (1) `--delete-conflicting-outputs`はbuild_runner 2.15.1で**廃止済み**(指定すると警告のうえ無視される、L116時点の前提が既に古くなっていた)。(2) `dart run build_runner clean`は`.dart_tool/build`キャッシュのみ削除し、**ソースツリーの`.g.dart`は削除しない**。(3) **インクリメンタルビルド(`clean`を挟まない`build`)は`.g.dart`の手編集ドリフトを検出しない**(`.g.dart`に手動でコメントを追記して`build`しても`wrote 0 outputs`のまま残る)。`codegen_clean`のような「生成物がソースと一致しているか」を検証する用途では、**`clean`→`build`の順を必ず踏む**必要がある。
+
+**教訓**: (1) 依存の版数不整合を`pub upgrade`で直そうとして特定パッケージの制約に阻まれたら、まず**その依存が実際に使われているか**(grep)を疑う。使われていない依存の削除は、機能追加なしに版数の枷を外せる最も安全な一手。(2) `build_runner`のようなツールのメジャーマイナー版アップでは、CLIフラグの廃止・追加(`--delete-conflicting-outputs`廃止、`--force-jit`追加)や既定の動作変更(AOTコンパイル化)が起きる。エラーメッセージ(`does not support build hooks`等)をそのままヒントとして扱い、該当バージョンのCHANGELOGではなく**まずエラー文言でpub.devやGitHub issueを検索する**方が早い。(3) `build_runner clean`は生成物を消さない・インクリメンタルビルドはドリフトを検出しない、という2点は「codegenが最新か」を検証するスクリプトの設計に直結するため、同種の検証スクリプトを書く際は`clean`を必ず挟む。
