@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.32 当日やったこと(2026-08-07、Sonnet 5、通常チャット。新しいUbuntu環境に入ったユーザーから「問題ないか確認して」と依頼を受けて着手。T3-20相当の環境セットアップを実施、コード変更は`android/`プラットフォーム追加のみ)
+
+- **環境確認**: `git status`(クリーン、origin/mainと同期)・Flutter 3.38.9/Dart 3.10.8・Chrome認識済み・SSH(GitHub)疎通済みを確認。`.claude/loop_state.md`/`loop_failures.txt`は本マシンに存在せず(初回のためしきい値判定は「超過なし」扱い)。
+- **Android SDKセットアップ**(ユーザー依頼「Androidアプリをこれから本格的に開発していく」): `sudo apt install openjdk-17-jdk unzip`はこのシェルにTTYが無くパスワード入力不可のため、**ユーザー本人に別ターミナルで実行してもらった**(JDK 17導入)。以降はsudo不要な手順で対応: `commandlinetools-linux-13114758_latest.zip`を`~/Android/Sdk/cmdline-tools/latest`に展開→`sdkmanager --licenses`全同意→`platform-tools`/`platforms;android-35`/`build-tools;35.0.0`導入→`flutter doctor`で「Android SDK 36とBuildTools 28.0.3が必要」と指摘されたため`platforms;android-36`/`build-tools;28.0.3`も追加導入→`flutter config --android-sdk ~/Android/Sdk`→`flutter doctor`のAndroid toolchainが✓に。`~/.bashrc`に`ANDROID_HOME`/PATH追記済み(新規シェルでも有効)。
+- **`android/`プラットフォーム追加**: プロジェクトに`android/`ディレクトリが存在しないと判明(`web`/`linux`/`windows`のみ)。ユーザーに`AskUserQuestion`で確認の上、`flutter create --platforms=android .`で追加(既存コードへの影響なし、`bean_base.iml`等29ファイル新規作成)。`flutter build apk --debug`成功を確認(初回ビルドはGradle依存関係ダウンロードで約7分)。**直近コミット`83a580e`(コードベース構成方針: 1コードベース+エディション分離、`docs/android_monetization/コードベース構成方針.md`)により、次の一歩は移行タスクE-1(差分ゼロの2エントリポイント作成)と判明**。
+- **Node.js / gh CLI導入**(T3-20の残項目、sudo不要の方法で対応): Node.js v24.19.0(LTS Krypton)を`~/opt/node`に展開し`~/.local/bin`へシンボリックリンク。gh CLI v2.97.0を同様に`~/opt/gh`→`~/.local/bin`。新規シェルで`node`/`npm`/`gh`とも疎通確認済み。**`gh auth status`は未ログイン**——`gh auth login`は対話式OAuthのためユーザー自身の実行待ち(git自体はSSH鍵で疎通済みなので通常運用に支障無し)。
+- **未実施**: Gemini APIキーの090画面での再入力(shared_preferencesはマシンごとに独立)、実機/エミュレータでのAndroid実行確認(`flutter devices`ではLinux desktop/Chromeのみ検出、USBデバイス未接続)。
+- **コミット**: 本ループでは`android/`追加分は未コミット(ユーザーへの報告後、許可を得てからコミットする方針。デプロイ・push運用ルールに準拠)。
+
 ### -5.31 当日やったこと(2026-08-05、**Opus 5**、通常チャット。`/full_loop`が「着手可能タスク無し」で終了した直後、ユーザーから「推奨焙煎度を調べて入力してもらうことはできる?」と依頼を受けて着手。T3-72fの前半(推奨焙煎度設定)完了・本番反映済み。コード変更なし)
 
 - **経緯**: `/full_loop`実行時点でT3-75gのみ依存T3-72f(ユーザー実施待ち)でブロック中・他は全てユーザー実施待ちのため何もせず終了と判断したところ、ユーザーから「T3-72fの推奨焙煎度設定を代わりに調べて入力してほしい」と依頼された。
