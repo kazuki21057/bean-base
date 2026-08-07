@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.35 当日やったこと(2026-08-08、Sonnet 5、`/full_loop`。T5-A1の依存バージョン不整合を解消・実装完了。**セッション分割チェック該当のため検証待ちで中断**)
+
+- **タスク選定**: 前回セッションの引き継ぎどおり、T5-A1の再開。まず依存バージョン戦略の判断を`architect`に委譲。
+- **architectの調査結果**: 根本原因はanalyzer 7.6.0がDart 3.10構文(`experiments.g.dart`の`_currentVersion = '3.9.0'`固定)を扱えないこと。analyzer 8.0以降が必要だが、素の`flutter pub upgrade`では`riverpod_analyzer_utils(riverpod_generator経由) ^7.0.0`制約がanalyzerを7系に縛っていた。**リポジトリ全体をgrepした結果`riverpod_annotation`/`@riverpod`/`@Riverpod`の使用は0件、生成コードも無し**——完全な死に依存と判明(過去`riverpod_generator`導入時の名残)。方針: `riverpod_generator`/`riverpod_annotation`を削除し、codegen系3パッケージ(`build_runner`/`json_serializable`/`json_annotation`)限定で`pub upgrade`。副次的に判明した問題として、build_runner 2.15.1はビルダーをAOTコンパイルするが`path_provider_foundation`→`objective_c`のbuild hookにより`dart compile`が失敗するため`--force-jit`が必須。`--delete-conflicting-outputs`はbuild_runner 2.15.1で廃止済み(指定すると警告のうえ無視)。全て実地検証(analyze/test/build web/差分確認)済みで実行可能と確認してから作業ツリーを`d37e6a5`と同一の状態に復元して報告。
+- **implementerの実装**: architectの方針どおり(1)`pubspec.yaml`から`riverpod_annotation`/`riverpod_generator`を削除、`json_annotation`を`^4.12.0`に (2)`flutter pub upgrade build_runner json_serializable json_annotation`実行 (3)`dart run build_runner clean && build --force-jit`で`.g.dart`再生成(`bean_purchase.g.dart`/`store_master.g.dart`のみ差分、手書き運用時の注記コメント削除+整形のみで意味的変更なし) (4)`tools/verify.sh`の`run_codegen_clean`を`clean`→`build --force-jit`+`timeout 600s`(タイムアウト時`{"ok":false,"reason":"timeout"}`を返す)方式に修正 (5)`CLAUDE.md`・`docs/android_release/検証強化設計.md`・`docs/claude_code_optimization/設計書.md`のコマンド表記を更新。
+- **検証結果(implementerが実施)**: `flutter analyze`31件(baseline47件以下、新規issueなし)/`flutter test`360件全パス/`flutter build web --release`成功/**`flutter build apk --release`も成功**(想定外の副産物、Android SDK構成がこの環境で機能していると判明)/`codegen_clean`の冪等性確認(2回目実行で差分ゼロ)/タイムアウト分岐の動作確認(コピースクリプトで`1s`に短縮して`{"ok":false,"reason":"timeout"}`を確認、`.g.dart`復元も正常)/`bash tools/verify.sh`通し実行で全項目`ok:true`。
+- **未実施(申し送り)**: `tools/verify.ps1`(Windows版)は今回のタスク範囲外で未着手。`.claude/agents/implementer.md`・`.claude/agents/architect.md`に`--delete-conflicting-outputs`という古い表記が残っている(実装対象外だったため未修正)。`flutter analyze`が47→31件に減った内訳(新種issueが本当に0件か)は件数比較のみで詳細差分は未確認。実ブラウザでの`flutter run -d chrome`によるSheets実データ読み込み確認は未実施。
+- **セッション分割**: 実装完了時点で本ループコスト$7.23(>$7)・変更ファイル8件(>5)のため、`CLAUDE.md`/`full_loop`スキル所定のセッション分割チェックに該当。**`verifier`への正式委譲・実ブラウザ確認・デプロイは次回セッションへ持ち越し**。
+- **コミット**: 上記実装差分をコミット済み(push はユーザー許可待ち)。次回セッションは`bash tools/verify.sh`の再確認と`verifier`委譲から再開する。
+
 ### -5.34 当日やったこと(2026-08-07、Sonnet 5、`/full_loop`。T5-A1着手 → 依存バージョン不整合で中断、ユーザー指示によりここで`/end`)
 
 - **タスク選定**: Phase 5トラックAの依存なしタスクのうちタスク表で最上位の**T5-A1**(`tools/verify.ps1`/`verify.sh`新設)を選定。仕様は`docs/android_release/検証強化設計.md` §3-2に確定済みのためarchitectを介さず`implementer`へ直接委譲。
