@@ -7,6 +7,8 @@
 
 ## 1. 現状サマリ
 
+- **2026-08-07: ユーザー指示により本セッション(本ループ)に限りコスト上限($24)を気にせず継続してよい。** 次回以降は通常通り`CLAUDE.md`§日次改修ループ運用ルールの終了条件(コスト$24超・ターン30到達・連続失敗3回)を適用する(恒久ルールの変更ではない、今回限りの例外)。同日、新しいUbuntu環境に入りT3-20(Ubuntu環境セットアップ)相当の作業を実施(下記「3. 直近の作業ログ」参照)。**T3-20は「Gemini APIキーの090画面での再入力」を除き完了扱い**。
+
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
 - **2026-08-04、ユーザーから一括で5件の追加要望**: ①履歴編集(`log_edit_screen.dart`)に豆等の欠落項目→**T3-76、2026-08-04完了・本番デプロイ済み**、②抽出履歴(002)のフィルタ機能→**T3-77、2026-08-04完了・本番デプロイ済み**、③購入店AI自動取得を常に候補5件表示+入力済み全項目を検索に使う→**T3-78、本ループで実装・検証完了(下記参照)。デプロイはユーザー許可待ち**、④Gemini APIキーをClaude検証用に渡す安全な方法→タスク化不要、チャットで回答済み(通常はUIから本人が入力する運用のためClaudeへの共有は原則不要、動作確認させる場合のみ失効前提の使い捨てキーを推奨)、⑤注湯ステップのハイライトが途中からずれる→**T3-79、2026-08-04完了・本番デプロイ済み**。
 - **T3-78(2026-08-04完了・本番デプロイ済み)**: `StoreInfoCandidate`から`ambiguous`フィールドを削除し、`_buildStoreInfoPrompt`(`ai_analysis_service.dart`)を常に候補を最大5件`candidates`に列挙させるプロンプトに変更(1件のみでもその1件を返す)。`store_create_screen.dart`は`candidates`が空でない限り必ず候補選択ダイアログを経由してから確定情報を再取得するフローに変更し、`fetchStoreInfo`のシグネチャに住所・URL・電話番号・営業時間・定休日・開業年・オンライン/実店舗/焙煎所の有無・豆の傾向・SNS URLの各ヒント引数を追加(フォーム入力済みの項目のみ渡す)。`flutter analyze`新規issue0、`flutter test`354件全パス(新規1件)、`flutter build web`成功。**ブラウザ確認はローカル配信オリジンにGemini APIキーが保存されておらずAI応答の実フローは確認できなかった**(028画面表示・APIキー未設定時のダイアログ表示・コンソールエラー0件のみ確認、ロジックはwidgetテストで担保、詳細は`rules/verification.md` L109)。ユーザーにチャットで許可を得て`firebase deploy --only hosting`実行済み(デプロイ前に確認した`build/web`と同一成果物のため、デプロイ後の追加確認は省略。AI実フローの確認自体がAPIキーのオリジン制約により本番でも同様に不可)。
@@ -77,6 +79,15 @@
 1ループのコストは「リクエスト数 × 平均コンテキスト長」でほぼ決まる。**コンテキスト200k超で単価が約2倍**になるため、実装が長引いたら無理に1セッションで完走せず分割する。規約は`CLAUDE.md`§トークン運用規約、実測と削減設計は`docs/token_optimization_design.md`。
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
+
+### -5.32 当日やったこと(2026-08-07、Sonnet 5、通常チャット。新しいUbuntu環境に入ったユーザーから「問題ないか確認して」と依頼を受けて着手。T3-20相当の環境セットアップを実施、コード変更は`android/`プラットフォーム追加のみ)
+
+- **環境確認**: `git status`(クリーン、origin/mainと同期)・Flutter 3.38.9/Dart 3.10.8・Chrome認識済み・SSH(GitHub)疎通済みを確認。`.claude/loop_state.md`/`loop_failures.txt`は本マシンに存在せず(初回のためしきい値判定は「超過なし」扱い)。
+- **Android SDKセットアップ**(ユーザー依頼「Androidアプリをこれから本格的に開発していく」): `sudo apt install openjdk-17-jdk unzip`はこのシェルにTTYが無くパスワード入力不可のため、**ユーザー本人に別ターミナルで実行してもらった**(JDK 17導入)。以降はsudo不要な手順で対応: `commandlinetools-linux-13114758_latest.zip`を`~/Android/Sdk/cmdline-tools/latest`に展開→`sdkmanager --licenses`全同意→`platform-tools`/`platforms;android-35`/`build-tools;35.0.0`導入→`flutter doctor`で「Android SDK 36とBuildTools 28.0.3が必要」と指摘されたため`platforms;android-36`/`build-tools;28.0.3`も追加導入→`flutter config --android-sdk ~/Android/Sdk`→`flutter doctor`のAndroid toolchainが✓に。`~/.bashrc`に`ANDROID_HOME`/PATH追記済み(新規シェルでも有効)。
+- **`android/`プラットフォーム追加**: プロジェクトに`android/`ディレクトリが存在しないと判明(`web`/`linux`/`windows`のみ)。ユーザーに`AskUserQuestion`で確認の上、`flutter create --platforms=android .`で追加(既存コードへの影響なし、`bean_base.iml`等29ファイル新規作成)。`flutter build apk --debug`成功を確認(初回ビルドはGradle依存関係ダウンロードで約7分)。**直近コミット`83a580e`(コードベース構成方針: 1コードベース+エディション分離、`docs/android_monetization/コードベース構成方針.md`)により、次の一歩は移行タスクE-1(差分ゼロの2エントリポイント作成)と判明**。
+- **Node.js / gh CLI導入**(T3-20の残項目、sudo不要の方法で対応): Node.js v24.19.0(LTS Krypton)を`~/opt/node`に展開し`~/.local/bin`へシンボリックリンク。gh CLI v2.97.0を同様に`~/opt/gh`→`~/.local/bin`。新規シェルで`node`/`npm`/`gh`とも疎通確認済み。**`gh auth status`は未ログイン**——`gh auth login`は対話式OAuthのためユーザー自身の実行待ち(git自体はSSH鍵で疎通済みなので通常運用に支障無し)。
+- **未実施**: Gemini APIキーの090画面での再入力(shared_preferencesはマシンごとに独立)、実機/エミュレータでのAndroid実行確認(`flutter devices`ではLinux desktop/Chromeのみ検出、USBデバイス未接続)。
+- **コミット**: 本ループでは`android/`追加分は未コミット(ユーザーへの報告後、許可を得てからコミットする方針。デプロイ・push運用ルールに準拠)。
 
 ### -5.31 当日やったこと(2026-08-05、**Opus 5**、通常チャット。`/full_loop`が「着手可能タスク無し」で終了した直後、ユーザーから「推奨焙煎度を調べて入力してもらうことはできる?」と依頼を受けて着手。T3-72fの前半(推奨焙煎度設定)完了・本番反映済み。コード変更なし)
 
