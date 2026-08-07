@@ -57,3 +57,6 @@ pictures/
 
 # ユーザーが調査用に貼り付けるスクリーンショット(個人的な内容を含むため追跡しない)
 screenshots/
+
+# tools/verify.sh / verify.ps1 の詳細ログ(実行のたびに生成される一時ファイル)
+.claude/verify_logs/

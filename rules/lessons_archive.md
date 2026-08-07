@@ -559,3 +559,13 @@ T3-80で本番`pouring_steps`の全12メソッドを取得し直したところ�
 (2) Android SDKの`platform-tools`+`platforms;android-35`+`build-tools;35.0.0`を入れて`flutter doctor`を実行すると、SDK 35を認識しつつ`Flutter requires Android SDK 36 and the Android BuildTools 28.0.3`という**一見版数が噛み合わない要求**(新しい方のplatformと古い方のbuild-tools)が出た。`sdkmanager "platforms;android-36" "build-tools;28.0.3"`を追加導入して初めて`[✓] Android toolchain`になった。**「SDKバージョン」で検索して1点だけ入れると再度`flutter doctor`で引っかかる**ため、初回セットアップでは`flutter doctor -v`の指摘文言をそのまま`sdkmanager`の引数に使うのが早い。
 
 **教訓**: (1) GAS Web AppへPOSTでデータを書き込む必要がある場合、**curl等での直接POST再現を試みず、実際のアプリのUI経由(ローカル配信+ブラウザ操作)で行う**(この経路は実績があり確実)。原因追求に時間をかけすぎない(今回はcurlの検証だけで3ターン以上費やした)。(2) Flutter Web (CanvasKit)のスライダー等をブラウザ自動操作でドラッグする場合、**直前の画面遷移クリックとは別のツール呼び出しに分ける**。(3) 保存ボタン押下後は**保存完了のログ/スナックバーを確認してから**次の操作に進み、数秒〜十数秒のネットワーク待ちを見込む。
+
+## L116 新しいUbuntu環境では`dart run build_runner build`がDart SDKとpinned `analyzer`の版数不整合で無限ハングしうる。killしても削除済み`.g.dart`は`git checkout`で復元が要る(T5-A1、2026-08-07)
+
+2026-08-07、T5-A1(`tools/verify.sh`)実装中の`codegen_clean`チェックで、`dart run build_runner build --delete-conflicting-outputs`が進捗ゼロのまま20分以上応答しなくなった。調査の結果、ハング自体はCPU使用率だけでは判別できなかった(25%→9%→5%と緩やかに下がっていくため「重い処理中」に見える)。`/proc/<pid>/io`の`read_bytes`/`write_bytes`が**2回の確認の間で1バイトも変化していない**ことで初めて「本当に停止している」と確定できた(CPU%だけを見る監視は誤判定しうる)。
+
+ログ本体には手がかりがあった: `W SDK language version 3.10.0 is newer than analyzer language version 3.9.0`という警告の直後、`riverpod_generator`が`lib/firebase_options.dart`の解析中に`Exception: Missing implementation of visitDotShorthandPropertyAccess`を投げ、その後アナライザが`LibraryContext.load.loadBundle`の巨大な再帰に入ったまま固まっていた。原因は**このFlutter/Dart SDK(3.38.9 / Dart 3.10.0)に対し`pubspec.lock`がpinしている`analyzer`(transitive、`build_runner: ^2.4.8`/`riverpod_generator: ^2.4.0`経由)が古く、新しいDart構文を解析できない**という依存バージョン不整合。
+
+さらに、`build_runner build --delete-conflicting-outputs`は**既存の`.g.dart`を先に削除してから**再生成する動作のため、生成完了前にハング(または外部からkill)すると**リポジトリの`.g.dart`が削除されたまま残る**(`git status`が10件前後の`D`行になる)。この状態を見逃すと後続の`flutter analyze`/`flutter test`が軒並み壊れる。**復旧は`git checkout -- <該当.g.dartファイル>`で足りる**(コミット済みのため)。
+
+**教訓**: (1) バックグラウンドの長時間タスクを監視する際、CPU%の推移だけで「動いている/止まっている」を判断しない。`/proc/<pid>/io`のカウンタ(`read_bytes`/`write_bytes`)が2回の観測間で完全に不変なら停止と確定してよい。(2) `build_runner build`系のコマンドを自動化スクリプト(`verify.sh`等)に組み込む場合は**タイムアウト付き実行**(例: `timeout 120 dart run build_runner build ...`)を必須にする。無制限実行は環境依存のハングをそのまま無人ループの停止に持ち込む。(3) この不整合の恒久対応(`flutter pub upgrade`等での`analyzer`更新)は影響範囲がプロジェクト全体に及ぶため、ユーザー判断待ち(2026-08-07時点で未着手、次回architectへ委譲予定)。

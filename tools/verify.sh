@@ -1,0 +1,376 @@
+#!/usr/bin/env bash
+# tools/verify.sh
+#
+# 決定論的な検証項目(analyze/test/build等)をまとめて実行し、結果を JSON 1つで
+# 標準出力へ返す。検証エージェント(verifier)が `flutter analyze`/`flutter test` の
+# 生出力(1回7k〜13k文字、以後の全リクエストに課金され続ける)を直接読まずに済むよう
+# にすることが目的。詳細ログは .claude/verify_logs/<timestamp>_<項目名>.log へ書く。
+#
+# 使い方: bash tools/verify.sh [--edition personal|public]
+#
+# 仕様の正本: docs/android_release/検証強化設計.md §3-2
+# 対応する Windows 用スクリプト: tools/verify.ps1(同一ロジック)
+
+set -uo pipefail
+
+# --- 引数解析 -----------------------------------------------------------
+EDITION="public"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --edition)
+      EDITION="${2:-public}"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# 注: 現時点では lib/main_public.dart(公開版エントリポイント、E-1未着手)が
+# 存在しないため、edition による分岐は build_apk_release のフォールバック処理
+# (main_public.dart有無の確認)以外に無い。将来 main_public.dart 追加時に拡張する。
+echo "[verify.sh] edition=${EDITION}" >&2
+
+# --- 準備 -----------------------------------------------------------------
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+LOG_DIR=".claude/verify_logs"
+mkdir -p "$LOG_DIR"
+
+log_path() {
+  echo "${LOG_DIR}/${TIMESTAMP}_$1.log"
+}
+
+# コミット前の全変更ファイル(追跡ファイルの差分 + 新規未追跡ファイル)
+mapfile -t CHANGED_FILES < <(
+  { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } \
+    | sort -u
+)
+
+# --- 各検査項目 -------------------------------------------------------------
+
+# 1. analyze: 既存issue件数(.claude/analyze_baseline.txt、BOM付きの可能性あり)と比較
+run_analyze() {
+  local log
+  log="$(log_path analyze)"
+  flutter analyze >"$log" 2>&1
+
+  local baseline current
+  baseline=$(tr -cd '0-9' <.claude/analyze_baseline.txt)
+  baseline=${baseline:-0}
+
+  if grep -qE "No issues found" "$log"; then
+    current=0
+  else
+    current=$(grep -oE '[0-9]+ issues found' "$log" | tail -1 | grep -oE '^[0-9]+')
+    current=${current:-0}
+  fi
+
+  local ok=true
+  if [[ "$current" -gt "$baseline" ]]; then
+    ok=false
+  fi
+
+  if [[ "$ok" == true ]]; then
+    jq -n --argjson baseline "$baseline" --argjson current "$current" \
+      '{ok: true, baseline: $baseline, current: $current}'
+  else
+    jq -n --argjson baseline "$baseline" --argjson current "$current" --arg log "$log" \
+      '{ok: false, baseline: $baseline, current: $current, log: $log}'
+  fi
+}
+
+# 2. test: 全パスを確認
+run_test() {
+  local log
+  log="$(log_path test)"
+  flutter test >"$log" 2>&1
+  local rc=$?
+
+  local last_line passed failed
+  last_line=$(grep -oE '\+[0-9]+( -[0-9]+)?:' "$log" | tail -1)
+  passed=$(echo "$last_line" | grep -oE '^\+[0-9]+' | tr -d '+')
+  failed=$(echo "$last_line" | grep -oE ' -[0-9]+' | tr -d ' -')
+  passed=${passed:-0}
+  failed=${failed:-0}
+
+  local ok=true
+  if [[ "$rc" -ne 0 || "$failed" -ne 0 ]]; then
+    ok=false
+  fi
+
+  if [[ "$ok" == true ]]; then
+    jq -n --argjson passed "$passed" --argjson failed "$failed" \
+      '{ok: true, passed: $passed, failed: $failed}'
+  else
+    jq -n --argjson passed "$passed" --argjson failed "$failed" --arg log "$log" \
+      '{ok: false, passed: $passed, failed: $failed, log: $log}'
+  fi
+}
+
+# 3. test_coverage_delta: 変更したlib/ファイルに対応するテストファイルの有無(warningのみ、failにしない)
+run_coverage_delta() {
+  local missing=()
+  local f base
+  for f in "${CHANGED_FILES[@]}"; do
+    [[ "$f" == lib/*.dart ]] || continue
+    [[ "$f" == *.g.dart ]] && continue
+    [[ -f "$f" ]] || continue
+    base="$(basename "$f" .dart)"
+    if ! find test -type f -name "${base}_test.dart" 2>/dev/null | grep -q .; then
+      missing+=("$f")
+    fi
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    echo '{"ok": true}'
+  else
+    local msg=""
+    local m
+    for m in "${missing[@]}"; do
+      msg="${msg}${m} に対応テストなし; "
+    done
+    msg="${msg%; }"
+    jq -n --arg w "$msg" '{ok: true, warning: $w}'
+  fi
+}
+
+# 4. build_apk_release: lib/main_public.dart が無ければ lib/main.dart にフォールバック(note化、fail扱いにはしない)
+run_build_apk_release() {
+  local target="lib/main_public.dart"
+  local note=""
+  if [[ ! -f "$target" ]]; then
+    target="lib/main.dart"
+    note="lib/main_public.dart が無いため lib/main.dart にフォールバック"
+  fi
+
+  local log
+  log="$(log_path build_apk_release)"
+  flutter build apk --release -t "$target" >"$log" 2>&1
+  local rc=$?
+
+  local ok=true
+  [[ $rc -ne 0 ]] && ok=false
+
+  if [[ "$ok" == true ]]; then
+    if [[ -n "$note" ]]; then
+      jq -n --arg note "$note" '{ok: true, note: $note}'
+    else
+      echo '{"ok": true}'
+    fi
+  else
+    local summary
+    summary=$(grep -iE "error|FAILURE|Exception" "$log" | tail -5 | tr '\n' ' ')
+    if [[ -n "$note" ]]; then
+      jq -n --arg note "$note" --arg summary "$summary" --arg log "$log" \
+        '{ok: false, note: $note, summary: $summary, log: $log}'
+    else
+      jq -n --arg summary "$summary" --arg log "$log" \
+        '{ok: false, summary: $summary, log: $log}'
+    fi
+  fi
+}
+
+# 5. build_web_release
+run_build_web_release() {
+  local log
+  log="$(log_path build_web_release)"
+  flutter build web --release >"$log" 2>&1
+  local rc=$?
+
+  if [[ $rc -eq 0 ]]; then
+    echo '{"ok": true}'
+  else
+    local summary
+    summary=$(grep -iE "error|FAILURE|Exception" "$log" | tail -5 | tr '\n' ' ')
+    jq -n --arg summary "$summary" --arg log "$log" \
+      '{ok: false, summary: $summary, log: $log}'
+  fi
+}
+
+# 6. golden: goldenテストが0件なら差分ゼロ扱い(T5-A8未着手のため)
+run_golden() {
+  local golden_files
+  golden_files=$(grep -rlE "matchesGoldenFile\(" test 2>/dev/null || true)
+
+  if [[ -z "$golden_files" ]]; then
+    echo '{"ok": true, "diff_count": 0}'
+    return
+  fi
+
+  local log
+  log="$(log_path golden)"
+  # shellcheck disable=SC2086
+  flutter test $golden_files >"$log" 2>&1
+  local rc=$?
+
+  local last_line diff_count
+  last_line=$(grep -oE '\+[0-9]+( -[0-9]+)?:' "$log" | tail -1)
+  diff_count=$(echo "$last_line" | grep -oE ' -[0-9]+' | tr -d ' -')
+  diff_count=${diff_count:-0}
+
+  local ok=true
+  if [[ $rc -ne 0 || "$diff_count" -ne 0 ]]; then
+    ok=false
+  fi
+
+  if [[ "$ok" == true ]]; then
+    jq -n --argjson diff_count "$diff_count" '{ok: true, diff_count: $diff_count}'
+  else
+    jq -n --argjson diff_count "$diff_count" --arg log "$log" \
+      '{ok: false, diff_count: $diff_count, log: $log}'
+  fi
+}
+
+# 7. codegen_clean: build_runner再生成後にlib/**/*.g.dartへ差分が出ないか。
+#    git checkout等は使わず、生成物(*.g.dart)だけをバックアップ→復元することで、
+#    作業ツリー上の他の未コミット変更(WIP)を一切壊さずに済ませる。
+run_codegen_clean() {
+  local log
+  log="$(log_path codegen_clean)"
+  local diff_log="${log%.log}_diff.log"
+  : >"$diff_log"
+
+  local backup_dir
+  backup_dir="$(mktemp -d)"
+
+  mapfile -t gen_files_before < <(find lib -name "*.g.dart" | sort)
+  local f
+  for f in "${gen_files_before[@]}"; do
+    mkdir -p "$backup_dir/$(dirname "$f")"
+    cp "$f" "$backup_dir/$f"
+  done
+
+  dart run build_runner build --delete-conflicting-outputs >"$log" 2>&1
+  local build_rc=$?
+
+  mapfile -t gen_files_after < <(find lib -name "*.g.dart" | sort)
+
+  local diff_found=false
+  for f in "${gen_files_before[@]}"; do
+    if [[ ! -f "$f" ]]; then
+      diff_found=true
+      echo "[削除] $f" >>"$diff_log"
+    elif ! cmp -s "$backup_dir/$f" "$f"; then
+      diff_found=true
+      echo "[変更] $f" >>"$diff_log"
+      diff -u "$backup_dir/$f" "$f" >>"$diff_log" 2>&1 || true
+    fi
+  done
+  for f in "${gen_files_after[@]}"; do
+    if [[ ! -f "$backup_dir/$f" ]]; then
+      diff_found=true
+      echo "[新規] $f" >>"$diff_log"
+    fi
+  done
+
+  # 復元: build_runner実行前の状態へ厳密に戻す
+  for f in "${gen_files_after[@]}"; do
+    if [[ ! -f "$backup_dir/$f" ]]; then
+      rm -f "$f"
+    fi
+  done
+  for f in "${gen_files_before[@]}"; do
+    mkdir -p "$(dirname "$f")"
+    cp "$backup_dir/$f" "$f"
+  done
+  rm -rf "$backup_dir"
+
+  local ok=true
+  if [[ $build_rc -ne 0 ]]; then
+    ok=false
+    echo "[build_runner失敗] exit=$build_rc" >>"$diff_log"
+  fi
+  if [[ "$diff_found" == true ]]; then
+    ok=false
+  fi
+
+  if [[ "$ok" == true ]]; then
+    echo '{"ok": true}'
+  else
+    jq -n --arg log "$diff_log" '{ok: false, log: $log}'
+  fi
+}
+
+# 8. secret_scan: ステージ済み差分(git diff --cached)のみを対象。
+#    'gemini_api_key' はSharedPreferencesのキー名として正規に多数出現するため、
+#    キー名そのものではなく実際の秘密情報の"値"の形を検出する。
+run_secret_scan() {
+  local log
+  log="$(log_path secret_scan)"
+  : >"$log"
+
+  local staged
+  staged=$(git diff --cached 2>/dev/null || true)
+
+  local hit=false
+
+  local aiza_hits
+  aiza_hits=$(echo "$staged" | grep -E '^\+[^+]' | grep -oE 'AIza[0-9A-Za-z_-]{35}' || true)
+  if [[ -n "$aiza_hits" ]]; then
+    hit=true
+    {
+      echo "[Google/Gemini APIキー形式(AIza...)を検出]"
+      echo "$aiza_hits"
+    } >>"$log"
+  fi
+
+  local generic_hits
+  generic_hits=$(echo "$staged" | grep -E '^\+[^+]' | grep -v "gemini_api_key" | \
+    grep -inE "(api[_-]?key|secret|token|password)['\"]?[[:space:]]*[:=][[:space:]]*['\"][A-Za-z0-9+/=_-]{20,}['\"]" || true)
+  if [[ -n "$generic_hits" ]]; then
+    hit=true
+    {
+      echo "[秘密情報らしきリテラル代入を検出]"
+      echo "$generic_hits"
+    } >>"$log"
+  fi
+
+  if [[ "$hit" == false ]]; then
+    echo '{"ok": true}'
+  else
+    jq -n --arg log "$log" '{ok: false, log: $log}'
+  fi
+}
+
+# --- 実行 -------------------------------------------------------------------
+# 軽い検査から順に実行する(重いビルドは最後)。
+RESULT_ANALYZE="$(run_analyze)"
+RESULT_TEST="$(run_test)"
+RESULT_COVERAGE="$(run_coverage_delta)"
+RESULT_SECRET="$(run_secret_scan)"
+RESULT_CODEGEN="$(run_codegen_clean)"
+RESULT_GOLDEN="$(run_golden)"
+RESULT_WEB="$(run_build_web_release)"
+RESULT_APK="$(run_build_apk_release)"
+
+jq -n \
+  --argjson analyze "$RESULT_ANALYZE" \
+  --argjson test "$RESULT_TEST" \
+  --argjson coverage "$RESULT_COVERAGE" \
+  --argjson apk "$RESULT_APK" \
+  --argjson web "$RESULT_WEB" \
+  --argjson golden "$RESULT_GOLDEN" \
+  --argjson codegen "$RESULT_CODEGEN" \
+  --argjson secret "$RESULT_SECRET" \
+  '
+  {
+    analyze: $analyze,
+    test: $test,
+    test_coverage_delta: $coverage,
+    build_apk_release: $apk,
+    build_web_release: $web,
+    golden: $golden,
+    codegen_clean: $codegen,
+    secret_scan: $secret
+  } as $checks
+  |
+  ($checks
+    | [.analyze.ok, .test.ok, .build_apk_release.ok, .build_web_release.ok, .golden.ok, .codegen_clean.ok, .secret_scan.ok]
+    | all
+  ) as $ok
+  | {ok: $ok, checks: $checks}
+  '

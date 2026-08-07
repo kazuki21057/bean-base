@@ -1,12 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-07(**Opus 5**、通常チャット(plan mode)、**Android公開版の開発〜リリース計画を策定 → マスタープランに Phase 5 を新設。製品コードの変更なし**)
+最終更新: 2026-08-07(Sonnet 5、`/full_loop`。**T5-A1(`tools/verify.sh`)着手 → `codegen_clean`のbuild_runnerがDart SDK/analyzer版数不整合でハングし中断。次回はリモートアクセス設定後、依存バージョン戦略の判断からarchitectに委譲して再開**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
 
 ## 1. 現状サマリ
 
+- **2026-08-07(`/full_loop`、Sonnet 5): T5-A1(`tools/verify.sh`)着手も未完了。`codegen_clean`チェックの`build_runner build`がこのUbuntu環境固有の依存バージョン不整合(Dart SDK 3.10.0 vs pinned analyzer 3.9.0)で無限ハングすることが判明し中断した(詳細下記「3. 直近の作業ログ」、教訓`rules/lessons_archive.md` L116)。マスタープランのT5-A1は🟦(進行中・ブロック中)。**ユーザー指示によりこのまま`/end`し、次回はこのリポジトリにリモートアクセスできる環境を用意したうえで、依存バージョン戦略の判断(pub upgradeするか等)からarchitectに委譲して再開する。**
 - **2026-08-07: ユーザー指示により本セッション(本ループ)に限りコスト上限($24)を気にせず継続してよい。** 次回以降は通常通り`CLAUDE.md`§日次改修ループ運用ルールの終了条件(コスト$24超・ターン30到達・連続失敗3回)を適用する(恒久ルールの変更ではない、今回限りの例外)。同日、新しいUbuntu環境に入りT3-20(Ubuntu環境セットアップ)相当の作業を実施(下記「3. 直近の作業ログ」参照)。**T3-20は「Gemini APIキーの090画面での再入力」を除き完了扱い**。
 
 - 進行中はマスタープラン **Phase 3**(軽微な修正・仕上げ+ユーザー要望)。Phase 1・2・4(統計解析F0〜F6)は完了済み。
@@ -50,9 +51,10 @@
 
 **2026-08-07: Android公開版の計画を策定(Opus 5、コード変更なし)。マスタープランに Phase 5 を新設した(T5-A/B/C、計60タスク)。** 正本は `docs/android_release/リリース計画書.md`(全体戦略)・`開発運用基盤設計.md`(夜間自動実行)・`検証強化設計.md`(検証体制)。**以降のメインラインは Phase 5**。詳細は下記「3. 直近の作業ログ」-5.33節。
 
-**推奨着手順(2026-08-07改訂)**:
+**推奨着手順(2026-08-07再改訂)**:
 
-1. **Phase 5 トラックA(開発運用基盤)** — 依存なしで着手可能: **T5-A1**(`tools/verify.ps1`)・T5-A3(`adversary`)・T5-A5(`researcher`)・T5-A6(エミュレータ整備)・T5-A8(golden基盤)・T5-A11(`loop_guard.js`しきい値)・T5-A13(`implementer`追記)・T5-A14(Proでのopus可否実測)・T5-A15(lint強化)。**トラックAを完成させるまで製品開発(トラックB)を本格化させない**(夜間自動実行が無いと40〜60人日規模を消化できないため)
+0. **最優先(次回セッション冒頭)**: リモートアクセス設定を行った上で、**T5-A1の再開はまず依存バージョン戦略の判断をarchitectに委譲**する(`pubspec.lock`のtransitive `analyzer`がこのUbuntu環境のDart SDK 3.10.0より古く、`build_runner build`が`codegen_clean`チェックで無限ハングする問題。詳細・再現条件は下記「3. 直近の作業ログ」と`rules/lessons_archive.md` L116)。architectへの委譲プロンプトには「`flutter pub upgrade`で解消するか/影響範囲調査が要るか/`verify.sh`側にタイムアウトを入れて回避するだけに留めるか」の3案を判断材料として渡すこと。方針確定後にimplementerでT5-A1を再開する(`tools/verify.sh`は作成済み、`build_apk_release`/`build_web_release`/`golden`/最終JSON統合/`verify.ps1`が未検証)。
+1. **Phase 5 トラックA(開発運用基盤)** — 上記0の後、依存なしで着手可能: T5-A3(`adversary`)・T5-A5(`researcher`)・T5-A6(エミュレータ整備)・T5-A8(golden基盤)・T5-A11(`loop_guard.js`しきい値)・T5-A13(`implementer`追記)・T5-A14(Proでのopus可否実測)・T5-A15(lint強化)。**トラックAを完成させるまで製品開発(トラックB)を本格化させない**(夜間自動実行が無いと40〜60人日規模を消化できないため)
 2. **ユーザー実施・今すぐ**: T5-C1(Play Consoleデベロッパー登録 $25)。**テスター12人は知り合いから確保可能(2026-08-07確認済み)のため律速ではない**——残るクリティカルパスはPlay Consoleの本人確認と14日間の待機のみ
 3. T3-75g(残豆量の分母不整合の補正方針、要ユーザー確認 — Phase 3の残件)
 
@@ -85,6 +87,16 @@
 1ループのコストは「リクエスト数 × 平均コンテキスト長」でほぼ決まる。**コンテキスト200k超で単価が約2倍**になるため、実装が長引いたら無理に1セッションで完走せず分割する。規約は`CLAUDE.md`§トークン運用規約、実測と削減設計は`docs/token_optimization_design.md`。
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
+
+### -5.34 当日やったこと(2026-08-07、Sonnet 5、`/full_loop`。T5-A1着手 → 依存バージョン不整合で中断、ユーザー指示によりここで`/end`)
+
+- **タスク選定**: Phase 5トラックAの依存なしタスクのうちタスク表で最上位の**T5-A1**(`tools/verify.ps1`/`verify.sh`新設)を選定。仕様は`docs/android_release/検証強化設計.md` §3-2に確定済みのためarchitectを介さず`implementer`へ直接委譲。
+- **implementerの成果物**: `tools/verify.sh`(新規)、`.gitignore`に`.claude/verify_logs/`追記。**動作確認済み**: `analyze`(BOM除去してbaseline比較)・`test`(サマリー行からpassed/failed抽出)・`test_coverage_delta`・`secret_scan`(ステージ済み差分)。**未確認のまま中断**: `build_apk_release`・`build_web_release`・`golden`・最終JSON統合・`verify.ps1`(未作成)。
+- **発生した問題**: `codegen_clean`チェックの`dart run build_runner build --delete-conflicting-outputs`が2回とも(1回目は`implementer`のバックグラウンド実行内、2回目は親セッション直接確認)進捗ゼロのまま長時間応答しなくなった。親セッション側で`Monitor`ツールにより30秒間隔の定期監視(ユーザー依頼「バックグラウンドタスクが正常に動いているか定期的に確認する仕組みを構築して」への対応)を行い、CPU使用率の緩やかな低下だけでは判別できず、`/proc/<pid>/io`のread/writeバイト数が2回の観測間で完全に不変であることから停止を確定した。
+- **根本原因**: このUbuntu環境のDart SDK(3.10.0、Flutter 3.38.9同梱)に対し、`pubspec.lock`の`analyzer`(transitive、`build_runner: ^2.4.8`/`riverpod_generator: ^2.4.0`経由)が古く、新しいDart構文の解析中に例外→アナライザの巨大な再帰にはまってハングする。**さらに`--delete-conflicting-outputs`は生成先に`.g.dart`を先に削除する動作のため、ハング中にプロセスをkillすると`.g.dart`10件が削除されたまま残った**。親セッションが`git checkout --`で復元し、作業ツリーは正常な状態に戻した(復元済み・未コミット差分は`.gitignore`変更と`tools/verify.sh`新規のみ)。詳細・教訓全文は`rules/lessons_archive.md` L116。
+- **ユーザー判断**: この依存バージョン不整合への対応(`flutter pub upgrade`するか等、プロジェクト全体への影響調査を要する)は今回のセッションでは行わず、**「リモートアクセスできる環境を用意した次回セッションで、architectに依存バージョン戦略の判断から委譲する」**方針が示された。今回はここで`/end`する。
+- **検証**: `flutter analyze`/`flutter test`/`flutter run`は未実施(コード変更が`tools/verify.sh`という検証スクリプト自体の新設のみで、既存プロダクトコードへの変更が無いため)。作業ツリーが正常(生成ファイル欠損なし)であることは`git status --short`で確認済み。
+- **コミット**: 未完成の`tools/verify.sh`(`codegen_clean`以降が未検証)を含め、`/end`手順に従いコミット済み(push はユーザー許可待ち)。次回セッションは方針確定後にこのファイルを直接修正してT5-A1を完成させる。
 
 ### -5.33 当日やったこと(2026-08-07、**Opus 5**、通常チャット(plan mode)。ユーザー依頼「Androidアプリの開発からリリースまでの計画をしてほしい」に対する**計画策定のみ。製品コードは1行も変更していない**)
 
