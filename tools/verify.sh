@@ -13,6 +13,15 @@
 
 set -uo pipefail
 
+# --- jq 依存チェック --------------------------------------------------------
+# jq が無い環境(Windows Git Bash 標準)では、jq を呼ぶ箇所が全て失敗し標準出力が
+# 完全に空になる(「JSON 1つを標準出力へ返す」契約が壊れる)。ここで先に検出し、
+# 手書きの単一JSONを出して非ゼロ終了する。Windows では tools/verify.ps1 を使う。
+if ! command -v jq >/dev/null 2>&1; then
+  echo '{"ok":false,"error":"jq_not_found","message":"jq が見つかりません。Windows では tools/verify.ps1 を使うか、jq をインストールしてください。"}'
+  exit 1
+fi
+
 # --- 引数解析 -----------------------------------------------------------
 EDITION="public"
 while [[ $# -gt 0 ]]; do
@@ -138,13 +147,41 @@ run_coverage_delta() {
   fi
 }
 
-# 4. build_apk_release: lib/main_public.dart が無ければ lib/main.dart にフォールバック(note化、fail扱いにはしない)
+# Android SDK が検出できるかどうかを判定する。
+# ANDROID_HOME/ANDROID_SDK_ROOT が実在ディレクトリを指していれば有りとみなす。
+# どちらも無ければ flutter doctor の出力で判定する(明示的な未検出メッセージが
+# あれば無し、Android toolchain にチェックが付いていれば有り、それ以外は安全側で無し扱い)。
+android_sdk_available() {
+  if [[ -n "${ANDROID_HOME:-}" && -d "${ANDROID_HOME}" ]]; then
+    return 0
+  fi
+  if [[ -n "${ANDROID_SDK_ROOT:-}" && -d "${ANDROID_SDK_ROOT}" ]]; then
+    return 0
+  fi
+  local doctor_out
+  doctor_out=$(flutter doctor 2>/dev/null)
+  if echo "$doctor_out" | grep -q "Unable to locate Android SDK"; then
+    return 1
+  fi
+  if echo "$doctor_out" | grep -qE '\[✓\] Android toolchain'; then
+    return 0
+  fi
+  return 1
+}
+
+# 4. build_apk_release: lib/main_public.dart 未作成、または Android SDK 未検出の場合は
+#    「環境・前提が未整備」としてスキップ扱い(ok:true, skipped:true, note)にする。
+#    黙って通さないよう skipped/note を必ず含める。それ以外の理由での失敗は従来どおり fail。
 run_build_apk_release() {
   local target="lib/main_public.dart"
-  local note=""
   if [[ ! -f "$target" ]]; then
-    target="lib/main.dart"
-    note="lib/main_public.dart が無いため lib/main.dart にフォールバック"
+    echo '{"ok": true, "skipped": true, "note": "lib/main_public.dart 未作成のためスキップ"}'
+    return
+  fi
+
+  if ! android_sdk_available; then
+    echo '{"ok": true, "skipped": true, "note": "Android SDK 未検出のためスキップ"}'
+    return
   fi
 
   local log
@@ -152,25 +189,13 @@ run_build_apk_release() {
   flutter build apk --release -t "$target" >"$log" 2>&1
   local rc=$?
 
-  local ok=true
-  [[ $rc -ne 0 ]] && ok=false
-
-  if [[ "$ok" == true ]]; then
-    if [[ -n "$note" ]]; then
-      jq -n --arg note "$note" '{ok: true, note: $note}'
-    else
-      echo '{"ok": true}'
-    fi
+  if [[ $rc -eq 0 ]]; then
+    echo '{"ok": true}'
   else
     local summary
     summary=$(grep -iE "error|FAILURE|Exception" "$log" | tail -5 | tr '\n' ' ')
-    if [[ -n "$note" ]]; then
-      jq -n --arg note "$note" --arg summary "$summary" --arg log "$log" \
-        '{ok: false, note: $note, summary: $summary, log: $log}'
-    else
-      jq -n --arg summary "$summary" --arg log "$log" \
-        '{ok: false, summary: $summary, log: $log}'
-    fi
+    jq -n --arg summary "$summary" --arg log "$log" \
+      '{ok: false, summary: $summary, log: $log}'
   fi
 }
 
@@ -261,10 +286,14 @@ run_codegen_clean() {
     if [[ ! -f "$f" ]]; then
       diff_found=true
       echo "[削除] $f" >>"$diff_log"
-    elif ! cmp -s "$backup_dir/$f" "$f"; then
+    # 改行コード(CRLF/LF)だけの差分は「意味的な差分なし」として無視する。
+    # このリポジトリは core.autocrlf=true で作業ツリー上の *.g.dart は CRLF、
+    # build_runner の再生成物は LF で出力されるため、生バイト比較(cmp)だと
+    # 中身が同一でも常に「差分あり」と誤検知する。
+    elif ! diff -q <(tr -d '\r' <"$backup_dir/$f") <(tr -d '\r' <"$f") >/dev/null; then
       diff_found=true
       echo "[変更] $f" >>"$diff_log"
-      diff -u "$backup_dir/$f" "$f" >>"$diff_log" 2>&1 || true
+      diff -u <(tr -d '\r' <"$backup_dir/$f") <(tr -d '\r' <"$f") >>"$diff_log" 2>&1 || true
     fi
   done
   for f in "${gen_files_after[@]}"; do
