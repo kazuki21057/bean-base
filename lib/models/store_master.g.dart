@@ -1,5 +1,4 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// (T3-67: build_runnerがこのマシンで不安定なため手書き。T3-34/origin_masterと同じ運用)
 
 part of 'store_master.dart';
 

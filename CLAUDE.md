@@ -41,8 +41,8 @@ flutter test test/statistics_service_test.dart
 # Static analysis
 flutter analyze
 
-# Regenerate code after model changes (json_annotation / riverpod_generator)
-dart run build_runner build --delete-conflicting-outputs
+# Regenerate code after model changes (json_serializable)
+dart run build_runner clean && dart run build_runner build --force-jit
 ```
 
 ## Architecture

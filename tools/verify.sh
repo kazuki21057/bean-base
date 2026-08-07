@@ -244,7 +244,14 @@ run_codegen_clean() {
     cp "$f" "$backup_dir/$f"
   done
 
-  dart run build_runner build --delete-conflicting-outputs >"$log" 2>&1
+  # build_runner 2.15.1 で --delete-conflicting-outputs は廃止(指定すると警告して無視)。
+  # また、clean を挟まないとインクリメンタルビルドが .g.dart の手編集ドリフトを検出しない。
+  # --force-jit: path_provider_foundation→objective_c の build hook により
+  #              Dart 3.10 系では builders の AOT コンパイルが失敗するため JIT を強制する。
+  # timeout: 依存バージョン不整合時にアナライザが復帰不能な再帰に入る事故への保険
+  #          (rules/lessons_archive.md L116)。実測の全再生成時間は約40秒。
+  timeout -k 10s 120s dart run build_runner clean >"$log" 2>&1
+  timeout -k 10s 600s dart run build_runner build --force-jit >>"$log" 2>&1
   local build_rc=$?
 
   mapfile -t gen_files_after < <(find lib -name "*.g.dart" | sort)
@@ -280,7 +287,12 @@ run_codegen_clean() {
   rm -rf "$backup_dir"
 
   local ok=true
-  if [[ $build_rc -ne 0 ]]; then
+  local timed_out=false
+  if [[ $build_rc -eq 124 || $build_rc -eq 137 ]]; then
+    ok=false
+    timed_out=true
+    echo "[build_runnerタイムアウト] 600秒以内に完了しませんでした。analyzer と Dart SDK のバージョン不整合の可能性があります(rules/lessons_archive.md L116 参照)。pubspec.lock の analyzer バージョンを確認してください。" >>"$diff_log"
+  elif [[ $build_rc -ne 0 ]]; then
     ok=false
     echo "[build_runner失敗] exit=$build_rc" >>"$diff_log"
   fi
@@ -290,6 +302,8 @@ run_codegen_clean() {
 
   if [[ "$ok" == true ]]; then
     echo '{"ok": true}'
+  elif [[ "$timed_out" == true ]]; then
+    jq -n --arg log "$diff_log" '{ok: false, reason: "timeout", log: $log}'
   else
     jq -n --arg log "$diff_log" '{ok: false, log: $log}'
   fi
