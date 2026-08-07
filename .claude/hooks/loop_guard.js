@@ -45,9 +45,11 @@ const FAIL_LIMIT = 3;
 const PRICING = {
   'claude-fable-5': { in: 10.0, out: 50.0 },
   'claude-mythos-5': { in: 10.0, out: 50.0 },
+  'claude-opus-5': { in: 5.0, out: 25.0 },
   'claude-opus-4-8': { in: 5.0, out: 25.0 },
   'claude-opus-4-7': { in: 5.0, out: 25.0 },
   'claude-opus-4-6': { in: 5.0, out: 25.0 },
+  'claude-sonnet-5': { in: 3.0, out: 15.0 },
   'claude-sonnet-4-6': { in: 3.0, out: 15.0 },
   'claude-haiku-4-5': { in: 1.0, out: 5.0 },
 };
