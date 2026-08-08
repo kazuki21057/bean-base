@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.41 当日やったこと(2026-08-08、**Opus 5**、`/full_loop`。**T5-A10 = `tools/night_loop.ps1` 新設 + T5-A18 = 起動コマンドの §2-4 整合**)
+
+- **T5-A10・T5-A18 完了(✅)**。`tools/night_loop.ps1`(新規・約600行)と `tools/night_loop.config.json` を新設し、`.gitignore` に `.claude/night_logs/`・`.claude/night_runs.log`・`.claude/night_loop.lock` を追加(**`.claude/night_report.md` は追跡対象のまま**)。`lib/`不変のため**デプロイ対象外**。実装詳細は `docs/archive/マスタープラン_完了タスク.md`「T5-A10 + T5-A18」節。
+- **設計書の誤りを2件、実装を通じて発見し正本ごと修正した**:
+  1. **`--max-turns` は claude CLI(2.1.225)に実在しない**(教訓 **L125**)。設計書 §2-4 のコード例そのものが誤っており、implementerはそれを忠実に実装していた。`adversary`がCriticalで検出→親が `claude --help` で裏取り→**`--max-budget-usd 8`**(§5の夜間コスト上限)に置換し設計書も修正。**ターン40の上限はCLIでは縛れない**ので `loop_guard.js`(T5-A11)+スキルの自己判定で担保する旨を明記した。
+  2. **force push の deny が実質効いていなかった**(教訓 **L126**)。`Bash(git push * -f *)` は前方一致判定のため `git push -f origin main` を**1つも捕まえない**(`adversary`が`-like`で実測)。PowerShell版には`-f`系が皆無だった。前方一致形5パターンを**スクリプトと §4-4 のテンプレート双方**に追加した(テンプレートはユーザーがT5-A17でコピーするもの)。
+- **親が新たに見つけた穴**: `claude --help` の `-p/--print` に「**Settings files that fail validation are silently ignored in this mode**」とある。**`settings.night.json` が壊れていれば deny が丸ごと黙って無効化されたまま無人実行が走る**ため、存在チェックに加え**JSONパース検証**を追加(不正なら`claude`を起動せず exit 2)。
+- **`adversary`が2巡で Critical 2件・Major 8件・Minor 5件**を指摘し、2巡目で **Critical ゼロ**。対応済みの主なもの: 多重起動ガードの**PID使い回し誤検知**(無関係プロセスに同じPIDが再割当されると最大3時間**無通知で**スキップし続ける)→ ロックに `pidStartTime` を記録して開始時刻の一致まで確認 / configパース失敗の無言フォールバック → exit 2 / `2>&1` による `.jsonl` 汚染 → **stdout=`.jsonl` / stderr=`.err.log` の分離**(空の`.err.log`は削除)。
+- **`verifier` は2巡とも全項目パス**(`verify.ps1` 8項目 `ok:true`、analyze 31/31・test 360件・golden diff 0)。ガードは**PID3パターン・config不正・settings不正/不在・5時間枠・週次予算**を`verifier`が独立に再現。`BEANBASE_NIGHT_LOOP=1` の子プロセス伝搬も実測。
+- **次に効く事実**: **T5-A12(有人監視下の試走+スケジューラ登録)の依存のうち T5-A10 が充足**(残りは T5-A11)。ただし**実際に回すには T5-A17(ユーザーによる `.claude/settings.night.json` 設置)が必須** —— 未設置だとラッパーが `claude` を起動せず exit 2 で止まる設計にした。**設置時は設計書 §4-4 の最新版(`-f` 系の前方一致パターンを追加済み)をコピーすること**。
+
 ### -5.40 当日やったこと(2026-08-08、**Opus 5**、`/full_loop`。**T5-A9 = `night_loop`スキル新設をゲート判定の実測まで完了**)
 
 - **T5-A9完了(✅)**。`.claude/skills/night_loop/SKILL.md`(130行、新規1ファイル)を`implementer`へ委譲して作成。正本は`docs/android_release/開発運用基盤設計.md` §3・§4。**`full_loop/SKILL.md`は無変更**(設計書の指示どおり別スキルとして新設)。`lib/`不変のため**デプロイ対象外**。
