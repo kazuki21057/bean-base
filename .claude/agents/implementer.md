@@ -20,7 +20,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-
 - **ログ**: 主要アクション・外部呼び出しは`debugPrint('[Antigravity] ...')`。外部呼び出しはtry/catchで包み、エラーも同形式でログする。
 - **外部の数値ID**: Sheetsはint/doubleを返すため`fromJson`で`.toString()`する(`type 'int' is not a subtype of type 'String?'`の予防)。空IDはガードする。
 - **マスター系の変更は全マスタタブに一律適用**(豆・グラインダー・ドリッパー・フィルター・メソッド)。豆だけ直して終わりにしない。
-- **モデル変更後**は`dart run build_runner build --delete-conflicting-outputs`で`*.g.dart`を再生成する。
+- **モデル変更後**は`dart run build_runner build --force-jit`で`*.g.dart`を再生成する(`--delete-conflicting-outputs`はbuild_runner 2.15.1で廃止済み)。
 - 統計解析・予測機能に触れる場合は`statistics_feature_design.md`が正本。数値計算(回帰・PCA・GP・EI・検定)はDartローカル実装で行い、Geminiに計算させない。
 - 秘密情報(Gemini APIキー等)をコミットしない。
 

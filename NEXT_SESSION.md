@@ -1,13 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-08(**Opus 5**、`/full_loop`。**T5-A1完了**。前セッションの「検証待ち」から検証フェーズを再開したところ`verify.sh`に3欠陥(`jq`不在でstdoutが空/`codegen_clean`のCRLF誤検知/主成果物`verify.ps1`未実装)が判明し、implementerが修正・verifierが独立検証して完了条件を満たした。**コード変更は検証ツールのみで`lib/`不変のためデプロイ対象外**。commit済み・**pushはユーザー許可待ち**)
+最終更新: 2026-08-08(**Opus 5**、`/full_loop`。**運用ルールの見直し + T5-A2完了**。ユーザー指摘「オーケストレーターは上位モデルになったんだよね?」を起点に、2026-08-05のサブエージェント委譲導入で前提が消滅していた旧分岐(「上位モデル起動時は⚠️タスク以外に着手しない」)を廃止し、ループの恒久停止を解消(L119)。続けてT5-A2(`verifier`を`verify.ps1`のJSONを読む形へ改訂)を完了。**`lib/`不変のためデプロイ対象外**。commit・**push済み**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。
 
 ## 1. 現状サマリ
 
-- **2026-08-08(`/full_loop`、Opus 5): T5-A1完了。** 前セッションの「検証待ち」を検証フェーズから再開。`verifier`の独立検証で**3つの欠陥**が判明した——①`jq`がWindowsのGit Bashに無く`verify.sh`の**標準出力が完全に空**になる(静かに壊れる)②`codegen_clean`が`core.autocrlf=true`環境のCRLF差だけを検出して**常に`ok:false`**③**T5-A1の主成果物`tools/verify.ps1`が未実装**。前セッションの自己申告「全項目`ok:true`」は別環境(Ubuntu)の結果で再現しなかった。方針を親が確定して`implementer`へ差し戻し、`tools/verify.ps1`(PowerShell 5.1版・約470行・`jq`非依存)を新設、`verify.sh`の3欠陥を修正、`.claude/analyze_baseline.txt`を47→31へ是正。`verifier`が独立に**フォールトインジェクション(`analyze`と`test`だけが`ok:false`、他6項目は巻き添えなし)**まで実測して完了条件の充足を確認。**Windowsでの本命の実行系は`powershell -File tools\verify.ps1`**。教訓は`rules/lessons_archive.md` L118。**`lib/`を一切変更していないためデプロイ・本番確認は対象外**。commit済み(`97ee229`)・pushはユーザー許可待ち。
+- **2026-08-08(`/full_loop`、Opus 5、本セッション): 運用ルールを見直し + T5-A2完了。** ①**ループが「正常終了」の顔で恒久停止していた**のを解消。旧分岐「上位モデル起動時は`⚠️上位モデルで実施`タスクのみ選ぶ/無ければ何もしない」(2026-07-28・07-29)は、**親が自分でコードを書いていた時代の規定**であり、2026-08-05のサブエージェント委譲導入(親=常にOpus、実装は`implementer`)で前提が消滅していた。⚠️タスク4件が全て依存未充足だったため常に真の停止条件として働いていた。**上位モデル起動を選定の分岐条件にせず、⚠️タスクが無ければ通常タスクへフォールバックする**形に`full_loop`スキル・`CLAUDE.md`・本書を改訂(教訓L119)。②**T5-A2完了**——`verifier`は今後`powershell -File tools\verify.ps1`を1回実行し**JSONだけ**を読む(失敗項目の`log`だけ読み直す)。改訂後の定義で実動確認し全8項目`ok:true`。検証中に親の仕様誤り(`golden`/`codegen_clean`のフィールド取り違え)を「実装との突き合わせ」で捕捉・修正(教訓L120)。**push済み**。
+- **2026-08-08(`/full_loop`、Opus 5、前セッション): T5-A1完了。** 前セッションの「検証待ち」を検証フェーズから再開。`verifier`の独立検証で**3つの欠陥**が判明した——①`jq`がWindowsのGit Bashに無く`verify.sh`の**標準出力が完全に空**になる(静かに壊れる)②`codegen_clean`が`core.autocrlf=true`環境のCRLF差だけを検出して**常に`ok:false`**③**T5-A1の主成果物`tools/verify.ps1`が未実装**。前セッションの自己申告「全項目`ok:true`」は別環境(Ubuntu)の結果で再現しなかった。方針を親が確定して`implementer`へ差し戻し、`tools/verify.ps1`(PowerShell 5.1版・約470行・`jq`非依存)を新設、`verify.sh`の3欠陥を修正、`.claude/analyze_baseline.txt`を47→31へ是正。`verifier`が独立に**フォールトインジェクション(`analyze`と`test`だけが`ok:false`、他6項目は巻き添えなし)**まで実測して完了条件の充足を確認。**Windowsでの本命の実行系は`powershell -File tools\verify.ps1`**。教訓は`rules/lessons_archive.md` L118。**`lib/`を一切変更していないためデプロイ・本番確認は対象外**。commit済み(`97ee229`)・push済み。
 - **(参考)2026-08-08前半セッション(Sonnet 5): T5-A1のブロッカー(依存バージョン不整合)を解消。** architectが根本原因(analyzer 7.6.0がDart 3.10構文を扱えず、`riverpod_generator`/`riverpod_annotation`という**完全な死に依存**がanalyzerを7系に固定していた)を特定し、`riverpod_generator`/`riverpod_annotation`除去+codegen系3パッケージ限定`pub upgrade`+`build_runner build --force-jit`(AOTがbuild hookで失敗するため)という方針を実地検証込みで確定。implementerがこの方針どおり実装し、`tools/verify.sh`の`codegen_clean`を`clean`→`build --force-jit`+タイムアウト600秒方式に修正、`.g.dart`再生成、`CLAUDE.md`等のコマンド表記修正まで完了。**`flutter analyze`(31件、baseline47件以下)/`flutter test`(360件全パス)/`flutter build web --release`/`flutter build apk --release`いずれも成功済み**(詳細下記「3. 直近の作業ログ」)。**セッション分割チェック(コスト$7超・変更8ファイル)に該当したため、`verifier`委譲・実ブラウザ確認・デプロイは次回セッションへ持ち越し**。コミット済み。**この時点では検証未了だったが、上記の後半セッションで欠陥3件を発見・修正して完了させた。**
 - **2026-08-07: ユーザー指示により本セッション(本ループ)に限りコスト上限($24)を気にせず継続してよい。** 次回以降は通常通り`CLAUDE.md`§日次改修ループ運用ルールの終了条件(コスト$24超・ターン30到達・連続失敗3回)を適用する(恒久ルールの変更ではない、今回限りの例外)。同日、新しいUbuntu環境に入りT3-20(Ubuntu環境セットアップ)相当の作業を実施(下記「3. 直近の作業ログ」参照)。**T3-20は「Gemini APIキーの090画面での再入力」を除き完了扱い**。
 
@@ -54,8 +55,9 @@
 
 **推奨着手順(2026-08-08再改訂)**:
 
-0. **T5-A1は2026-08-08に完了。** 依存が解けたので **T5-A2(`.claude/agents/verifier.md` を`verify.ps1`のJSONを読む形に改訂)が最優先**。サイズSで、T5-A1の成果物をそのまま使う定型作業。改訂時の前提: **Windowsでは`powershell -File tools\verify.ps1`を使う**(`verify.sh`は`jq`必須で、不在時は`{"ok":false,"error":"jq_not_found",...}`を返す)。`build_apk_release`は当面`skipped:true`で返る(`lib/main_public.dart`未作成・Android SDK未検出のため。T5-A6とトラックBのE-1で実効化)。
-   - **T5-A1からの申し送り(小粒、ついでに片付けてよい)**: (a) サブエージェント定義2件(`.claude/agents/implementer.md`・`.claude/agents/architect.md`)に`--delete-conflicting-outputs`という**廃止済みフラグ**の表記が残っている(build_runner 2.15.1で廃止。正しくは`build --force-jit`)。(b) `verify.sh`と`verify.ps1`は同じ仕様を2言語で二重実装しているため、仕様変更時は両方直す必要がある。(c) この環境は**Android SDK未検出**(`flutter doctor`で確認)——T5-A6(エミュレータ整備)で併せて解消すること。
+0. **T5-A1・T5-A2は2026-08-08に完了。** 次は **T5-A3(`.claude/agents/adversary.md` 新設)** が筆頭候補(依存なし・サイズS/M。`docs/android_release/検証強化設計.md` §5-3 の**必須チェックリスト8項目を全文**定義に書き、出力は Critical/Major/Minor の3段階)。同じく依存なしで着手できるのは T5-A5(`researcher`)・T5-A6(エミュレータ整備)・T5-A8(golden基盤)・T5-A11(`loop_guard.js`しきい値)・T5-A13(`implementer`追記)・T5-A14(Proでのopus可否実測)・T5-A15(lint強化)。
+   - **検証の前提(T5-A2で確定)**: `verifier`は`powershell -File tools\verify.ps1`を1回実行し**標準出力のJSONだけ**を読む(失敗項目の`log`だけ読み直す)。**`test_coverage_delta`はトップレベル`ok`に含まれない**(参考値)。`build_apk_release`は当面`skipped:true`(`lib/main_public.dart`未作成・Android SDK未検出。T5-A6とトラックBのE-1で実効化)。`verify.sh`は`jq`必須で不在時は`jq_not_found`を返すため、Windowsでは使わない。
+   - **残っている申し送り**: (a) `verify.sh`と`verify.ps1`は同じ仕様を2言語で二重実装しているため、**仕様変更時は両方直す**必要がある。(b) この環境は**Android SDK未検出**(`flutter doctor`で確認)——T5-A6(エミュレータ整備)で併せて解消すること。※`--delete-conflicting-outputs`の廃止フラグ表記はT5-A2で是正済み。
 1. **Phase 5 トラックA(開発運用基盤)** — 上記0の後、依存なしで着手可能: T5-A3(`adversary`)・T5-A5(`researcher`)・T5-A6(エミュレータ整備)・T5-A8(golden基盤)・T5-A11(`loop_guard.js`しきい値)・T5-A13(`implementer`追記)・T5-A14(Proでのopus可否実測)・T5-A15(lint強化)。**トラックAを完成させるまで製品開発(トラックB)を本格化させない**(夜間自動実行が無いと40〜60人日規模を消化できないため)
 2. **ユーザー実施・今すぐ**: T5-C1(Play Consoleデベロッパー登録 $25)。**テスター12人は知り合いから確保可能(2026-08-07確認済み)のため律速ではない**——残るクリティカルパスはPlay Consoleの本人確認と14日間の待機のみ
 3. T3-75g(残豆量の分母不整合の補正方針、要ユーザー確認 — Phase 3の残件)
@@ -90,20 +92,15 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.36 当日やったこと(2026-08-08、**Opus 5**、`/full_loop`。**T5-A1完了**。前セッションの「検証待ち」を検証フェーズから再開し、3欠陥を発見・修正して完了条件を充足)
+### -5.37 当日やったこと(2026-08-08、**Opus 5**、`/full_loop`。**運用ルールの見直し(オーケストレーター=常に上位モデル)+ T5-A2完了**)
 
-- **再開分岐**: `NEXT_SESSION.md`に「検証待ち」の記載があったため、`/full_loop`スキル手順1の分岐に従いタスク選定・実装をスキップして**手順4(検証)から再開**。
-- **1回目の検証(`verifier`)= NG、3欠陥を発見**:
-  1. **`jq`不在で`verify.sh`の標準出力が完全に空**(stderrに`jq: command not found`が出るだけ)。Windows の Git Bash に`jq`が無い。呼び出し側からは「静かに壊れた」ようにしか見えず、検証ゲートとして最悪の壊れ方。
-  2. **`codegen_clean`がCRLF差で常に`ok:false`**。`core.autocrlf=true`で作業ツリーの`.g.dart`はCRLF、`build_runner`はLF出力。実装が生バイト比較(`cmp`)だったため、意味的に同一でも10ファイルを差分ありと誤検知していた。
-  3. **T5-A1の主成果物`tools/verify.ps1`が未実装**。夜間ループ(T5-A10)はPowerShell前提なのでWindowsではこちらが本命。
-  - あわせて、**前セッションの自己申告「通し実行で全項目`ok:true`」「`build apk --release`成功」がこの環境では再現しない**ことも判明(別環境=Ubuntuでの結果だった)。
-- **親の判断**: 原因も対処も明確だったため`architect`は挟まず、方針を確定して`implementer`へ直接差し戻した。確定させた方針は(a)`verify.ps1`新設(`ConvertTo-Json`で`jq`非依存、進捗は全てstderr)(b)`codegen_clean`は**バックアップ→再生成→比較→復元の枠組みを維持したままCRを除去して比較**(仕様の`git diff --exit-code`へは戻さない。未コミットの`.g.dart`変更で誤判定するため)(c)`build_apk_release`の未整備な前提(`lib/main_public.dart`未作成・Android SDK未検出)は失敗ではなく**`skipped:true`+`note`必須**のスキップ扱い、の3点。
-- **implementerの実装**: `tools/verify.ps1`(新規・約470行)、`tools/verify.sh`修正、`.claude/analyze_baseline.txt`を47→31へ是正(**47のままだと`analyze`ゲートが新規issueを16件まで素通りさせる**)。PowerShell 5.1固有の対応として、ネイティブexeへの`2>&1`を避け`Start-Process -RedirectStandardOutput/-RedirectStandardError`へ統一、タイムアウトは`Process.WaitForExit(ms)`+`taskkill /T /F`、**`.ps1`はUTF-8 BOM付きで保存**(BOM無しだと日本語コメントで5.1の構文解析が壊れる、実機確認済み)。
-- **2回目の検証(`verifier`、独立実測)= 全項目合格**: クリーン実行で標準出力が単一JSON・8項目全て`ok:true`(`analyze`は`baseline:31/current:31`、`codegen_clean`は`ok:true`、`build_apk_release`は`skipped:true`)/**フォールトインジェクション(未使用importの一時ファイル追加+既存テスト1件を破壊)で`analyze`(31→32)と`test`(failed:1)だけが`ok:false`、他6項目は巻き添えなし**/`verify.sh`は`jq_not_found`のJSON1行+終了コード1/実行後の`git status --short`は意図した3件のみで`.g.dart`ドリフト・一時ファイルの残留なし。**T5-A1の完了条件を満たすと判定**。
-- **デプロイ**: **対象外**。`lib/`配下を一切変更しておらず(検証ツールとbaselineファイルのみ)、アプリの挙動は不変のため手順5・6(デプロイ・本番確認)は実施していない。
-- **教訓**: `rules/lessons_archive.md` **L118**(検証ツール自身の欠陥は「静かに通る/常に落ちる」形で現れる。外部コマンド依存・改行コード・未整備な前提・古いbaseline・別環境での自己申告の5点。**正常系が緑になることより先にフォールトインジェクションを確認する**)。
-- **コミット**: `97ee229`(実装分)+ 本ドキュメント更新分。**pushはユーザー許可待ち**。
+- **前半: ループが「正常終了」の顔で恒久停止していた問題を解消(ユーザー指摘が起点)**。`/full_loop`起動直後、着手可能な通常タスクが10件以上あるのに「何もせず終了」した。原因は2026-07-28・07-29に置いた分岐——「上位モデル起動時は`⚠️上位モデルで実施`タスクのみ選ぶ/無ければ通常タスクへフォールバックせず何もしない」——が残っていたこと。**2026-08-05のサブエージェント委譲導入で「親は常にOpus、コードは書かず`implementer`/`verifier`へ委譲」という構成になり、この分岐の前提(上位モデル起動=親が高コストで実装する)は消滅していた**。⚠️タスク4件(T5-B11/B20/B30/B40)が全て依存未充足だったため、条件が常に真の停止条件として働いていた。
+  - 改訂内容: `.claude/skills/full_loop/SKILL.md`手順2を全面改訂し、**上位モデル起動を選定の分岐条件にしない**3段階の判定順(①依存充足の⚠️タスクがあれば優先し`architect`へ委譲・成果物は設計書のみ ②無ければ**通常タスクへフォールバック** ③通常タスクも1件も無いときだけユーザー承認待ち)に変更。`CLAUDE.md`§日次改修ループ運用ルールと本書の該当記述も同内容へ更新。あわせて本書に未反映だった**2026-08-08のpush緩和**(`verifier`全項目パス済みなら確認不要)を是正。教訓 **L119**。
+- **後半: T5-A2完了**(`.claude/agents/verifier.md`を`verify.ps1`のJSONを読む形へ改訂)。改訂後の`verifier`を実際に1回起動して完了条件(「有人`/full_loop`で1回使い、報告が事実ベースかつ短いこと」)を実測。**全8項目`ok:true`**(`analyze` baseline=31/current=31、`test` passed=360/failed=0、`golden` diff_count=0、`build_apk_release`は`skipped:true`)、実行後の`git status`も意図した3ファイルのみ。実装内容の詳細は`docs/archive/マスタープラン_完了タスク.md`のT5-A2節。
+  - **検証で欠陥1件を捕捉**: 親が委譲プロンプトに書いたJSONスキーマ表の`golden`と`codegen_clean`の返却フィールドが**入れ替わっていた**(実装は`golden`が`diff_count`、`codegen_clean`が`reason`/`log`)。implementerは設計判断をしない定義ゆえに忠実に文書化して素通りし、検証手順に独立して入れた「**実装との突き合わせ**」で発見。親が2行を直して解消(委譲先へ差し戻すより安い)。教訓 **L120**。
+  - **申し送りの消化**: T5-A1から引き継いだ「`implementer.md`・`architect.md`に廃止済みフラグ`--delete-conflicting-outputs`が残存」を同時に是正(`--force-jit`へ)。残る申し送りは(a)`verify.sh`と`verify.ps1`の二重実装(仕様変更時は両方直す)(b)Android SDK未検出(T5-A6で解消)。
+- **デプロイ**: **対象外**。`lib/`を一切変更していない(スキル定義・エージェント定義・ドキュメントのみ)ためアプリの挙動は不変。
+- **コミット**: `74cf1d5`(運用ルール改訂)+ T5-A2分。**push済み**(コード変更を含まず、かつ`verifier`が全項目パスを報告済みのため2026-08-08の緩和ルールにより確認不要)。
 
 > これ以前(-5.32節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 

@@ -29,7 +29,7 @@ implementerは**設計判断をしません**。以下が未確定のまま渡�
 - Sheetsの列名(日本語キー)・画面ID・プロバイダ名・状態の置き場所
 - 画面文言(日本語の実文言)・エラー時の挙動
 - 突合規則(どのキーで一致させるか)、境界値・null時の扱い
-- **既知の地雷**: 外部の数値IDは`fromJson`で`.toString()`する / マスター系の変更は全マスタタブ(豆・グラインダー・ドリッパー・フィルター・メソッド)に一律適用 / モデル変更後は`dart run build_runner build --delete-conflicting-outputs` / 統計解析は`statistics_feature_design.md`が正本で数値計算はDartローカル実装(Geminiに計算させない)
+- **既知の地雷**: 外部の数値IDは`fromJson`で`.toString()`する / マスター系の変更は全マスタタブ(豆・グラインダー・ドリッパー・フィルター・メソッド)に一律適用 / モデル変更後は`dart run build_runner build --force-jit`(`--delete-conflicting-outputs`はbuild_runner 2.15.1で廃止済み) / 統計解析は`statistics_feature_design.md`が正本で数値計算はDartローカル実装(Geminiに計算させない)
 - **検証観点**: この修正が効いたと言える判定条件と、回帰テストで押さえるケース(本番データを模したケースが効果的)
 
 ## 調査の進め方

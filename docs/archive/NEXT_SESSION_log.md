@@ -3,6 +3,20 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.36 当日やったこと(2026-08-08、**Opus 5**、`/full_loop`。**T5-A1完了**。前セッションの「検証待ち」を検証フェーズから再開し、3欠陥を発見・修正して完了条件を充足)
+
+- **再開分岐**: `NEXT_SESSION.md`に「検証待ち」の記載があったため、`/full_loop`スキル手順1の分岐に従いタスク選定・実装をスキップして**手順4(検証)から再開**。
+- **1回目の検証(`verifier`)= NG、3欠陥を発見**:
+  1. **`jq`不在で`verify.sh`の標準出力が完全に空**(stderrに`jq: command not found`が出るだけ)。Windows の Git Bash に`jq`が無い。呼び出し側からは「静かに壊れた」ようにしか見えず、検証ゲートとして最悪の壊れ方。
+  2. **`codegen_clean`がCRLF差で常に`ok:false`**。`core.autocrlf=true`で作業ツリーの`.g.dart`はCRLF、`build_runner`はLF出力。実装が生バイト比較(`cmp`)だったため、意味的に同一でも10ファイルを差分ありと誤検知していた。
+  3. **T5-A1の主成果物`tools/verify.ps1`が未実装**。夜間ループ(T5-A10)はPowerShell前提なのでWindowsではこちらが本命。
+  - あわせて、**前セッションの自己申告「通し実行で全項目`ok:true`」「`build apk --release`成功」がこの環境では再現しない**ことも判明(別環境=Ubuntuでの結果だった)。
+- **親の判断**: 原因も対処も明確だったため`architect`は挟まず、方針を確定して`implementer`へ直接差し戻した。確定させた方針は(a)`verify.ps1`新設(`ConvertTo-Json`で`jq`非依存、進捗は全てstderr)(b)`codegen_clean`は**バックアップ→再生成→比較→復元の枠組みを維持したままCRを除去して比較**(仕様の`git diff --exit-code`へは戻さない。未コミットの`.g.dart`変更で誤判定するため)(c)`build_apk_release`の未整備な前提(`lib/main_public.dart`未作成・Android SDK未検出)は失敗ではなく**`skipped:true`+`note`必須**のスキップ扱い、の3点。
+- **implementerの実装**: `tools/verify.ps1`(新規・約470行)、`tools/verify.sh`修正、`.claude/analyze_baseline.txt`を47→31へ是正(**47のままだと`analyze`ゲートが新規issueを16件まで素通りさせる**)。PowerShell 5.1固有の対応として、ネイティブexeへの`2>&1`を避け`Start-Process -RedirectStandardOutput/-RedirectStandardError`へ統一、タイムアウトは`Process.WaitForExit(ms)`+`taskkill /T /F`、**`.ps1`はUTF-8 BOM付きで保存**(BOM無しだと日本語コメントで5.1の構文解析が壊れる、実機確認済み)。
+- **2回目の検証(`verifier`、独立実測)= 全項目合格**: クリーン実行で標準出力が単一JSON・8項目全て`ok:true`(`analyze`は`baseline:31/current:31`、`codegen_clean`は`ok:true`、`build_apk_release`は`skipped:true`)/**フォールトインジェクション(未使用importの一時ファイル追加+既存テスト1件を破壊)で`analyze`(31→32)と`test`(failed:1)だけが`ok:false`、他6項目は巻き添えなし**/`verify.sh`は`jq_not_found`のJSON1行+終了コード1/実行後の`git status --short`は意図した3件のみで`.g.dart`ドリフト・一時ファイルの残留なし。**T5-A1の完了条件を満たすと判定**。
+- **デプロイ**: **対象外**。`lib/`配下を一切変更しておらず(検証ツールとbaselineファイルのみ)、アプリの挙動は不変のため手順5・6(デプロイ・本番確認)は実施していない。
+- **教訓**: `rules/lessons_archive.md` **L118**(検証ツール自身の欠陥は「静かに通る/常に落ちる」形で現れる。外部コマンド依存・改行コード・未整備な前提・古いbaseline・別環境での自己申告の5点。**正常系が緑になることより先にフォールトインジェクションを確認する**)。
+- **コミット**: `97ee229`(実装分)+ 本ドキュメント更新分。**pushはユーザー許可待ち**。
 ### -5.35 当日やったこと(2026-08-08、Sonnet 5、`/full_loop`。T5-A1の依存バージョン不整合を解消・実装完了。**セッション分割チェック該当のため検証待ちで中断**)
 
 - **タスク選定**: 前回セッションの引き継ぎどおり、T5-A1の再開。まず依存バージョン戦略の判断を`architect`に委譲。
