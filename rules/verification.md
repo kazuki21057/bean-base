@@ -122,6 +122,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L127 Windowsで`.ps1`に日本語コメントを`Write`ツールで保存するとBOM無しUTF-8になり、PowerShell 5.1が構文エラーを起こすことがある(T5-A6実装中に実見)。日本語を含む`.ps1`は保存後に`powershell -File`で1回実行確認するか、BOM付きUTF-8で保存し直す。あわせて`adb`等の外部コマンド出力を`.Trim()`する箇所は出力が一時的に空になりうる前提でnull安全に書く
 - L117 L116の恒久対処: 素の`pub upgrade`は不可(未使用の`riverpod_generator`がanalyzerを固定)、死に依存の削除+限定upgrade+`build_runner --force-jit`で解消。`--delete-conflicting-outputs`は廃止済み、`clean`はソースの`.g.dart`を消さない
 - L116 Ubuntu環境で`build_runner build`がDart SDK/analyzer版数不整合で無限ハングしうる。CPU%でなく`/proc/<pid>/io`の不変で停止確定、killしたら削除済み`.g.dart`を`git checkout`で復元
 - L115 新しいUbuntu環境でのAndroid開発セットアップ: `sudo`はBashツールからも`!`プレフィックスからもパスワード入力できない(別ターミナルでユーザー実行が必要)/Flutter 3.38.9はAndroid SDK 36+Build-Tools 28.0.3を要求する

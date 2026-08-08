@@ -2084,3 +2084,17 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **検証**: `flutter analyze`新規issue0・`flutter test`338件全パス・`flutter build web`成功。`sheets_service.dart`内の`print(`が0件になったことをgrepで確認。ローカル配信(`http://localhost:8124`)+`claude-in-chrome`でコンソール確認を試みたが、サンドボックス環境からGASへの通信が503でブロックされ(既知の制約、CLAUDE.md記載)実データでの動的確認はできず。ソースコード上生データを出力する経路自体が無いことで完了条件を満たしていると判断。
 - **デプロイ**: ユーザーに確認のうえ`firebase deploy --only hosting`を実行、成功。`build/web/main.dart.js`のmd5(`22359c57286754b82deba776c603d09f`)が本番配信物と一致することを確認。
 - **次にやること**: T3-75h(本番URLでの再確認、`docs/production_verification_guide.md`に従う)→ 確認できたらT3-75a/T3-75e。T3-75b(バリデーション追加)は環境非依存のため次点で着手可能。
+
+### -5.49 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A11完了 + セッション継続/clearルール新設 + `/code-review`定期実行ルール・frontend-designプラグイン導入**)
+
+- `.claude/hooks/loop_guard.js`のしきい値を有人($24/30/3、現状維持)/夜間($8/40/2)のモード別テーブルに分岐。`LOOP_BOUNDARY_RE`に`night_loop`を追加(T5-A9からの申し送り対応)し、境界検出コマンドから適用モードを判定、境界未検出時は安全側(夜間)にフォールバック。`loop_state.md`・stdout双方にモード名を明記。
+- `implementer`→`verifier`の2段階委譲で完了(`architect`不要、S規模・仕様確定済みのため)。verifierが`node -c`構文チェックと3ケース(`/night_loop`境界=夜間しきい値、`/full_loop`境界=有人しきい値、境界なし=安全側の夜間しきい値)を一時transcriptで動作確認、全て期待通り。
+- **ユーザー指示により新規ルールを追加**: `/end`の締めで「このままセッションを続けるか、一度`/clear`すべきか」を`loop_guard.js`の本ループcost/turnsを根拠に提案する(`CLAUDE.md`§日次改修ループ運用ルール「セッション継続 vs `/clear`の判断」に正本、`/end`スキル手順6に反映)。判定基準: 本ループのcost/turnsが適用中モードの上限の半分を超えていれば`/clear`推奨、超えなければ続行可。`/loop`無人実行時は対象外。
+- 本セッション(このループ)自体への適用結果: S規模タスク1件・変更ファイル1件・委譲2回のみで軽量。`/clear`不要、**このまま続けて問題なし**と判定。
+- コード変更は`.claude/hooks/loop_guard.js`のみ・`lib/`不変のためデプロイ・本番確認は対象外。commit・push済み。**次はT5-A12**(有人監視下の`night_loop.ps1`試走。Windows環境が前提のため要確認。実行不可なら他トラックA〈T5-A5・A6・A8・A13・A14・A15〉へフォールバック)。
+- 旧-5.48節(T5-A24)を`docs/archive/NEXT_SESSION_log.md`へ退避。3節構成・冒頭の構成説明・書き足しルールは維持。
+- **同セッション内で追加のユーザー指示に対応**(コード変更なし、ルール・設定・タスク表のみ):
+  - `~/.claude/settings.json`(ユーザーグローバル)に`enabledPlugins: {"frontend-design@claude-plugins-official": true}`を追加し、`frontend-design`プラグインスキルを有効化(このLinux環境のみ。Windows環境向けはT5-A26として新規タスク化)。
+  - `CLAUDE.md`§日次改修ループ運用ルールに「`/code-review`の定期実行ルール」を新設: 大きな修正(変更5ファイル超)/フェーズの区切り/夜間ループ10回に1回のいずれかで実行、Critical/Major指摘はその場でimplementerに差し戻して修正(見つけて終わりを禁止)。`full_loop`スキル手順4.5に反映。
+  - マスタープランに新規タスク2件追加: **T5-A25**(夜間ループ起動回数カウンタを実装し10回に1回`/code-review`を自動実行、依存T5-A12と合わせて確認)、**T5-A26**(Windows環境で`/full_loop`・`/start`実行時にfrontend-designプラグインをそちらにも有効化する副次タスク)。
+  - `.claude/agents/architect.md`にSkillツールを追加し、「新規/作り直し画面の視覚デザイン検討時は`frontend-design`スキルを読み込んでから設計する」指示を追記(このプロジェクトに専任デザイナーエージェントは無く、新規UI設計はarchitectが担うため)。

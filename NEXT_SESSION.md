@@ -1,15 +1,15 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-08(**Sonnet 5**、`/full_loop`。**T5-A11(`loop_guard.js`しきい値の有人/夜間モード分岐)を完了**。**コード変更は`.claude/hooks/loop_guard.js`のみ・`lib/`不変のためデプロイ対象外**。commit・**push済み**)
+最終更新: 2026-08-09(**Sonnet 5**、`/full_loop`。**T5-A26完了(✅)+T5-A5(researcher.md新設、T5-C3実行は次回)+T5-A6実装完了(検証待ち)**。コスト超過($9>$7)によりT5-A6の独立検証・push・進捗表更新は次セッションへ持ち越し。commitのみ実施、**push未実施**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。**「1. 現状サマリ」「2. 次回の着手点」も同様に直近セッション分の要点だけを残し、過去の詳細経緯は`docs/archive/マスタープラン_完了タスク.md`・`docs/archive/NEXT_SESSION_log.md`に譲って書かない**(2026-08-08、T5-A21で明記)。
 
 ## 1. 現状サマリ
 
-- **2026-08-08(`/full_loop`、Sonnet 5、本セッション): T5-A11完了(✅)。`.claude/hooks/loop_guard.js`のしきい値を有人($24/30/3、現状維持)/夜間($8/40/2)のモード別に分岐**し、ループ境界検出に`/night_loop`も追加(T5-A9からの申し送り対応)。境界未検出時は安全側(夜間)にフォールバック。implementer→verifierの2段階委譲、3ケース(night_loop境界/full_loop境界/境界なし)全て期待通りと確認済み。**次はT5-A12**(有人監視下の`night_loop.ps1`試走。依存T5-A10・A11とも充足)。
+- **2026-08-09(`/full_loop`、Sonnet 5、Windows環境、本セッション): T5-A26完了(✅、Windows環境の`~/.claude/settings.json`にfrontend-designプラグイン有効化)**。**T5-A5は`.claude/agents/researcher.md`新設まで完了、T5-C3(Play要件調査)の実行は未実施**(新設エージェントは同一セッション直後は呼べない制約=L121のため。数ターン後にエージェント一覧へ反映されたことは確認済みで、次セッションなら即実行可)。**T5-A6は実装完了(Android SDK/JDK導入・AVD作成・`tools/emulator.ps1`/`.sh`新設)、implementerの自己確認(flutter devices・flutter doctor)は成功だが独立検証(verifier)は未実施のため検証待ち**。ユーザー依頼でWindows環境のトークン節約策(loop_guard.jsフック・verify.ps1配線・SKILL.md記載)の動作確認も実施、いずれも正常動作を確認(詳細は§3)。
 - 進行中はマスタープラン **Phase 5**(Android公開版)がメインライン。Phase 1〜4(統計解析含む)は完了済み。Phase 3残件はT3-75gのみ(要ユーザー確認)。
-- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A9・A10・A11・A18〜A24。**次に着手すべきはT5-A12**(有人監視下で`night_loop.ps1`を1回手動実行→スケジューラ登録)。**ただしT5-A12は`tools/night_loop.ps1`(Windows PowerShell)を対象とし「有人監視下での手動実行」が前提のため、Linux環境の`/full_loop`セッションだけでは完結しない可能性がある**(ユーザーのWindows環境での実施が必要か要確認)。実行できない場合は依存なしの他トラックAタスク(T5-A5・A6・A8・A13・A14・A15のいずれか)へフォールバックする。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
+- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A9・A10・A11・A18〜A24・A26(14件)。**次点候補は T5-A6の独立検証(検証待ち)→T5-C3実行(researcherエージェント)→通常タスク(T5-A8/A13/A14/A15/A25、依存なし)**。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GASは`gas/Code.gs`をclaspで管理(現行デプロイ@19)。本番: https://beanbase-app-2016.web.app (Firebase Hosting)。
 - 実装済みの正本設計書: `docs/bean_purchase_design.md`(追加購入・購入履歴)、`docs/store_master_design.md`(購入店マスタ)。
 - **モデル分担ルール(2026-08-08改訂、恒久)**: 親セッションは既定でSonnet 5で起動する(`/model sonnet`)。**Opus 5は`architect`サブエージェント経由でのみ使い、親セッションでは使わない。** タスク選定はモデルで分岐させない——依存が満たされた「⚠️上位モデルで実施」タスクがあれば`architect`へ優先委譲(成果物は設計書のみ)、無ければ通常タスクへフォールバックする。詳細・根拠は`CLAUDE.md`§日次改修ループ運用ルール・`docs/token_reduction_report_20260808.md`。
@@ -19,7 +19,10 @@
 
 > **親セッションは `/model sonnet`(Sonnet 5)で起動する。** `CLAUDE.md` §日次改修ループ運用ルールのモデル分担ルールに従う。Opus 5は`architect`サブエージェント経由でのみ使う。
 >
-> **次に着手するタスク: T5-A12**(有人監視下で`night_loop.ps1`を1回手動実行→タスクスケジューラに23:00枠登録。正本は`開発運用基盤設計.md` §6)。依存T5-A10・A11はいずれも完了済み。**Windows PowerShellスクリプトの有人監視下実行が前提のため、実行環境を要確認**。実行不可なら依存なしの他トラックA(T5-A5・A6・A8・A13・A14・A15)へフォールバック。
+> **次に着手するタスク(この順)**:
+> 1. **T5-A6の独立検証**: `verifier`へ委譲し、`tools/emulator.ps1 -Start`実行→数分待って`flutter devices`に`emulator-5554`(Android 14 API 34)が出ること→`tools/emulator.ps1 -Stop`で正常終了・`adb devices`が空になること→`flutter doctor -v`で「No issues found!」であることを確認させる。OKならこのセッションのcommit分(`tools/emulator.ps1`・`.sh`・`.claude/agents/researcher.md`等)をpushし、マスタープランのT5-A6行を完了済みリストへ移す。
+> 2. **T5-C3の実行**: `researcher`エージェントへ委譲。調査テーマはPlay Console新規公開要件4点(クローズドテスト要件/targetSdkVersion要件/データセーフティ記載要件/課金・広告ポリシー)、成果物は`docs/research/<日付>_play_requirements.md`。完了したらT5-A5・T5-C3をマスタープランの完了済みリストへ移す。
+> 3. その後は通常のタスク選定(依存なしのT5-A8/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
 
 **タスクの正本は `docs/改修マスタープラン.md` §3。**
 
@@ -27,7 +30,7 @@
 
 **トラックAを完成させるまで製品開発(トラックB)は本格化させない**(夜間自動実行が無いと40〜60人日規模を消化できないため)。
 
-**T5-A17(`.claude/settings.night.json`設置)がリポジトリに未コミットの状態(untracked)で存在することを確認した(2026-08-08本セッション時点)。内容が`開発運用基盤設計.md` §4-4の最新版(2026-08-08のforce push deny 5パターン追加版)と一致するか未検証** — T5-A12着手時に併せて確認すること。一致していればT5-A17も完了扱いにできる。
+**T5-A17(`.claude/settings.night.json`設置)は2026-08-09時点で未設置(ファイル自体が存在しない)ことを確認した**(2026-08-08時点の「untracked状態で存在」というメモは誤り、当時のセッションの一時的な状態だった可能性)。`tools/night_loop.ps1`は`-Force`指定時でも本ファイルの不在チェックはスキップしない設計のため、T5-A12(night_loop.ps1の有人試走)はこのファイルが無い限り実運用テストができない。ユーザーが`開発運用基盤設計.md` §4-4の内容をコピーして設置するまでT5-A12は着手不可。
 
 **ユーザー実施待ちで着手不可**: T3-1 / T3-4(モバイル実機確認・UI磨き込み、T3-20の残り確認待ち)、T3-57(Youth3件の写真提供待ち)、T3-72f(11メソッドの推奨焙煎度設定)、T3-75g(残豆量の分母不整合の補正方針、要ユーザー確認)、T5-A17(`.claude/settings.night.json`設置)、T5-C1(Play Consoleデベロッパー登録$25。テスター12人は知り合いから確保可能なため律速ではなく、残るクリティカルパスはPlay Consoleの本人確認と14日間の待機のみ)。
 
@@ -37,21 +40,17 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.49 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A11完了 + セッション継続/clearルール新設 + `/code-review`定期実行ルール・frontend-designプラグイン導入**)
+### -5.50 当日やったこと(2026-08-09、**Sonnet 5**、`/full_loop`、Windows環境。**T5-A26完了+T5-A5(researcher.md新設)+T5-A6実装完了(検証待ち)+ユーザー依頼でWindows側トークン節約策の動作確認**)
 
-- `.claude/hooks/loop_guard.js`のしきい値を有人($24/30/3、現状維持)/夜間($8/40/2)のモード別テーブルに分岐。`LOOP_BOUNDARY_RE`に`night_loop`を追加(T5-A9からの申し送り対応)し、境界検出コマンドから適用モードを判定、境界未検出時は安全側(夜間)にフォールバック。`loop_state.md`・stdout双方にモード名を明記。
-- `implementer`→`verifier`の2段階委譲で完了(`architect`不要、S規模・仕様確定済みのため)。verifierが`node -c`構文チェックと3ケース(`/night_loop`境界=夜間しきい値、`/full_loop`境界=有人しきい値、境界なし=安全側の夜間しきい値)を一時transcriptで動作確認、全て期待通り。
-- **ユーザー指示により新規ルールを追加**: `/end`の締めで「このままセッションを続けるか、一度`/clear`すべきか」を`loop_guard.js`の本ループcost/turnsを根拠に提案する(`CLAUDE.md`§日次改修ループ運用ルール「セッション継続 vs `/clear`の判断」に正本、`/end`スキル手順6に反映)。判定基準: 本ループのcost/turnsが適用中モードの上限の半分を超えていれば`/clear`推奨、超えなければ続行可。`/loop`無人実行時は対象外。
-- 本セッション(このループ)自体への適用結果: S規模タスク1件・変更ファイル1件・委譲2回のみで軽量。`/clear`不要、**このまま続けて問題なし**と判定。
-- コード変更は`.claude/hooks/loop_guard.js`のみ・`lib/`不変のためデプロイ・本番確認は対象外。commit・push済み。**次はT5-A12**(有人監視下の`night_loop.ps1`試走。Windows環境が前提のため要確認。実行不可なら他トラックA〈T5-A5・A6・A8・A13・A14・A15〉へフォールバック)。
-- 旧-5.48節(T5-A24)を`docs/archive/NEXT_SESSION_log.md`へ退避。3節構成・冒頭の構成説明・書き足しルールは維持。
-- **同セッション内で追加のユーザー指示に対応**(コード変更なし、ルール・設定・タスク表のみ):
-  - `~/.claude/settings.json`(ユーザーグローバル)に`enabledPlugins: {"frontend-design@claude-plugins-official": true}`を追加し、`frontend-design`プラグインスキルを有効化(このLinux環境のみ。Windows環境向けはT5-A26として新規タスク化)。
-  - `CLAUDE.md`§日次改修ループ運用ルールに「`/code-review`の定期実行ルール」を新設: 大きな修正(変更5ファイル超)/フェーズの区切り/夜間ループ10回に1回のいずれかで実行、Critical/Major指摘はその場でimplementerに差し戻して修正(見つけて終わりを禁止)。`full_loop`スキル手順4.5に反映。
-  - マスタープランに新規タスク2件追加: **T5-A25**(夜間ループ起動回数カウンタを実装し10回に1回`/code-review`を自動実行、依存T5-A12と合わせて確認)、**T5-A26**(Windows環境で`/full_loop`・`/start`実行時にfrontend-designプラグインをそちらにも有効化する副次タスク)。
-  - `.claude/agents/architect.md`にSkillツールを追加し、「新規/作り直し画面の視覚デザイン検討時は`frontend-design`スキルを読み込んでから設計する」指示を追記(このプロジェクトに専任デザイナーエージェントは無く、新規UI設計はarchitectが担うため)。
+- **選定理由**: Windows環境検出時はマスタープラン既定ルールによりT5-A26を最優先で着手。次いでタスク表順でT5-A5→(GB級インストールを伴うためユーザーに一言確認のうえ)T5-A6。
+- **T5-A26**: `~/.claude/settings.json`にfrontend-designプラグインを有効化(マーケットプレイスキャッシュは既に同期済みだったため設定追加のみ)。マスタープラン完了済みリスト(トラックA、14件目)に追記済み。
+- **T5-A5**: `.claude/agents/researcher.md`を`adversary.md`/`verifier.md`と同パターンで新設(`implementer`へ委譲)。**新設エージェントは同一セッション内では作成直後に呼び出せない制約(既知のL121)により、T5-C3の実行は持ち越し**。数ターン後にエージェント一覧へ`researcher`が反映されたことは確認済み(system-reminderで通知された)だが、本セッションはコスト超過のため実行せず次回に回した。
+- **T5-A6**: `implementer`へ委譲。Android SDKコマンドラインツール一式・JDK 17をユーザーローカル環境(`%LOCALAPPDATA%\Android`)に導入、AVD `beanbase_test`(API 34, google_apis, x86_64)を作成、`tools/emulator.ps1`/`tools/emulator.sh`(起動/停止/状態確認、Windows/Ubuntu両対応)を新設。`flutter devices`にAVDが表示されること、`flutter doctor -v`が「No issues found!」になることを実測確認済み(**implementer自己申告であり、verifierによる独立検証はまだ未実施**)。実装中に2つのバグを発見・修正(`Write`ツールで保存した`.ps1`がBOM無しUTF-8になり日本語コメントがPowerShell 5.1の構文エラーを起こす/`adb`出力の一時的な空文字への`.Trim()`がnullエラーになる)、`rules/lessons_archive.md`にL127として記録。implementerのバックグラウンド実行が2回ほど「完了通知が来ないまま待機」状態になり、`SendMessage`での再開・`Monitor`での`adb devices`/プロセス監視で状況を直接確認しながら進行させた。
+- **ユーザー依頼(Windows環境でのトークン節約策の動作確認)**: `loop_guard.js`フック出力は正常動作(毎ターン`[loop_guard] 本ループ...`が表示され、しきい値も正しく計算されている)。`tools/verify.ps1`を実際に実行し8項目全て`ok:true`を確認(analyze/test/build web/golden/codegen/secret_scan正常、`build_apk_release`は`lib/main_public.dart`未作成のためskip)。`start`/`full_loop`のSKILL.mdはpull後の最新版でT5-A19〜A22の内容(grep抽出・loop_guardフック依拠・`rules/verification.md`非全読み)が正しく反映済みと確認。**ただし本セッション冒頭で`/full_loop`起動時に注入されたスキル本文がgit pull前の古いスナップショットだったため、`.claude/loop_state.md`/`.claude/loop_failures.txt`を(本来不要な)Readをしてしまった一幕があった**——スキル呼び出し時のプロンプト注入とgit pullのタイミング差によるもので、Windows固有の不具合ではない(この現象自体は新規lessonとして記録するほどではないと判断、記録は見送り)。
+- 本ループはT3-73dのセッション分割しきい値(cost>$7)を`$9`超で上回ったため、**T5-A6の独立検証・push・マスタープラン進捗表更新は次セッションに持ち越し**。commitは実施、pushは未実施。
+- コミット対象: `.claude/agents/researcher.md`(新規)、`tools/emulator.ps1`・`tools/emulator.sh`(新規)、`docs/改修マスタープラン.md`(T5-A26完了・T5-A17状態の訂正)、`rules/verification.md`・`rules/lessons_archive.md`(L127追加)、`NEXT_SESSION.md`(本更新)。
 
-> これ以前(-5.47節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.49節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 
