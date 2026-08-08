@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.47 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A23完了**)
+
+- `rules/verification.md` §必須検証フローに「0. 一括検証スクリプト」を新設。`tools/verify.ps1`(Windows)/`tools/verify.sh`(Bash)で`analyze`/`test`/`build`等8項目を1コマンド実行し、標準出力JSONのサマリのみ読む(失敗項目だけ`.claude/verify_logs/`のログを読む)運用に統一。既存の個別コマンド手順(1・2番)は「スクリプトが使えない場合のフォールバック」として残した。`.claude/skills/full_loop/SKILL.md`手順4にも一言追記(委譲プロンプトのテンプレ本文は変更なし)。
+- `implementer`への委譲1回で完了(`architect`不要)。implementer自身も`tools/verify.sh`を試走し全項目pass。
+- 続けて`verifier`へ検証委譲し、`rules/verification.md`を読んだ状態から実際に`tools/verify.sh`を実行させて確認。結果: 8項目全て`ok:true`(analyze baseline=current=31件、test 360件パス、build_web_release成功、build_apk_releaseはskip、golden diff 0件、codegen差分なし、secret_scan検出なし)。標準出力JSONのみで判定でき、完了条件(20行以内)も満たした。
+- 旧-5.46節(T5-A22)を`docs/archive/NEXT_SESSION_log.md`へ退避。3節構成・冒頭の構成説明・書き足しルールは維持。
+- コード変更なし(`lib/`不変)のためデプロイ・本番確認は対象外。commit・push済み。**次はT5-A24**。
+
 ### -5.46 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A22完了**)
 
 - `.claude/skills/start/SKILL.md`手順2、`.claude/skills/full_loop/SKILL.md`手順1・手順3.5を改訂。`.claude/loop_state.md`・`.claude/loop_failures.txt`を明示Readする指示を削除し、`loop_guard.js`のフック出力(`[loop_guard] 本ループ cost=.../turns=.../fails=...`)を真値として使う方式に統一。しきい値の数値(コスト$24超・ターン30到達・連続失敗3回、分割チェックの$7超)は変更なし。
