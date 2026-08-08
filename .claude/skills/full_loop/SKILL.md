@@ -60,7 +60,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
    - (b) commitまで済ませる(**pushはしない**)。
    - (c) ユーザーに「実装完了。検証・デプロイは新しいセッション(`/clear`後に`/full_loop 検証のみ`)で続行してください」と報告し、`PushNotification`でも通知したうえでセッションを終える。
    - 上記しきい値を超えていなければそのまま手順4に進む。
-4. **検証**(`rules/verification.md`準拠): **親が直接検証せず、`verifier`サブエージェントに委譲する**。検証手順の本文(`flutter analyze`→`flutter test`→`flutter build web`→ブラウザ確認等)は親が書き写さず、**verifier自身に`rules/verification.md`を読ませる**(親のコンテキスト節約のため、`docs/token_reduction_report_20260808.md`参照)。委譲プロンプトは以下のテンプレートを土台に、`<ファイル一覧>`と`<条件>`を今回のタスク内容で埋めて渡す(いずれも親がその都度埋める空欄であり、検証手順そのものは書かない):
+4. **検証**(`rules/verification.md`準拠): **親が直接検証せず、`verifier`サブエージェントに委譲する**。検証手順の本文(`flutter analyze`→`flutter test`→`flutter build web`→ブラウザ確認等)は親が書き写さず、**verifier自身に`rules/verification.md`を読ませる**(親のコンテキスト節約のため、`docs/token_reduction_report_20260808.md`参照)。`rules/verification.md`には`tools/verify.ps1`/`tools/verify.sh`で`analyze`/`test`/`build`を1コマンドにまとめて回す手順(2026-08-08新設)が含まれるので、verifierはそれに従って実行する。委譲プロンプトは以下のテンプレートを土台に、`<ファイル一覧>`と`<条件>`を今回のタスク内容で埋めて渡す(いずれも親がその都度埋める空欄であり、検証手順そのものは書かない):
 
    > 「`rules/verification.md` の §必須検証フロー に従って検証してください(あなたが自分でReadすること。親は読みません)。今回の変更対象は `<ファイル一覧>`、効いたと言える判定条件は `<条件>` です。コードは修正せず事実だけ日本語で報告してください。**巨大な生出力を貼らず、失敗した項目だけ詳細を返してください。**」
 

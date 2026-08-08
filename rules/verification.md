@@ -6,11 +6,17 @@
 
 > **出力は必ず絞る(2026-08-02)**: `analyze`/`test` の全文出力は1回で7k〜13k文字あり、以後のリクエスト全部に課金され続ける(`CLAUDE.md`§トークン運用規約)。下記の短出力形を既定とし、**失敗したときだけ**詳細を取り直す。
 
-1. **静的解析**: 既存 issue はスコープ外。新規分だけを見るため件数の差分で判定する。
+0. **一括検証スクリプト(2026-08-08新設、まずこれを使う)**: `tools/verify.ps1`(Windows)/`tools/verify.sh`(Bash)が、下記1〜2の静的解析・自動テストに加えビルド等を含む8項目を1コマンドでまとめて実行し、結果をJSON 1つで標準出力へ返す。
+   - 実行: `powershell -File tools/verify.ps1`(Windows、引数`-Edition personal|public`、既定`public`)。Bash環境では`tools/verify.sh`が同一の8項目・同一JSONスキーマを返すが**`jq`必須**(`jq`不在時は`{"ok":false,"error":"jq_not_found",...}`を返し非ゼロ終了する既知の制約。その場合は下記フォールバックへ切り替える)。
+   - **読み方**: 標準出力のJSON(各項目の`ok:true/false`の**サマリのみ**)を読む。**失敗した項目だけ**、その`log`フィールドが指す`.claude/verify_logs/<timestamp>_<項目名>.log`を`Grep`/`Read(offset/limit)`で該当箇所だけ読む。成功項目のログ・生出力は読まない。
+   - これで静的解析・自動テスト・ビルドが完了していれば、下記1・2は実施済みとみなしてよい。下記3(実行時検証)・4(視覚検証)はこのスクリプトでは自動化できないため、引き続き自分で行う。
+   - **フォールバック(スクリプトが使えない場合のみ)**: `jq`不在等でスクリプトが実行できない場合に限り、下記1・2を個別コマンドで実施する。
+
+1. **静的解析**(スクリプトが使えない場合のフォールバック): 既存 issue はスコープ外。新規分だけを見るため件数の差分で判定する。
    - PowerShell: `flutter analyze 2>&1 | Select-String -Pattern "issues found|error •" | Select-Object -Last 5`
    - Bash: `flutter analyze 2>&1 | grep -E "issues found|error •" | tail -5`
    - 既存件数のベースラインは `.claude/analyze_baseline.txt`(数値1行)。件数が増えていたら**そのときだけ** `flutter analyze 2>&1 | tail -100` で内容を確認する。
-2. **自動テスト**: `flutter test 2>&1 | tail -15` — 全件パス。失敗したときだけ `| tail -150` で詳細を取り直す。ロジックを追加した場合は対応する単体テストも追加する。
+2. **自動テスト**(スクリプトが使えない場合のフォールバック): `flutter test 2>&1 | tail -15` — 全件パス。失敗したときだけ `| tail -150` で詳細を取り直す。ロジックを追加した場合は対応する単体テストも追加する。
 3. **実行時検証**: `flutter run -d chrome` で以下を確認する。
    - **安定性**: クラッシュせず起動し、コンソールに `Exception`/`Error` ログが出ない。
    - **UI**: Overflow 警告(黄黒ストライプ)が出ない。
