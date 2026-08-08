@@ -3,6 +3,13 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.44 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A20完了**)
+
+- **`.claude/skills/full_loop/SKILL.md`手順4を改訂**。親が検証手順本文(`flutter analyze`→`flutter test`→`flutter build web`→ブラウザ確認)を書き写す/読む前提の記述をやめ、**verifier自身に`rules/verification.md`を読ませる**方針に変更。委譲プロンプトのテンプレ(`<ファイル一覧>`/`<条件>`をその都度埋める空欄形式)を追記した。文面は前セッションの報告書`docs/token_reduction_report_20260808.md` §10 T5-A20で確定済みのものをそのまま採用。
+- **`implementer`への委譲1回で完了**(`architect`不要)。diffは親が目視確認しMarkdown構造の破壊なしを確認。
+- **コード変更なし**のため`analyze`/`test`/`build`/デプロイ/本番確認は対象外。commit・push済み。
+- **次はT5-A21**(`NEXT_SESSION.md`の規約遵守、20行以内圧縮)。
+
 ### -5.43 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A19完了**)
 
 - **`.claude/skills/start/SKILL.md`手順4・`.claude/skills/full_loop/SKILL.md`手順1を改訂**。`docs/改修マスタープラン.md` §3 タスク表を`Read`で全読みする指示を廃止し、`grep -n "| ⬜ |" docs/改修マスタープラン.md`で未完了行だけを抽出する指示に統一。依存元の完了確認が必要な場合は追加で`grep -n "完了済み"`を使う旨も明記。
