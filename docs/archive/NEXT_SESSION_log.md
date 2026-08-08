@@ -3,6 +3,13 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.46 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A22完了**)
+
+- `.claude/skills/start/SKILL.md`手順2、`.claude/skills/full_loop/SKILL.md`手順1・手順3.5を改訂。`.claude/loop_state.md`・`.claude/loop_failures.txt`を明示Readする指示を削除し、`loop_guard.js`のフック出力(`[loop_guard] 本ループ cost=.../turns=.../fails=...`)を真値として使う方式に統一。しきい値の数値(コスト$24超・ターン30到達・連続失敗3回、分割チェックの$7超)は変更なし。
+- `implementer`への委譲1回で完了(`architect`不要)。diffは親が目視確認し、`grep -rn "loop_state.md|loop_failures.txt" .claude/skills/`で明示的なRead指示が残っていないことを確認した。
+- 旧-5.45節(T5-A21)を`docs/archive/NEXT_SESSION_log.md`へ退避。3節構成・冒頭の構成説明・書き足しルールは維持。
+- コード変更なしのため`analyze`/`test`/`build`/デプロイ/本番確認は対象外。commit・push済み。**次はT5-A23**。
+
 ### -5.45 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A21完了**)
 
 - `NEXT_SESSION.md`が18,128字(124行)まで肥大化していたのを圧縮。「1. 現状サマリ」「2. 次回の着手点」に蓄積していた過去セッション(2026-08-03〜07)の詳細ログを要点1〜2行へ縮約・重複削除。3節構成と冒頭の構成説明・書き足しルールは維持。**次はT5-A22**。
