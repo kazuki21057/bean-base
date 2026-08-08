@@ -1,0 +1,9 @@
+{
+  "weeklyRunLimit": 12,
+  "sessionWindowHours": 5,
+  "staleLockHours": 3,
+  "model": "sonnet",
+  "maxBudgetUsd": 8,
+  "settingsPath": ".claude\\settings.night.json",
+  "projectSlug": null
+}
