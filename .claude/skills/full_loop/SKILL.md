@@ -60,7 +60,11 @@ description: Use when the user asks to run one full daily-loop iteration autonom
    - (b) commitまで済ませる(**pushはしない**)。
    - (c) ユーザーに「実装完了。検証・デプロイは新しいセッション(`/clear`後に`/full_loop 検証のみ`)で続行してください」と報告し、`PushNotification`でも通知したうえでセッションを終える。
    - 上記しきい値を超えていなければそのまま手順4に進む。
-4. **検証**(`rules/verification.md`準拠): **親が直接検証せず、`verifier`サブエージェントに委譲する**。委譲プロンプトに検証手順(`flutter analyze`で新規issue無し→`flutter test`全パス→`flutter build web`成功→可能なら`build/web`を未使用ポートでローカル配信し`claude-in-chrome`で実データに対しブラウザ確認)と、今回の変更で**効いたと言える判定条件**を書いて渡す。verifierはコードを直さず事実だけを報告するので、NGだった場合は親が原因を判断し、implementer(方針が明らかな場合)またはarchitect(原因不明・2回目以降の失敗)へ差し戻す。
+4. **検証**(`rules/verification.md`準拠): **親が直接検証せず、`verifier`サブエージェントに委譲する**。検証手順の本文(`flutter analyze`→`flutter test`→`flutter build web`→ブラウザ確認等)は親が書き写さず、**verifier自身に`rules/verification.md`を読ませる**(親のコンテキスト節約のため、`docs/token_reduction_report_20260808.md`参照)。委譲プロンプトは以下のテンプレートを土台に、`<ファイル一覧>`と`<条件>`を今回のタスク内容で埋めて渡す(いずれも親がその都度埋める空欄であり、検証手順そのものは書かない):
+
+   > 「`rules/verification.md` の §必須検証フロー に従って検証してください(あなたが自分でReadすること。親は読みません)。今回の変更対象は `<ファイル一覧>`、効いたと言える判定条件は `<条件>` です。コードは修正せず事実だけ日本語で報告してください。**巨大な生出力を貼らず、失敗した項目だけ詳細を返してください。**」
+
+   verifierはコードを直さず事実だけを報告するので、NGだった場合は親が原因を判断し、implementer(方針が明らかな場合)またはarchitect(原因不明・2回目以降の失敗)へ差し戻す。
 5. **デプロイ**(`docs/deploy.md`手順): `flutter build web`まで進めたら、**`firebase deploy --only hosting`を実行する前に必ずチャットでユーザーの明示的な許可を得る**(2026-07-30改訂、下記「注意」参照)。GASスキーマの非破壊的変更(列追加等、`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS`経由)・本番Sheets/Driveへの実データ登録も同様に都度確認する。**本番データの削除を伴う場合は、実行前にユーザーへ一言リスクを説明した上で確認する。**
 6. **本番確認**: デプロイした`build/web`と同一の成果物をローカル配信(未使用ポート、Service Workerキャッシュ回避)し、本番GAS実データに対して新機能を`claude-in-chrome`で確認する。拡張が本番ドメインを直接ブロックする制約の回避策(`docs/deploy.md`記載)。
 7. **`/end`の手順をそのまま実行**: (a) `NEXT_SESSION.md`更新(**古い作業ログ節をアーカイブへ移してから**今回の節を1件だけ置く。本書は直近1セッション分のみ) → (b) `docs/改修マスタープラン.md`の進捗表更新(完了行は`docs/archive/マスタープラン_完了タスク.md`へ移し、本体は「> **完了済み(N件)**: …」のID一覧に追記) → (c) 新しい教訓があれば`rules/lessons_archive.md`に全文、`rules/verification.md`のインデックスに1行 → (d) `docs/`配下のCycle連番確認 → (e) commitはそのまま作成してよい。**pushは`verifier`が全項目パスを報告済み(またはコード変更を含まない)なら確認不要で実行してよい**(2026-08-08改訂、下記「注意」参照)。検証していない・NGのままの変更をpushする場合のみ、事前にチャットで許可を得る。
