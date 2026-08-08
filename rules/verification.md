@@ -31,7 +31,7 @@
   debugPrint('[Antigravity] Action: Sync to Google Sheets started');
   try { ... } catch (e) { debugPrint('[Antigravity] Error: $e'); }
   ```
-- **マスター系の変更は全種別へ**: マスターの UI・機能を追加・修正する際は、Bean だけでなく Grinder / Dripper / Filter(該当すれば Method も)すべてに漏れなく適用する。共通部品化できる場合は共通化を優先する。
+- **マスター系の変更は全種別へ**(詳細・外部ID規約は`CLAUDE.md`§Verification Rules参照): マスターの UI・機能を追加・修正する際は、Bean だけでなく Grinder / Dripper / Filter(該当すれば Method も)すべてに漏れなく適用する。共通部品化できる場合は共通化を優先する。
 
 ## 教訓インデックス (Lessons Learned)
 

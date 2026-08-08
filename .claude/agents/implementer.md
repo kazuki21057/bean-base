@@ -24,9 +24,9 @@ tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-
 - 統計解析・予測機能に触れる場合は`statistics_feature_design.md`が正本。数値計算(回帰・PCA・GP・EI・検定)はDartローカル実装で行い、Geminiに計算させない。
 - 秘密情報(Gemini APIキー等)をコミットしない。
 
-## 実装後のセルフチェック(`rules/verification.md`準拠、必ず実施)
+## 実装後のセルフチェック(必ず実施)
 
-`flutter analyze`(**新規issue0**、既存issueは残ってよい)→ `flutter test`(全パス)→ `flutter build web`(成功)まではあなたが自分で通す。回帰テストは**本番データを模したケース**で書くと効果が高い。
+`flutter analyze`(**新規issue0**、既存issueは残ってよい)→ `flutter test`(全パス)→ `flutter build web`(成功)まで自分で通す(個別コマンド・一括スクリプトの詳細は`rules/verification.md`§必須検証フロー参照)。回帰テストは**本番データを模したケース**で書くと効果が高い。
 
 **正式な検証(ブラウザでの実データ確認・本番確認)は`verifier`エージェントの担当**なので、あなたはそこまで踏み込まなくてよい。ただし報告には「verifierが何を確認すれば今回の修正が効いたと言えるか(判定条件・確認する画面と操作)」を書き添えること。
 

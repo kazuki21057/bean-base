@@ -19,10 +19,8 @@ tools: Read, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-in-chrome__ta
 
 ## 検証の基本フロー
 
-**自分で`flutter analyze`/`flutter test`/`flutter build`を叩かない**。代わりに`tools/verify.ps1`(Windows本命)を1回実行し、標準出力のJSON1つだけを読む(進捗メッセージは全てstderrなので混ざらない)。
+**自分で`flutter analyze`/`flutter test`/`flutter build`を個別に叩かない**。実行コマンド・引数・`jq`不在時のフォールバック手順は`rules/verification.md`§必須検証フロー(あなたが自分でReadすること)に従い、`tools/verify.ps1`(Windows本命)/`tools/verify.sh`(Bash)を1回実行して標準出力のJSON1つだけを読む(進捗メッセージは全てstderrなので混ざらない)。
 
-- 実行: `powershell -File tools\verify.ps1`(引数`-Edition personal|public`、既定`public`)。
-- Bash系環境では`bash tools/verify.sh`が同一の8項目・同一JSONスキーマを返すが**`jq`必須**。`jq`不在時は`{"ok":false,"error":"jq_not_found",...}`を1行返し終了コード1になる。その場合は「jq不在でverify.shは使えない」と報告し`verify.ps1`に切り替える。
 - **`implementer`の自己申告(「analyze通りました」「テスト全パスしました」)は証拠として扱わない**。あなたが`tools/verify.ps1`を独立に再実行した結果だけを採用する(自己検証バイアスの排除)。
 
 ### JSONスキーマ(`checks`直下の8項目、`tools/verify.ps1`の実装と一致)
