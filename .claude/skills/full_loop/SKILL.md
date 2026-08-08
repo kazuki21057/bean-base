@@ -65,6 +65,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
    > 「`rules/verification.md` の §必須検証フロー に従って検証してください(あなたが自分でReadすること。親は読みません)。今回の変更対象は `<ファイル一覧>`、効いたと言える判定条件は `<条件>` です。コードは修正せず事実だけ日本語で報告してください。**巨大な生出力を貼らず、失敗した項目だけ詳細を返してください。**」
 
    verifierはコードを直さず事実だけを報告するので、NGだった場合は親が原因を判断し、implementer(方針が明らかな場合)またはarchitect(原因不明・2回目以降の失敗)へ差し戻す。
+4.5. **`/code-review`(条件付き)**: `CLAUDE.md`§日次改修ループ運用ルール「`/code-review`の定期実行ルール」の3条件(大きな修正/区切り/夜間10回に1回)のいずれかに該当する場合のみ実行する(該当しなければスキップしてよい)。Critical/Major指摘が出たらその場でimplementerに差し戻して修正し、再度verifierで確認する。
 5. **デプロイ**(`docs/deploy.md`手順): `flutter build web`まで進めたら、**`firebase deploy --only hosting`を実行する前に必ずチャットでユーザーの明示的な許可を得る**(確認ルールの詳細は`CLAUDE.md`§日次改修ループ運用ルール参照)。GASスキーマの非破壊的変更(列追加等、`gas/Code.gs`の`EXISTING_SHEET_EXTRA_COLUMNS`経由)・本番Sheets/Driveへの実データ登録も同様に都度確認する。**本番データの削除を伴う場合は、実行前にユーザーへ一言リスクを説明した上で確認する。**
 6. **本番確認**: デプロイした`build/web`と同一の成果物をローカル配信(未使用ポート、Service Workerキャッシュ回避)し、本番GAS実データに対して新機能を`claude-in-chrome`で確認する。拡張が本番ドメインを直接ブロックする制約の回避策(`docs/deploy.md`記載)。
 7. **`/end`の手順をそのまま実行**: (a) `NEXT_SESSION.md`更新(**古い作業ログ節をアーカイブへ移してから**今回の節を1件だけ置く。本書は直近1セッション分のみ) → (b) `docs/改修マスタープラン.md`の進捗表更新(完了行は`docs/archive/マスタープラン_完了タスク.md`へ移し、本体は「> **完了済み(N件)**: …」のID一覧に追記) → (c) 新しい教訓があれば`rules/lessons_archive.md`に全文、`rules/verification.md`のインデックスに1行 → (d) `docs/`配下のCycle連番確認 → (e) commitはそのまま作成してよい。**pushは`verifier`が全項目パスを報告済み(またはコード変更を含まない)なら確認不要で実行してよい**(定義・詳細は`CLAUDE.md`§日次改修ループ運用ルール参照)。検証していない・NGのままの変更をpushする場合のみ、事前にチャットで許可を得る。
