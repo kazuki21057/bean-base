@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.50 当日やったこと(2026-08-09、**Sonnet 5**、`/full_loop`、Windows環境。**T5-A26完了+T5-A5(researcher.md新設)+T5-A6実装完了(検証待ち)+ユーザー依頼でWindows側トークン節約策の動作確認**)
+
+- **選定理由**: Windows環境検出時はマスタープラン既定ルールによりT5-A26を最優先で着手。次いでタスク表順でT5-A5→(GB級インストールを伴うためユーザーに一言確認のうえ)T5-A6。
+- **T5-A26**: `~/.claude/settings.json`にfrontend-designプラグインを有効化(マーケットプレイスキャッシュは既に同期済みだったため設定追加のみ)。マスタープラン完了済みリスト(トラックA、14件目)に追記済み。
+- **T5-A5**: `.claude/agents/researcher.md`を`adversary.md`/`verifier.md`と同パターンで新設(`implementer`へ委譲)。**新設エージェントは同一セッション内では作成直後に呼び出せない制約(既知のL121)により、T5-C3の実行は持ち越し**。数ターン後にエージェント一覧へ`researcher`が反映されたことは確認済み(system-reminderで通知された)だが、本セッションはコスト超過のため実行せず次回に回した。
+- **T5-A6**: `implementer`へ委譲。Android SDKコマンドラインツール一式・JDK 17をユーザーローカル環境(`%LOCALAPPDATA%\Android`)に導入、AVD `beanbase_test`(API 34, google_apis, x86_64)を作成、`tools/emulator.ps1`/`tools/emulator.sh`(起動/停止/状態確認、Windows/Ubuntu両対応)を新設。`flutter devices`にAVDが表示されること、`flutter doctor -v`が「No issues found!」になることを実測確認済み(**implementer自己申告であり、verifierによる独立検証はまだ未実施**)。実装中に2つのバグを発見・修正(`Write`ツールで保存した`.ps1`がBOM無しUTF-8になり日本語コメントがPowerShell 5.1の構文エラーを起こす/`adb`出力の一時的な空文字への`.Trim()`がnullエラーになる)、`rules/lessons_archive.md`にL127として記録。implementerのバックグラウンド実行が2回ほど「完了通知が来ないまま待機」状態になり、`SendMessage`での再開・`Monitor`での`adb devices`/プロセス監視で状況を直接確認しながら進行させた。
+- **ユーザー依頼(Windows環境でのトークン節約策の動作確認)**: `loop_guard.js`フック出力は正常動作(毎ターン`[loop_guard] 本ループ...`が表示され、しきい値も正しく計算されている)。`tools/verify.ps1`を実際に実行し8項目全て`ok:true`を確認(analyze/test/build web/golden/codegen/secret_scan正常、`build_apk_release`は`lib/main_public.dart`未作成のためskip)。`start`/`full_loop`のSKILL.mdはpull後の最新版でT5-A19〜A22の内容(grep抽出・loop_guardフック依拠・`rules/verification.md`非全読み)が正しく反映済みと確認。**ただし本セッション冒頭で`/full_loop`起動時に注入されたスキル本文がgit pull前の古いスナップショットだったため、`.claude/loop_state.md`/`.claude/loop_failures.txt`を(本来不要な)Readをしてしまった一幕があった**——スキル呼び出し時のプロンプト注入とgit pullのタイミング差によるもので、Windows固有の不具合ではない(この現象自体は新規lessonとして記録するほどではないと判断、記録は見送り)。
+- 本ループはT3-73dのセッション分割しきい値(cost>$7)を`$9`超で上回ったため、**T5-A6の独立検証・push・マスタープラン進捗表更新は次セッションに持ち越し**。commitは実施、pushは未実施。
+- コミット対象: `.claude/agents/researcher.md`(新規)、`tools/emulator.ps1`・`tools/emulator.sh`(新規)、`docs/改修マスタープラン.md`(T5-A26完了・T5-A17状態の訂正)、`rules/verification.md`・`rules/lessons_archive.md`(L127追加)、`NEXT_SESSION.md`(本更新)。
+
 ### -5.48 当日やったこと(2026-08-08、**Sonnet 5**、`/full_loop`。**T5-A24完了**)
 
 - ドキュメント重複統合(4カテゴリ)。**カテゴリ1(デプロイ/push確認ルール)**: `CLAUDE.md`§日次改修ループ運用ルールに正本段落を新設(push確認不要条件/デプロイ常時確認/`--force`系push常時確認/削除操作の都度確認/分類器ブロック時の対処、5点全て記載)。`full_loop`/`end`のSKILL.mdは結論1行+`CLAUDE.md`参照へ圧縮(サブエージェント単独動作用に最低限の文脈は残した)。**カテゴリ2(検証フロー本体)**: 正本`rules/verification.md`は不変、`implementer.md`/`verifier.md`の個別コマンド詳細を参照へ圧縮。**カテゴリ3(全マスタタブ適用/`.toString()`)**: 正本`CLAUDE.md`§Verification Rulesは不変、`rules/verification.md`側を参照へ圧縮。**カテゴリ4(トークン運用規約)**: 調査の結果、追加の重複なしで変更不要と判断。
