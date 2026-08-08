@@ -1,0 +1,130 @@
+---
+name: night_loop
+description: Use when the user asks to run one unattended overnight iteration of the daily-loop — pick a small/medium task, implement it, verify it with multiple agents, and either auto-push to main or open a PR, without any chat confirmation because nobody is watching the screen. Triggered by scheduled/unattended invocations (`tools/night_loop.ps1` via Task Scheduler) or explicit instructions like "夜間ループを実行して"「無人で1回まわして」「/night_loop を試走して」. Do NOT use for normal interactive sessions — those use `/start` or `/full_loop` instead.
+---
+
+# night_loop — 無人(夜間)実行専用の1ループ
+
+`full_loop`(有人)を**無人実行向けに絞った独立したスキル**。`full_loop`本体は一切変更しない。このスキルはタスクスケジューラ(`tools/night_loop.ps1`、23:00 / 04:10 / 09:20)から人が画面を見ていない状態で起動される前提で書かれている。仕様の正本は`docs/android_release/開発運用基盤設計.md` §3〜§5。
+
+## 大前提
+
+- **`ui_verifier`サブエージェントは現時点(T5-A4未着手)で存在しない。** 検証フェーズでは`verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`、結果を待ってから次に進む)。`ui_verifier`は**T5-A4完了後、UI変更を伴う場合のみ**追加で起動する。
+- **`ui_verifier`が未整備の間、自動pushゲート条件#3(`ui_verifier`が異常なしと報告)は「判定対象外(スキップ)」として扱う。** UI変更があってもこの条件では落とさない。この暫定措置は**T5-A4完了時に解除**する(このSKILL.mdを更新すること)。
+- **`integration_test/`ディレクトリは現時点で存在しない。** スモークスイートは**T5-A7**(依存: T5-A6・T5-B1、いずれも未着手・Lサイズ)で作成予定であり、`tools/verify.ps1`の8項目にも相当するチェックは無い。またT5-A6(エミュレータ/Android SDK未検出)が未整備のため、そもそも実行環境も無い。**スイートが無い間、自動pushゲート条件#2(`integration_test`スモークが全パス)は「判定対象外(スキップ)」として扱う。** この暫定措置は**T5-A7完了時に解除**する(このSKILL.mdを更新すること)。
+- **夜間のしきい値はコスト$8・ターン40・連続失敗2**(有人の$24/30/3とは別、設計書§5)。ただし**`loop_guard.js`の夜間分岐はT5-A11で未実装**のため、`.claude/loop_state.md`が表示する上限値は現状すべて有人用($24/30/3)のままである。**表示された上限値をそのまま使わず、$8/ターン40/連続失敗2で自己判定すること。**(T5-A11完了後はこの一文を削除してよい)
+- **`tools/night_loop.ps1`(多重起動ガード・5時間枠チェック・週次予算ガードを担う、設計書§2)も現時点で存在しない。** タスクスケジューラから実行するエントリポイント自体が未整備であり、作成は**タスクT5-A10(依存: 本タスクT5-A9)で行う予定**。`ui_verifier`(T5-A4)・`integration_test`(T5-A7)・`tools/night_loop.ps1`(T5-A10)・`.claude/settings.night.json`(T5-A17、⚠️ユーザー実施)の4点が、現時点で未整備である。**T5-A10実装時は、無人モード判別用の環境変数`BEANBASE_NIGHT_LOOP=1`を実行前に設定することを忘れないこと**(§0参照)。
+
+## 手順
+
+0. **起動前チェック**
+   - **モード判別**: 環境変数`BEANBASE_NIGHT_LOOP`で判別する。`1`なら**無人モード**、未設定なら**有人試走モード**とする(PowerShellでは`$env:BEANBASE_NIGHT_LOOP`、Bashでは`echo $BEANBASE_NIGHT_LOOP`で確認)。**判別できない・確信が持てない場合は安全側の「無人モード」とみなす。** この環境変数を設定するのは`tools/night_loop.ps1`(タスクT5-A10)の責務であり、T5-A10未実装の現時点では常に未設定=有人試走モードになる。
+   - `.claude/settings.night.json`が存在するかを確認する(`ls`/`Test-Path`)。
+   - **無人モード**(タスクスケジューラ/`tools/night_loop.ps1`経由での起動)で、このファイルが存在しない場合は**手順を進めず即座に中断する**。`.claude/night_report.md`に「T5-A17(`.claude/settings.night.json`の設置、ユーザー実施)が未完了のため無人実行を中止した」と書き、`PushNotification`で通知して終了する。
+   - **有人試走モード**(ユーザーがチャットで明示的に`/night_loop`を呼んだ場合)に限り、未設置でも継続してよい。ただし**§無人実行で絶対にしないこと**の禁止事項は有人試走でも同様に守る。
+
+1. **状況確認**
+   - `.claude/loop_state.md`を読み、当ループのコスト・ターン数・連続失敗回数を確認する。**上限は表示値ではなく夜間値(コスト$8/ターン40/連続失敗2)で自己判定する**(T5-A11完了後は表示値をそのまま使ってよい)。いずれか到達していれば新規着手せず手順6(締め、中断扱い)へ。
+   - `loop_state.md`の数値は`/night_loop`をループ境界として認識しない(`loop_guard.js`は`/start`・`/full_loop`のみ検出、T5-A11で対応予定)ため、同日の他セッション分を含んでいる可能性がある。判断に迷う場合は安全側(しきい値超過とみなして中断)に倒す。
+   - `NEXT_SESSION.md`と`docs/改修マスタープラン.md` §3の未完了行を読む。読むファイルは`CLAUDE.md`§毎ループの読み取り最小セットに従い、アーカイブは全読みせず必要時のみgrepする。
+   - `git pull`を実行し、コンフリクトが出たら**§中断条件**に従い新規着手せず終了する。
+
+2. **タスク選定**
+   - 依存が満たされた最上位のタスクを1件選ぶ。**S/Mサイズのみ**対象。**Lサイズ・「⚠️上位モデルで実施」タスクは選ばない**(設計判断を伴うため無人実行に向かない)。
+   - 該当するS/Mタスクが1件も無い(全件が依存未充足、または残りがL・上位モデル指定のみ)場合は、新規タスクを発明せず**§中断条件**へ。
+
+3. **実装**
+   - `implementer`サブエージェントへ委譲する。委譲プロンプトには対象タスクID・変更対象ファイル・確定済み仕様・完了条件・「日本語で報告して」を明記する(`full_loop`と同じ委譲規約)。
+   - 実装中に**設計判断が必要と判明した時点で直ちに中断**する。`architect`へは回さない(無人実行では設計判断を継続しない)。**§中断条件**へ進む。
+   - `implementer`が2回失敗したら3回目を同じやり方で試さず、**§中断条件**へ進む。
+
+4. **検証**
+   - `verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`)。
+     - `verifier`への委譲プロンプトには検証コマンドとして**`powershell -File tools\verify.ps1`を1回実行し、標準出力のJSONだけを読む**ことを明記する(`tools/verify.sh`は`jq`必須のためWindowsでは使わない)。実行時はツール上限の600000ms(10分)をタイムアウトとして明示指定する(この環境での実測は約3分)。失敗した項目があれば、その項目の`log`パスだけを読み直す。`test_coverage_delta`はトップレベル`ok`に含まれない参考値であり、それ単独では合否を左右しない。`build_apk_release`は当面`skipped:true`が正常。
+     - `adversary`への委譲プロンプトには変更内容・変更ファイル一覧を渡し、Critical/Major指摘を報告させる。
+   - UI変更を伴い、かつ`ui_verifier`が整備済み(T5-A4完了後)であれば、同一メッセージにさらに`ui_verifier`を追加して3体並行起動する。
+
+5. **自動pushゲート判定**(設計書§4-1、**該当する条件すべてが満たされた場合のみ**`git push origin main`)
+
+   **判定元の報告が得られなかった条件は「満たされた」とみなさない。「指摘ゼロ」と「未検証」を区別すること**(例: `adversary`が異常終了して報告が無い場合、条件#4は満たされていないと扱う)。
+
+   | # | 条件 | 判定元 | 暫定措置 |
+   |---|---|---|---|
+   | 1 | `tools/verify.ps1`の全項目がgreen(`ok:true`) | verify.ps1のJSON | 適用(常時判定) |
+   | 2 | `integration_test`スモークが全パス | verifier | **`integration_test`未整備(T5-A7未完了)の間は「判定対象外(スキップ)」。`verifier`が「未実施(理由)」と報告した場合はゲートを落とさない(T5-A2で定義済みの`verifier`既定挙動どおり)。ただしスイートが存在するのに実行して失敗した場合は落とす(未整備によるスキップと実行失敗を区別する)。T5-A7完了で解除** |
+   | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | **判定対象外(スキップ)。T5-A4完了で解除** |
+   | 4 | `adversary`のCritical指摘がゼロ | adversary | 適用(常時判定) |
+
+   - **全条件を満たした場合**: 手順6の締めを行い、最後に`git push origin main`。
+   - **1つでも落ちた場合**(設計書§4-2、ゲート不通過時の手順):
+     ```
+     git checkout -b night/<タスクID>
+     git push -u origin night/<タスクID>
+     gh pr create --title "<タスクID> <要約>" --body "<ゲートのどの条件が落ちたか + 各エージェントの指摘>"
+     PushNotification("<タスクID> は自動pushゲートを通過しませんでした。PR #N を確認してください")
+     ```
+     **main には一切触れない。** ユーザーが朝、PRを見てマージ/差し戻しを判断する。
+
+6. **締め**(成功時・中断時とも必ず行う)
+   1. `NEXT_SESSION.md`更新(直近1セッション分、古い節はアーカイブへ)
+   2. `docs/改修マスタープラン.md`進捗表更新
+   3. 新しい教訓があれば`rules/lessons_archive.md`に全文追記 + `rules/verification.md`のインデックスに1行
+   4. `.claude/night_report.md`を**上書き**(下記テンプレート、1画面に収まる長さ)
+   5. commit
+   6. 手順5の判定に従い`git push origin main`、または`night/<タスクID>`ブランチ+PR
+
+7. **通知**
+   - **`PushNotification`を成功時・中断時とも必ず送る**(ユーザーは画面を見ていない前提)。1〜2文の日本語要約。
+   - **`AskUserQuestion`は使わない**(無人実行では応答が得られないため)。質問が必要になった時点で§中断条件に該当するものとして扱い、`night_report.md`に理由を書いて終了する。**この規定は無人モード限定**であり、有人試走モードでは`AskUserQuestion`を使ってよい(§0参照)。
+
+## 中断して終わる条件(新規タスクを発明しない)
+
+以下のいずれかに該当したら、**新しいタスクを勝手に作らず**`.claude/night_report.md`に理由を書いて`PushNotification`で通知し終了する。
+
+1. 着手できるS/Mタスクが無い(全件が依存未充足、または残りがL・「⚠️上位モデルで実施」のみ)
+2. 実装中に設計判断(フィールド名・画面ID・文言・アルゴリズムの新規決定)が必要になった
+3. `implementer`が2回失敗した(3回目を同じやり方で試さない)
+4. しきい値(コスト$8・ターン40・連続失敗2)に到達した
+5. `git pull`でコンフリクトした
+6. `verifier`または`adversary`が異常終了・無応答・報告が不完全で、ゲートの判定材料が揃わない
+7. `tools/verify.ps1`が応答しない/タイムアウトした(再実行は1回まで。2回目も駄目なら中断)
+
+## `.claude/night_report.md`テンプレート
+
+1画面に収まる長さで、**毎回上書き**する(commitされるのでGitHubモバイルアプリから読める)。
+
+成功時:
+
+```markdown
+# 夜間ループ報告 2026-08-08 04:10
+
+- **タスク**: T5-B12 ローカルDBマイグレーション基盤
+- **結果**: ✅ 完了 / main へ自動push済み(コミット abc1234)
+- **検証**: verify.ps1 全green / integration_test 12件パス / adversary Critical 0(Major 1: 〇〇)
+- **人がやること**: なし
+- **次のタスク**: T5-B13(依存充足済み)
+```
+
+失敗・中断時:
+
+```markdown
+# 夜間ループ報告 2026-08-08 04:10
+
+- **タスク**: T5-B14 〇〇機能の追加
+- **結果**: ⛔ 中断(実装中に画面IDの新規決定が必要と判明)
+- **検証**: 未実施(実装フェーズで停止)
+- **人がやること**: 画面ID・遷移先を決めて`architect`に方針を出してもらう
+- **次のタスク**: T5-B14(同一タスクを再開)
+```
+
+ゲート不通過時は「結果」に`⚠️ PR #N でゲート不通過(条件1/2/4のどれが落ちたか)`のように書く。
+
+## 無人実行で絶対にしないこと
+
+- **デプロイ**: `firebase deploy`・`clasp push`・`clasp deploy`・`clasp redeploy`など、本番反映を伴う操作は一切実行しない(朝、有人セッションでユーザーが判断する)。
+- **本番Sheets/Driveへの書き込み・削除**: 読み取りのみ可。追加・更新・削除はしない。
+- **`gh pr merge`**: 自分が開いたPRを自分でマージしない。
+- **force push・`git reset --hard`等の破壊的操作**: 一切実行しない。
+- **新しいタスクを勝手に発明しない**: マスタープランに無いタスクへ着手しない。設計判断が必要な場面は実行せず中断する。
+
+これらは`.claude/settings.night.json`(ユーザーが設置する権限プロファイル)の`deny`でも技術的に塞がれている想定だが、権限プロファイルの有無にかかわらずスキルの手順としても遵守すること。
