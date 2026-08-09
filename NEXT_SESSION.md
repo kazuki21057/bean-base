@@ -52,8 +52,9 @@
 - **再検証**: `verifier`がコード確認(`Get-DeviceInfoOrFail`の分岐ロジック)+実機3回(異常系2回で`ok:false`、正常系1回で正しい`width`/`height`)を確認し「push可能な状態」と判定。
 - **T5-A4実地確認(完了条件の実証)を試行→未達成**: `lib/screens/settings_screen.dart`に一時的なoverflow(`Row(children:[Text('あ'*300)])`)を注入しビルド→`ui_verifier`エージェントへ画面090の検証を委譲したが、**エミュレータが5回連続で起動直後にクラッシュし画面到達不能**(7項目すべて「未実施」)。テスト用の注入は`git checkout`で復旧済み(コミット対象外)。
 - **無駄の発見→タスク化(ユーザー指示により今回追加)**: (1) このサンドボックス環境のAndroidエミュレータが起動30〜90秒後に自発的にクラッシュする不安定性が、今回だけで9回(verifier検証4回+ui_verifier実地確認5回)再現し大量にトークンを浪費した→**T5-A27**として追加。(2) `loop_guard.js`のコスト計測が`UserPromptSubmit`時のみ更新されるため、本セッションのように1ターン内で複数回サブエージェントを呼ぶと(合計約20万トークン消費後も`loop_state.md`は`$0.0000`のまま)、T3-73dのセッション分割しきい値判定が機能しない→**T5-A28**として追加。いずれも⚠️上位モデルで実施、`docs/改修マスタープラン.md` §3に追加済み。
-- **Proプラン使用率ログを新設**(ユーザー指示): `docs/token_optimization_design.md` §8。今回のセッション開始時点の使用率62%を記録(終了時%は申告があれば追記)。
-- コミット対象: `tools/ui_probe.ps1`(バグ修正)、`docs/改修マスタープラン.md`(T5-A27/T5-A28追加)、`docs/token_optimization_design.md`(§8新設)、`NEXT_SESSION.md`(本更新)。`lib/screens/settings_screen.dart`はテスト後に復旧済みのため差分なし。
+- **Proプラン使用率ログを新設**(ユーザー指示): `docs/token_optimization_design.md` §8。開始62%→終了81%(差分19pt、`/usage`実測でsonnet 100%・cache hit 96%)を記録。
+- **無駄調査の恒久ルール追加**(ユーザー指示、2026-08-09): 「軽量な記録(loop_guardコスト・ターン数・使用率%)は`full_loop`実行のたび毎回残す、詳細な原因調査(architectへの委譲)は10回に1回でよい」を`CLAUDE.md`§日次改修ループ運用ルールと`full_loop`スキル(手順6.5新設)に明記。カウンタ実装タスク**T5-A29**(`/night_loop`版のT5-A25と同一パターン)をマスタープランに追加(未実装の間は随時タスク化で運用)。
+- コミット対象: `tools/ui_probe.ps1`(バグ修正)、`docs/改修マスタープラン.md`(T5-A27/T5-A28/T5-A29追加)、`docs/token_optimization_design.md`(§7・§8更新)、`CLAUDE.md`(無駄調査ルール追加)、`.claude/skills/full_loop/SKILL.md`(手順6.5追加)、`NEXT_SESSION.md`(本更新)。`lib/screens/settings_screen.dart`はテスト後に復旧済みのため差分なし。
 
 > これ以前(-5.52節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
