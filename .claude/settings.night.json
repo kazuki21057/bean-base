@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "deny": [
+      "Bash(firebase deploy*)", "Bash(npx firebase deploy*)", "Bash(npx -y firebase-tools* deploy*)",
+      "PowerShell(firebase deploy*)", "PowerShell(npx firebase deploy*)",
+      "Bash(clasp push*)", "Bash(clasp deploy*)", "Bash(clasp redeploy*)",
+      "PowerShell(clasp push*)", "PowerShell(clasp deploy*)", "PowerShell(clasp redeploy*)",
+      "Bash(gh pr merge*)", "PowerShell(gh pr merge*)",
+      "Bash(gh release*)", "PowerShell(gh release*)",
+      "Bash(git push * --force*)", "Bash(git push --force*)",
+      "Bash(git push * -f *)", "Bash(git push -f*)", "Bash(git push * -f)",
+      "Bash(git reset --hard*)", "Bash(git clean -f*)", "Bash(git branch -D*)", "Bash(git rebase*)",
+      "PowerShell(git push * --force*)", "PowerShell(git push --force*)",
+      "PowerShell(git push * -f *)", "PowerShell(git push -f*)", "PowerShell(git push * -f)",
+      "PowerShell(git reset --hard*)", "PowerShell(git clean -f*)",
+      "PowerShell(git branch -D*)", "PowerShell(git rebase*)",
+      "Bash(rm -rf*)", "Bash(rm -fr*)",
+      "PowerShell(Remove-Item *-Recurse*)", "PowerShell(rmdir *)",
+      "Bash(gh auth*)", "Bash(firebase login*)", "Bash(git config*)",
+      "PowerShell(gh auth*)", "PowerShell(firebase login*)", "PowerShell(git config*)"
+    ],
+    "allow": [
+      "PowerShell(powershell -File tools\\verify.ps1*)", "Bash(bash tools/verify.sh*)",
+      "Bash(flutter analyze*)", "Bash(flutter test*)", "Bash(flutter build*)",
+      "Bash(flutter pub get)", "Bash(dart run build_runner*)",
+      "Bash(git add*)", "Bash(git commit*)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",
+      "Bash(git pull --ff-only*)", "Bash(git checkout -b night/*)",
+      "Bash(git push origin main)", "Bash(git push -u origin night/*)",
+      "Bash(gh pr create*)", "Bash(node .claude/hooks/loop_guard.js)"
+    ]
+  }
+}

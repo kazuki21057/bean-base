@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.62 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A36「検証待ち」——architect(原因究明)→implementer(T1〜T9実装)完了、verifierへの委譲はコスト超過によりセッション分割で次回へ持ち越し**)
+
+- **タスク選定**: NEXT_SESSION §2の推奨どおりT5-A36(T5-A4のログ検出食い違いの原因究明、依存T5-A32完了済み)を選定。原因不明のバグ調査のため`architect`へ先に委譲。
+- **architectが根本原因を特定**: Flutter debugビルドは既定で`flutter.inspector.structuredErrors`が有効(`widget_inspector.dart`)なため、`FlutterError`(overflow等)は`debugPrint`ではなくVM Serviceの`Flutter.Error`拡張イベントに送られる。`flutter run`アタッチ無しの単独起動(`adb install`)では受信側が存在せず、logcatに一切出力されない——ログタグ・正規表現・ビルドモードの問題ではなかった。`--dart-define=flutter.inspector.structuredErrors=false`を付与すれば解消することを実機(エミュレータ)で再現・修正・再検証まで完了。**L130の既存記述の誤りも発見**: 「`-Dump`のbounds実測で検出できた」という記述は誤りで、実際のdump最大ノードは画面幅内に収まっており、はみ出しノードは存在しなかった(uiautomator dumpはFlutterのoverflow検出根拠に使えない)。副次的に、`font_scale 2.0`+`density 560`条件で現行UIに実際のoverflow(ダッシュボードのおすすめレシピカード周辺と推定)が2箇所見つかった(本タスク範囲外、要別タスク化)。
+- **implementerがT1〜T9を実装**: `tools/ui_probe.ps1`にビルド時`--dart-define=flutter.inspector.structuredErrors=false`追加・overflow正規表現を`A Render\w+ overflowed by`に一般化・logcat取得を`-v time`化・`-SkipBuild`使用時の注意追記。`docs/android_release/検証強化設計.md`(§B/§C/判定表)、`.claude/agents/ui_verifier.md`(絶対規則に項目9追加、判定根拠をログ or 視覚証拠の二択に限定・`-Dump`bounds不可)、`rules/lessons_archive.md`(L130の原因を特定済みに更新、誤記述を撤回)を更新。
+- **セッション分割(T3-73d)を適用**: `.claude/loop_state.md`記載の本ループコストが$11.94(親$1.57+サブ$10.37・2体〈architect+implementer〉)で$7超過のため、`verifier`への検証委譲は行わずここでセッションを終える。commitのみ実施しpushは見送り。次回`/full_loop`(または`/full_loop 検証のみ`)は手順4(検証)から再開し、verifierに委譲する。
+- **軽量記録**: loop_guard記載値`cost=$11.9439/$24, turns=0/30`(内訳: 親$1.5700/サブ$10.3740・2体〈architect+implementer〉)。ユーザー申告のProプラン使用率46%(セッション開始時点、終了%は次回申告待ち)を§8に記録予定(次回セッションでverifier分の消費と合わせて記録する)。
+- **変更ファイル(未push)**: `tools/ui_probe.ps1`、`docs/android_release/検証強化設計.md`、`.claude/agents/ui_verifier.md`、`rules/lessons_archive.md`(4ファイル、`lib/`不変)。
+- コミット対象: 上記4ファイル+`docs/archive/NEXT_SESSION_log.md`(-5.61節退避)、`NEXT_SESSION.md`(本更新)。**マスタープランのT5-A36完了移動・完了タスクアーカイブへの詳細記載・§7/§8のトークンログ追記は、verifier検証OK後の次回セッションで行う(現時点ではT5-A36はまだ⬜のまま)**。
+
+
 ### -5.61 当日やったこと(2026-08-09、**Sonnet 5**、`/clear`後の新規セッションの`/full_loop`。**T5-A35完了(implementer→verifier)。ループ境界を`.claude/loop_boundary.txt`に永続化**)
 
 - **タスク選定**: NEXT_SESSION §2の推奨どおりT5-A35(ループ境界の永続化、T5-A28の改善策)を選定(依存T5-A33は完了済み)。ユーザー申告のProプラン使用率34%(前回セッション終了時と同値)。

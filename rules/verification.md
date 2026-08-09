@@ -122,6 +122,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L132 `.claude/settings.night.json`の`defaultMode: "dontAsk"`は「allowに無ければ拒否」で効く、`Edit`/`Write`未列挙だと無人実行はコード変…
 - L131 特定イベント(`UserPromptSubmit`)専用に書いた生テキスト正規表現マッチは、呼び出しイベントを追加する(`PostToolUse`/`SubagentStop`等)ときは必ず`event`種別でガードする。ガード漏れがあると、他イベントのペイロード内の無関係なテキスト(サブエージェント指示文・ファイルパス等)に偶然マッチしてループ境界が誤リセットされ、コストが常に$0になった(T5-A34)
 - L130 `ui_verifier`のoverflow判定は、`-Log`にログ行が無くてもスクリーンショットのストライプと`-Dump`のbounds実測(要素幅>親幅)が一致すれば視覚的証拠として信用してよい(ログ行必須の完了条件はT5-A36で原因究明予定)
 - L128 PowerShell 5.1で`$ErrorActionPreference="Stop"`下、ネイティブexe呼び出しに`2>$null`/`2>&1`を付けると成功時でも即終了することがある(T5-A4実装中に実見)。捨てたい場合は呼び出し箇所だけ`"Continue"`に落とすか`try/catch`で囲む。ブート直後の`adb shell`応答は一時的に空になりうるためリトライを組み込む
