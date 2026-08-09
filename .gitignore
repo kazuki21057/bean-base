@@ -73,3 +73,11 @@ screenshots/
 
 # tools/emulator.ps1 の起動時stdout/stderrログ(実行のたびに生成される一時ファイル)
 .claude/emu_logs/
+
+# golden test失敗時にflutter testが生成する差分画像(実行のたびに生成される一時ファイル)
+test/golden/failures/
+
+# tools/antigravity_delegate.ps1 / .sh(agy委譲ラッパー)のプロンプト・応答・生JSONログ
+# (実行のたびに生成される一時ファイル。ledger.tsvの実績集計はT5-A38時点ではdocs/への
+# 転記対象では無いため追跡しない)
+.claude/agy_logs/
