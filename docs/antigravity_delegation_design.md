@@ -55,8 +55,25 @@ Claude and GPT models  週次残 100% / 5時間残 100%
 
 ## 5. 未検証・持ち越し事項
 
-1. **個別コマンド許可ルールが実際に「そのコマンドだけ許可・他は拒否」という想定どおりのスコープで動くか**は未検証(設定書き換えがブロックされたため)。ユーザーが設定を追加した後、実地で確認する必要がある。
-2. **Windows環境での`agy`動作**(認証状態・`--print`・実行名が`agy`か`agy.exe`か)は未確認。このセッションはUbuntuのみ。
+1. **個別コマンド許可ルールが実際に「そのコマンドだけ許可・他は拒否」という想定どおりのスコープで動くかは未解決(新規判明、2026-08-10)**。ユーザーが`%USERPROFILE%\.gemini\antigravity-cli\settings.json`に`{"permissions":{"allow":["command(echo)"]}}`を設定済みの状態で`agy -p "シェルでecho helloを実行して" --output-format json`を実行したが、**ルール追加前と同じ`permission that headless mode cannot prompt for`エラーで拒否された**(親セッション自身のWindows実機でも再現確認済み)。考えられる原因: (a) Windowsでは`echo`がシェル(cmd/PowerShell)組み込みコマンドで独立した実行ファイルではなく、agyが要求する`command`権限の対象名がシェル自体(`cmd.exe`/`powershell.exe`)になっている (b) `docs/cli/headless`ページの`command(<target>)`という表記自体がWebFetchの要約(小型モデルによる二次情報)であり実際のスキーマと異なる (c) 設定の反映に別の条件(再起動・別ファイルパス等)が要る。**追加調査の結果(2026-08-10、ユーザー実機で4段階に切り分け)**:
+1. `agy -p "/permissions" --output-format json` → `ERROR`。「`/permissions`はインタラクティブな権限エディタを開くコマンドで、印字(ヘッドレス)モードでは使えない」という趣旨のエラー(`--disable-slash-commands`でモデルへの平文送信に切り替え可能、と案内された)。
+2. 公式ドキュメント(`docs/cli/permissions`)を直接確認: `command(<target>)`は「空白区切りの各トークンをアンカー付き正規表現として評価する前方一致」方式、`command(npm run (build|lint|test))`が例。実行ファイルパスの解決はしないとの記載。
+3. `command(*)`(全許可)に変更→**成功**(`echo hello`が実行できた)。`command(echo)`・`command(cmd)`はいずれも**拒否**(元のエラーメッセージのまま)。→ **settings.jsonの読み込み自体・ワイルドカードは正常に機能しているが、単一トークンの`command(<name>)`という指定方法がWindowsでは期待どおりに動かない**(ドキュメントの記載と実機挙動が一致しない)。原因(トークン化の実装差・未知の構文要件等)は特定できず、**これ以上の切り分けはコスト対効果が悪いため保留**とする。
+4. ユーザーが設定を公式ドキュメントのフルサンプルに置き換え(`command(git)`・`command(npm run (build|test))`・`deny`の`command(rm -rf)`等を含む)。この状態でのshell許可の再検証はまだ行っていない(次にagyを使う際に別途確認する)。
+
+**設計への反映**: この制約は`docs/antigravity_delegation_design.md` §9.1が元々「シェルコマンド実行が必須なタスクはClaude固定」としていた保守的な設計と整合する。**Windowsでの細粒度シェルコマンド許可は現時点で実用化のめどが立っていないため、agy委譲はファイル編集中心(implementer役の非Dartファイル・adversary役)に限定する方針を維持し、T5-A37の「意図どおりのスコープで動く」という完了条件は当面「達成困難、設計は制約を前提に完成している」として扱う**。
+
+**新規判明(重要、T5-A38実装への反映必須)**: `--add-dir`を指定せずに`agy -p`を実行すると、プロンプトで「現在のディレクトリに」と明示してもカレントディレクトリではなく`~/.gemini/antigravity-cli/scratch/`へ書き込まれることをユーザーが実機で確認(`antigravity_test.txt`がscratch配下に作成された)。`tools/antigravity_delegate.ps1`/`.sh`は§9.2で`-WorkDir`(`--add-dir`)を必ず渡す設計になっているため現状の実装は安全なはずだが、**手動で`agy`を直接叩く場合は`--add-dir`を省略しないこと**。
+2. **Windows環境での`agy`動作は確認済み(2026-08-10)**。実行名は`agy`(`agy.exe`ではない、`winget install -e --id Google.AntigravityCLI`でインストール、PATHは`%LOCALAPPDATA%\agy\bin`)。`agy --version`→`1.1.11`(Ubuntu実機と同一バージョン)。`agy -p "OK" --output-format json`は日本語で応答し正常終了。`agy -p "/usage" --output-format json`の完全なスキーマを確認(§9.7-1の未検証事項を解消):
+   ```json
+   {"conversation_id":"...","status":"SUCCESS","response":"Gemini Models\tWeekly Limit Remaining\t99%...(tsv風の平文)","duration_seconds":0,"num_turns":0,
+    "usage":{"input_tokens":0,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":0},
+    "command":{"name":"usage","data":{"groups":[{"name":"Gemini Models","buckets":[
+      {"id":"gemini-weekly","window":"weekly","remaining_fraction":0.9895403385162354,"reset_time":"2026-08-16T12:27:38Z"},
+      {"id":"gemini-5h","window":"5h","remaining_fraction":0.9944406747817993,"reset_time":"2026-08-10T03:36:32Z"}]},
+      {"name":"Claude and GPT models","buckets":[{"id":"3p-weekly","remaining_fraction":1,...},{"id":"3p-5h","remaining_fraction":1,...}]}]}}}
+   ```
+   注: 通常の`-p`応答(`agy -p "OK"`)には`usage.input_tokens`/`output_tokens`等の**実トークン数が入る**(`/usage`コマンド応答時のみ`usage`が全て0で、実データは`command.data.groups[].buckets[].remaining_fraction`側に入る)。`tools/antigravity_delegate.ps1`/`.sh`の`tokens`フィールド抽出ロジック(§9.2、現在ベストエフォートの正規表現)は、通常応答では`.usage.input_tokens`/`.usage.output_tokens`をJSONパスで直接読む形に更新できる(T5-A41実施前に反映すること)。
 3. **agy組み込みのChrome DevTools MCP**(ヘッドレスでのブラウザ操作)の可否は未調査。当面ブラウザ確認(`verifier`のUI検証)はClaude側`claude-in-chrome`に残す前提で設計してよい。
 4. **コード品質**: Flutter/Dart実装や本リポジトリ固有の規約(全マスタータブへの一律適用・`[Antigravity]`ログ・外部ID `.toString()`化・日本語UI文言)へのGemini系モデルの習熟度は未検証。ファイル編集の権限が通っても、品質面はパイロット運用で確認する必要がある。
 5. Web上の「Claude利用コストを27〜64%削減」という数値(個人ブログ複数、裏取り不十分)は本設計では採用しない。効果はパイロット運用の実測で判定する。
