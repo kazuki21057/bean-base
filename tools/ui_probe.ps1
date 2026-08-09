@@ -28,6 +28,10 @@
   - `-Prepare -Retry`(既定1)で `device_lost`/`emulator_start_failed` 時のみ
     1回だけ自動再試行する。
 
+  T5-A36: `-SkipBuild` を使うと `--dart-define=flutter.inspector.structuredErrors=false`
+  付きでビルドされたAPKかどうかを保証できない。`-Log` のoverflow/exception検出を
+  根拠にする検証では `-SkipBuild` を使わない。
+
 .PARAMETER Prepare
   debug APKビルド(既定) → エミュレータ確認/起動 → インストール → ライト固定・
   アニメ無効化 → アプリ起動 → セッションディレクトリ作成、を一括実行する。
@@ -481,13 +485,16 @@ function Invoke-PrepareAttempt {
     # 完全ソフトウェアGPU(lavapipe/SwiftShaderのJIT)が競合し qemu が不安定になりうる
     # (検証強化設計 §5-2b B の仮説1への対処)。-SkipBuild 時は②から開始する。
     if (-not $SkipBuild) {
-        Write-Verbose2 "flutter build apk --debug を実行します(タイムアウト900秒)。"
-        $buildResult = Invoke-TimedProcess -FilePath "flutter" -ArgumentList @("build", "apk", "--debug") -TimeoutMs 900000
+        Write-Verbose2 "flutter build apk --debug --dart-define=flutter.inspector.structuredErrors=false を実行します(タイムアウト900秒)。"
+        # --dart-define=flutter.inspector.structuredErrors=false は必須。既定(true)だと
+        # FlutterError はVM Serviceの Flutter.Error 拡張イベントに送られ、flutter run で
+        # アタッチしていない単独起動ではlogcatに一切出ない。T5-A36。
+        $buildResult = Invoke-TimedProcess -FilePath "flutter" -ArgumentList @("build", "apk", "--debug", "--dart-define=flutter.inspector.structuredErrors=false") -TimeoutMs 900000
         if ($buildResult.TimedOut) {
-            Send-Failure "build_timeout" "flutter build apk --debug がタイムアウトしました(900秒)。"
+            Send-Failure "build_timeout" "flutter build apk --debug --dart-define=flutter.inspector.structuredErrors=false がタイムアウトしました(900秒)。"
         }
         if ($buildResult.ExitCode -ne 0) {
-            Send-Failure "build_failed" "flutter build apk --debug が失敗しました(exit=$($buildResult.ExitCode))。末尾: $($buildResult.Tail)"
+            Send-Failure "build_failed" "flutter build apk --debug --dart-define=flutter.inspector.structuredErrors=false が失敗しました(exit=$($buildResult.ExitCode))。末尾: $($buildResult.Tail)"
         }
     } else {
         Write-Verbose2 "-SkipBuild 指定のためビルドをスキップします。"
@@ -658,7 +665,7 @@ function Invoke-Log {
     $serial = Assert-Serial
     $sessionDir = Resolve-SessionDir -SessionArg $Session
 
-    $result = Invoke-Adb -Serial $serial -Arguments @("logcat", "-d", "-v", "brief") -StepName "logcat取得" -TimeoutSec 30
+    $result = Invoke-Adb -Serial $serial -Arguments @("logcat", "-d", "-v", "time") -StepName "logcat取得" -TimeoutSec 30
     $rawLines = $result.OutLines
     $rawText = $result.Out
 
@@ -667,7 +674,7 @@ function Invoke-Log {
 
     # 抽出パターン(§C、大文字小文字を区別しない)
     $patterns = [ordered]@{
-        overflow          = 'A RenderFlex overflowed'
+        overflow          = 'A Render\w+ overflowed by'
         exception         = '(EXCEPTION CAUGHT BY|Unhandled Exception|is not a subtype of type)'
         antigravity_error = '\[Antigravity\].*(エラー|失敗|Error|Exception)'
         image             = '(NetworkImageLoadException|HttpException|SocketException|FormatException)'
