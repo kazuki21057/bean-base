@@ -1,15 +1,15 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-09(**Sonnet 5**、`/full_loop`。**T5-A4のui_probe.ps1に実バグ発見→修正→再検証OK(push済み)。ただしoverflow実地確認はエミュレータ不安定によりブロックされ未完了**。新規調査タスクT5-A27/T5-A28を追加)
+最終更新: 2026-08-09(**Sonnet 5**、`/full_loop`。**T5-A27完了(architectへ委譲、エミュレータ不安定性はqemu本体のAPPCRASH・間欠故障と特定)。改善策をD-1〜D-3〈T5-A30/A31/A32〉に分解、D-4はT5-A7/A8へ統合。ドキュメントのみのためデプロイ対象外**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。**「1. 現状サマリ」「2. 次回の着手点」も同様に直近セッション分の要点だけを残し、過去の詳細経緯は`docs/archive/マスタープラン_完了タスク.md`・`docs/archive/NEXT_SESSION_log.md`に譲って書かない**(2026-08-08、T5-A21で明記)。
 
 ## 1. 現状サマリ
 
-- **2026-08-09(`/full_loop`、Sonnet 5、本セッション): T5-A4の独立検証を実施し、`tools/ui_probe.ps1`に実バグを発見して修正・再検証済み**。`verifier`が`-Prepare`実行中「デバイスのwidth/height取得に失敗してもok:trueを返す」不具合を発見(4箇所`Get-DeviceInfo`呼び出し全てが該当)→`implementer`が`Get-DeviceInfoOrFail`に置換して修正→`verifier`がコード確認+実機3回(異常系2回`ok:false`確認、正常系1回で正しい`width`/`height`確認)で再検証しOK判定。**T5-A4本来の完了条件(意図的にoverflowさせた画面で`ui_verifier`が指摘を出す実地確認)は、このサンドボックス環境のAndroidエミュレータが繰り返しクラッシュするため未達成**(`ui_verifier`が5回試行しすべて`-Prepare`失敗で画面到達不能。設定画面へのテスト用overflow注入は`git checkout`で復旧済み)。**エミュレータ不安定性の調査タスク(T5-A27)とloop_guardのターン内コスト計測漏れの調査タスク(T5-A28)を新規追加**(いずれも⚠️上位モデルで実施、詳細は§2)。
+- **2026-08-09(`/full_loop`、Sonnet 5、本セッション): T5-A27(エミュレータ不安定性の原因調査)を`architect`へ委譲し完了**。Windowsイベントログ(Application ID 1000)から**qemu本体のAPPCRASH**(`qemu-system-x86_64.exe`、例外`0xc0000005`、いずれもアプリ起動の約4秒後に発生)と特定。ホストのリソース逼迫は明確に否定(空きメモリ16.9GB・空きディスク80GB)。再現実験3回は生存し**間欠故障のため決定論的な単一原因は未特定**。改善策を`検証強化設計.md` §5-2bに追記し、実施タスクをT5-A30(AVD再作成)/T5-A31(`emulator.ps1`改善)/T5-A32(`ui_probe.ps1`改善、検知を15分→10秒に短縮)へ分解、D-4(overflow判定のwidget test化)はT5-A7/A8の実装時に統合する注記を追加。**副次的発見**: 旧AVDの異常な画面サイズ(320x640dp)でダッシュボードに実overflow(21px)を確認、AVD再作成後に実機相当解像度で再確認が必要。**コード変更なし(ドキュメントのみ)のためanalyze/test/build/デプロイ/本番確認は省略**。
 - 進行中はマスタープラン **Phase 5**(Android公開版)がメインライン。Phase 1〜4(統計解析含む)は完了済み。Phase 3残件はT3-75gのみ(要ユーザー確認)。
-- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26(16件)。**T5-A4はコード検証済みだが実地確認が環境要因で未達成(T5-A27解決後に再試行)**。依存が満たされた⚠️上位モデルタスクT5-A27/T5-A28が次点最優先、その後は通常タスク(T5-A8/A13/A14/A15/A25、依存なし)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
+- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26・A27(17件)。**T5-A4はコード検証済みだが実地確認が環境要因で未達成(T5-A30〜A32のエミュレータ改善後に再試行)**。依存が満たされた⚠️上位モデルタスクT5-A28が次点最優先、その後は通常タスク(T5-A30/A31/A32を優先、他にT5-A8/A13/A14/A15/A25も依存なし)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GASは`gas/Code.gs`をclaspで管理(現行デプロイ@19)。本番: https://beanbase-app-2016.web.app (Firebase Hosting)。
 - 実装済みの正本設計書: `docs/bean_purchase_design.md`(追加購入・購入履歴)、`docs/store_master_design.md`(購入店マスタ)。
 - **モデル分担ルール(2026-08-08改訂、恒久)**: 親セッションは既定でSonnet 5で起動する(`/model sonnet`)。**Opus 5は`architect`サブエージェント経由でのみ使い、親セッションでは使わない。** タスク選定はモデルで分岐させない——依存が満たされた「⚠️上位モデルで実施」タスクがあれば`architect`へ優先委譲(成果物は設計書のみ)、無ければ通常タスクへフォールバックする。詳細・根拠は`CLAUDE.md`§日次改修ループ運用ルール・`docs/token_reduction_report_20260808.md`。
@@ -20,9 +20,9 @@
 > **親セッションは `/model sonnet`(Sonnet 5)で起動する。** `CLAUDE.md` §日次改修ループ運用ルールのモデル分担ルールに従う。Opus 5は`architect`サブエージェント経由でのみ使う。
 >
 > **次に着手するタスク(この順)**:
-> 1. **T5-A27(⚠️上位モデル)/T5-A28(⚠️上位モデル)**: 依存なしのため`architect`へ優先委譲(成果物は原因調査・改善策の設計書のみ、コードは書かせない)。T5-A27はAndroidエミュレータが起動完了ログ直後(数秒〜90秒)に自発的にプロセス消滅する不安定性の原因調査、T5-A28は`loop_guard.js`が`UserPromptSubmit`時にしかコストを計測しないため1ターン内の複数回サブエージェント呼び出しでコスト表示が実態と乖離する問題の調査(2026-08-09実測: サブエージェント4体・約20万トークン消費後も`loop_state.md`は`$0.0000`のまま)。詳細・背景は`docs/改修マスタープラン.md` §3のT5-A27/T5-A28行。
-> 2. **T5-A4の実地確認の再試行**(T5-A27の改善策適用後、または有人監視下でエミュレータが安定動作した際): `lib/screens/settings_screen.dart`のbody先頭に一時的に`Row(children: [Text('あ' * 300)])`を挿入してoverflowを発生させる→`flutter build apk --debug`→`ui_verifier`エージェントを呼び出し画面ID 090(設定画面)を指定→項目1(Overflow)が「指摘あり」かつ`A RenderFlex overflowed by`のログ行が根拠として引用されることを確認→**同時にoverflowを仕込んでいない画面では「該当なし」になること(偽陽性が出ないこと)も確認**→`git checkout -- lib/screens/settings_screen.dart`で復旧。OKならマスタープランのT5-A4を完了済みリストへ移す。
-> 3. その後は通常のタスク選定(依存なしのT5-A7〈T5-A6完了により依存充足〉/T5-A8/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
+> 1. **T5-A28(⚠️上位モデル)**: 依存なしのため`architect`へ優先委譲(成果物は原因調査・改善策の設計書のみ、コードは書かせない)。`loop_guard.js`が`UserPromptSubmit`時にしかコストを計測しないため1ターン内の複数回サブエージェント呼び出しでコスト表示が実態と乖離する問題の調査(2026-08-09実測: サブエージェント4体・約20万トークン消費後も`loop_state.md`は`$0.0000`のまま。本セッションのT5-A27委譲でも同様の乖離を再確認)。詳細は`docs/改修マスタープラン.md` §3のT5-A28行。
+> 2. **T5-A30(AVD再作成)→T5-A31(`emulator.ps1`改善)→T5-A32(`ui_probe.ps1`改善)を順に実施**(T5-A27の改善策、依存順)。いずれも通常タスクのため`implementer`委譲でよい(`architect`不要)。T5-A32完了後にT5-A4の実地確認を再試行: `lib/screens/settings_screen.dart`のbody先頭に一時的に`Row(children: [Text('あ' * 300)])`を挿入してoverflowを発生させる→`flutter build apk --debug`→`ui_verifier`エージェントを呼び出し画面ID 090(設定画面)を指定→項目1(Overflow)が「指摘あり」かつ`A RenderFlex overflowed by`のログ行が根拠として引用されることを確認→**同時にoverflowを仕込んでいない画面では「該当なし」になること(偽陽性が出ないこと)も確認**→`git checkout -- lib/screens/settings_screen.dart`で復旧。OKならマスタープランのT5-A4を完了済みリストへ移す。**T5-A30の検証時に旧AVDで実測されたダッシュボードのoverflow(320x640dpで21px)が新AVD(1080x2400dp)でも再現するか確認**、再現すれば実バグとして別タスク化する。
+> 3. その後は通常のタスク選定(依存なしのT5-A8〈T5-A32完了後はD-4を統合〉/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
 >
 > **§Hに記録された既知の制約**(次セッションで踏まないこと): ダークモードは`lib/main.dart`に`darkTheme`/`themeMode`が未実装のため、`ui_verifier`の項目5(ダークモード判読性)は現時点で検査不能(T5-B21完了まで「未実施」と報告させる仕様。指摘として扱わない)。UIAutomatorはFlutterのsemanticsノードを返さないことを実測済み(§5-2aの仮説は棄却、比率タップが唯一の操作手段)。`AndroidManifest.xml`にrelease/profileビルド用の`INTERNET`権限が無いことも判明(トラックBで対処要、T5-A4の範囲外)。エミュレータは起動30秒後の安定確認後でも突然クラッシュすることがあり、待機時間を伸ばすだけでは解決しない(T5-A27で対処するまでui_verifier系タスクは着手コストが高い)。
 
@@ -44,19 +44,18 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.53 当日やったこと(2026-08-09、**Sonnet 5**、`/full_loop`。**T5-A4検証→実バグ発見・修正・再検証OK、実地確認は環境要因でブロック。T5-A27/T5-A28新規追加**)
+### -5.54 当日やったこと(2026-08-09、**Sonnet 5**、`/clear`後の新規セッション、`/full_loop`。**T5-A27完了(architectへ委譲)、D-1〜D-3をT5-A30/A31/A32へ分解**)
 
-- **セッション分割からの再開**: `NEXT_SESSION.md`に「検証待ち」の記載があったため、タスク選定・実装をスキップし検証フェーズから再開(前セッションのT5-A4実装を対象)。
-- **T5-A4独立検証(1回目)**: `verifier`へ`tools/ui_probe.ps1`の(a)`-Prepare`実行(b)スクショPNG目視(c)`flutter build apk --debug`再現(d)`.gitignore`除外確認を委譲。(c)(d)はOK、(b)は既存PNGで代替確認、**(a)でエミュレータが4回連続クラッシュした上に「device取得失敗でもok:trueを返す」実装バグを発見**(`width:0`/`height:0`のまま成功扱いになっていた)。
-- **バグ修正**: `implementer`へ差し戻し。`Get-DeviceInfo`の戻り値を検証しない設計が原因と特定、検証付きラッパー`Get-DeviceInfoOrFail`を新設して`Invoke-Prepare`/`Invoke-Tap`/`Invoke-Swipe`/`Invoke-Info`の4箇所を置換(`Tap`/`Swipe`にも同じ欠陥があり合わせて修正)。実機でエミュレータクラッシュを再現させ`ok:false`が返ることを確認済み。
-- **再検証**: `verifier`がコード確認(`Get-DeviceInfoOrFail`の分岐ロジック)+実機3回(異常系2回で`ok:false`、正常系1回で正しい`width`/`height`)を確認し「push可能な状態」と判定。
-- **T5-A4実地確認(完了条件の実証)を試行→未達成**: `lib/screens/settings_screen.dart`に一時的なoverflow(`Row(children:[Text('あ'*300)])`)を注入しビルド→`ui_verifier`エージェントへ画面090の検証を委譲したが、**エミュレータが5回連続で起動直後にクラッシュし画面到達不能**(7項目すべて「未実施」)。テスト用の注入は`git checkout`で復旧済み(コミット対象外)。
-- **無駄の発見→タスク化(ユーザー指示により今回追加)**: (1) このサンドボックス環境のAndroidエミュレータが起動30〜90秒後に自発的にクラッシュする不安定性が、今回だけで9回(verifier検証4回+ui_verifier実地確認5回)再現し大量にトークンを浪費した→**T5-A27**として追加。(2) `loop_guard.js`のコスト計測が`UserPromptSubmit`時のみ更新されるため、本セッションのように1ターン内で複数回サブエージェントを呼ぶと(合計約20万トークン消費後も`loop_state.md`は`$0.0000`のまま)、T3-73dのセッション分割しきい値判定が機能しない→**T5-A28**として追加。いずれも⚠️上位モデルで実施、`docs/改修マスタープラン.md` §3に追加済み。
-- **Proプラン使用率ログを新設**(ユーザー指示): `docs/token_optimization_design.md` §8。開始62%→終了81%(差分19pt、`/usage`実測でsonnet 100%・cache hit 96%)を記録。
-- **無駄調査の恒久ルール追加**(ユーザー指示、2026-08-09): 「軽量な記録(loop_guardコスト・ターン数・使用率%)は`full_loop`実行のたび毎回残す、詳細な原因調査(architectへの委譲)は10回に1回でよい」を`CLAUDE.md`§日次改修ループ運用ルールと`full_loop`スキル(手順6.5新設)に明記。カウンタ実装タスク**T5-A29**(`/night_loop`版のT5-A25と同一パターン)をマスタープランに追加(未実装の間は随時タスク化で運用)。
-- コミット対象: `tools/ui_probe.ps1`(バグ修正)、`docs/改修マスタープラン.md`(T5-A27/T5-A28/T5-A29追加)、`docs/token_optimization_design.md`(§7・§8更新)、`CLAUDE.md`(無駄調査ルール追加)、`.claude/skills/full_loop/SKILL.md`(手順6.5追加)、`NEXT_SESSION.md`(本更新)。`lib/screens/settings_screen.dart`はテスト後に復旧済みのため差分なし。
+- **タスク選定**: `NEXT_SESSION.md`の推奨どおり、依存なしの⚠️上位モデルタスクT5-A27を優先選定(T5-A28も候補だったが1ループ1タスクの原則でT5-A27を先に着手)。
+- **T5-A27をarchitectへ委譲**: Windowsイベントログ(Application/ID 1000)で**qemu本体のAPPCRASH**(`qemu-system-x86_64.exe`、例外`0xc0000005`、24件、いずれも`am start`の約4秒後)と特定。ホストのリソース逼迫は否定(空きメモリ16.9GB・空きディスク80GB・Resource-Exhaustionイベント0件)。再現実験3回はいずれも生存し、**間欠故障のため単一の決定論的原因は未特定**。GPUがソフトウェアレンダリング(lavapipe/SwiftShader、LLVM JIT)であることがクラッシュ箇所の特徴と一致。AVD定義(`beanbase_test`)が`320x640dp/density 160`・`ramSize=96M`など異常値だったことも判明。
+- **検知の遅さも問題と指摘**: `tools/ui_probe.ps1`の`Invoke-Prepare`が全`adb`呼び出しの終了コードを見ておらず、エミュレータが死んでも`flutter build apk`のタイムアウト(900秒)まで気付かない設計だった(9回の失敗が高コストだった直接原因)。
+- **成果物**: `docs/android_release/検証強化設計.md` §5-2b新設(原因・根拠・改善策・検証観点)。改善策を実装タスクへ分解し`docs/改修マスタープラン.md`にT5-A30(AVD再作成)/T5-A31(`emulator.ps1`改善)/T5-A32(`ui_probe.ps1`改善、検知を15分→10秒に短縮)として追加、D-4(overflow判定のwidget test化)はT5-A7/A8の説明に統合注記を追記。T5-A27を完了済みリストへ移動、詳細は`docs/archive/マスタープラン_完了タスク.md`「T5-A27」節。
+- **副次的発見**: 旧AVDの異常な画面サイズ(320x640dp)で「今日のおすすめレシピ」カードに実overflow(21px)を確認。異常な解像度由来の可能性が高く、T5-A30(新AVD)完了後に実機相当解像度で再確認する。Android端末での豆腐(⊠)文字化けは1サンプルで未観測。
+- **コード変更なし(ドキュメントのみ)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
+- **軽量記録**: loop_guard本ループ開始時点で`cost=$0.0000, turns=0`(architectサブエージェント150,509トークン消費は`UserPromptSubmit`未発火のため`loop_state.md`未反映、T5-A28で調査中の既知の制約)。`docs/token_optimization_design.md` §7に記録。Proプラン使用率は開始82%のみ申告あり(終了%は未申告)、§8に記録。
+- コミット対象: `docs/android_release/検証強化設計.md`(§5-2b新設)、`docs/改修マスタープラン.md`(T5-A27完了・T5-A30/A31/A32追加・T5-A7/A8にD-4注記)、`docs/archive/マスタープラン_完了タスク.md`(T5-A27詳細)、`docs/token_optimization_design.md`(§7・§8追記)、`NEXT_SESSION.md`(本更新)。
 
-> これ以前(-5.52節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.53節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 
