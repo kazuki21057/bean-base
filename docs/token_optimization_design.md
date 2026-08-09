@@ -205,6 +205,7 @@ Editは old_string/new_string の両方が出力トークンとして課金さ�
 | 2026-08-05 | T3-73e(firebaseプラグイン プロジェクトスコープ無効化後、新規セッション初回リクエスト) | - | - | - | - | 初回ctx 52,702→**52,715**(実質変化なし、誤差範囲)。**効果ゼロと判定し`.claude/settings.json`の`enabledPlugins`変更を撤回**。原因: このセッションのdeferred tools一覧に`mcp__plugin_firebase_firebase__*`が約30件残っており、プロジェクトスコープの`enabledPlugins: false`はこの環境では効いていないと判明。firebaseプラグイン無効化はグローバル設定(`C:\Users\winni\.claude\settings.json`)側でのみ試せる余地が残るが、他プロジェクトへの影響があるため今回は見送り、ユーザー判断待ちとする |
 | 2026-08-05 | T3-73g(T3-73d〜f適用後、最初の`/full_loop`=本ループ自体、ドキュメント/設定のみで実装なし) | 23 | 77,659 | 96,379 | $1.1 | 目標($7〜9)との比較不可(本ループはFlutterコード変更が無い軽量ループのため)。`totalToolCalls`計測値がツール呼び出し実数と乖離している疑いがあり(本ループ実測では過少)、この指標自体は参考値扱いとする。実コード変更を伴う次回以降の通常ループでの再測定が必要 |
 | 2026-08-09 | T5-A27(`/full_loop`、architectへ委譲する⚠️タスク、ドキュメントのみで実装なし) | - | - | - | loop_state.md記載値$0.0000(架空、T5-A28の既知の限界により本ループ中のサブエージェント消費が未反映) | サブエージェント`architect`1体で150,509トークン消費(ツール呼び出し40回、所要約18分)。loop_guardは`UserPromptSubmit`時のみ更新されるためこの消費は次回プロンプト送信まで`loop_state.md`に反映されない(T5-A28で特定済みの制約、原因調査自体は別ループでarchitectへ委譲予定) |
+| 2026-08-09 | T5-A28(`/full_loop`、architectへ委譲する⚠️タスク本体、ドキュメントのみで実装なし) | - | - | - | loop_state.md記載値$0.0000(本ループはこのプロンプト1回のみでUserPromptSubmitが1度しか発火していないため。§9-Aの結論どおりサブエージェント分は非計上) | サブエージェント`architect`1体で85,852トークン消費(ツール呼び出し36回、所要約8.7分)。T5-A27より軽量なのはコード探索・実測作業がT5-A27で既に済んでいた分、調査対象が絞られていたため |
 | | | | | | | |
 
 ## 8. Proプラン使用率ログ(ユーザー申告ベース、2026-08-09追加)
@@ -214,4 +215,106 @@ Editは old_string/new_string の両方が出力トークンとして課金さ�
 | 日付 | セッション種別 | 開始% | 終了% | 差分% | loop_guardコスト | ターン数 | 備考 |
 |---|---|---|---|---|---|---|---|
 | 2026-08-09 | `/full_loop`(T5-A4検証〜) | 62% | 81% | 19pt | $4.188(セッション中盤の一時点、末尾の正確な累計は未取得) | 2(参考値、同一セッション内で複数`/full_loop`相当を実行したためloop_guardのループ識別子が跨いでいる可能性あり) | サブエージェント4体(verifier×2, implementer×1, ui_verifier×1)で合計約20万トークン消費。`/usage`実測: sonnet 100%・cache hit 96%。cache hit率が高いため実消費トークン数の割に%消費・$コストは相対的に抑えられている可能性がある |
-| 2026-08-09 | `/full_loop`(T5-A27、`/clear`後の新規セッション) | 82% | 100%(オーバー、超過課金に移行) | 18pt+ | $3.017(ユーザー申告時点のloop_state.md記載値。ターン4/40) | 4 | `architect`委譲1回(150,509トークン)のみで82%→100%超過。`/usage`内訳: **opus 65%・sonnet 35%・cache hit 96%**——上限到達の主因は`architect`のOpus消費と判断できる。**loop_guardの異常も観測**: このタイミングで「境界未検出のフォールバック」表示となり夜間モードのしきい値($8/40/2)が誤適用されていた(本来は有人モード$24/30/3)。T5-A28(境界検出・コスト計測の調査)の対象事象として記録、原因調査は同タスクに委ねる |
+| 2026-08-09 | `/full_loop`(T5-A27、`/clear`後の新規セッション) | 82% | 100%(オーバー、超過課金に移行) | 18pt+ | $3.017(ユーザー申告時点のloop_state.md記載値。ターン4/40) | 4 | **【T5-A28で訂正】この行の「150,509トークン」は誤り**——親transcriptの`toolUseResult.usage`(最終API呼び出し1回分のみ)を全消費と誤読していた。サブエージェントのtranscript実測では**6,369,414トークン / $6.82**(約42倍)。以下の記述は訂正前の値に基づく。`architect`委譲1回(150,509トークン)のみで82%→100%超過。`/usage`内訳: **opus 65%・sonnet 35%・cache hit 96%**——上限到達の主因は`architect`のOpus消費と判断できる。**loop_guardの異常も観測**: このタイミングで「境界未検出のフォールバック」表示となり夜間モードのしきい値($8/40/2)が誤適用されていた(本来は有人モード$24/30/3)。**原因は§9-Cで特定済み**(プロンプトが`82% /full_loop`と行頭以外にコマンドを書いた形だったためスラッシュコマンドが展開されず、transcriptに`<command-name>`マーカーが残らなかった) |
+
+---
+
+## 9. loop_guard のコスト計測が実態と乖離する問題(T5-A28、2026-08-09 architect調査)
+
+調査環境: Claude Code 2.1.225 / Windows。対象は`.claude/hooks/loop_guard.js`と`.claude/settings.json`のhooks設定。
+
+### 9-0. 結論(先に要点)
+
+当初の想定「`UserPromptSubmit`でしか発火しないというフック起動タイミングの制約」は**問題の一部でしかない**。より重大な欠陥が別にあり、**フックがいつ発火してもサブエージェントのコストは1円も計上されていなかった**。実測で、サブエージェント4体を使ったループでは`loop_guard`が見えていたのは総コストの**33.2%**($6.91 / 実額$20.81)だった。3つの独立した欠陥に分解でき、**いずれも修正可能**(「対応不可」ではない)。
+
+### 9-A. 欠陥A: サブエージェントの消費が集計対象外(影響最大)
+
+`loop_guard.js`はフックが渡す`transcript_path`(=親セッションのJSONL)1本だけを読み、`message.usage`を合算する(`analyze()`、`loop_guard.js:165-222`)。ところが**Claude Code 2.1.225はサブエージェントの会話を親JSONLに書かない**。親と同階層の`<セッションID>/subagents/agent-<id>.jsonl`という別ファイルに書き、`isSidechain:true`のエントリは親JSONLに1件も存在しない(実測: 親204行中sidechain 0件)。したがって`analyze()`はサブエージェント分を構造的に取りこぼす。
+
+実測(セッション`eef0d647-...`、2026-08-09の`/full_loop`。単価はloop_guardと同じ重み付けで再計算):
+
+| 区分 | モデル | トークン | コスト |
+|---|---|---|---|
+| 親セッション(loop_guardが見ている範囲) | sonnet-5 | 13,854,449 | $6.908 |
+| sub: verifier | sonnet-5 | 453,700 | $0.390 |
+| sub: implementer | sonnet-5 | 19,683,551 | $8.497 |
+| sub: researcher | sonnet-5 | 833,222 | $0.796 |
+| sub: architect | opus-5 | 3,675,220 | $4.223 |
+| **合計** | | **38,500,142** | **$20.814** |
+
+`loop_guard`の可視範囲は**33.2%**。「サブエージェント4体で約20万トークン」という§8の記録も、親transcriptの`toolUseResult.usage`を全消費と誤読したもの(下記)で、実際は2桁多い。
+
+**代替案として却下したもの**: 親transcriptのTaskツール結果には`toolUseResult.usage`/`totalTokens`/`resolvedModel`が入っており一見使えるが、**これは最終API呼び出し1回分の値でしかない**。T5-A27の`architect`では`totalTokens=150509`と記録される一方、同一エージェントのJSONL実測は6,369,414トークン(約42倍)。これを集計源にすると過小評価が残るため使わない。集計源は`subagents/agent-*.jsonl`の`message.usage`とする。
+
+### 9-B. 欠陥B: ターン中に再計算されない(当初の想定どおり、ただし修正可能)
+
+`.claude/settings.json`に登録されているフックは`UserPromptSubmit`と`Stop`のみ。`/full_loop`は1回のプロンプト送信の中でサブエージェントを連続実行するため、その間はどちらも発火せず`loop_state.md`が固まる。加えて`UserPromptSubmit`時は`raw`にコマンド文字列が見つかると境界を`nowIso`に置く(`loop_guard.js:278-284`)ので、**`/full_loop`送信直後の値は必ず`$0.0000 / turns=0`になる**。これが「サブエージェント消費後も$0.0000のまま」の直接の理由であり、実測どおりの挙動。
+
+`Stop`はサブエージェント完了時には発火していない。実測: `architect`は01:52:00に完了したが、親transcriptの`stop_hook_summary`は01:56:33と02:00:07の2件のみで、01:52台には無い。
+
+**ただしフック機構上の制約ではない。** claude.exe 2.1.225のバイナリには`SubagentStop`(49箇所)・`PostToolUse`(92箇所)を含む8種のフックイベント名が存在し、`hookSpecificOutput.additionalContext`も実装されている。`PostToolUse`に`matcher: "Task"`で登録すれば、各サブエージェント完了直後(=Taskツール結果が確定した時点、サブエージェントJSONLも書き終わっている)に親のコンテキストで再計算できる。
+
+### 9-C. 欠陥C: ループ境界の検出がスラッシュコマンドの展開形に依存している
+
+`findLoopBoundary()`はtranscript内の`<command-name>/full_loop</command-name>`を探す(`loop_guard.js:131`)。しかし**行頭以外にコマンドを書くとClaude Codeは展開しない**。2026-08-09のT5-A27ループではユーザーが`82% /full_loop`と送ったため、transcriptには生テキスト`82% /full_loop`しか残っていない(実測確認済み)。結果:
+
+- `UserPromptSubmit`時は`raw`の緩い正規表現`/\/(start|full_loop|night_loop)\b/`が拾うので有人モードになる。
+- `Stop`など以降のすべての発火では境界が見つからず、**当日累計へフォールバック+モード判別不能で安全側の夜間しきい値($8/40/2)を誤適用**する。§8に記録された異常はこれ。
+
+### 9-D. 推奨する改善策
+
+**推奨は「loop_guard.jsをサブエージェント集計対応にし(A)、`PostToolUse(matcher: Task)`フックを追加し(B)、境界をファイルに永続化する(C)」の3点セット。** 代替運用への退避は不要。Aだけでも精度は3倍になるが、Aを入れてもBが無ければ`/full_loop`のセッション分割判定(cost>$7)はターン終了まで動かないため、AとBはセットで入れる。実装タスクはマスタープラン**T5-A33〜T5-A35**。
+
+性能上の懸念は無い(最大10MBのtranscriptで`JSON.parse`全走査73ms、既存フックの実測所要201ms)。
+
+**副次的に必要な運用変更**: `full_loop`スキル手順3.5は現在「`.claude/loop_state.md`をReadし直す必要はなく、フック出力の値をそのまま使う」と書いてあるが、フック出力はそのターンの**開始時点**の値なので、実装後は**手順3.5で`.claude/loop_state.md`をReadする**に改める(15行程度で安価)。T5-A34に含める。
+
+**仮説(未検証)**: (1)`PostToolUse`が`hookSpecificOutput.additionalContext`で文脈注入できれば、Read無しで警告を届けられる。まずはサイレント書き込みだけ実装し、注入の可否は検証で確かめる。(2)`SubagentStop`登録時に渡される`transcript_path`が親のものかサブエージェントのものかは未確認。T5-A33の`resolveTranscriptTargets()`は両方を受け付ける実装にするため、どちらでも壊れない。
+
+### 9-E. 実装仕様(implementer向け。設計判断は不要)
+
+#### T5-A33: `loop_guard.js` にサブエージェント消費を合算する
+
+対象は`.claude/hooks/loop_guard.js`のみ。
+
+1. 新関数`resolveTranscriptTargets(transcriptPath)`を追加し、`{ mainTranscript, subagentFiles }`を返す。
+   - `dir = path.dirname(transcriptPath)`、`base = path.basename(transcriptPath, '.jsonl')`。
+   - `path.basename(dir) === 'subagents'` なら(サブエージェントのtranscriptを渡された場合): `sessionDir = path.dirname(dir)`、`mainTranscript = sessionDir + '.jsonl'`。
+   - そうでなければ: `mainTranscript = transcriptPath`、`sessionDir = path.join(dir, base)`。
+   - `subagentFiles` = `path.join(sessionDir, 'subagents')` 直下で`.jsonl`で終わるファイルの絶対パス配列(`.meta.json`は除外)。ディレクトリが存在しない・読めない場合は空配列(例外を投げない)。
+2. `analyze()`のシグネチャを`analyze(mainTranscript, subagentFiles, today, loopBoundaryTs)`に変更。
+   - **ターン数(`isRealUserPrompt`)は`mainTranscript`だけで数える**(サブエージェントへの指示プロンプトをユーザーターンに数えないため)。
+   - **コストとモデル別トークンは`mainTranscript` + `subagentFiles`全部を合算**。スコープ判定(`ts >= loopBoundaryTs`、境界未検出時は当日判定)は現行と同じロジックを両方に適用する。
+   - 戻り値に`subCost`(サブエージェント分のコスト合計)と`subAgentCount`(スコープ内に`usage`を1件以上持つサブエージェントファイル数)を追加。
+   - `ok`は`mainTranscript`の読込可否で従来どおり決める。
+3. `findLoopBoundary()`の対象は`mainTranscript`のみ(現行のまま)。
+4. `loop_state.md`の出力に1行追加する(既存の「コスト」行の直後)。文言:
+   `- 内訳: 親セッション $X.XXXX / サブエージェント $Y.YYYY (N体)`
+5. `UserPromptSubmit`時のstdout1行目末尾に` sub=$Y.YYY(N体)`を追加する。
+
+完了条件の検証は、既存セッションのtranscriptを引数に与えて手計算値と一致するかで行う(§9-Aの表の`eef0d647`セッションが検証用データとして使える)。
+
+#### T5-A34: ターン内でも再計算されるようフックを追加する
+
+1. `.claude/settings.json`の`hooks`に2つ追加する(既存の`UserPromptSubmit`・`Stop`はそのまま残す)。
+   ```json
+   "PostToolUse": [
+     { "matcher": "Task",
+       "hooks": [{ "type": "command", "command": "node .claude/hooks/loop_guard.js" }] }
+   ],
+   "SubagentStop": [
+     { "hooks": [{ "type": "command", "command": "node .claude/hooks/loop_guard.js" }] }
+   ]
+   ```
+2. `loop_guard.js`は**`UserPromptSubmit`以外ではstdoutを出さない**現行の分岐(`loop_guard.js:341`)をそのまま維持する(`PostToolUse`/`SubagentStop`もサイレント書き込み)。
+3. `.claude/skills/full_loop/SKILL.md`の手順3.5を修正する。現行の「`.claude/loop_state.md`をReadし直す必要はなく、フック出力の値をそのまま使う」を、「**`.claude/loop_state.md`をReadし、そこに書かれた本ループのコスト(サブエージェント込み)を使う**。フック出力の`[loop_guard] ...`行はそのターン開始時点の値なのでターン内の判定には使わない」に置き換える。手順1(状況確認)の同趣旨の記述も同様に直す。
+
+#### T5-A35: ループ境界を`.claude/loop_boundary.txt`に永続化する
+
+1. `loop_guard.js`に読み書きを追加。ファイル形式は1行`<ISO8601タイムスタンプ> <attended|night>`。
+2. 境界の決定順序を次に変更する。
+   1. `raw`(stdin生テキスト)が`/\/(start|full_loop|night_loop)\b/`にマッチ → 境界`= nowIso`、モード`= modeForCommand(最後のマッチ)`。**この場合のみ`.claude/loop_boundary.txt`を上書きする**(新しいループの開始)。
+   2. マッチしない場合、`findLoopBoundary()`の結果と`.claude/loop_boundary.txt`の内容を突き合わせ、**タイムスタンプが新しい方**を採用する(片方しか無ければそれを使う)。
+   3. どちらも無ければ現行どおり当日累計フォールバック+モード`night`。
+3. `.gitignore`に`.claude/loop_boundary.txt`を追加する(`.claude/loop_state.md`が`.gitignore:49`にある近辺に並べる)。
+4. ファイル読み書きは全体を`try/catch`で囲み、失敗時は現行のフォールバック挙動に戻す(フックが落ちてはならない)。
