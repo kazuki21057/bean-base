@@ -21,6 +21,7 @@
       "PowerShell(gh auth*)", "PowerShell(firebase login*)", "PowerShell(git config*)"
     ],
     "allow": [
+      "Edit", "Write",
       "PowerShell(powershell -File tools\\verify.ps1*)", "Bash(bash tools/verify.sh*)",
       "Bash(flutter analyze*)", "Bash(flutter test*)", "Bash(flutter build*)",
       "Bash(flutter pub get)", "Bash(dart run build_runner*)",
