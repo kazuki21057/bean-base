@@ -2260,3 +2260,15 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
   - `CLAUDE.md`§日次改修ループ運用ルールに「`/code-review`の定期実行ルール」を新設: 大きな修正(変更5ファイル超)/フェーズの区切り/夜間ループ10回に1回のいずれかで実行、Critical/Major指摘はその場でimplementerに差し戻して修正(見つけて終わりを禁止)。`full_loop`スキル手順4.5に反映。
   - マスタープランに新規タスク2件追加: **T5-A25**(夜間ループ起動回数カウンタを実装し10回に1回`/code-review`を自動実行、依存T5-A12と合わせて確認)、**T5-A26**(Windows環境で`/full_loop`・`/start`実行時にfrontend-designプラグインをそちらにも有効化する副次タスク)。
   - `.claude/agents/architect.md`にSkillツールを追加し、「新規/作り直し画面の視覚デザイン検討時は`frontend-design`スキルを読み込んでから設計する」指示を追記(このプロジェクトに専任デザイナーエージェントは無く、新規UI設計はarchitectが担うため)。
+
+### -5.66 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境。ユーザー指示「Antigravity CLIへの置き換え検討+実装(検証は不可)」を継続)
+
+- **背景**: ユーザーから「下位モデルサブエージェントをagyへ置き換えたとき、指示するのはsonnet5でいいのか。トークン節約になるなら上位モデルにすべきか、上位モデルで設計を作り込めば下位モデルでスタートできるか。agyへのタスク引き渡しの仕組みも上位モデルで検討してほしい」との依頼。ユーザーの指示で`git pull`しUbuntu側の先行調査(commit 9d18607、`docs/antigravity_delegation_design.md` §1〜§7・T5-A37〜A41)を取り込んだ。
+- **architectへ設計委譲**: モデル選定(§8)とタスク引き渡し機構(§9)を委譲。結論: 「親セッションはSonnet 5のまま、Opusへ上げない(agy委譲で減るのは委譲先のコストで親のコストは1トークンも減らない。`docs/token_reduction_report_20260808.md`の実測でOpus親はSonnet親の約3倍)」「Opusで一度設計を作り込めば日次運用はSonnet親で回せる(YES)」。ラッパーのI/F(引数・JSON出力スキーマ・台帳)・プロンプト3層構造・失敗検出/フォールバック(終了コード0/2/10〜17)・スキルへの組み込み方針・`loop_guard`との関係(agyのコストは閾値に含めない、参考行のみ)を`docs/antigravity_delegation_design.md` §8・§9に確定。マスタープランにT5-A38の仕様置き換え+T5-A39確定+T5-A42〜A44を新規追加。
+- **implementerへ実装委譲**: `AGENTS.md`(T5-A39、§9.3の確定文をそのまま採用)、`tools/antigravity_delegate.ps1`(Windows本命)・`.sh`(Ubuntu/Git Bash)を§9.2〜9.4の仕様どおり実装(T5-A38)。`.gitignore`に`.claude/agy_logs/`追加。
+- **agy本体は未インストールのため実地確認は不可能**(ユーザー原文どおり)。implementerが実施できたのは静的チェックのみ: PowerShellパース確認・bash構文チェック・`flutter analyze`(新規issue0)・`flutter test`(既存の361件相当、今回の変更に起因する新規失敗なし)。
+- **親自身で追加確認**: `-DryRun`でプロンプト組み立てを実行し、生成された`.claude/agy_logs/*_prompt.md`を目視確認。**設計書§9.3の固定文言ブロック「## この実行環境での上書き規則(**上の**役割定義より優先する)」が、実際の配置(層1と層2の間=役割定義の**前**)と矛盾していることを発見**(見出しの相対語が実際の順序と逆)。`docs/antigravity_delegation_design.md`・`tools/antigravity_delegate.ps1`・`.sh`の3箇所を「このあとに続く役割定義より優先する」に修正、PowerShellパース・bash構文チェックを再実行して問題ないことを確認。`rules/lessons_archive.md` L136に記録。
+- **副次発見**: `flutter test test/golden/`を単独実行し、T5-A8のgolden 6件全てがWindows環境で失敗(pixel diff)することを確認。implementerは`flutter test`全体実行時にこの原因を「`store_template_test.dart`等の既存失敗」と誤って報告していたが、実際はgolden画像がUbuntu生成のため環境依存で落ちていると判明。マスタープランT5-A8行に注記を追加(対処方針は未決定)。
+- **harnessの誤検知**: implementerの報告文に`--dangerously-skip-permissions`という文字列が含まれ、harnessのパターンマッチャーが警告を出したが、実際のコードを確認した結果「このフラグは絶対に渡さない」というコメント内の言及のみで、実装・呼び出しには含まれていないことを確認(誤検知)。
+- **push見送り**: agy本体の実地動作確認ができていない(検証未完了)ため、CLAUDE.mdの運用ルールに従いpush前にユーザー確認が必要と判断。commitのみ実施し、チャットで許可を得てからpushする。
+- **T5-A8「検証待ち」は今回も未着手のまま**(golden環境依存問題が新たな前提条件として追加された)。

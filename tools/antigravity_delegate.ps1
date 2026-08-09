@@ -182,7 +182,7 @@ $OverrideBlock = @'
 ## この実行環境での上書き規則(このあとに続く役割定義より優先する)
 
 - あなたはGoogle Antigravity CLI(ヘッドレス)として動いています。ブラウザ操作ツール(claude-in-chrome)は使えません。
-- **シェルコマンドの実行は許可されていない場合があります**。拒否されたら再試行せず、「実行できなかったコマンド」として報告に書いてください。`flutter analyze`/`flutter test`/`flutter build`のセルフチェックは、実行できない場合はスキップしてかまいません(検証は別のエージェントが行います)。
+- **シェルコマンドの実行は許可されていません。1回も試みないでください。** 後述の役割定義に「セルフチェックを必ず実施」等の指示があっても、`flutter analyze`/`flutter test`/`flutter build`を含め、いかなるシェルコマンドも**実行を試みないでください**(拒否されると応答全体が失敗扱いで打ち切られるため、「試して拒否される」ことすら避ける必要があります)。報告には「シェルコマンドが使えないため未実施」と書くだけにしてください。検証は別のエージェントが行います。
 - `git commit`/`git push`/`firebase deploy`/`clasp push`/本番データの削除は**絶対に実行しないでください**。
 - 指示された対象ファイル以外を編集しないでください。
 - 報告は**日本語**で、**1,200文字以内**にしてください。長い引用・生ログの貼り付けは不要です。
@@ -270,7 +270,56 @@ if (-not $AgyCmd) {
 $AgyExePath = $AgyCmd.Source
 Write-Progress2 "agy実行ファイル: $AgyExePath"
 
-# --- 外部プロセス実行の共通処理 -------------------------------------------------------
+# 地雷回避: このPC(Windows PowerShell 5.1.26100.8875)では
+# [System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList') が空を返す、
+# つまり .NET 4.6.1+/PowerShell 6+ 向けの `ArgumentList`(コレクション型API)が
+# この環境には存在しない。`$psi.ArgumentList.Add($a)` は $psi.ArgumentList が $null
+# のまま呼ばれ、$ErrorActionPreference="Continue" のため例外にならず延々とエラーを
+# 吐き続けるだけで、結果として agy.exe に引数が1つも渡らずハングし外側タイムアウトに
+# 至っていた(T5-A38実地テストで確認)。そのため `$psi.Arguments`(単一文字列プロパティ、
+# PowerShell 5.1でも確実に存在)を使い、Windowsのコマンドライン引数解釈規則
+# (CommandLineToArgvW互換のバックスラッシュ/ダブルクォートエスケープ)に従って
+# 自前でクオートした文字列を組み立てる方式に変更した。
+function ConvertTo-ProcessArgumentString {
+    param([string[]]$ArgumentList)
+
+    $parts = foreach ($arg in $ArgumentList) {
+        if ($null -eq $arg) { $arg = "" }
+        if ($arg.Length -eq 0 -or $arg -match '[\s"]') {
+            $sb = New-Object System.Text.StringBuilder
+            [void]$sb.Append('"')
+            $chars = $arg.ToCharArray()
+            $i = 0
+            while ($i -lt $chars.Length) {
+                $numBackslashes = 0
+                while ($i -lt $chars.Length -and $chars[$i] -eq '\') {
+                    $numBackslashes++
+                    $i++
+                }
+                if ($i -eq $chars.Length) {
+                    # 末尾のバックスラッシュは、閉じるダブルクォートの前なので2倍にする。
+                    [void]$sb.Append('\', ($numBackslashes * 2))
+                    break
+                } elseif ($chars[$i] -eq '"') {
+                    # ダブルクォートの前のバックスラッシュは2倍+1にしてクォートをエスケープする。
+                    [void]$sb.Append('\', ($numBackslashes * 2 + 1))
+                    [void]$sb.Append('"')
+                    $i++
+                } else {
+                    [void]$sb.Append('\', $numBackslashes)
+                    [void]$sb.Append($chars[$i])
+                    $i++
+                }
+            }
+            [void]$sb.Append('"')
+            $sb.ToString()
+        } else {
+            $arg
+        }
+    }
+    return ($parts -join ' ')
+}
+
 # 地雷回避: PowerShell 5.1で `2>&1` によるネイティブコマンドのstderr取り込みをしない
 # (各行がErrorRecordに包まれ$?が壊れるため)。System.Diagnostics.Processで
 # RedirectStandardOutput/RedirectStandardErrorを個別に取り、非同期読み取り
@@ -284,7 +333,7 @@ function Invoke-AgyProcess {
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $FilePath
-    foreach ($a in $ArgumentList) { $psi.ArgumentList.Add($a) }
+    $psi.Arguments = ConvertTo-ProcessArgumentString -ArgumentList $ArgumentList
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.UseShellExecute = $false

@@ -64,7 +64,7 @@ Claude and GPT models  週次残 100% / 5時間残 100%
 **設計への反映**: この制約は`docs/antigravity_delegation_design.md` §9.1が元々「シェルコマンド実行が必須なタスクはClaude固定」としていた保守的な設計と整合する。**Windowsでの細粒度シェルコマンド許可は現時点で実用化のめどが立っていないため、agy委譲はファイル編集中心(implementer役の非Dartファイル・adversary役)に限定する方針を維持し、T5-A37の「意図どおりのスコープで動く」という完了条件は当面「達成困難、設計は制約を前提に完成している」として扱う**。
 
 **新規判明(重要、T5-A38実装への反映必須)**: `--add-dir`を指定せずに`agy -p`を実行すると、プロンプトで「現在のディレクトリに」と明示してもカレントディレクトリではなく`~/.gemini/antigravity-cli/scratch/`へ書き込まれることをユーザーが実機で確認(`antigravity_test.txt`がscratch配下に作成された)。`tools/antigravity_delegate.ps1`/`.sh`は§9.2で`-WorkDir`(`--add-dir`)を必ず渡す設計になっているため現状の実装は安全なはずだが、**手動で`agy`を直接叩く場合は`--add-dir`を省略しないこと**。
-2. **Windows環境での`agy`動作は確認済み(2026-08-10)**。実行名は`agy`(`agy.exe`ではない、`winget install -e --id Google.AntigravityCLI`でインストール、PATHは`%LOCALAPPDATA%\agy\bin`)。`agy --version`→`1.1.11`(Ubuntu実機と同一バージョン)。`agy -p "OK" --output-format json`は日本語で応答し正常終了。`agy -p "/usage" --output-format json`の完全なスキーマを確認(§9.7-1の未検証事項を解消):
+2. **Windows環境での`agy`動作は確認済み(2026-08-10)**。実行名は`agy`(`agy.exe`ではない、`winget install -e --id Google.AntigravityCLI`でインストール)。実体は`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Google.AntigravityCLI_Microsoft.Winget.Source_8wekyb3d8bbwe\agy.exe`で、winget導入時にユーザー環境変数PATHへ登録されるが、**インストール前から起動していたシェルセッション(このハーネスのPowerShell/Bashを含む)には反映されない**。反映されないセッションでは`$env:Path += ";<上記ディレクトリ>"`をコマンド実行前に追記するか、フルパスで直接呼び出すこと(2026-08-10、T5-A38/A39実地検証で判明)。`agy --version`→`1.1.11`(Ubuntu実機と同一バージョン)。`agy -p "OK" --output-format json`は日本語で応答し正常終了。`agy -p "/usage" --output-format json`の完全なスキーマを確認(§9.7-1の未検証事項を解消):
    ```json
    {"conversation_id":"...","status":"SUCCESS","response":"Gemini Models\tWeekly Limit Remaining\t99%...(tsv風の平文)","duration_seconds":0,"num_turns":0,
     "usage":{"input_tokens":0,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":0},
@@ -77,6 +77,10 @@ Claude and GPT models  週次残 100% / 5時間残 100%
 3. **agy組み込みのChrome DevTools MCP**(ヘッドレスでのブラウザ操作)の可否は未調査。当面ブラウザ確認(`verifier`のUI検証)はClaude側`claude-in-chrome`に残す前提で設計してよい。
 4. **コード品質**: Flutter/Dart実装や本リポジトリ固有の規約(全マスタータブへの一律適用・`[Antigravity]`ログ・外部ID `.toString()`化・日本語UI文言)へのGemini系モデルの習熟度は未検証。ファイル編集の権限が通っても、品質面はパイロット運用で確認する必要がある。
 5. Web上の「Claude利用コストを27〜64%削減」という数値(個人ブログ複数、裏取り不十分)は本設計では採用しない。効果はパイロット運用の実測で判定する。
+6. **T5-A38/T5-A39実地検証(2026-08-10、Windows実機)で判明した3件**:
+   - `tools/antigravity_delegate.ps1`の`Invoke-AgyProcess`が使っていた`ProcessStartInfo.ArgumentList`(コレクション型API)がこのPCのWindows PowerShell 5.1には存在せず(`[System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')`が空)、agy.exeに引数が1つも渡らずハングしてタイムアウトする実装バグがあった。`.Arguments`(単一文字列)+自前クオート関数に置き換えて修正済み。
+   - `~/.gemini/antigravity-cli/settings.json`の`write_file`許可ルールは、公式サンプルのプレースホルダパス(`src/`・`/path/to/project/`)のままだと**このリポジトリの実パスに一致せず機能しない**。`write_file(C:/src/Claude/bean-base/)`のように実パスへ書き換える必要がある(ユーザーが実機で修正・確認済み)。
+   - `command(git)`・`command(npm run (build|test))`・`command(flutter)`はいずれもユーザーが実機で個別に試したが**Windowsでは機能せず**(§5-1の結論どおり)、`command(*)`(全許可)以外に細粒度シェル許可の実用解は無いまま。`.claude/agents/implementer.md`の「セルフチェック(必ず実施)」がagy用の上書きブロックより強く解釈され、agyがシェル拒否時に応答ごと打ち切る(Claude側のような優雅なスキップをしない)ことも判明したため、上書きブロックを「シェルコマンドは1回も試みない」という明示禁止に強化した。この結果、agy委譲は**ファイル編集+読み取り調査**の範囲(セルフチェックはverifierに一任)で実地動作を確認できている。
 
 ## 6. 次のアクション
 
