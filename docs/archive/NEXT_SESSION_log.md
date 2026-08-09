@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.57 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A31完了(implementer→verifier)。`emulator.ps1`改善、異常検知を180秒→約3秒に短縮**)
+
+- **タスク選定**: タスク表順でT5-A31(`emulator.ps1`改善、T5-A27の改善策D-2)を選定(T5-A30完了で依存充足)。
+- **T5-A31をimplementerへ委譲**: `$AvdName`既定値を`beanbase_ui`に変更、起動引数へ`-no-snapshot -no-audio -no-boot-anim`追加+`.claude/emu_logs/`へログ分離(`.gitignore`追記)、起動待機ループ2箇所に`$process.HasExited`即時検知を追加、`Clear-StaleEmulator`(残存プロセスkill+lock削除)新設、`-Doctor`(config.ini主要値+accel-check+直近30分APPCRASH件数を1行JSON)新設。
+- **verifierが独立検証**: 強制kill後の検知が**180秒→約3秒**に短縮したことを実地確認、`Clear-StaleEmulator`による後始末も確認。正常系(`-Start`→`ui_probe`→`-Stop`)・`-Doctor`単体・`git status`(変更3ファイルのみ)もOK。
+- **副次観察(3点、完了条件外の追加発見)**: ①正常系確認中に1回、`-Start`がプロセスは生存したまま**約9分ハング**する事象を観測(WERにAPPCRASH記録なし、`adb devices`が空)——`HasExited`では検知できない失敗モード。**T5-A32の`Assert-DeviceAlive`死活監視でカバーされる設計か実装時に確認**する注記をマスタープランT5-A32行に追加。②バックグラウンドタスク終了コード255とログ上の成功メッセージの食い違い(T5-A6で確認済みの既知の無害パターンと同型)。③`-Stop`が`Clear-StaleEmulator`を呼ばず`multiinstance.lock`が残存(次回`-Start`で自動解消、実害なし)。
+- **コード変更は`tools/emulator.ps1`・`.gitignore`・`docs/改修マスタープラン.md`のみ(`lib/`不変)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
+- **軽量記録**: loop_guard本ループは`cost=$8.112/$24, turns=3/30, fails=0/3`(T5-A31検証完了時点の値)。`docs/token_optimization_design.md` §7に記録予定(implementer 67,427トークン+verifier 66,272トークン+2回目の指示継続分を含む=計約13.4万トークン)。
+- コミット対象: `docs/改修マスタープラン.md`(T5-A31完了済みリストへ移動、T5-A32へ申し送り注記)、`docs/archive/マスタープラン_完了タスク.md`(T5-A31詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.56節退避)、`docs/token_optimization_design.md`(§7追記)、`NEXT_SESSION.md`(本更新)。
+
 ### -5.56 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A30完了(implementer→verifier)、新AVD `beanbase_ui`でAPPCRASH 0件を確認**)
 
 - **タスク選定**: 依存充足の⚠️上位モデルタスクは無し(通常タスクへフォールバック)。タスク表順でT5-A30(AVD再作成、T5-A27の改善策D-1)を選定。

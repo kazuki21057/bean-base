@@ -1,15 +1,15 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-09(**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A31完了(implementer→verifier)。`emulator.ps1`の異常検知を180秒→約3秒に短縮。副次観察としてプロセス生存のままハングする事象を1回観測、T5-A32で対応予定。コード変更は`tools/emulator.ps1`等3ファイルのみでデプロイ対象外**)
+最終更新: 2026-08-09(**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A32完了(implementer→verifier→ui_verifier)。`ui_probe.ps1`のdevice_lost検知を最大15分→10秒以内に短縮。T5-A4完了条件の再実行でoverflowはスクショ・dump実測で検出できたがログ行が取れない食い違いを発見、原因究明はT5-A36へ分離。コード変更は`tools/ui_probe.ps1`等2ファイルのみでデプロイ対象外**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。**「1. 現状サマリ」「2. 次回の着手点」も同様に直近セッション分の要点だけを残し、過去の詳細経緯は`docs/archive/マスタープラン_完了タスク.md`・`docs/archive/NEXT_SESSION_log.md`に譲って書かない**(2026-08-08、T5-A21で明記)。
 
 ## 1. 現状サマリ
 
-- **2026-08-09(`/full_loop`、Sonnet 5、同一セッション継続): T5-A31(`emulator.ps1`改善)を`implementer`→`verifier`で完了**。既定AVDを`beanbase_ui`に変更、`.claude/emu_logs/`へログ分離、起動待機ループに`HasExited`即時検知、`Clear-StaleEmulator`新設、`-Doctor`新設。`verifier`が強制kill後の検知が180秒→約3秒に短縮したことを実地確認。**副次観察**: 正常系確認中に1回、プロセスは生存したまま約9分ハングする事象を観測(`HasExited`では検知不能な失敗モード、T5-A32行に申し送り済み)。`-Stop`が`Clear-StaleEmulator`を呼ばず`multiinstance.lock`が残る軽微な差異も観測(次回`-Start`で自動解消、実害なし)。**コード変更は`tools/emulator.ps1`・`.gitignore`・`docs/改修マスタープラン.md`のみ(`lib/`不変)のためanalyze/test/build/デプロイ/本番確認は省略**。
+- **2026-08-09(`/full_loop`、Sonnet 5、`/clear`後の新規セッション): T5-A32(`ui_probe.ps1`改善)を`implementer`→`verifier`→`ui_verifier`で完了**。`Invoke-Prepare`を「ビルド→起動→install」順に再構成、`Invoke-Adb`共通ラッパー、`Assert-DeviceAlive`(プロセス生死でなく`adb get-state`応答性で判定、T5-A31のハング事象もカバーする設計)、`-Prepare -Retry`自動再試行、`-AvdName`既定値を`beanbase_ui`に統一。`verifier`がdevice_lost検知(要求10秒以内、実測8.6秒)・通常フロー・`analyze`(新規issue0件)を独立確認。**T5-A4完了条件の再実行で新知見**: overflowはスクショ・`-Dump`bounds実測で検出できたが、要求される`RenderFlex overflowed`ログ行は`-Log`で検出できず(`rules/lessons_archive.md` L130)。原因究明はT5-A36へ分離、T5-A4は完了済みへ移していない。**コード変更は`tools/ui_probe.ps1`・`.claude/agents/ui_verifier.md`のみ(`lib/`不変)のためデプロイ/本番確認は省略**。
 - 進行中はマスタープラン **Phase 5**(Android公開版)がメインライン。Phase 1〜4(統計解析含む)は完了済み。Phase 3残件はT3-75gのみ(要ユーザー確認)。
-- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26・A27・A28・A30・A31(20件)。**T5-A4はコード検証済みだが実地確認が環境要因で未達成(T5-A32のエミュレータ改善後に再試行)**。次点最優先は依存が満たされた通常タスク(T5-A32(`ui_probe.ps1`改善、T5-A31で観測したハング事象への対応も含めて確認)を優先、続いてT5-A33/A34/A35、他にT5-A8/A13/A14/A15/A25も依存なし。現時点で依存充足の⚠️上位モデルタスクは無し)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
+- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26・A27・A28・A30・A31・A32(21件)。**T5-A4はT5-A32でも完了条件未達(ログ行不一致、T5-A36の結論待ち)**。次点最優先は依存が満たされた通常タスク(T5-A33→A34→A35〈loop_guard改善、依存順〉、続いてT5-A36〈T5-A4のログ検出食い違いの原因究明〉、他にT5-A7/A8/A13/A14/A15/A25も依存なし。現時点で依存充足の⚠️上位モデルタスクは無し)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GASは`gas/Code.gs`をclaspで管理(現行デプロイ@19)。本番: https://beanbase-app-2016.web.app (Firebase Hosting)。
 - 実装済みの正本設計書: `docs/bean_purchase_design.md`(追加購入・購入履歴)、`docs/store_master_design.md`(購入店マスタ)。
 - **モデル分担ルール(2026-08-08改訂、恒久)**: 親セッションは既定でSonnet 5で起動する(`/model sonnet`)。**Opus 5は`architect`サブエージェント経由でのみ使い、親セッションでは使わない。** タスク選定はモデルで分岐させない——依存が満たされた「⚠️上位モデルで実施」タスクがあれば`architect`へ優先委譲(成果物は設計書のみ)、無ければ通常タスクへフォールバックする。詳細・根拠は`CLAUDE.md`§日次改修ループ運用ルール・`docs/token_reduction_report_20260808.md`。
@@ -20,9 +20,9 @@
 > **親セッションは `/model sonnet`(Sonnet 5)で起動する。** `CLAUDE.md` §日次改修ループ運用ルールのモデル分担ルールに従う。Opus 5は`architect`サブエージェント経由でのみ使う。
 >
 > **次に着手するタスク(この順)**: 現時点で依存充足の⚠️上位モデルタスクは無いため、通常タスクへフォールバックする。
-> 1. **T5-A32(`ui_probe.ps1`改善)を実施**(T5-A27の改善策、依存順。T5-A30・T5-A31は2026-08-09完了済み)。通常タスクのため`implementer`委譲でよい(`architect`不要)。**T5-A31検証時に、`emulator.ps1 -Start`がプロセスは生存したまま約9分ハングする事象を1回観測した**(WERにAPPCRASH記録なし、`adb devices`は空。`HasExited`では検知不能な失敗モード)。T5-A32の`Assert-DeviceAlive`死活監視がこのケースもカバーする設計になっているか、実装時に必ず確認すること(マスタープランT5-A32行に注記済み)。T5-A32完了後にT5-A4の実地確認を再試行: `lib/screens/settings_screen.dart`のbody先頭に一時的に`Row(children: [Text('あ' * 300)])`を挿入してoverflowを発生させる→`flutter build apk --debug`→`ui_verifier`エージェントを呼び出し画面ID 090(設定画面)を指定→項目1(Overflow)が「指摘あり」かつ`A RenderFlex overflowed by`のログ行が根拠として引用されることを確認→**同時にoverflowを仕込んでいない画面では「該当なし」になること(偽陽性が出ないこと)も確認**→`git checkout -- lib/screens/settings_screen.dart`で復旧。OKならマスタープランのT5-A4を完了済みリストへ移す。**旧AVDで実測されたダッシュボードのoverflow(320x640dpで21px)が新AVD `beanbase_ui`(1080x2400dp)でも再現するか確認**(T5-A30の5回検証では専用の画面確認は行っていない)、再現すれば実バグとして別タスク化する。
-> 2. **T5-A33(loop_guardの集計源修正)→T5-A34(ターン内再計算フック追加)→T5-A35(ループ境界の永続化)を順に実施**(T5-A28の改善策、依存順)。実装仕様は`docs/token_optimization_design.md` §9-Eに確定済みのため`implementer`委譲でよい(`architect`不要)。T5-A34完了後は`full_loop`スキル手順1・3.5を「フック出力ではなく`.claude/loop_state.md`をReadして判定する」に改める必要がある(§9-Eに明記済み)。
-> 3. その後は通常のタスク選定(依存なしのT5-A8〈T5-A32完了後はD-4を統合〉/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
+> 1. **T5-A33(loop_guardの集計源修正)→T5-A34(ターン内再計算フック追加)→T5-A35(ループ境界の永続化)を順に実施**(T5-A28の改善策、依存順。T5-A32は2026-08-09完了済み)。実装仕様は`docs/token_optimization_design.md` §9-Eに確定済みのため`implementer`委譲でよい(`architect`不要)。T5-A34完了後は`full_loop`スキル手順1・3.5を「フック出力ではなく`.claude/loop_state.md`をReadして判定する」に改める必要がある(§9-Eに明記済み)。
+> 2. **T5-A36(T5-A4のログ検出食い違いの原因究明)を実施**(T5-A32検証で発見。依存はT5-A32、完了済み)。設定画面にoverflowを仕込んでも`-Dump`/スクショでは検出できるのに`adb logcat`ベースの`-Log`ではログ行(`A RenderFlex overflowed by`)が1件も取れない原因を究明し、(a)ログ出力を復活させる対処、または(b)`.claude/agents/ui_verifier.md`とT5-A4完了条件(検証強化設計§5-2a-J(d))を「視覚的証拠+dump実測で正式根拠とする」形に緩和する、のいずれかを決める(`rules/lessons_archive.md` L130参照)。原因不明のバグ調査のため`architect`への委譲を検討してよい。結論後にT5-A4の完了条件を再実行して通ればT5-A4を完了済みへ移す。
+> 3. その後は通常のタスク選定(依存なしのT5-A7/A8/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
 >
 > **§Hに記録された既知の制約**(次セッションで踏まないこと): ダークモードは`lib/main.dart`に`darkTheme`/`themeMode`が未実装のため、`ui_verifier`の項目5(ダークモード判読性)は現時点で検査不能(T5-B21完了まで「未実施」と報告させる仕様。指摘として扱わない)。UIAutomatorはFlutterのsemanticsノードを返さないことを実測済み(§5-2aの仮説は棄却、比率タップが唯一の操作手段)。`AndroidManifest.xml`にrelease/profileビルド用の`INTERNET`権限が無いことも判明(トラックBで対処要、T5-A4の範囲外)。エミュレータは起動30秒後の安定確認後でも突然クラッシュすることがあり、待機時間を伸ばすだけでは解決しない(T5-A27で対処するまでui_verifier系タスクは着手コストが高い)。
 
@@ -44,17 +44,18 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.57 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A31完了(implementer→verifier)、異常検知180秒→約3秒に短縮。副次観察でハング事象を発見しT5-A32へ申し送り**)
+### -5.58 当日やったこと(2026-08-09、**Sonnet 5**、`/clear`後の新規セッションの`/full_loop`。**T5-A32完了(implementer→verifier→ui_verifier)。device_lost検知を最大15分→10秒以内に短縮。T5-A4再確認でログ検出の食い違いを発見しT5-A36へ分離**)
 
-- **タスク選定**: タスク表順でT5-A31(`emulator.ps1`改善、T5-A27の改善策D-2)を選定(T5-A30完了で依存充足)。
-- **T5-A31をimplementerへ委譲**: `$AvdName`既定値を`beanbase_ui`に変更、起動引数へ`-no-snapshot -no-audio -no-boot-anim`追加+`.claude/emu_logs/`へログ分離(`.gitignore`追記)、起動待機ループ2箇所に`$process.HasExited`即時検知を追加、`Clear-StaleEmulator`(残存プロセスkill+lock削除)新設、`-Doctor`(config.ini主要値+accel-check+直近30分APPCRASH件数を1行JSON)新設。
-- **verifierが独立検証**: 強制kill後の検知が**180秒→約3秒**に短縮したことを実地確認、`Clear-StaleEmulator`による後始末も確認。正常系(`-Start`→`ui_probe`→`-Stop`)・`-Doctor`単体・`git status`(変更3ファイルのみ)もOK。
-- **副次観察(3点、完了条件外の追加発見)**: ①正常系確認中に1回、`-Start`がプロセスは生存したまま**約9分ハング**する事象を観測(WERにAPPCRASH記録なし、`adb devices`が空)——`HasExited`では検知できない失敗モード。**T5-A32の`Assert-DeviceAlive`死活監視でカバーされる設計か実装時に確認**する注記をマスタープランT5-A32行に追加。②バックグラウンドタスク終了コード255とログ上の成功メッセージの食い違い(T5-A6で確認済みの既知の無害パターンと同型)。③`-Stop`が`Clear-StaleEmulator`を呼ばず`multiinstance.lock`が残存(次回`-Start`で自動解消、実害なし)。
-- **コード変更は`tools/emulator.ps1`・`.gitignore`・`docs/改修マスタープラン.md`のみ(`lib/`不変)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
-- **軽量記録**: loop_guard本ループは`cost=$8.112/$24, turns=3/30, fails=0/3`(T5-A31検証完了時点の値)。`docs/token_optimization_design.md` §7に記録予定(implementer 67,427トークン+verifier 66,272トークン+2回目の指示継続分を含む=計約13.4万トークン)。
-- コミット対象: `docs/改修マスタープラン.md`(T5-A31完了済みリストへ移動、T5-A32へ申し送り注記)、`docs/archive/マスタープラン_完了タスク.md`(T5-A31詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.56節退避)、`docs/token_optimization_design.md`(§7追記)、`NEXT_SESSION.md`(本更新)。
+- **タスク選定**: NEXT_SESSION §2の推奨どおりT5-A32(`ui_probe.ps1`改善、T5-A27の改善策D-3)を選定(T5-A31完了で依存充足)。
+- **T5-A32をimplementerへ委譲**: `Invoke-Prepare`を「ビルド→起動→install」順に再構成、`Invoke-Adb`共通ラッパー(adb呼び出しの終了コード確認)、`Assert-DeviceAlive`新設(プロセス生死でなく`adb get-state`応答性で判定、T5-A31のハング事象もカバーする設計)、`-Prepare -Retry`自動再試行、`.claude/agents/ui_verifier.md`絶対規則8を具体化。実装完了後、`-AvdName`既定値が旧`beanbase_test`のままという食い違いに気付き、T5-A31の既存決定(`beanbase_ui`)に揃える追加修正をimplementerへ依頼(新規設計判断ではなく既存決定への整合性修正と判断)。
+- **verifierが独立検証(1回でまとめて実施)**: `flutter analyze`新規issue0件、device_lost検知を実地再現(kill後8.6秒、要求10秒以内)、通常フロー・`-Alive`サブコマンド正常動作、`git status`(変更2ファイルのみ)を1回の委譲でまとめて確認(検証委譲を1回に集約、ユーザー指示によるトークン節約策)。**なお1回目のverifier委譲ではバックグラウンド処理待ちの状態で報告が返り、再開(SendMessage)後に検証項目の指示内容自体を見失う不具合が発生**(サブエージェントの状態喪失、原因未調査)。項目を明記して再依頼し直すことで解消、次回同様の委譲時は要注意。
+- **T5-A32完了条件のうちT5-A4再確認を実施**: implementerに設定画面へ一時的なoverflow(`Text('あ'*300)`)を挿入させ`flutter build apk --debug`→`ui_verifier`エージェントで画面ID 090を確認。**スクリーンショットの黄黒ストライプと`-Dump`のbounds実測(996×53pxが親幅超過)ではoverflowを明確に検出できたが、完了条件が要求する`A RenderFlex overflowed by`ログ行は`-Log`で2回実行とも0件**。偽陽性確認(overflow未仕込みのダッシュボードでは「該当なし」)はOK。原因未特定のため`rules/lessons_archive.md` L130に記録し、原因究明・完了条件見直しをT5-A36として新規タスク化。一時変更は`git checkout`で復旧済み。**T5-A4自体は完了済みへ移していない**(T5-A36の結論待ち)。
+- **コード変更は`tools/ui_probe.ps1`・`.claude/agents/ui_verifier.md`のみ(`lib/`不変)** のため、`flutter test`/`flutter build`/デプロイ/本番確認は対象外。
+- **軽量記録**: loop_guardのフック値は本ターン内では更新されず(次回`UserPromptSubmit`時に反映、T5-A33〜A35で解消予定)。サブエージェント合計は`implementer`(T5-A32本体136,062+`-AvdName`修正26,154)+`verifier`(1回目72,404+再開71,018+再依頼78,187、うち1回目・再開分の計143,422トークンは指示内容の見失いによる手戻り)+`implementer`(overflow挿入30,278)+`ui_verifier`(102,813)=**計516,916トークン**。ユーザー申告のProプラン使用率39%(開始時点、終了%は未取得。前回セッション終了時と同値のためセッション間で追加消費なし)を§8に記録。
+- **ユーザーからの運用フィードバック**: 「検証はある程度まとめて実施すると節約になりそう。コード検証のルールはそのまま、その他の検証はタスクごとの粒度で(トークン都合の細切れではなく)まとめてよい」との指示を受け、今回はverifierへの検証委譲を1回に集約して対応した(詳細は`feedback_verification_batching.md`)。
+- コミット対象: `docs/改修マスタープラン.md`(T5-A32完了済みリストへ移動、T5-A36新設)、`docs/archive/マスタープラン_完了タスク.md`(T5-A32詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.57節退避)、`rules/lessons_archive.md`(L130追加)、`rules/verification.md`(L130索引追加)、`docs/token_optimization_design.md`(§7・§8追記)、`NEXT_SESSION.md`(本更新)。
 
-> これ以前(-5.55節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.56節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 

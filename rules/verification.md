@@ -122,6 +122,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L130 `ui_verifier`のoverflow判定は、`-Log`にログ行が無くてもスクリーンショットのストライプと`-Dump`のbounds実測(要素幅>親幅)が一致すれば視覚的証拠として信用してよい(ログ行必須の完了条件はT5-A36で原因究明予定)
 - L128 PowerShell 5.1で`$ErrorActionPreference="Stop"`下、ネイティブexe呼び出しに`2>$null`/`2>&1`を付けると成功時でも即終了することがある(T5-A4実装中に実見)。捨てたい場合は呼び出し箇所だけ`"Continue"`に落とすか`try/catch`で囲む。ブート直後の`adb shell`応答は一時的に空になりうるためリトライを組み込む
 - L127 Windowsで`.ps1`に日本語コメントを`Write`ツールで保存するとBOM無しUTF-8になり、PowerShell 5.1が構文エラーを起こすことがある(T5-A6実装中に実見)。日本語を含む`.ps1`は保存後に`powershell -File`で1回実行確認するか、BOM付きUTF-8で保存し直す。あわせて`adb`等の外部コマンド出力を`.Trim()`する箇所は出力が一時的に空になりうる前提でnull安全に書く
 - L117 L116の恒久対処: 素の`pub upgrade`は不可(未使用の`riverpod_generator`がanalyzerを固定)、死に依存の削除+限定upgrade+`build_runner --force-jit`で解消。`--delete-conflicting-outputs`は廃止済み、`clean`はソースの`.g.dart`を消さない
