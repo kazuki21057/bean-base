@@ -687,3 +687,11 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **なぜ起きたか**: `Write`ツールは既定でBOM無しUTF-8を書き出す。Bash/PowerShellのnativeなテキスト処理では問題にならないが、PowerShell 5.1のスクリプト読み込みだけはBOMの有無でエンコーディング判定が変わる(`tools/verify.ps1`の冒頭コメントが`[Console]::OutputEncoding`を明示設定しているのも同種の問題への対処)。同じ実装中に、`adb devices`出力が一過性に空になるタイミングで`.Trim()`をnull安全でない形で呼び出し例外になるバグも見つかった(外部コマンド出力の一時的な空文字は珍しくない)。
 
 **対処・一般化**: 日本語コメントを含む`.ps1`を新規作成・変更したら、**保存後に必ず`powershell -File <path>`(または`-Command "& {.\<path>}"`)で1回実行し、構文エラーが出ないことを確認する**(Editでの差分確認だけでは検出できない)。BOM無しで書かれてしまった場合はBOM付きUTF-8で保存し直す。あわせて、外部コマンド(`adb`等)の出力を`.Trim()`・`.Split()`する箇所は、出力が一時的に空/nullになりうる前提で書く(`$null`ガードを先に入れる)。
+
+## L128 PowerShell 5.1で`$ErrorActionPreference="Stop"`下、ネイティブexeの出力を`2>$null`で捨てると成功時でも即終了することがある(2026-08-09、T5-A4)
+
+**事象**: `implementer`が`tools/ui_probe.ps1`の`Get-DeviceInfo`で`adb shell wm size 2>$null`のように`adb`(ネイティブexe)呼び出しへ`2>$null`を付けたところ、`$ErrorActionPreference="Stop"`が設定されたスクリプト内で、`adb`が標準エラーへ何も書いていない・終了コード0の正常呼び出しでもスクリプトが即座に終了することがあった。
+
+**なぜ起きたか**: PowerShell 5.1は、ネイティブコマンドの標準エラーストリームへのリダイレクト(`2>`や`2>&1`)を内部的に`ErrorRecord`へラップして扱う。`$ErrorActionPreference="Stop"`下では、この`ErrorRecord`化が(実際のエラーが無くても)非終端エラーを終端エラーに昇格させる契機になり、スクリプトが打ち切られる。`tools/emulator.ps1`(T5-A6, L127)でも同種のリダイレクトを使っていたが、そちらは`2>$null`が空応答を返すだけの箇所だったため症状が顕在化しなかった。
+
+**対処・一般化**: PowerShellスクリプトでネイティブexeを呼ぶ際、**`2>$null`・`2>&1`などの標準エラーリダイレクトは極力使わない**。捨てたい場合でも`$ErrorActionPreference`を呼び出し箇所だけ一時的に`"Continue"`に落とす(`tools/verify.ps1`と同じ方針)か、`try/catch`で明示的に囲む。あわせて、ブート直後の`adb shell wm size`等は一時的に空応答を返しうるため、**固定回数・固定間隔のリトライを組み込む**(即座に1回で失敗と判定しない)。
