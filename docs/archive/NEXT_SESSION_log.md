@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.56 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A30完了(implementer→verifier)、新AVD `beanbase_ui`でAPPCRASH 0件を確認**)
+
+- **タスク選定**: 依存充足の⚠️上位モデルタスクは無し(通常タスクへフォールバック)。タスク表順でT5-A30(AVD再作成、T5-A27の改善策D-1)を選定。
+- **T5-A30をimplementerへ委譲**: `avdmanager create avd -n beanbase_ui -k "system-images;android-34;google_apis;x86_64" -d pixel_6`で新AVD作成(既存`beanbase_test`は残置)。`config.ini`を`hw.lcd.width=1080`/`height=2400`/`density=420`/`hw.ramSize=4096`/`vm.heapSize=512`/`hw.audioInput=no`/`hw.audioOutput=no`/`hw.keyboard=yes`/`fastboot.forceFastBoot=no`へ書き換え(`hw.lcd.*`は`pixel_6`プロファイル時点で既定値と一致していたため実質変更不要だった)。`avdmanager`実行時`JAVA_HOME`未設定エラーに遭遇、Flutterが使うJDK(`jdk-17.0.20`)のパスを設定して解決。
+- **検証**: `emulator.ps1 -Start`→`ui_probe.ps1 -Prepare -SkipBuild`→`-Shot`→`emulator.ps1 -Stop`のサイクルを5回連続実行、全て`ok:true`・`width:1080/height:2400/density:420`を確認。同時間帯のWindowsイベントログ(Application, ID 1000)にAPPCRASHが0件であることを確認(旧`beanbase_test`の320x640dp問題は解消)。`verifier`が独立に`config.ini`の値・実地起動1回・`git status`(意図しない変更が無いこと)を再検証しOK。
+- **副次的発見**: emulatorランタイムが起動時に`disk.dataPartition.size`を800M→6GBへ自動正規化する(implementer側の編集ではなくランタイムの既定挙動、実害なし)。
+- **コード変更は`docs/改修マスタープラン.md`のみ(AVD設定はリポジトリ外)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
+- **軽量記録**: loop_guard本ループ開始時点(このプロンプト送信時)で`cost=$4.640/$24, turns=2/30, fails=0/3`(前回T5-A28ループの実消費が今回のUserPromptSubmitで初めて反映された値。T5-A28で判明した通りこれもサブエージェント分を含まない過小値の可能性が高い)。`docs/token_optimization_design.md` §7に記録(implementerサブエージェント80,875トークン+verifierサブエージェント30,769トークン=計111,644トークン)。ユーザー申告のProプラン使用率17%(開始時点、終了%は未取得)を§8に記録。
+- コミット対象: `docs/改修マスタープラン.md`(T5-A30完了済みリストへ移動)、`docs/archive/マスタープラン_完了タスク.md`(T5-A30詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.55節退避)、`docs/token_optimization_design.md`(§7・§8追記)、`NEXT_SESSION.md`(本更新)。
+
 ### -5.55 当日やったこと(2026-08-09、**Sonnet 5**、`/clear`後の新規セッション、`/full_loop`。**T5-A28完了(architectへ委譲)、想定より深刻な欠陥を発見しT5-A33〜A35へ分解**)
 
 - **タスク選定**: 依存なしの⚠️上位モデルタスクT5-A28を選定、`architect`へ委譲。
