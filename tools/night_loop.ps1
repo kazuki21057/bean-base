@@ -204,7 +204,7 @@ function Format-PlannedCommand {
         ('  --settings "{0}" `' -f $Config.settingsPath),
         '  --permission-mode dontAsk `',
         ('  --max-budget-usd {0} `' -f $Config.maxBudgetUsd),
-        '  --output-format stream-json `',
+        '  --output-format stream-json --verbose `',
         ('  --disallowedTools {0} `' -f $toolsPart),
         ('  2> ".claude\night_logs\{0}" | Tee-Object -FilePath ".claude\night_logs\{1}" | Out-Host' -f $ErrLogFileName, $LogFileName)
     )
@@ -538,6 +538,7 @@ function Invoke-NightLoop {
         '--permission-mode', 'dontAsk',
         '--max-budget-usd', "$($Config.maxBudgetUsd)",
         '--output-format', 'stream-json',
+        '--verbose',
         '--disallowedTools'
     ) + $DisallowedToolsList
 
