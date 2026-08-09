@@ -1,15 +1,15 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-09(**Sonnet 5**、`/full_loop`。**T5-A28完了(architectへ委譲)。当初想定より深刻な欠陥〈サブエージェント消費が構造的に集計対象外、可視範囲33.2%〉と判明、改善策をT5-A33〈集計源修正〉→T5-A34〈ターン内再計算〉→T5-A35〈境界永続化〉に分解。ドキュメントのみのためデプロイ対象外**)
+最終更新: 2026-08-09(**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A30完了(implementer→verifier)。新AVD `beanbase_ui`(1080x2400/density420)作成、5回連続APPCRASH 0件を確認。コード変更なし(AVD設定はリポジトリ外)のためデプロイ対象外**)
 
 > **本書の構成(2026-07-29改訂)**: 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに **直近1セッション分の作業ログだけ** を残す。それ以前は `docs/archive/NEXT_SESSION_log.md` へ退避済み(節番号・本文はそのまま)。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > **書き足しルール**: `/end`・`/full_loop`で当日ログを追記する際は「3. 直近の作業ログ」の**古い節をアーカイブ先頭へ移してから**新しい節を1件だけ置く(本書は常に1件)。完了タスクの実装内容は本書に長く書かず、要点(何を変えたか・次に効く制約)だけ書く。タスク定義・進捗の正本は `docs/改修マスタープラン.md`。**「1. 現状サマリ」「2. 次回の着手点」も同様に直近セッション分の要点だけを残し、過去の詳細経緯は`docs/archive/マスタープラン_完了タスク.md`・`docs/archive/NEXT_SESSION_log.md`に譲って書かない**(2026-08-08、T5-A21で明記)。
 
 ## 1. 現状サマリ
 
-- **2026-08-09(`/full_loop`、Sonnet 5、本セッション): T5-A28(loop_guardコスト計測の欠陥調査)を`architect`へ委譲し完了**。当初の想定(`UserPromptSubmit`時にしか発火しないフック起動タイミングの制約)は問題の一部でしかなく、より重大な**欠陥A**が判明: Claude Code 2.1.225はサブエージェント会話を親transcriptとは別ファイル(`subagents/agent-*.jsonl`)に書くため、`loop_guard.js`の`analyze()`は**サブエージェント消費を構造的に集計していなかった**(実測: 可視$6.908/実額$20.814、可視範囲33.2%)。**欠陥B**(ターン内は`PostToolUse`/`SubagentStop`フック追加で再計算可能)・**欠陥C**(スラッシュコマンドが行頭以外にあると境界検出が展開形を見失う、副次発見)も特定。「対応不可」ではなく改善可能と結論し、実装仕様を`docs/token_optimization_design.md` §9-Eに確定、実施タスクをT5-A33(集計源修正)→T5-A34(ターン内再計算)→T5-A35(境界永続化)へ分解。**コード変更なし(ドキュメントのみ)のためanalyze/test/build/デプロイ/本番確認は省略**。
+- **2026-08-09(`/full_loop`、Sonnet 5、同一セッション継続): T5-A30(AVD再作成)を`implementer`→`verifier`で完了**。新AVD `beanbase_ui`(Pixel 6相当、1080x2400/density420、`hw.ramSize=4096`/`vm.heapSize=512`)を`beanbase_test`と別に新規作成。`emulator.ps1 -Start`→`ui_probe.ps1 -Prepare -SkipBuild`→`-Shot`→`-Stop`のサイクルを5回連続実行し全て成功、同時間帯のWindowsイベントログ(Application ID 1000)にAPPCRASH 0件を確認。`verifier`が独立に`config.ini`の値・実地起動1回・`git status`を再検証しOK。**コード変更は`docs/改修マスタープラン.md`のみ(AVD設定はリポジトリ外)のためanalyze/test/build/デプロイ/本番確認は省略**。
 - 進行中はマスタープラン **Phase 5**(Android公開版)がメインライン。Phase 1〜4(統計解析含む)は完了済み。Phase 3残件はT3-75gのみ(要ユーザー確認)。
-- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26・A27・A28(18件)。**T5-A4はコード検証済みだが実地確認が環境要因で未達成(T5-A30〜A32のエミュレータ改善後に再試行)**。次点最優先は依存が満たされた通常タスク(T5-A30/A31/A32を優先、続いてT5-A33/A34/A35、他にT5-A8/A13/A14/A15/A25も依存なし。現時点で依存充足の⚠️上位モデルタスクは無し)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
+- **Phase 5トラックA(開発運用基盤)完了済み**: T5-A1・A2・A3・A5・A6・A9・A10・A11・A18〜A24・A26・A27・A28・A30(19件)。**T5-A4はコード検証済みだが実地確認が環境要因で未達成(T5-A31〜A32のエミュレータ改善後に再試行)**。次点最優先は依存が満たされた通常タスク(T5-A31(`emulator.ps1`改善)→T5-A32(`ui_probe.ps1`改善)を優先、続いてT5-A33/A34/A35、他にT5-A8/A13/A14/A15/A25も依存なし。現時点で依存充足の⚠️上位モデルタスクは無し)。トラックCはT5-C3完了済み(1件)。T5-A12は引き続きT5-A17(`.claude/settings.night.json`設置、ユーザー実施待ち)がブロッカーのため着手不可。正本は`docs/android_release/開発運用基盤設計.md`・`検証強化設計.md`・`リリース計画書.md`。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GASは`gas/Code.gs`をclaspで管理(現行デプロイ@19)。本番: https://beanbase-app-2016.web.app (Firebase Hosting)。
 - 実装済みの正本設計書: `docs/bean_purchase_design.md`(追加購入・購入履歴)、`docs/store_master_design.md`(購入店マスタ)。
 - **モデル分担ルール(2026-08-08改訂、恒久)**: 親セッションは既定でSonnet 5で起動する(`/model sonnet`)。**Opus 5は`architect`サブエージェント経由でのみ使い、親セッションでは使わない。** タスク選定はモデルで分岐させない——依存が満たされた「⚠️上位モデルで実施」タスクがあれば`architect`へ優先委譲(成果物は設計書のみ)、無ければ通常タスクへフォールバックする。詳細・根拠は`CLAUDE.md`§日次改修ループ運用ルール・`docs/token_reduction_report_20260808.md`。
@@ -20,7 +20,7 @@
 > **親セッションは `/model sonnet`(Sonnet 5)で起動する。** `CLAUDE.md` §日次改修ループ運用ルールのモデル分担ルールに従う。Opus 5は`architect`サブエージェント経由でのみ使う。
 >
 > **次に着手するタスク(この順)**: 現時点で依存充足の⚠️上位モデルタスクは無いため、通常タスクへフォールバックする。
-> 1. **T5-A30(AVD再作成)→T5-A31(`emulator.ps1`改善)→T5-A32(`ui_probe.ps1`改善)を順に実施**(T5-A27の改善策、依存順)。いずれも通常タスクのため`implementer`委譲でよい(`architect`不要)。T5-A32完了後にT5-A4の実地確認を再試行: `lib/screens/settings_screen.dart`のbody先頭に一時的に`Row(children: [Text('あ' * 300)])`を挿入してoverflowを発生させる→`flutter build apk --debug`→`ui_verifier`エージェントを呼び出し画面ID 090(設定画面)を指定→項目1(Overflow)が「指摘あり」かつ`A RenderFlex overflowed by`のログ行が根拠として引用されることを確認→**同時にoverflowを仕込んでいない画面では「該当なし」になること(偽陽性が出ないこと)も確認**→`git checkout -- lib/screens/settings_screen.dart`で復旧。OKならマスタープランのT5-A4を完了済みリストへ移す。**T5-A30の検証時に旧AVDで実測されたダッシュボードのoverflow(320x640dpで21px)が新AVD(1080x2400dp)でも再現するか確認**、再現すれば実バグとして別タスク化する。
+> 1. **T5-A31(`emulator.ps1`改善)→T5-A32(`ui_probe.ps1`改善)を順に実施**(T5-A27の改善策、依存順。T5-A30は2026-08-09完了済み)。いずれも通常タスクのため`implementer`委譲でよい(`architect`不要)。T5-A31では`tools/emulator.ps1`の既定AVD名を`beanbase_test`→`beanbase_ui`へ変更することを忘れないこと。T5-A32完了後にT5-A4の実地確認を再試行: `lib/screens/settings_screen.dart`のbody先頭に一時的に`Row(children: [Text('あ' * 300)])`を挿入してoverflowを発生させる→`flutter build apk --debug`→`ui_verifier`エージェントを呼び出し画面ID 090(設定画面)を指定→項目1(Overflow)が「指摘あり」かつ`A RenderFlex overflowed by`のログ行が根拠として引用されることを確認→**同時にoverflowを仕込んでいない画面では「該当なし」になること(偽陽性が出ないこと)も確認**→`git checkout -- lib/screens/settings_screen.dart`で復旧。OKならマスタープランのT5-A4を完了済みリストへ移す。**旧AVDで実測されたダッシュボードのoverflow(320x640dpで21px)が新AVD `beanbase_ui`(1080x2400dp)でも再現するか確認**(T5-A30の5回検証では専用の画面確認は行っていない)、再現すれば実バグとして別タスク化する。
 > 2. **T5-A33(loop_guardの集計源修正)→T5-A34(ターン内再計算フック追加)→T5-A35(ループ境界の永続化)を順に実施**(T5-A28の改善策、依存順)。実装仕様は`docs/token_optimization_design.md` §9-Eに確定済みのため`implementer`委譲でよい(`architect`不要)。T5-A34完了後は`full_loop`スキル手順1・3.5を「フック出力ではなく`.claude/loop_state.md`をReadして判定する」に改める必要がある(§9-Eに明記済み)。
 > 3. その後は通常のタスク選定(依存なしのT5-A8〈T5-A32完了後はD-4を統合〉/A13/A14/A15/A25のいずれか、タスク表順)。T5-A12はT5-A17(ユーザー実施待ち)がブロッカーのため引き続き選ばない。
 >
@@ -44,17 +44,17 @@
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.55 当日やったこと(2026-08-09、**Sonnet 5**、`/clear`後の新規セッション、`/full_loop`。**T5-A28完了(architectへ委譲)、想定より深刻な欠陥を発見しT5-A33〜A35へ分解**)
+### -5.56 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A30完了(implementer→verifier)、新AVD `beanbase_ui`でAPPCRASH 0件を確認**)
 
-- **タスク選定**: 依存なしの⚠️上位モデルタスクT5-A28を選定、`architect`へ委譲。
-- **調査結果**: 当初の想定(`UserPromptSubmit`時にしか発火しないフック起動タイミングの制約)は問題の一部でしかなく、より重大な**欠陥A**が判明——Claude Code 2.1.225はサブエージェント会話を親transcriptとは別ファイル(`<セッションID>/subagents/agent-*.jsonl`)に書くため、`loop_guard.js`の`analyze()`はサブエージェント消費を**構造的に集計していなかった**(フックがいつ発火しても無関係)。実測(セッション`eef0d647-...`): 可視$6.908/実額$20.814、**可視範囲33.2%**。あわせて**欠陥B**(登録フックは`UserPromptSubmit`/`Stop`のみでターン内は再計算不可だが、`PostToolUse`〈matcher `Task`〉/`SubagentStop`フックを追加すれば解消可能)、**欠陥C**(副次発見。`82% /full_loop`のように行頭以外にスラッシュコマンドを書くと展開されずtranscriptに`<command-name>`が残らないため、ループ境界検出を見失い誤ったモード〈夜間$8/40/2〉のしきい値が適用される)も特定。
-- **§8既存記載の訂正**: T5-A27ループの「architect 150,509トークン消費」は、親transcriptの`toolUseResult.usage`(最終API呼び出し1回分のみ)を全消費と誤読したものと判明。サブエージェントtranscript実測では6,369,414トークン(約42倍)。`docs/token_optimization_design.md` §8に訂正注記を追加。
-- **結論**: 「対応不可」ではなく改善可能。実装仕様(関数名・シグネチャ・JSON形式・判定順序)を`docs/token_optimization_design.md` §9(9-0〜9-E)に確定し、実施タスクをマスタープランにT5-A33(集計源修正)→T5-A34(ターン内再計算フック追加)→T5-A35(ループ境界の永続化)として追加(依存順)。T5-A28を完了済みリストへ移動、詳細は`docs/archive/マスタープラン_完了タスク.md`「T5-A28」節。
-- **コード変更なし(ドキュメントのみ)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
-- **軽量記録**: loop_guard本ループは`cost=$0.0000, turns=0`のまま(本ループはプロンプト1回のみで`UserPromptSubmit`が1度しか発火しておらず、§9-Aの結論どおりサブエージェント分は非計上)。`docs/token_optimization_design.md` §7に記録(architectサブエージェント85,852トークン、ツール呼び出し36回、所要8.7分)。ユーザーから使用率(%)の申告なし、`/usage`はターミナルのビルトインコマンドでツール経由では実行不可と判明(§8には追記せず)。
-- コミット対象: `docs/token_optimization_design.md`(§9新設、§7・§8訂正・追記)、`docs/改修マスタープラン.md`(T5-A28完了・T5-A33/A34/A35追加)、`docs/archive/マスタープラン_完了タスク.md`(T5-A28詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.54節退避)、`NEXT_SESSION.md`(本更新)。
+- **タスク選定**: 依存充足の⚠️上位モデルタスクは無し(通常タスクへフォールバック)。タスク表順でT5-A30(AVD再作成、T5-A27の改善策D-1)を選定。
+- **T5-A30をimplementerへ委譲**: `avdmanager create avd -n beanbase_ui -k "system-images;android-34;google_apis;x86_64" -d pixel_6`で新AVD作成(既存`beanbase_test`は残置)。`config.ini`を`hw.lcd.width=1080`/`height=2400`/`density=420`/`hw.ramSize=4096`/`vm.heapSize=512`/`hw.audioInput=no`/`hw.audioOutput=no`/`hw.keyboard=yes`/`fastboot.forceFastBoot=no`へ書き換え(`hw.lcd.*`は`pixel_6`プロファイル時点で既定値と一致していたため実質変更不要だった)。`avdmanager`実行時`JAVA_HOME`未設定エラーに遭遇、Flutterが使うJDK(`jdk-17.0.20`)のパスを設定して解決。
+- **検証**: `emulator.ps1 -Start`→`ui_probe.ps1 -Prepare -SkipBuild`→`-Shot`→`emulator.ps1 -Stop`のサイクルを5回連続実行、全て`ok:true`・`width:1080/height:2400/density:420`を確認。同時間帯のWindowsイベントログ(Application, ID 1000)にAPPCRASHが0件であることを確認(旧`beanbase_test`の320x640dp問題は解消)。`verifier`が独立に`config.ini`の値・実地起動1回・`git status`(意図しない変更が無いこと)を再検証しOK。
+- **副次的発見**: emulatorランタイムが起動時に`disk.dataPartition.size`を800M→6GBへ自動正規化する(implementer側の編集ではなくランタイムの既定挙動、実害なし)。
+- **コード変更は`docs/改修マスタープラン.md`のみ(AVD設定はリポジトリ外)** のため、`analyze`/`test`/`build`/デプロイ/本番確認は省略し`/end`手順へ直行。
+- **軽量記録**: loop_guard本ループ開始時点(このプロンプト送信時)で`cost=$4.640/$24, turns=2/30, fails=0/3`(前回T5-A28ループの実消費が今回のUserPromptSubmitで初めて反映された値。T5-A28で判明した通りこれもサブエージェント分を含まない過小値の可能性が高い)。`docs/token_optimization_design.md` §7に記録(implementerサブエージェント80,875トークン+verifierサブエージェント30,769トークン=計111,644トークン)。ユーザー申告のProプラン使用率17%(開始時点、終了%は未取得)を§8に記録。
+- コミット対象: `docs/改修マスタープラン.md`(T5-A30完了済みリストへ移動)、`docs/archive/マスタープラン_完了タスク.md`(T5-A30詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.55節退避)、`docs/token_optimization_design.md`(§7・§8追記)、`NEXT_SESSION.md`(本更新)。
 
-> これ以前(-5.53節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
+> これ以前(-5.54節以前)の作業ログは **`docs/archive/NEXT_SESSION_log.md`** を参照。
 
 ## 4. その他
 
