@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.64 当日やったこと(2026-08-09、Sonnet 5、/full_loop 有人モード。**T5-A8「検証待ち」**——implementerが実装・コミット完了、verifierへの検証委譲はファイル数超過によるセッション分割で次回へ持ち越し)
+
+- **環境確認**: 本セッションはLinux環境(`which pwsh`該当なし)で起動されたため、PowerShell/adb/Androidエミュレータが前提のT5-A4/A7/A12/A16/A36には着手不可と判断。
+- **T5-A17の直接原因は解消済みと確認**: git logでcommit 591e32c(ユーザーが.claude/settings.night.jsonのallowにEdit/Write追加済み)を確認。ただし完了条件(T5-A12試走)自体はWindows環境が前提のため未実施のまま。
+- **タスク選定**: 依存なし・エミュレータ非依存で今回の環境でも完結できる最上位タスクとしてT5-A8(goldenテスト基盤)を選定。
+- **implementerに委譲・実装完了**: `test/helpers/overflow_test_helper.dart`(overflow機械判定、`FlutterError.onError`差し替え+3解像度pump)、`test/settings_screen_overflow_test.dart`(設定画面090への適用)、`test/golden/`配下にgolden基盤(`golden_test_helper.dart`)+3コンポーネント(`bean_jar_widget`/`coffee_log_card`/`roast_level_slider`)×ライト/ダーク=6ケースのgoldenテスト・画像、`rules/verification.md`にgolden自動更新禁止ルールを追記。一時検証で(a)overflow挿入時に実際にfailすること(b)`kMocha`色変更時にgoldenが実際にfailすること(30.09%ピクセル差)、をいずれも確認しrevert済み。`flutter analyze`新規issue0件、`flutter test`367件全pass、`flutter build web`成功(すべてimplementer自己申告、独立検証は未実施)。
+- **セッション分割(3.5)を適用**: 実装で触れたファイルが13件(閾値5件超)のため、verifierへの検証委譲は行わずここでセッションを終える。ループコストは$6.73(閾値$7未満だがファイル数条件が単独で発火)。commitのみ実施しpushは見送り。
+- **次回やること**: `flutter test test/golden/`・`flutter test test/settings_screen_overflow_test.dart`の独立実行、`git status`でlib/無変更確認、`rules/verification.md`追記部分の書式確認、をverifierに委譲する(委譲プロンプト例は上記実装内容をそのまま「検証対象」として渡せばよい)。OKならT5-A8を完了済みへ移し、`docs/archive/マスタープラン_完了タスク.md`に詳細転記、pushする。
+- **変更ファイル(未push)**: `test/helpers/overflow_test_helper.dart`(新規)、`test/settings_screen_overflow_test.dart`(新規)、`test/golden/`配下10ファイル(新規、golden_test_helper.dart・3コンポーネント分golden_test.dart×3・goldens/*.png×6)、`rules/verification.md`(編集)。lib/は最終的に無変更(implementer報告・`git status`で確認済み)。
+
 ### -5.63 当日やったこと(2026-08-09、Sonnet 5、/night_loop 無人モード試走。T5-A36検証を再試行→権限ブロックで中断、.claude/settings.night.jsonの重大な設定漏れを発見)
 
 - 起動前チェック: BEANBASE_NIGHT_LOOP=1確認→無人モード。.claude/settings.night.jsonが存在することを確認(ユーザーが直前に設置済み、T5-A17)。

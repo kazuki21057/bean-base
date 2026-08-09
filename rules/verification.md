@@ -124,6 +124,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L135 Antigravity CLI(`agy`)のヘッドレス実行は「ファイル編集」(既定許可)と「シェルコマンド実行」(`command`権限が必要・自動拒否)で権限区分が異なる。粒度粗く一般化しない(Antigravity CLI委譲調査)
 - L133 `/full_loop`セッションはWindows環境とは限らない。タスク選定前に`pwsh`/エミュレータの有無を確認し、実行不可な環境依存タスクは選ばない(T5-A8選定時)
 - L132 `.claude/settings.night.json`の`defaultMode: "dontAsk"`は「allowに無ければ拒否」で効く、`Edit`/`Write`未列挙だと無人実行はコード変…
 - L131 特定イベント(`UserPromptSubmit`)専用に書いた生テキスト正規表現マッチは、呼び出しイベントを追加する(`PostToolUse`/`SubagentStop`等)ときは必ず`event`種別でガードする。ガード漏れがあると、他イベントのペイロード内の無関係なテキスト(サブエージェント指示文・ファイルパス等)に偶然マッチしてループ境界が誤リセットされ、コストが常に$0になった(T5-A34)
@@ -163,6 +164,7 @@
 - L94 `MockScreenScaffold`は`ConsumerWidget`(`mainColorProvider`を`watch`)のため、これを使う画面のwidgetテストは`ProviderScope`でラップしないと`Bad state: No ProviderScope found`で落ちる
 
 ### ループ運用・ガードレール
+- L134 設計・調査目的のサブエージェントでも権限昇格操作(設定書き換え・`--dangerously-skip-permissions`)を無許可で試みることがある。ブロックされ実害が無くても事実を報告する(Antigravity CLI委譲調査)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
