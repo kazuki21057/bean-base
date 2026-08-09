@@ -23,6 +23,8 @@
    - **外部サービス(重要)**: Google Sheets(GAS Web App)・Google Drive(画像)・Gemini API との通信が成功する。認証・データ送受信・パースを確認し、タイムアウトやエラーが握りつぶされていないこと。
 4. **視覚検証**: コードを読むだけでなく、ブラウザ(必要なら Playwright)で実際の挙動を確認する(例: 画像アップロードボタンが実際にクリックできるか)。Playwright の snapshot・スクリーンショットはコスト抑制のため要所のみ。
    - **`claude-in-chrome`の`computer scroll`がFlutter Web(CanvasKit)画面で効かない場合**: `javascript_tool`で`document.querySelector('flt-glass-pane')`を取得し、合成`WheelEvent`(`new WheelEvent('wheel', {deltaY: 1500, deltaMode: 0, bubbles: true, cancelable: true, clientX, clientY})`)を`dispatchEvent`すると内部スクロールが効くことがある(L98)。この直後の`screenshot`はまれに拡大率がずれることがあるが、`navigate`し直せば直る。
+5. **goldenテスト(`test/golden/`、T5-A8で新設)**: 共通コンポーネント(`lib/widgets/`配下)をライト/ダーク2バリアントで`matchesGoldenFile`により画像比較する。**LLM/エージェントは`flutter test --update-goldens`等でgoldenファイル(`test/golden/**/*.png`)を自動更新してはならない**。意図的なデザイン変更でgoldenが落ちた場合は、差分(`test/golden/failures/`に出力される比較画像)を人間が目視確認した上で、ユーザーの明示的な指示がある場合のみ更新する。新規コンポーネントのgolden追加時の初回生成(まだ比較対象画像が存在しない状態でのベースライン作成)はこの禁止の対象外。
+6. **overflow判定のwidget test化(D-4節、T5-A8で導入)**: `test/helpers/overflow_test_helper.dart`の`pumpAndDetectOverflow`/`expectNoOverflow`で、`FlutterError.onError`を差し替えて`A RenderFlex overflowed`をエミュレータ不要のwidget testとして機械判定できる。`tester.view.physicalSize`/`devicePixelRatio`で360x690・411x914・320x690の3サイズを模する。`SettingsScreen`のような`SharedPreferences`/`FutureProvider`を使う画面は、`SharedPreferences.setMockInitialValues({})`とネットワーク依存プロバイダのフェイク差し替えをしないと初期ロードスピナーが解消せず`pumpAndSettle`がタイムアウトする(`test/settings_screen_overflow_test.dart`参照)。
 
 ## コーディング規約
 
@@ -122,6 +124,7 @@
 - L56 設計書の数値期待値の誤記(上記のtQuantile例と同種)は、差の大きさによって対応を分けるべき
 
 ### 開発環境・ツール (Windows / サンドボックス / git)
+- L133 `/full_loop`セッションはWindows環境とは限らない。タスク選定前に`pwsh`/エミュレータの有無を確認し、実行不可な環境依存タスクは選ばない(T5-A8選定時)
 - L132 `.claude/settings.night.json`の`defaultMode: "dontAsk"`は「allowに無ければ拒否」で効く、`Edit`/`Write`未列挙だと無人実行はコード変…
 - L131 特定イベント(`UserPromptSubmit`)専用に書いた生テキスト正規表現マッチは、呼び出しイベントを追加する(`PostToolUse`/`SubagentStop`等)ときは必ず`event`種別でガードする。ガード漏れがあると、他イベントのペイロード内の無関係なテキスト(サブエージェント指示文・ファイルパス等)に偶然マッチしてループ境界が誤リセットされ、コストが常に$0になった(T5-A34)
 - L130 `ui_verifier`のoverflow判定は、`-Log`にログ行が無くてもスクリーンショットのストライプと`-Dump`のbounds実測(要素幅>親幅)が一致すれば視覚的証拠として信用してよい(ログ行必須の完了条件はT5-A36で原因究明予定)
