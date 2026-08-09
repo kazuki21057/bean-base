@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.60 当日やったこと(2026-08-09、**Sonnet 5**、同一セッション継続の`/full_loop`。**T5-A34完了(implementer→verifier→バグ発見→implementer→verifier)。実装直後に見つかったコスト$0固定バグ(L131)を同ループ内で修正・再検証**)
+
+- **タスク選定**: NEXT_SESSION §2の推奨どおりT5-A34(ターン内再計算フック追加、T5-A28の改善策)を選定(依存T5-A33は完了済み)。ユーザー申告のProプラン使用率22%(前回セッション終了時9%から+13pt)。
+- **T5-A34をimplementerへ委譲**: `docs/token_optimization_design.md` §9-Eの確定仕様どおり、`.claude/settings.json`に`PostToolUse`(matcher `Task`)・`SubagentStop`フック追加、`full_loop`スキル手順1・3.5を「`loop_state.md`をReadする」に改める実装を実施。
+- **1回目のverifier検証でコスト$0固定バグを発見**: `PostToolUse`/`SubagentStop`発火後も`.claude/loop_state.md`のコストが`$0.0000`のままという不一致を報告。親セッションが`loop_guard.js`のコードを直接読んで根本原因を特定(生テキストからのループ境界再検出処理が`event`種別で分岐しておらず、`UserPromptSubmit`以外のペイロード内の無関係なテキスト〈サブエージェント指示文・SKILL.mdパス等〉に含まれる`/full_loop`部分文字列へ誤反応してループ境界を「今この瞬間」へ誤リセットしていた)。原因が明確だったため`architect`は介さず、診断結果と修正方針を明記して`implementer`に差し戻した。
+- **implementerが`event === 'UserPromptSubmit'`限定のガードを追加して修正**、`verifier`が再検証: コストが$0→$11.89(非ゼロ)、境界タイムスタンプが発火時刻と約33分ズレている(誤リセットされていない)ことを確認。教訓を`rules/lessons_archive.md` L131・`rules/verification.md`索引に記録。
+- **既知の限界の実地確認**: `findLoopBoundary()`が行頭以外の`/full_loop`(今回のユーザー入力「22%\n/full_loop」)を検出できず、境界が前回T5-A33ループの起点(08:02:08)まで遡っていることを実測で確認(§9-C、T5-A35で解消予定)。このため本ループの`loop_state.md`記載コスト($12.39)はT5-A33分を含む過大値。
+- **コード変更は`.claude/hooks/loop_guard.js`・`.claude/settings.json`・`.claude/skills/full_loop/SKILL.md`のみ(`lib/`不変)** のため、`flutter test`/`flutter build`/デプロイ/本番確認は対象外。`git diff`は3ファイルのみでセッション分割基準(5ファイル超)には該当しないが、コスト基準($7超)は境界誤検出込みの値で$12超のため参考程度。
+- **軽量記録**: loop_guard完了時点`cost=$12.3929/$24, turns=3/30`(内訳: 親$4.9556/サブ$7.4373・6体、境界誤検出でT5-A33分を含む)。ユーザー申告のProプラン使用率22%(開始時点、終了%は未取得)を§8に記録。
+- コミット対象: `docs/改修マスタープラン.md`(T5-A34完了済みリストへ移動)、`docs/archive/マスタープラン_完了タスク.md`(T5-A34詳細)、`docs/archive/NEXT_SESSION_log.md`(-5.59節退避)、`rules/lessons_archive.md`(L131追加)、`rules/verification.md`(L131索引追加)、`docs/token_optimization_design.md`(§7・§8追記)、`NEXT_SESSION.md`(本更新)。
+
 ### -5.59 当日やったこと(2026-08-09、**Sonnet 5**、リセット後の新規セッションの`/full_loop`。**T5-A33完了(implementer→verifier)。loop_guardのサブエージェント消費を合算し可視範囲33.2%の欠陥を解消**)
 
 - **タスク選定**: NEXT_SESSION §2の推奨どおりT5-A33(`loop_guard.js`集計源修正、T5-A28の改善策)を選定(依存T5-A28は完了済み)。⚠️上位モデルタスクは依存充足のものが無くフォールバック。

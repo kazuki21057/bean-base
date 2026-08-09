@@ -300,6 +300,38 @@ function analyze(mainTranscript, subagentFiles, today, loopBoundaryTs) {
   return { cost, subCost, subAgentCount, turns, perModelTokens, ok: true };
 }
 
+// .claude/loop_boundary.txt: 直近のループ境界を永続化するファイル。
+// UserPromptSubmit の raw テキストからスラッシュコマンドを検出できたときだけ
+// 上書きし、以降の PostToolUse・SubagentStop・Stop はこのファイルを読んで
+// 境界を維持する(T5-A35。行頭以外に書かれたスラッシュコマンドは Claude Code が
+// 展開しないため <command-name> タグが transcript に残らず、findLoopBoundary()
+// だけでは検出できないケースの救済。docs/token_optimization_design.md §9-E
+// 「T5-A35」参照)。フォーマットは1行 `<ISO8601タイムスタンプ> <attended|night>`。
+function loopBoundaryFilePath(projectDir) {
+  return path.join(projectDir, '.claude', 'loop_boundary.txt');
+}
+
+function readLoopBoundaryFile(projectDir) {
+  try {
+    const raw = fs.readFileSync(loopBoundaryFilePath(projectDir), 'utf8').trim();
+    if (!raw) return null;
+    const parts = raw.split(/\s+/);
+    if (parts.length < 2) return null;
+    const [ts, mode] = parts;
+    if (mode !== 'attended' && mode !== 'night') return null;
+    if (isNaN(new Date(ts).getTime())) return null;
+    return { ts, mode };
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeLoopBoundaryFile(projectDir, ts, mode) {
+  try {
+    fs.writeFileSync(loopBoundaryFilePath(projectDir), `${ts} ${mode}\n`, 'utf8');
+  } catch (_) {}
+}
+
 function readFailures(projectDir, loopKey) {
   // フォーマット: "<ループ識別子> <回数>"。識別子が現在のループと異なれば 0 扱い
   // (2026-07-25〜。以前は日付キーで「日付が当日以外なら0扱い」だった)。
@@ -356,22 +388,49 @@ function main() {
   // (`raw`)に境界コマンドの文字列が含まれるかを直接チェックする方式に変更した
   // (フィールド名の実際の仕様が不明でも確実に拾える、最も頑健な検出方法)。
   // 複数マッチしうる場合に備え、最後に出現したコマンドをモード判定に使う。
-  // この対処は UserPromptSubmit 専用(上記コメント参照)。PostToolUse・
-  // SubagentStop 等では stdin にサブエージェント指示プロンプトやレポート本文、
-  // SKILL.md のようなファイルパスが含まれ、そこに偶然 "/full_loop" 等の
-  // 部分文字列が現れるとループ境界が「今この瞬間」に誤って再設定され、
-  // それより前の usage エントリが軒並みスコープ外になってコストが常に
-  // $0 になるバグが T5-A34 で発見された。他イベントでは findLoopBoundary()
-  // が transcript から検出した境界(340〜346行目)をそのまま使う。
-  if (event === 'UserPromptSubmit') {
-    const rawBoundaryMatches = [...raw.matchAll(/\/(start|full_loop|night_loop)\b/g)];
-    if (rawBoundaryMatches.length > 0) {
-      loopBoundaryTs = nowIso;
-      loopBoundaryMode = modeForCommand(
-        rawBoundaryMatches[rawBoundaryMatches.length - 1][1]
-      );
+  // この対処は UserPromptSubmit 専用。PostToolUse・SubagentStop 等では stdin に
+  // サブエージェント指示プロンプトやレポート本文、SKILL.md のようなファイルパスが
+  // 含まれ、そこに偶然 "/full_loop" 等の部分文字列が現れるとループ境界が
+  // 「今この瞬間」に誤って再設定され、それより前の usage エントリが軒並み
+  // スコープ外になってコストが常に $0 になるバグが T5-A34 で発見された。
+  //
+  // さらに、行頭以外に書かれたスラッシュコマンド(例: 「82% /full_loop」)は
+  // Claude Code が展開しないため <command-name> タグが transcript に残らず、
+  // findLoopBoundary() は UserPromptSubmit の1ターン後もその境界を検出できない
+  // (T5-A34 完了時に実測確認)。これを解消するため、UserPromptSubmit で raw から
+  // 検出した境界を .claude/loop_boundary.txt に永続化し、以降のイベントでは
+  // その内容と findLoopBoundary() の結果を突き合わせて使う(T5-A35。
+  // docs/token_optimization_design.md §9-E「T5-A35」参照)。境界の確定順序:
+  //   1. UserPromptSubmit の raw に境界コマンドがあれば「今」を新しい境界とし、
+  //      .claude/loop_boundary.txt を上書きする(=新しいループの開始)。
+  //   2. それ以外は、transcript から検出した境界(findLoopBoundary() の結果、
+  //      上のブロックで loopBoundaryTs/loopBoundaryMode に格納済み)と
+  //      .claude/loop_boundary.txt の内容を突き合わせ、タイムスタンプが新しい方を
+  //      採用する(片方しか無ければそれを使う)。
+  //   3. どちらも無ければ現行どおり当日累計フォールバック+モード night。
+  // 全体を try/catch で囲み、失敗時は transcript 由来の値(または null)へ
+  // フォールバックする(フックを絶対に落とさない)。
+  try {
+    let boundaryReset = false;
+    if (event === 'UserPromptSubmit') {
+      const rawBoundaryMatches = [...raw.matchAll(/\/(start|full_loop|night_loop)\b/g)];
+      if (rawBoundaryMatches.length > 0) {
+        loopBoundaryTs = nowIso;
+        loopBoundaryMode = modeForCommand(
+          rawBoundaryMatches[rawBoundaryMatches.length - 1][1]
+        );
+        boundaryReset = true;
+        writeLoopBoundaryFile(cwd, loopBoundaryTs, loopBoundaryMode);
+      }
     }
-  }
+    if (!boundaryReset) {
+      const persisted = readLoopBoundaryFile(cwd);
+      if (persisted && (!loopBoundaryTs || persisted.ts > loopBoundaryTs)) {
+        loopBoundaryTs = persisted.ts;
+        loopBoundaryMode = persisted.mode;
+      }
+    }
+  } catch (_) {}
 
   const { cost, subCost, subAgentCount, turns, perModelTokens, ok } = analyze(
     mainTranscript,
