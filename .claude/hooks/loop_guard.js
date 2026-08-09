@@ -356,12 +356,21 @@ function main() {
   // (`raw`)に境界コマンドの文字列が含まれるかを直接チェックする方式に変更した
   // (フィールド名の実際の仕様が不明でも確実に拾える、最も頑健な検出方法)。
   // 複数マッチしうる場合に備え、最後に出現したコマンドをモード判定に使う。
-  const rawBoundaryMatches = [...raw.matchAll(/\/(start|full_loop|night_loop)\b/g)];
-  if (rawBoundaryMatches.length > 0) {
-    loopBoundaryTs = nowIso;
-    loopBoundaryMode = modeForCommand(
-      rawBoundaryMatches[rawBoundaryMatches.length - 1][1]
-    );
+  // この対処は UserPromptSubmit 専用(上記コメント参照)。PostToolUse・
+  // SubagentStop 等では stdin にサブエージェント指示プロンプトやレポート本文、
+  // SKILL.md のようなファイルパスが含まれ、そこに偶然 "/full_loop" 等の
+  // 部分文字列が現れるとループ境界が「今この瞬間」に誤って再設定され、
+  // それより前の usage エントリが軒並みスコープ外になってコストが常に
+  // $0 になるバグが T5-A34 で発見された。他イベントでは findLoopBoundary()
+  // が transcript から検出した境界(340〜346行目)をそのまま使う。
+  if (event === 'UserPromptSubmit') {
+    const rawBoundaryMatches = [...raw.matchAll(/\/(start|full_loop|night_loop)\b/g)];
+    if (rawBoundaryMatches.length > 0) {
+      loopBoundaryTs = nowIso;
+      loopBoundaryMode = modeForCommand(
+        rawBoundaryMatches[rawBoundaryMatches.length - 1][1]
+      );
+    }
   }
 
   const { cost, subCost, subAgentCount, turns, perModelTokens, ok } = analyze(
