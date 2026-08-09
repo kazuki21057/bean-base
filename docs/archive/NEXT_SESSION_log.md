@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.52 当日やったこと(2026-08-09、**Sonnet 5**、`/full_loop`。**T5-C3完了+T5-A4実装完了(検証待ち)**、前セッションからの引き継ぎ)
+
+- **選定理由**: 前回セッションの推奨どおりT5-C3(researcher実行)→トラックA最上位の未着手タスクを選定。T5-A6完了により依存が解けたT5-A4(依存: T5-A6のみ)がテーブル順でT5-A8より上位のため選定。
+- **T5-C3**: `researcher`へ委譲。Play Console公開要件(クローズドテスト12名14日連続/targetSdkVersion Android16・API36が2026-08-31以降必須・猶予2026-11-01まで/データセーフティ申告/アカウント削除要件/課金・広告ポリシー)を一次情報中心に調査、出典URL・取得日つきで`docs/research/2026-08-09_play_requirements.md`に整理。T5-A5の終了条件(T5-C3の実行)も同時に満たしたため両方を完了済みリストへ。トラックCの完了済みリストを新設(1件目)。
+- **T5-A4**: `ui_verifier`エージェント新設は「エミュレータをどう操作するか」という新規決定を伴うため、まず`architect`へ設計委譲。決定事項: 比率タップ(UIAutomatorはFlutterのsemanticsノードを返さないため不採用、実測で確認)/`adb screencap`+`pull`+`Read`でのスクショ判定(PowerShellの`>`リダイレクトはバイナリを壊すため禁止)/豆腐検出は2.5秒待機+再判定/ツールは`Read,Grep,Glob,PowerShell,ToolSearch`のみ(`Write`/`Edit`/`Bash`は与えない)/画面特定は親からのID指定を原則としフォールバックで`screen_registry.dart`から機械的に導出/Windows専用。`検証強化設計.md` §5-2aに実装詳細として追記(11小節)。**副産物の発見**: ダークモード未実装(項目5は検査不能)、release/profileビルドに`INTERNET`権限が無い(トラックB課題として記録)。
+- 続けて`implementer`へ実装委譲。`tools/ui_probe.ps1`(9サブコマンド、UTF-8 BOM付き)・`.claude/agents/ui_verifier.md`を新設、`.gitignore`に`.claude/ui_verify/`追記、`flutter build apk --debug`成功を確認。実装中に2つの問題を発見・修正(PowerShell 5.1で`adb`の`2>$null`が`$ErrorActionPreference=Stop`下でErrorRecord化する不具合/`wm size`等のブート直後の空応答へのリトライ追加)。**このサンドボックス環境のAndroidエミュレータが起動後30〜90秒で自発的にクラッシュする不安定な挙動があった**(実装不備ではなく環境側の問題と判断)。
+- **architectが102kトークン・implementerが150kトークン(実行時間45分)を要する規模になった**ため、T3-73dのセッション分割しきい値(ファイル数>5、実際は6ファイル touched)に該当。**T5-A4の独立検証(verifier)・完了条件の実地確認(overflow画面での指摘テスト)・push・マスタープラン進捗表更新は次セッションに持ち越し**。commitは実施、pushは未実施。
+- コミット対象: `tools/ui_probe.ps1`(新規)、`.claude/agents/ui_verifier.md`(新規)、`docs/research/2026-08-09_play_requirements.md`(新規)、`.gitignore`、`docs/android_release/検証強化設計.md`(§5-2a新設+§H追記)、`docs/改修マスタープラン.md`(T5-A5・T5-C3完了)、`NEXT_SESSION.md`(本更新)。
+
 ### -5.50 当日やったこと(2026-08-09、**Sonnet 5**、`/full_loop`、Windows環境。**T5-A26完了+T5-A5(researcher.md新設)+T5-A6実装完了(検証待ち)+ユーザー依頼でWindows側トークン節約策の動作確認**)
 
 - **選定理由**: Windows環境検出時はマスタープラン既定ルールによりT5-A26を最優先で着手。次いでタスク表順でT5-A5→(GB級インストールを伴うためユーザーに一言確認のうえ)T5-A6。

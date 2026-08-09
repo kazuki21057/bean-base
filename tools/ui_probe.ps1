@@ -206,6 +206,17 @@ function Get-DeviceInfo([string]$Serial) {
     }
 }
 
+# Get-DeviceInfo を呼び出し、3回リトライしても width/height が取得できなかった場合は
+# (エミュレータがクラッシュ/オフラインになっている等)ここで ok:false を返して終了する。
+# 呼び出し元で個別にチェックする必要をなくすためのラッパー。
+function Get-DeviceInfoOrFail([string]$Serial) {
+    $info = Get-DeviceInfo -Serial $Serial
+    if ($info.Width -le 0 -or $info.Height -le 0) {
+        Write-ErrorResult "device_info_failed" "画面サイズ(wm size/wm density)の取得に失敗しました(width=$($info.Width) height=$($info.Height))。エミュレータがクラッシュ/オフラインになっている可能性があります。"
+    }
+    return $info
+}
+
 # 外部コマンドをタイムアウト付きで実行する(flutter build 用)。verify.ps1 の
 # Invoke-LoggedCommand と同じ Start-Process パターン(PowerShell 5.1 では
 # ネイティブexeへの 2>&1 がエラーレコード化するため使わない)。
@@ -369,7 +380,7 @@ function Invoke-Prepare {
     $sessionDirFull = Join-Path $RepoRoot ".claude\ui_verify\$sessionName"
     New-Item -ItemType Directory -Force -Path $sessionDirFull | Out-Null
 
-    $info = Get-DeviceInfo -Serial $serial
+    $info = Get-DeviceInfoOrFail -Serial $serial
     $sw.Stop()
 
     $deviceJson = [ordered]@{
@@ -419,7 +430,7 @@ function Invoke-Shot {
 
 function Invoke-Tap {
     $serial = Assert-Serial
-    $info = Get-DeviceInfo -Serial $serial
+    $info = Get-DeviceInfoOrFail -Serial $serial
     $px = [int][Math]::Round($X * $info.Width)
     $py = [int][Math]::Round($Y * $info.Height)
 
@@ -431,7 +442,7 @@ function Invoke-Tap {
 
 function Invoke-Swipe {
     $serial = Assert-Serial
-    $info = Get-DeviceInfo -Serial $serial
+    $info = Get-DeviceInfoOrFail -Serial $serial
     $px = [int][Math]::Round($X * $info.Width)
     $py = [int][Math]::Round($Y * $info.Height)
     $px2 = [int][Math]::Round($X2 * $info.Width)
@@ -547,7 +558,7 @@ function Invoke-Net {
 
 function Invoke-Info {
     $serial = Assert-Serial
-    $info = Get-DeviceInfo -Serial $serial
+    $info = Get-DeviceInfoOrFail -Serial $serial
 
     $windowLines = & $adbExe -s $serial shell dumpsys window
     $focusLine = $windowLines | Where-Object { $_ -match "mCurrentFocus" } | Select-Object -First 1
