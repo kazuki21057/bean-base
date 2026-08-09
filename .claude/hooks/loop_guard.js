@@ -162,16 +162,51 @@ function findLoopBoundary(lines) {
   return { ts: lastTs, mode: lastMode };
 }
 
-function analyze(transcriptPath, today, loopBoundaryTs) {
+// transcript_path から「親transcript」と「配下のサブエージェントtranscript群」を
+// 解決する。SubagentStop等ではサブエージェント側のtranscript_pathが渡ってくる
+// 可能性があるため、どちらを渡されても同じ結果になるようにする
+// (T5-A33。docs/token_optimization_design.md §9-E 参照)。
+function resolveTranscriptTargets(transcriptPath) {
+  const dir = path.dirname(transcriptPath);
+  const base = path.basename(transcriptPath, '.jsonl');
+
+  let mainTranscript;
+  let sessionDir;
+  if (path.basename(dir) === 'subagents') {
+    // サブエージェントのtranscriptを渡された場合
+    sessionDir = path.dirname(dir);
+    mainTranscript = sessionDir + '.jsonl';
+  } else {
+    mainTranscript = transcriptPath;
+    sessionDir = path.join(dir, base);
+  }
+
+  let subagentFiles = [];
+  try {
+    const subDir = path.join(sessionDir, 'subagents');
+    const entries = fs.readdirSync(subDir);
+    subagentFiles = entries
+      .filter((f) => f.endsWith('.jsonl') && !f.endsWith('.meta.json'))
+      .map((f) => path.join(subDir, f));
+  } catch (_) {
+    subagentFiles = [];
+  }
+
+  return { mainTranscript, subagentFiles };
+}
+
+// 1ファイル分のコスト・モデル別トークンをスコープ内で集計する
+// (mainTranscript・サブエージェントtranscriptの双方に同じロジックを適用するため
+// analyze() から切り出した)。
+function accumulateCostFromFile(filePath, today, loopBoundaryTs, perModelTokens) {
   let cost = 0;
-  let turns = 0;
-  const perModelTokens = {};
+  let hasUsageInScope = false;
 
   let lines;
   try {
-    lines = fs.readFileSync(transcriptPath, 'utf8').split('\n');
+    lines = fs.readFileSync(filePath, 'utf8').split('\n');
   } catch (_) {
-    return { cost, turns, perModelTokens, ok: false };
+    return { cost, hasUsageInScope };
   }
 
   for (const line of lines) {
@@ -188,17 +223,15 @@ function analyze(transcriptPath, today, loopBoundaryTs) {
     const tsDate = ts ? new Date(ts) : null;
     const isToday = !!tsDate && !isNaN(tsDate) && localDateStr(tsDate) === today;
 
-    // コスト・ターン数とも「直近のループ境界(/start・/full_loop)以降」ベース。
+    // 「直近のループ境界(/start・/full_loop)以降」ベース。
     // 境界が1件も見つからなかった場合のみ、従来どおり「当日」にフォールバック。
     const inLoopScope = loopBoundaryTs ? !!ts && ts >= loopBoundaryTs : isToday;
-
-    // ターン数 (実ユーザープロンプト)
-    if (inLoopScope && isRealUserPrompt(obj)) turns += 1;
 
     // コスト (assistant の usage)
     const msg = obj.message;
     const usage = msg && msg.usage;
     if (usage && inLoopScope) {
+      hasUsageInScope = true;
       const model = msg.model;
       const p = priceFor(model);
       const inp = usage.input_tokens || 0;
@@ -218,7 +251,53 @@ function analyze(transcriptPath, today, loopBoundaryTs) {
     }
   }
 
-  return { cost, turns, perModelTokens, ok: true };
+  return { cost, hasUsageInScope };
+}
+
+function analyze(mainTranscript, subagentFiles, today, loopBoundaryTs) {
+  let turns = 0;
+  const perModelTokens = {};
+
+  // ターン数(実ユーザープロンプト)は mainTranscript のみで数える
+  // (サブエージェントへの指示プロンプトをユーザーターンに数えないため)。
+  let lines;
+  try {
+    lines = fs.readFileSync(mainTranscript, 'utf8').split('\n');
+  } catch (_) {
+    return { cost: 0, subCost: 0, subAgentCount: 0, turns, perModelTokens, ok: false };
+  }
+
+  for (const line of lines) {
+    const s = line.trim();
+    if (!s) continue;
+    let obj;
+    try {
+      obj = JSON.parse(s);
+    } catch (_) {
+      continue;
+    }
+
+    const ts = obj.timestamp;
+    const tsDate = ts ? new Date(ts) : null;
+    const isToday = !!tsDate && !isNaN(tsDate) && localDateStr(tsDate) === today;
+    const inLoopScope = loopBoundaryTs ? !!ts && ts >= loopBoundaryTs : isToday;
+
+    if (inLoopScope && isRealUserPrompt(obj)) turns += 1;
+  }
+
+  // コストとモデル別トークンは mainTranscript + subagentFiles 全部を合算する。
+  const mainResult = accumulateCostFromFile(mainTranscript, today, loopBoundaryTs, perModelTokens);
+  let subCost = 0;
+  let subAgentCount = 0;
+  for (const f of subagentFiles) {
+    const r = accumulateCostFromFile(f, today, loopBoundaryTs, perModelTokens);
+    subCost += r.cost;
+    if (r.hasUsageInScope) subAgentCount += 1;
+  }
+
+  const cost = mainResult.cost + subCost;
+
+  return { cost, subCost, subAgentCount, turns, perModelTokens, ok: true };
 }
 
 function readFailures(projectDir, loopKey) {
@@ -254,11 +333,13 @@ function main() {
   const today = localDateStr(new Date());
   const nowIso = new Date().toISOString();
 
+  const { mainTranscript, subagentFiles } = resolveTranscriptTargets(transcriptPath);
+
   let loopBoundaryTs = null;
   let loopBoundaryMode = null;
   try {
     const boundary = findLoopBoundary(
-      fs.readFileSync(transcriptPath, 'utf8').split('\n')
+      fs.readFileSync(mainTranscript, 'utf8').split('\n')
     );
     loopBoundaryTs = boundary.ts;
     loopBoundaryMode = boundary.mode;
@@ -283,11 +364,13 @@ function main() {
     );
   }
 
-  const { cost, turns, perModelTokens, ok } = analyze(
-    transcriptPath,
+  const { cost, subCost, subAgentCount, turns, perModelTokens, ok } = analyze(
+    mainTranscript,
+    subagentFiles,
     today,
     loopBoundaryTs
   );
+  const mainCost = cost - subCost;
 
   // ループ識別子: 境界タイムスタンプがあればそれ、無ければ当日日付に
   // "today:" を付けたもの(タイムスタンプ形式と衝突しないようにする)。
@@ -326,6 +409,7 @@ function main() {
     ` — コスト上限 $${th.costLimit} / ターン上限 ${th.turnLimit} / 連続失敗上限 ${th.failLimit}\n` +
     `- ループ識別子(loop_failures.txt 記録用キー): ${loopKey}\n` +
     `- ${scopeLabel}のコスト(重み付け概算): $${cost.toFixed(4)} / 上限 $${th.costLimit}\n` +
+    `- 内訳: 親セッション $${mainCost.toFixed(4)} / サブエージェント $${subCost.toFixed(4)} (${subAgentCount}体)\n` +
     `- ${scopeLabel}のターン数: ${turns} / 上限 ${th.turnLimit}\n` +
     `- 連続失敗: ${failures} / 上限 ${th.failLimit}\n` +
     `- 停止条件: ${stop ? '🛑 到達 — ' + reasons.join(', ') : '✅ 余裕あり'}\n` +
@@ -341,7 +425,8 @@ function main() {
   if (event === 'UserPromptSubmit') {
     let out =
       `[loop_guard] ${scopeLabel}(${th.label}モード) cost=$${cost.toFixed(3)}/$${th.costLimit}, ` +
-      `turns=${turns}/${th.turnLimit}, fails=${failures}/${th.failLimit}.`;
+      `turns=${turns}/${th.turnLimit}, fails=${failures}/${th.failLimit}.` +
+      ` sub=$${subCost.toFixed(3)}(${subAgentCount}体)`;
     if (stop) {
       out +=
         `\n🛑 終了条件に到達しました (${reasons.join(', ')})。` +
