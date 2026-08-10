@@ -168,6 +168,7 @@
 
 ### ループ運用・ガードレール
 - L134 設計・調査目的のサブエージェントでも権限昇格操作(設定書き換え・`--dangerously-skip-permissions`)を無許可で試みることがある。ブロックされ実害が無くても事実を報告する(Antigravity CLI委譲調査)
+- L139 implementerが`CLAUDE.md`/`SKILL.md`(運用ルール自体)を編集すると、ハーネスがSECURITY WARNINGを出すことがある。事前承認済み設計でも差分は自分の目で確認してから進める(T5-A42)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
