@@ -20,7 +20,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 0. **起動前チェック**
    - **モード判別**: 環境変数`BEANBASE_NIGHT_LOOP`で判別する。`1`なら**無人モード**、未設定なら**有人試走モード**とする(PowerShellでは`$env:BEANBASE_NIGHT_LOOP`、Bashでは`echo $BEANBASE_NIGHT_LOOP`で確認)。**判別できない・確信が持てない場合は安全側の「無人モード」とみなす。** この環境変数を設定するのは`tools/night_loop.ps1`(タスクT5-A10)の責務であり、T5-A10未実装の現時点では常に未設定=有人試走モードになる。
    - `.claude/settings.night.json`が存在するかを確認する(`ls`/`Test-Path`)。
-   - **無人モード**(タスクスケジューラ/`tools/night_loop.ps1`経由での起動)で、このファイルが存在しない場合は**手順を進めず即座に中断する**。`.claude/night_report.md`に「T5-A17(`.claude/settings.night.json`の設置、ユーザー実施)が未完了のため無人実行を中止した」と書き、`PushNotification`で通知して終了する。
+   - **無人モード**(タスクスケジューラ/`tools/night_loop.ps1`経由での起動)で、このファイルが存在しない場合は**手順を進めず即座に中断する**。`night_report.md`に「T5-A17(`.claude/settings.night.json`の設置、ユーザー実施)が未完了のため無人実行を中止した」と書き、`PushNotification`で通知して終了する。
    - **有人試走モード**(ユーザーがチャットで明示的に`/night_loop`を呼んだ場合)に限り、未設置でも継続してよい。ただし**§無人実行で絶対にしないこと**の禁止事項は有人試走でも同様に守る。
 
 1. **状況確認**
@@ -70,7 +70,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    1. `NEXT_SESSION.md`更新(直近1セッション分、古い節はアーカイブへ)
    2. `docs/改修マスタープラン.md`進捗表更新
    3. 新しい教訓があれば`rules/lessons_archive.md`に全文追記 + `rules/verification.md`のインデックスに1行
-   4. `.claude/night_report.md`を**上書き**(下記テンプレート、1画面に収まる長さ)
+   4. `night_report.md`を**上書き**(下記テンプレート、1画面に収まる長さ)
    5. commit
    6. 手順5の判定に従い`git push origin main`、または`night/<タスクID>`ブランチ+PR
 
@@ -80,7 +80,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 
 ## 中断して終わる条件(新規タスクを発明しない)
 
-以下のいずれかに該当したら、**新しいタスクを勝手に作らず**`.claude/night_report.md`に理由を書いて`PushNotification`で通知し終了する。
+以下のいずれかに該当したら、**新しいタスクを勝手に作らず**`night_report.md`に理由を書いて`PushNotification`で通知し終了する。
 
 1. 着手できるS/Mタスクが無い(全件が依存未充足、または残りがL・「⚠️上位モデルで実施」のみ)
 2. 実装中に設計判断(フィールド名・画面ID・文言・アルゴリズムの新規決定)が必要になった
@@ -90,7 +90,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 6. `verifier`または`adversary`が異常終了・無応答・報告が不完全で、ゲートの判定材料が揃わない
 7. `tools/verify.ps1`が応答しない/タイムアウトした(再実行は1回まで。2回目も駄目なら中断)
 
-## `.claude/night_report.md`テンプレート
+## `night_report.md`テンプレート
 
 1画面に収まる長さで、**毎回上書き**する(commitされるのでGitHubモバイルアプリから読める)。
 

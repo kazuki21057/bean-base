@@ -66,7 +66,6 @@ screenshots/
 .claude/ui_verify/
 
 # tools/night_loop.ps1 の実行ログ・実行記録・ロックファイル(実行のたびに生成される一時ファイル)
-# .claude/night_report.md は追跡対象のまま残す(GitHubモバイルアプリから読む前提のため)
 .claude/night_logs/
 .claude/night_runs.log
 .claude/night_loop.lock

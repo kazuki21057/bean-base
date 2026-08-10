@@ -61,7 +61,7 @@ if (-not (Test-Path $NightLogsDir)) {
 $WrapperLogPath = Join-Path $NightLogsDir 'wrapper.log'
 $LockPath = Join-Path $ClaudeDir 'night_loop.lock'
 $RunsLogPath = Join-Path $ClaudeDir 'night_runs.log'
-$NightReportPath = Join-Path $ClaudeDir 'night_report.md'
+$NightReportPath = Join-Path $RepoRoot 'night_report.md'
 $ProjectsRoot = Join-Path $HOME '.claude\projects'
 
 $ScriptStart = Get-Date
@@ -181,7 +181,7 @@ function Send-NightNotification {
     ) -join "`n"
     try {
         Set-Content -Path $NightReportPath -Value $body -Encoding utf8
-        Write-Log 'INFO' '.claude/night_report.md を更新しました。'
+        Write-Log 'INFO' 'night_report.md を更新しました。'
     } catch {
         Write-Log 'WARN' ('night_report.md の更新に失敗しました: {0}' -f $_.Exception.Message)
     }
@@ -460,7 +460,7 @@ function Invoke-NightLoop {
             ) -join "`n"
             try {
                 Set-Content -Path $NightReportPath -Value $body -Encoding utf8
-                Write-Log 'INFO' '.claude/night_report.md を更新しました。'
+                Write-Log 'INFO' 'night_report.md を更新しました。'
             } catch {
                 Write-Log 'WARN' ('night_report.md の更新に失敗しました: {0}' -f $_.Exception.Message)
             }
