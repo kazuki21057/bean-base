@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.68 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`続き、Windows環境。ユーザーが`command(<target>)`の正しい書き方〈引数まで含めた完全一致〉を発見し、T5-A37を完了)
+
+- **背景**: 前節(-5.67、さらに前をアーカイブ参照)でT5-A38・T5-A39完了時、「`command(<name>)`の個別指定はWindowsで機能せず`command(*)`以外に実用解なし」と結論していた。ユーザーが自分で試行し、**引数まで含めた完全一致の文字列**(例`command(flutter --version)`)なら機能することを発見、チャットで報告してくれた。
+- **列挙して依頼**: `.claude/agents/implementer.md`のセルフチェック(`flutter analyze`/`test`/`build web`/`pub get`・`dart run build_runner build --force-jit`)と、調査系の`git status`/`diff`/`log --oneline -20`/`show HEAD`・`powershell -File tools/verify.ps1`の計10コマンドを列挙してユーザーに依頼、`~/.gemini/antigravity-cli/settings.json`へ追加してもらった。
+- **実機確認(2段階)**: (1) agy直接呼び出しで`git status`+`flutter analyze`を実行させ、実際にコマンドが実行され正しい結果(31 issues、working tree clean)が返ることを確認。(2) `tools/antigravity_delegate.ps1`経由で`-Role implementer`にダミータスク(ファイル作成+`flutter analyze`/`test`のセルフチェック)を投げ、exit 0・実際に361テスト中355成功という正しい結果が返ることを確認(ラッパー越しでも機能することを実証)。
+- **ラッパー修正**: `tools/antigravity_delegate.ps1`/`.sh`の上書きブロックを「シェルコマンドは1回も試みない」(-5.67で追加した全面禁止)から「上記10コマンドの完全一致のみ試みてよい」へ再度緩和。
+- **ドキュメント訂正**: `docs/antigravity_delegation_design.md` §5-1・item6の「Windowsでは個別コマンド許可が機能しない」という結論に訂正の追記(結論撤回ではなく経緯として両論併記)。`rules/lessons_archive.md` L138(「短い入力での失敗を機能全体の欠如と一般化しない」)を追加、`rules/verification.md`に1行索引追加。`docs/改修マスタープラン.md`でT5-A37を✅完了に変更、完了済みサマリを訂正。
+- **T5-A37を完了済みへ移動**(当初⚠️ユーザー実施の完了条件「意図どおりのスコープで動く」を実機確認で達成)。T5-A42・T5-A43・T5-A44は引き続き次回選定可能(依存T5-A38、agy実機不要)。T5-A42を今後実施する際は、上記の訂正(§9.1「シェルコマンド実行が必須なタスクはClaude固定」という前提が部分的に緩和された)も踏まえてルーティング表を書くこと。
+- コード変更は`tools/antigravity_delegate.ps1`/`.sh`(2ファイルのみ、`lib/`不変のためデプロイ対象外)。検証は両ファイルの構文チェック(PowerShellパーサ・`bash -n`)+ラッパー経由の実地1回(上記)で実施、`verifier`への委譲は行わなかった(対話的な外部CLI実機確認のため、前回ループと同様に親が直接実施)。
+- **T5-A8(goldenテストのWindows環境依存問題)は今回も未着手のまま**(スコープ外、次回持ち越し)。
+
 ### -5.65 当日やったこと(2026-08-09、Sonnet 5、有人モード。ユーザー指示による調査タスク——マスタープランのタスク選定はスキップ)
 
 - **背景**: ユーザーから「Sonnet5サブエージェントをAntigravity CLI(`agy`)に変更してClaude使用量を節約したい。効果・実現可否をまず検討し、可能ならセッティングを検討してタスクに落とし込んで」との指示。参考記事はZenn個人ブログ(裏取り不十分な数値あり、注意して扱った)。

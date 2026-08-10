@@ -15,7 +15,7 @@ void main() {
       goldenPath: 'goldens/roast_level_slider_light.png',
       width: 320,
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 
   testWidgets('RoastLevelSlider golden(ダーク)', (tester) async {
     await pumpAndMatchGolden(
@@ -25,5 +25,5 @@ void main() {
       goldenPath: 'goldens/roast_level_slider_dark.png',
       width: 320,
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 }

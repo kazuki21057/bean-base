@@ -14,7 +14,7 @@ void main() {
       brightness: Brightness.light,
       goldenPath: 'goldens/bean_jar_widget_light.png',
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 
   testWidgets('BeanJarWidget golden(ダーク)', (tester) async {
     await pumpAndMatchGolden(
@@ -23,5 +23,5 @@ void main() {
       brightness: Brightness.dark,
       goldenPath: 'goldens/bean_jar_widget_dark.png',
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 }

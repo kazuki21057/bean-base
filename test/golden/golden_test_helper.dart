@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// アプリ本体(`lib/main.dart`)には`darkTheme`/`themeMode`が未実装(T5-B21で
 /// 別途対応予定)なので、ここではアプリのテーマ切替を経由せず、テスト側で
 /// 直接`Brightness.dark`の`ThemeData`を指定して描画する。
+///
+/// ベースラインはWindows環境で生成する(T5-A8、OS間のテキスト描画差のため)。
+
+/// goldenのベースライン画像はWindows環境で生成したものに固定する(T5-A8)。
+/// テキストのラスタライズ結果がOSで異なる(図形描画はOS間で一致)ため、
+/// Windows以外ではgolden比較をスキップする。
+/// 再生成は`rules/verification.md`の運用ルールに従い、ユーザーの明示指示がある場合のみ。
+final bool skipGoldenOnNonWindows = !Platform.isWindows;
 
 /// golden撮影対象を包む`RepaintBoundary`のキー。
 const goldenTargetKey = Key('golden_target');

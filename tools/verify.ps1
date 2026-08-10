@@ -180,11 +180,11 @@ function Invoke-CheckTest {
 
     $passed = 0
     $failed = 0
-    $m = [regex]::Matches($logText, '\+(\d+)(?:\s+-(\d+))?:')
+    $m = [regex]::Matches($logText, '\+\d+(?:\s+[~-]\d+)*:')
     if ($m.Count -gt 0) {
-        $last = $m[$m.Count - 1]
-        $passed = [int]$last.Groups[1].Value
-        if ($last.Groups[2].Success) { $failed = [int]$last.Groups[2].Value }
+        $lastLine = $m[$m.Count - 1].Value
+        if ($lastLine -match '\+(\d+)') { $passed = [int]$Matches[1] }
+        if ($lastLine -match '-(\d+)')  { $failed = [int]$Matches[1] }
     }
 
     $ok = ($result.ExitCode -eq 0) -and ($failed -eq 0) -and (-not $result.TimedOut)
@@ -285,14 +285,17 @@ function Invoke-CheckBuildWebRelease {
     }
 }
 
-# 6. golden: goldenテストが0件なら差分ゼロ扱い(T5-A8未着手のため)
+# 6. golden: goldenテストが0件なら差分ゼロ扱い。ベースラインはWindows生成(T5-A8)。
 function Invoke-CheckGolden {
     $testDir = Join-Path $RepoRoot "test"
     $goldenFiles = @()
     if (Test-Path $testDir) {
+        # matchesGoldenFile( を含むだけのヘルパー(main()を持たない)を除外する。
+        # golden_test_helper.dart を flutter test に渡すと「Undefined name 'main'」で必ず失敗するため。
         $goldenFiles = Get-ChildItem -Path $testDir -Recurse -Filter "*.dart" -ErrorAction SilentlyContinue | Where-Object {
             $t = Get-Content -Raw -Encoding UTF8 -Path $_.FullName -ErrorAction SilentlyContinue
-            $t -and ($t -match [regex]::Escape("matchesGoldenFile("))
+            $t -and ($t -match [regex]::Escape("matchesGoldenFile(")) -and
+                ($t -match '(?m)^\s*(?:void|Future<void>)\s+main\s*\(')
         } | ForEach-Object { Get-RelativePath $_.FullName }
     }
 
@@ -308,10 +311,10 @@ function Invoke-CheckGolden {
     if (-not $logText) { $logText = "" }
 
     $diffCount = 0
-    $m = [regex]::Matches($logText, '\+(\d+)(?:\s+-(\d+))?:')
+    $m = [regex]::Matches($logText, '\+\d+(?:\s+[~-]\d+)*:')
     if ($m.Count -gt 0) {
-        $last = $m[$m.Count - 1]
-        if ($last.Groups[2].Success) { $diffCount = [int]$last.Groups[2].Value }
+        $lastLine = $m[$m.Count - 1].Value
+        if ($lastLine -match '-(\d+)')  { $diffCount = [int]$Matches[1] }
     }
 
     $ok = ($result.ExitCode -eq 0) -and ($diffCount -eq 0) -and (-not $result.TimedOut)

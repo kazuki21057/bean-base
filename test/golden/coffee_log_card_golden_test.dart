@@ -49,7 +49,7 @@ void main() {
       goldenPath: 'goldens/coffee_log_card_light.png',
       width: 400,
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 
   testWidgets('CoffeeLogCard golden(ダーク)', (tester) async {
     await pumpAndMatchGolden(
@@ -63,5 +63,5 @@ void main() {
       goldenPath: 'goldens/coffee_log_card_dark.png',
       width: 400,
     );
-  });
+  }, skip: skipGoldenOnNonWindows);
 }
