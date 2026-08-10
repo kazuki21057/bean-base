@@ -35,6 +35,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 
 3. **実装**
    - `implementer`サブエージェントへ委譲する。委譲プロンプトには対象タスクID・変更対象ファイル・確定済み仕様・完了条件・「日本語で報告して」を明記する(`full_loop`と同じ委譲規約)。
+   - **T5-A41の昇格判定が完了するまで、夜間ループではagy(`tools/antigravity_delegate.ps1`)を使わない**(無人実行で未検証の委譲先を使うと、失敗の切り分けが翌朝の人間側コストになるため)。`implementer`は常に`Task(implementer)`(Claude)で委譲する。
    - 実装中に**設計判断が必要と判明した時点で直ちに中断**する。`architect`へは回さない(無人実行では設計判断を継続しない)。**§中断条件**へ進む。
    - `implementer`が2回失敗したら3回目を同じやり方で試さず、**§中断条件**へ進む。
 

@@ -20,11 +20,14 @@ description: Use when the user asks to run one full daily-loop iteration autonom
 
 **このスキルで実行するタスクは、フェーズごとに担当サブエージェント(`.claude/agents/`)へ委譲する。** 親(このセッション)は「選定・委譲・判断・ユーザー確認・commit/push/デプロイ」を担い、**コードの実装と検証は自分で書かず、担当エージェントに実行させる**。モデルは各エージェント定義の`model:`で自動選択されるため、委譲時にモデルを指定しない(`Agent`ツールの`model`パラメータは渡さない)。
 
-| フェーズ | 担当 | `subagent_type` | モデル |
+| フェーズ | 担当 | 委譲先 | 条件 |
 |---|---|---|---|
-| 設計・原因究明・タスク分解 | architect | `architect` | opus(上位) |
-| コード実装 | implementer | `implementer` | sonnet |
-| 検証(analyze/test/build/ブラウザ) | verifier | `verifier` | sonnet |
+| 設計・原因究明・タスク分解 | architect | `Task(architect)` | 変更なし(Opus) |
+| コード実装 | implementer | §9.1で「agy可」なら`tools/antigravity_delegate.ps1 -Role implementer`、それ以外は`Task(implementer)` | パイロット中は`docs/`・`tools/`・`.claude/`の非Dartファイルのみagy |
+| 検証 | verifier | `Task(verifier)` | 変更なし(agy不可) |
+| 差分レビュー | adversary | `tools/antigravity_delegate.ps1 -Role adversary`(`/code-review`の実行条件を満たすループのみ) | 差分は親がファイル化して渡す(§9.3) |
+
+委譲先の判定は`docs/antigravity_delegation_design.md` §9(タスク引き渡し方式の詳細設計)が正本。
 
 **architectを呼ぶタイミング**(このスキルでは以下に該当したら必ず先にarchitectへ委譲し、その方針をimplementerに渡す):
 
@@ -54,7 +57,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
     2. **`⚠️上位モデルで実施`タスクが1件も選べない場合(全件が依存未充足、または該当タスクが無い)は、通常タスクへフォールバックして着手する。** 親は選定・判断・ユーザー確認・commit/push/デプロイのみを担い、実装は`implementer`、検証は`verifier`へ委譲する(手順3以降を通常どおり実行)。
     3. **依存が満たされたタスクが通常タスクも含めて1件も無い場合のみ**、新規着手せずユーザー承認待ちにする。状況(ブロック理由・依存関係・着手可能になる条件)を短く報告し、`PushNotification`でも通知して終了する。
   - **なお選ばないタスク**: タスク文に「`full_loop`の自動選定対象外」等の注記があるもの、「⚠️ユーザー実施」のもの。これらしか残っていない場合は上記3と同じ扱い。
-3. **実装**: **親が直接コードを書かず、`implementer`サブエージェントに委譲する**(上記§サブエージェントへの委譲)。方針が未確定・原因不明・再発バグ・新規決定を伴う場合は、**先に`architect`へ委譲して方針を確定させてから**implementerに渡す。委譲プロンプトには「対象タスクID / 変更するファイルと関数 / 確定済みの仕様(フィールド名・列名・文言) / 完了条件 / 日本語で報告」を明記する。エージェント側でも`CLAUDE.md`の規約(全マスタータブへの一律適用、`[Antigravity]`ログ、外部データのID `.toString()`化、モデル追加時のシート列プロビジョニング漏れ対策など)を守らせる。統計解析・予測機能に触れる場合は`statistics_feature_design.md`の該当節を委譲プロンプトで指定する(同ファイルが正本)。implementerが2回失敗したら3回目は同じやり方を繰り返さず`architect`に原因究明を委譲する。
+3. **実装**: まず`docs/antigravity_delegation_design.md` §9.1のルーティング表で委譲先を決める。表で判定できない場合はClaudeを選ぶ(迷ったらClaude)。**親が直接コードを書かず、`implementer`サブエージェントに委譲する**(上記§サブエージェントへの委譲)。方針が未確定・原因不明・再発バグ・新規決定を伴う場合は、**先に`architect`へ委譲して方針を確定させてから**implementerに渡す。委譲プロンプトには「対象タスクID / 変更するファイルと関数 / 確定済みの仕様(フィールド名・列名・文言) / 完了条件 / 日本語で報告」を明記する。エージェント側でも`CLAUDE.md`の規約(全マスタータブへの一律適用、`[Antigravity]`ログ、外部データのID `.toString()`化、モデル追加時のシート列プロビジョニング漏れ対策など)を守らせる。統計解析・予測機能に触れる場合は`statistics_feature_design.md`の該当節を委譲プロンプトで指定する(同ファイルが正本)。implementerが2回失敗したら3回目は同じやり方を繰り返さず`architect`に原因究明を委譲する。
 3.5. **セッション分割チェック(T3-73d)**: 手順4(検証)に入る前に、**`.claude/loop_state.md`をReadし、そこに書かれた本ループのコスト(サブエージェント込み)を使う**(T5-A34〜。フック出力の`[loop_guard] 本ループ cost=...`行はそのターン開始時点の値なのでターン内の判定には使わない)。当ループcostが**$7を超えている**、または実装で触れたファイル数が**5を超えている**場合、以下を行ってこのセッションを終える(理由: コンテキストが200kを超えると単価が約2倍になるため、実装セッションと検証・デプロイセッションを分けて1セッションあたりのコンテキストを抑える。詳細は`docs/token_optimization_design.md`)。
    - (a) 実装内容を`NEXT_SESSION.md`の「3. 直近の作業ログ」に**「検証待ち」**として記載する(何を実装したか・触れたファイル一覧・次にやるべき検証手順)。
    - (b) commitまで済ませる(**pushはしない**)。
