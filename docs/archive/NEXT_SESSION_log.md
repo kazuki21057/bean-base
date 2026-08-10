@@ -2325,3 +2325,17 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **command許可は個別指定が引き続き機能せず(※翌節-5.68で訂正)**: ユーザーが`command(flutter)`を追加して試したが、`command(git)`と同じく拒否メッセージのまま(以前の`command(echo)`/`command(cmd)`の失敗と同様)。`command(*)`以外に細粒度シェル許可の実用解は無いという既存の結論(§5-1)が再確認された…と当初判断したが、この結論は誤りだった(詳細は-5.68節・`rules/lessons_archive.md` L138)。agy委譲は当面**ファイル編集+読み取り調査**の範囲(セルフチェックはverifierに一任)で運用する。
 - 新しい教訓を`rules/lessons_archive.md` L137に記録、`rules/verification.md`インデックスに1行追加。`docs/改修マスタープラン.md`・`docs/antigravity_delegation_design.md` §5-6を更新。T5-A42・T5-A43・T5-A44(依存T5-A38)が次回選定可能になった。
 - **T5-A8(goldenテストのWindows環境依存問題)は今回も未着手のまま**(スコープ外、次回持ち越し)。
+
+### -5.72 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`続き、Windows環境。T5-A12有人トライアル実行+night_report.md移動でT5-A17のバグ修正、ロードマップ相談)
+
+- **背景**: ユーザーがPC前に着席、「ユーザーがやらなければいけないこと」を整理して伝えたところ、T5-A12(night_loop.ps1の有人監視下トライアル)を今すぐ一緒にやることに合意。実行内容(自律タスク選定・実装・検証ゲート通過でmain自動push)を説明し明示的な許可を得た上で`tools/night_loop.ps1 -Force`を実行(バックグラウンド、約20分)。
+- **T5-A12結果**: (a)権限プロンプトで止まらない→✅確認。(c)ゲートが正しく判定する→✅実質確認(タスクT5-A15を自律選定・実装・検証・**mainへ自動push**まで成功、commit f6307b7)。(b)`night_report.md`が生成される→❌失敗。夜間セッション自身が`.claude/night_report.md`を更新しようとしてハーネス側にハードブロックされることが判明(教訓L140、夜間セッション自身が記録)。
+- **night_report.md移動で対処**: `.claude/`配下へのEdit/Writeがハードブロックされる問題への対処として、`night_report.md`を`.claude/`の外(リポジトリルート)へ移動(`git mv`で履歴保持、GitHubモバイルアプリから読む前提のためgit追跡は維持)。`tools/night_loop.ps1`(`$NightReportPath`)・`.claude/skills/night_loop/SKILL.md`・`docs/android_release/開発運用基盤設計.md`の参照を全て更新、implementerが構文チェック+`-DryRun`完走を確認。**この修正自体は未検証**(次回の実際の夜間ループ実行で`night_report.md`が正しく更新されるか要確認)。commit a634202、push済み。
+- **副次発見**: `.claude/night_logs/wrapper.log`への書き込みが今回の実行中ずっと失敗していた原因を特定——2026-07-24から17日間放置されたPowerShellプロセス(PID 5564)を含む複数の残留プロセスがファイルを掴んでいた。ユーザーに終了してよいか確認中(未対応)。
+- **loop_guardの疑わしい挙動**: T5-A12実行後、有人`/full_loop`セッション(上限$24のはず)が突然「夜間モード・上限$8」に切り替わり、コスト超過で停止通知が出た。入れ子で起動した`night_loop.ps1`経由の子claudeセッション(`/night_loop`)のtranscriptを`loop_guard.js`が自セッションのものと誤認した可能性を**未確認の仮説**として教訓L141に記録(`rules/lessons_archive.md`・`rules/verification.md`索引追加)。原因調査(architect委譲)は今回実施していない。
+- **ロードマップ相談**: ユーザーから「Play Console登録($25)より、アプリ完成の方が圧倒的に時間がかかるのでは」という指摘。`docs/android_release/リリース計画書.md`の内容を提示: トラックA(開発運用基盤)は34/44タスク完了、トラックB(製品開発、ローカルDB化+全画面新規デザイン+収益化基盤、40〜60人日規模)は**0/43タスクで未着手**(規約でトラックA完成までブロック中)。この構造から「Play Console登録の14日待機はアプリ完成までの期間に比べ誤差レベル」「今すぐ着手する必要はない」という結論をユーザーと共有(合意形成、コード変更なし)。
+- **マスタープラン更新**: T5-A12→🔶(1回目の手動実行は完了、タスクスケジューラ登録・3晩観察は未着手)、T5-A17→🔶(ファイル設置・(a)(c)実測済み、(b)は修正コミット済みだが再検証待ち)。commit f41a19a、push済み。
+- **セッション終了理由**: loop_guardの停止通知(コスト超過、上記の夜間モード誤検知の疑いあり)を受けて新規着手を停止、この節を記録して終了。
+- **締め作業中に追加発見**: `.claude/night_report.md`を通常の手順(Write/Edit)で更新しようとしたところ、こちらも同じ「don't ask mode」権限エラーでハードブロックされた。**T5-A13の`.claude/agents/*.md`固有の話ではなく`.claude/`配下全般が対象**と判明し、教訓L140を「エージェント定義ファイル限定」から「`.claude/`配下全般」に拡張・訂正した。**`.claude/night_report.md`は2026-08-09時点の内容のまま更新できておらず、本節(NEXT_SESSION.md)が今回のループの実質的な報告書**。次回セッションは`.claude/night_report.md`が古くても本書§3を正とすること。
+- **新規教訓**: `rules/lessons_archive.md` L140(`.claude/`配下へのEdit/Writeは`settings.night.json`のallowより優先してハードブロックされる。implementer委譲だけでなく親セッション自身も対象。CLAUDE.md/SKILL.mdの警告どまり〈L139〉とは区別する)。`rules/verification.md`に1行索引追加。
+- **コード変更**: `analysis_options.yaml` + 既存Dartファイル94個(先頭1行コメント追加のみ)。`lib/`のロジック変更なし。

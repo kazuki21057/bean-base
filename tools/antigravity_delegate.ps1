@@ -185,6 +185,7 @@ $OverrideBlock = @'
 - **シェルコマンドは、次の完全一致の文字列のみ実行を試みてよく、それ以外は1回も試みないでください**(引数が1文字でも違うと拒否され、拒否されると応答全体が失敗扱いで打ち切られます): `flutter analyze` / `flutter test` / `flutter build web` / `flutter pub get` / `dart run build_runner build --force-jit` / `git status` / `git diff` / `git log --oneline -20` / `git show HEAD` / `powershell -File tools/verify.ps1` / `powershell -File tools/verify.ps1 -Edition personal`。上記以外のコマンド(特定ファイル指定の`flutter test <path>`等を含む)は実行を試みず、報告に「未実施」と書いてください。正式な検証(ブラウザでの実データ確認等)は別のエージェントが行います。
 - `git commit`/`git push`/`firebase deploy`/`clasp push`/本番データの削除は**絶対に実行しないでください**。
 - 指示された対象ファイル以外を編集しないでください。
+- 既存の`.ps1`ファイルを編集する場合、元のファイルがUTF-8 BOM付きであればBOMを失わないでください(日本語コメントを含む`.ps1`がBOM無しUTF-8で保存されると、PowerShell 5.1で構文エラーになります)。
 - 報告は**日本語**で、**1,200文字以内**にしてください。長い引用・生ログの貼り付けは不要です。
 - 報告の最後に、次の3見出しを必ずこの形式で付けてください。
 

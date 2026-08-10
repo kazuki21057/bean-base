@@ -14,6 +14,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 - **`integration_test/`ディレクトリは現時点で存在しない。** スモークスイートは**T5-A7**(依存: T5-A6・T5-B1、いずれも未着手・Lサイズ)で作成予定であり、`tools/verify.ps1`の8項目にも相当するチェックは無い。またT5-A6(エミュレータ/Android SDK未検出)が未整備のため、そもそも実行環境も無い。**スイートが無い間、自動pushゲート条件#2(`integration_test`スモークが全パス)は「判定対象外(スキップ)」として扱う。** この暫定措置は**T5-A7完了時に解除**する(このSKILL.mdを更新すること)。
 - **夜間のしきい値はコスト$8・ターン40・連続失敗2**(有人の$24/30/3とは別、設計書§5)。ただし**`loop_guard.js`の夜間分岐はT5-A11で未実装**のため、`.claude/loop_state.md`が表示する上限値は現状すべて有人用($24/30/3)のままである。**表示された上限値をそのまま使わず、$8/ターン40/連続失敗2で自己判定すること。**(T5-A11完了後はこの一文を削除してよい)
 - **`tools/night_loop.ps1`(多重起動ガード・5時間枠チェック・週次予算ガードを担う、設計書§2)も現時点で存在しない。** タスクスケジューラから実行するエントリポイント自体が未整備であり、作成は**タスクT5-A10(依存: 本タスクT5-A9)で行う予定**。`ui_verifier`(T5-A4)・`integration_test`(T5-A7)・`tools/night_loop.ps1`(T5-A10)・`.claude/settings.night.json`(T5-A17、⚠️ユーザー実施)の4点が、現時点で未整備である。**T5-A10実装時は、無人モード判別用の環境変数`BEANBASE_NIGHT_LOOP=1`を実行前に設定することを忘れないこと**(§0参照)。
+- **`/code-review`の定期実行ルール(10回に1回)**: `tools/night_loop.ps1`が起動時に`.claude/night_loop_run_count.txt`をインクリメントする。カウンタ値が10の倍数(10回目, 20回目...)の起動では、検証時に`/code-review`(effort=medium相当、対象: `git diff`)を実行し、Critical/Major指摘が出た場合はその場で`implementer`に差し戻して修正する(`CLAUDE.md`「`/code-review`の定期実行ルール」(3)参照)。
 
 ## 手順
 
@@ -40,6 +41,9 @@ description: Use when the user asks to run one unattended overnight iteration of
    - `implementer`が2回失敗したら3回目を同じやり方で試さず、**§中断条件**へ進む。
 
 4. **検証**
+   - **`/code-review`の定期実行判定**: `.claude/night_loop_run_count.txt` のカウンタ値（`tools/night_loop.ps1` 起動時に自動インクリメント）を確認する。
+     - カウンタ値が **10の倍数(10, 20, 30...)** の場合、通常の検証に加えて **`/code-review`(effort=medium相当、対象: 直近の `git diff`)** のレビューを実行する（`CLAUDE.md`「`/code-review`の定期実行ルール」(3)参照）。
+     - Critical/Major指摘が出た場合は、その場で `implementer` に差し戻して修正させてから再検証を行う。修正後の再検証でも問題がなければ手順5へ進む（`implementer`が2回失敗した場合は§中断条件に従い中断する）。
    - `verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`)。
      - `verifier`への委譲プロンプトには検証コマンドとして**`powershell -File tools\verify.ps1`を1回実行し、標準出力のJSONだけを読む**ことを明記する(`tools/verify.sh`は`jq`必須のためWindowsでは使わない)。実行時はツール上限の600000ms(10分)をタイムアウトとして明示指定する(この環境での実測は約3分)。失敗した項目があれば、その項目の`log`パスだけを読み直す。`test_coverage_delta`はトップレベル`ok`に含まれない参考値であり、それ単独では合否を左右しない。`build_apk_release`は当面`skipped:true`が正常。
      - `adversary`への委譲プロンプトには変更内容・変更ファイル一覧を渡し、Critical/Major指摘を報告させる。

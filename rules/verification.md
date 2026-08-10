@@ -171,6 +171,8 @@
 - L139 implementerが`CLAUDE.md`/`SKILL.md`(運用ルール自体)を編集すると、ハーネスがSECURITY WARNINGを出すことがある。事前承認済み設計でも差分は自分の目で確認してから進める(T5-A42)
 - L141(仮説) 親セッションから`night_loop.ps1`等で入れ子のclaudeセッションを起動すると、`loop_guard.js`が入れ子側のtranscriptを自分のものと誤認しモード・上限を取り違えることがありうる(T5-A12)
 - L140 `.claude/`配下へのEdit/Writeは`settings.night.json`のallowより優先してハードブロックされる(implementer委譲・親セッション自身とも)。遭遇したら回避せず`NEXT_SESSION.md`側に内容退避して締めを続行する(T5-A13・night_report.md更新/夜間ループ)
+- L142 agyが既存`.ps1`ファイルを編集するとUTF-8 BOMが失われPowerShell 5.1で構文エラーになることがある。`git diff`1行目の予期しない削除に注意(T5-A41)
+- L143 `gemini-3.1-pro-high`は応答冒頭に`<END_OF_TURN>`が漏れ`response_head`が無意味化することがある。既定は`gemini-3.6-flash-high`を優先(T5-A41)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…

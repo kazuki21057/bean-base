@@ -24,6 +24,12 @@ tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-
 - 統計解析・予測機能に触れる場合は`statistics_feature_design.md`が正本。数値計算(回帰・PCA・GP・EI・検定)はDartローカル実装で行い、Geminiに計算させない。
 - 秘密情報(Gemini APIキー等)をコミットしない。
 
+## Android/公開版の実装規約(該当する変更を行う場合のみ)
+
+- ローカル DB のスキーマ移行を伴う変更の必須セット(モデル / 移行スクリプト / 移行テスト / エクスポート形式)
+- `AppEdition` 経由での分岐のみ許可。ウィジェット内に `if (edition == Edition.public)` を書かない(コードベース構成方針 §3。これを始めた瞬間にブランチ分岐より保守が悪化する)
+- 公開版の画面はホワイトリスト方式(既定は非表示、明示的に許可した画面だけ出す)
+
 ## 実装後のセルフチェック(必ず実施)
 
 `flutter analyze`(**新規issue0**、既存issueは残ってよい)→ `flutter test`(全パス)→ `flutter build web`(成功)まで自分で通す(個別コマンド・一括スクリプトの詳細は`rules/verification.md`§必須検証フロー参照)。回帰テストは**本番データを模したケース**で書くと効果が高い。

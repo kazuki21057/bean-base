@@ -61,6 +61,7 @@ if (-not (Test-Path $NightLogsDir)) {
 $WrapperLogPath = Join-Path $NightLogsDir 'wrapper.log'
 $LockPath = Join-Path $ClaudeDir 'night_loop.lock'
 $RunsLogPath = Join-Path $ClaudeDir 'night_runs.log'
+$RunCountPath = Join-Path $ClaudeDir 'night_loop_run_count.txt'
 $NightReportPath = Join-Path $RepoRoot 'night_report.md'
 $ProjectsRoot = Join-Path $HOME '.claude\projects'
 
@@ -521,12 +522,32 @@ function Invoke-NightLoop {
             Write-Log 'INFO' '[DryRun] BEANBASE_NIGHT_LOOP を実行前の状態に復元しました。'
         }
 
+        if (Test-Path $RunCountPath) {
+            $currentCount = Get-Content -Path $RunCountPath -Raw -ErrorAction SilentlyContinue
+            Write-Log 'INFO' ('[DryRun] 現在の起動回数カウンタ: {0}' -f $currentCount.Trim())
+        }
         Write-Log 'INFO' '[DryRun] claudeは起動しません。.claude/night_runs.log への追記も行いません。'
         return 0
     }
 
     Add-Content -Path $RunsLogPath -Value (Get-Date -Format 'o') -Encoding utf8
     Write-Log 'INFO' '.claude/night_runs.log に実行記録を追記しました。'
+
+    $runCount = 0
+    if (Test-Path $RunCountPath) {
+        $rawCount = Get-Content -Path $RunCountPath -Raw -ErrorAction SilentlyContinue
+        if ($rawCount -and [int]::TryParse($rawCount.Trim(), [ref]$runCount)) {
+            # 正常にパース
+        } else {
+            $runCount = 0
+        }
+    }
+    $runCount++
+    Set-Content -Path $RunCountPath -Value $runCount.ToString() -Encoding utf8
+    Write-Log 'INFO' ('.claude/night_loop_run_count.txt をインクリメントしました(現在の起動回数: {0})。' -f $runCount)
+    if ($runCount % 10 -eq 0) {
+        Write-Log 'INFO' ('10の倍数回目({0}回目)の起動です。/code-review(medium)の実行対象となります。' -f $runCount)
+    }
 
     $env:BEANBASE_NIGHT_LOOP = '1'
     Write-Log 'INFO' ("claude を起動します(ログ: {0} / stderr: {1}):`n{2}" -f $logPath, $errLogPath, $plannedCommand)

@@ -801,3 +801,19 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **なぜ起きたか(未確認)**: `~/.claude/projects/<slug>/`配下には親・子両方のtranscriptファイルが同じプロジェクトslugの下に置かれる。`loop_guard.js`の境界・モード検出ロジックが「直近の`/full_loop`または`/night_loop`呼び出し」をプロジェクト内の**全transcriptから**探している場合、入れ子で起動した子セッション(`/night_loop`)のtranscriptを親セッションのものと誤認し、モードを夜間・上限を$8に取り違えた可能性がある。L131(他セッション由来の無関係テキストへの誤反応)と同系統だが、今回は**実在する別プロセスの正規のtranscript**が原因である点が異なる。
 
 **対処・一般化(次回への申し送り)**: `night_loop.ps1`等で入れ子のclaudeセッションを親セッションから起動する運用(T5-A12のような有人トライアル)を行う際は、直後に`.claude/loop_state.md`の「適用モード」欄を必ず確認し、想定外のモードに切り替わっていないか点検する。誤検知が再現するようなら、`loop_guard.js`の境界検出を`transcript`のプロセスID/セッションID単位で自セッションに限定する修正が必要(未着手、architectへの委譲候補)。今回は確認のみでコストのかかる原因調査(architect委譲)までは行っていない。
+
+## L142 agyが既存の`.ps1`ファイルを編集すると、日本語コメントを含むファイルのUTF-8 BOMが失われ、PowerShell 5.1で構文エラーになることがある(2026-08-10、T5-A41パイロット試用・`tools/night_loop.ps1`)
+
+**事象**: T5-A41(agyパイロット試用)でT5-A25を`tools/antigravity_delegate.ps1 -Role implementer`(モデル`gemini-3.6-flash-high`)へ委譲し、`tools/night_loop.ps1`にカウンタロジックを追記させた。agy自身は`flutter analyze`等のセルフチェックに相当する報告で「全項目PASS」と申告したが、`verifier`が`git diff`をバイト単位で確認したところ、ファイル先頭のUTF-8 BOM(`EF BB BF`)が消失していた(`-﻿<#` → `+<#`)。`[System.Management.Automation.Language.Parser]::ParseFile()`で76件のパースエラー、日本語コメントの文字化けを実機確認、`powershell -File tools\night_loop.ps1 -DryRun`も即座に`NativeCommandError`で失敗した。
+
+**なぜ起きたか**: agyのファイル書き込みは(Write/Edit系ツールの挙動として)UTF-8 BOM無しで保存する傾向があり、元ファイルがBOM付きUTF-8だった場合にBOMが失われる。既存教訓L127(Claude自身の`Write`ツールでも同様の事象が起きうる)と同根の問題が、agy経由の編集でも発生することが確認された。ロジック自体は正しく実装されており、agyの自己申告(`verify.ps1`実行結果)もこの種のエンコーディング破壊は検出しない(Dartファイルではないため`analyze`の対象外)。
+
+**対処・一般化**: (1) 親が`[System.IO.File]::ReadAllBytes()`でBOMを直接確認し、`UTF8Encoding($true)`で書き戻して即座に復旧(1回の差し戻しで解消)。(2) 再発防止として`tools/antigravity_delegate.ps1`の`$OverrideBlock`(agy固有の上書き規則)と`docs/antigravity_delegation_design.md` §9.3の確定文面の両方に「既存の`.ps1`ファイル編集時はBOMを保持すること」を追記した。(3) `.ps1`ファイルをagy(またはClaude)に編集させた後は、`git diff`の1行目に`-﻿`のような予期しない削除が無いか確認する習慣を持つ。L127と合わせて「日本語コメント入りの`.ps1`は保存後にBOM有無を確認する」という一般ルールとして扱う。
+
+## L143 `gemini-3.1-pro-high`は応答本文の先頭に`<END_OF_TURN>`という制御トークンが数十行連続で漏れることがあり、`response_head`(先頭800文字)が実質無意味化する(2026-08-10、T5-A41パイロット試用・T5-A29)
+
+**事象**: T5-A41でT5-A29を`tools/antigravity_delegate.ps1 -Role implementer -Model gemini-3.1-pro-high`(モデル比較目的)へ委譲したところ、exit 0・`changed_files`は正しく(`.claude/full_loop_run_count.txt`・`.claude/skills/full_loop/SKILL.md`)、ファイル差分の内容自体も正確だった。しかし`response`本文は`<END_OF_TURN>`が63行連続した後に本来の日本語報告(3見出し形式含む)が続く形になっており、`tools/antigravity_delegate.ps1`の`response_head`(800文字で必ず切る設計、§9.2)が全て`<END_OF_TURN>`で埋まり、要約として機能しなかった。同一タスク種でモデルのみ違う`gemini-3.6-flash-high`(T5-A25・T5-A13)ではこの事象は発生していない。出力トークン数も20,162(A13の5,584・A25の13,672より多い)で、無駄なトークン消費を伴っていた。
+
+**なぜ起きたか(未確認)**: `gemini-3.1-pro-high`固有の応答生成上の癖(制御トークンのリーク)と推測されるが、根本原因は未調査。
+
+**対処・一般化**: (1) `response_head`だけで判断せず、疑わしい場合は`response_log`(全文)を確認する運用を徹底する。(2) `docs/antigravity_delegation_design.md` §7の結論として、既定モデル`gemini-3.6-flash-high`を優先し、`gemini-3.1-pro-high`はこの応答品質問題が解消するまで比較検証以外での常用を避けることとした。(3) ラッパー側で`<END_OF_TURN>`等の既知の制御トークンパターンを`response_head`生成時に除去する改善は未実装(次にこのモデルを使う機会があれば検討)。
