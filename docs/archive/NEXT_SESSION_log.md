@@ -14,6 +14,14 @@
 - **新規教訓**: `rules/lessons_archive.md` L139(implementerによる`CLAUDE.md`/`SKILL.md`編集はSECURITY WARNING対象になりうる、実差分確認の徹底)。`rules/verification.md`に1行索引追加。
 - **コード変更**: `.claude/hooks/loop_guard.js`のみ実質的なロジック変更、他は全てMarkdown/ドキュメント。`lib/`は全セッション通じて不変のためデプロイ対象外。ループコスト$8.68/$24(区切りが良いところで`/end`)。
 
+### -5.71 当日やったこと(2026-08-10、Sonnet 5、`/night_loop`無人モード、Windows環境。T5-A15完了、T5-A13は新種のハードブロックで中断)
+
+- **タスク選定**: 表の最上位から選定。T5-A7(L、スキップ)→**T5-A45**(golden OS非依存化、M、依存T5-A8完了済み)は、CJK対応フォントの選定・バイナリ同梱・ライセンス判断を伴い、かつWindows単独のこのセッションでは受け入れ基準(Windows/Ubuntu両方で一致)自体を検証できないため、無人実行のリスクが高いと判断し**選定段階でスキップ**(design judgment相当)。次点の**T5-A13**(implementer.mdへAndroid/公開版規約3項目を追記、S、依存なし、`検証強化設計.md` §5-6からの単純転記)を選定。
+- **T5-A13は中断**: `implementer`へ委譲したところ、`.claude/agents/implementer.md`へのEdit自体が権限エラーで拒否された(設計書からの転記内容は正しく準備されていたが書き込みが実行不可)。implementerは自ら回避策(Write/Bash等での迂回)を取らず、差分をテキスト報告に留めた(適切な挙動)。`.claude/agents/*.md`はエージェントの`tools:`権限を定義するファイルであり、L139(CLAUDE.md/SKILL.md編集はSECURITY WARNINGどまりで実行は通った)とは異なり、こちらはハードブロックされることが新たに判明。**新規教訓L140**として記録(`rules/lessons_archive.md`・`rules/verification.md`に索引追加)。**T5-A13は未完了のまま、次回有人セッションで直接対応が必要**。
+- **代替タスクへ切替・完了**: **T5-A15**(`analysis_options.yaml`にlint4種追加: `avoid_catches_without_on_clauses`/`unawaited_futures`/`avoid_empty_else`/`always_use_package_imports`)を選定・実装。既存違反638件(既存31件から607件増加)のため設計どおりbaseline運用に切替、対象94ファイルの先頭に検出ルールのみを列挙した`// ignore_for_file:`コメントを追加。`verifier`(`verify.ps1`8項目全`ok:true`)・`adversary`(Critical 0、Major 1: baseline運用は既存違反ファイルへの新規追記時のガードも一緒に外してしまう設計上のトレードオフ、と指摘。これはT5-A15自体の完了条件が明示的に要求したbaseline運用の想定内トレードオフであり、実装の不備ではないため差し戻さず採用)を並行起動して検証。**自動pushゲート全条件クリア(条件2/3は未整備のため判定対象外、条件1・4は満たす)につきmainへ直接push**。
+- **完了**: T5-A15。**未完了(次回有人対応)**: T5-A13。
+- **Majorの申し送り**: T5-A15のbaseline運用(94ファイルの`ignore_for_file`)は、今後これらのファイルを編集する際に新規違反が混入してもガードされない。段階的に`ignore_for_file`を剥がしていく後続タスクの要否は次回検討すること(マスタープランに未記載)。
+
 ### -5.69 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境、4回目のループ。T5-A8のgolden環境依存問題を解消・検証待ちでセッション分割)
 
 - **タスク選定**: 依存充足済みの候補としてT5-A8(golden環境依存)とT5-A12(night_loop試走+タスクスケジューラ登録)の2つが挙がったが、A12はタスクスケジューラへの登録(無人auto push有効化)を伴うためユーザーに確認、**T5-A8**を選定。

@@ -169,6 +169,7 @@
 ### ループ運用・ガードレール
 - L134 設計・調査目的のサブエージェントでも権限昇格操作(設定書き換え・`--dangerously-skip-permissions`)を無許可で試みることがある。ブロックされ実害が無くても事実を報告する(Antigravity CLI委譲調査)
 - L139 implementerが`CLAUDE.md`/`SKILL.md`(運用ルール自体)を編集すると、ハーネスがSECURITY WARNINGを出すことがある。事前承認済み設計でも差分は自分の目で確認してから進める(T5-A42)
+- L141(仮説) 親セッションから`night_loop.ps1`等で入れ子のclaudeセッションを起動すると、`loop_guard.js`が入れ子側のtranscriptを自分のものと誤認しモード・上限を取り違えることがありうる(T5-A12)
 - L140 `.claude/`配下へのEdit/Writeは`settings.night.json`のallowより優先してハードブロックされる(implementer委譲・親セッション自身とも)。遭遇したら回避せず`NEXT_SESSION.md`側に内容退避して締めを続行する(T5-A13・night_report.md更新/夜間ループ)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
