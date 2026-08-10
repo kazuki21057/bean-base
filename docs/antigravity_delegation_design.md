@@ -61,7 +61,9 @@ Claude and GPT models  週次残 100% / 5時間残 100%
 3. `command(*)`(全許可)に変更→**成功**(`echo hello`が実行できた)。`command(echo)`・`command(cmd)`はいずれも**拒否**(元のエラーメッセージのまま)。→ **settings.jsonの読み込み自体・ワイルドカードは正常に機能しているが、単一トークンの`command(<name>)`という指定方法がWindowsでは期待どおりに動かない**(ドキュメントの記載と実機挙動が一致しない)。原因(トークン化の実装差・未知の構文要件等)は特定できず、**これ以上の切り分けはコスト対効果が悪いため保留**とする。
 4. ユーザーが設定を公式ドキュメントのフルサンプルに置き換え(`command(git)`・`command(npm run (build|test))`・`deny`の`command(rm -rf)`等を含む)。この状態でのshell許可の再検証はまだ行っていない(次にagyを使う際に別途確認する)。
 
-**設計への反映**: この制約は`docs/antigravity_delegation_design.md` §9.1が元々「シェルコマンド実行が必須なタスクはClaude固定」としていた保守的な設計と整合する。**Windowsでの細粒度シェルコマンド許可は現時点で実用化のめどが立っていないため、agy委譲はファイル編集中心(implementer役の非Dartファイル・adversary役)に限定する方針を維持し、T5-A37の「意図どおりのスコープで動く」という完了条件は当面「達成困難、設計は制約を前提に完成している」として扱う**。
+**設計への反映(2026-08-10当初)**: この制約は`docs/antigravity_delegation_design.md` §9.1が元々「シェルコマンド実行が必須なタスクはClaude固定」としていた保守的な設計と整合する。**Windowsでの細粒度シェルコマンド許可は現時点で実用化のめどが立っていないため、agy委譲はファイル編集中心(implementer役の非Dartファイル・adversary役)に限定する方針を維持し、T5-A37の「意図どおりのスコープで動く」という完了条件は当面「達成困難、設計は制約を前提に完成している」として扱う**。
+
+**訂正(2026-08-10同日、T5-A37完了)**: 上記の結論は誤りだった。原因は`command(echo)`のような**単語1つ(引数なし)**でしか試していなかったこと。ユーザーが`command(flutter --version)`のように**引数まで含めた完全なコマンド文字列**を指定したところ成功した。同じ日にこの方式で`command(flutter analyze)`・`command(flutter test)`・`command(flutter build web)`・`command(flutter pub get)`・`command(dart run build_runner build --force-jit)`・`command(git status)`・`command(git diff)`・`command(git log --oneline -20)`・`command(git show HEAD)`・`command(powershell -File tools/verify.ps1)`を追加し、agy直接呼び出し・`tools/antigravity_delegate.ps1`経由の両方で実際に許可コマンドだけが実行できることを実機確認した(未追加のコマンド・引数違いは引き続き拒否される)。**結論を訂正**: Windowsでも個別コマンド許可は機能する。ただし「コマンド名だけ」ではなく「実行したい引数まで含めた完全一致の文字列」を1件ずつ列挙する必要がある(部分一致・前方一致・ワイルドカードの挙動は未検証)。T5-A37は達成、完了条件を満たしたと判断する。これに伴い`tools/antigravity_delegate.ps1`/`.sh`の上書きブロックも「シェルコマンドは1回も試みない」から「上記の完全一致コマンドのみ試みてよい」へ緩和し、`-Role implementer`のセルフチェック(`flutter analyze`/`flutter test`)が実際に動作することを実機確認済み(詳細`rules/lessons_archive.md` L138)。
 
 **新規判明(重要、T5-A38実装への反映必須)**: `--add-dir`を指定せずに`agy -p`を実行すると、プロンプトで「現在のディレクトリに」と明示してもカレントディレクトリではなく`~/.gemini/antigravity-cli/scratch/`へ書き込まれることをユーザーが実機で確認(`antigravity_test.txt`がscratch配下に作成された)。`tools/antigravity_delegate.ps1`/`.sh`は§9.2で`-WorkDir`(`--add-dir`)を必ず渡す設計になっているため現状の実装は安全なはずだが、**手動で`agy`を直接叩く場合は`--add-dir`を省略しないこと**。
 2. **Windows環境での`agy`動作は確認済み(2026-08-10)**。実行名は`agy`(`agy.exe`ではない、`winget install -e --id Google.AntigravityCLI`でインストール)。実体は`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Google.AntigravityCLI_Microsoft.Winget.Source_8wekyb3d8bbwe\agy.exe`で、winget導入時にユーザー環境変数PATHへ登録されるが、**インストール前から起動していたシェルセッション(このハーネスのPowerShell/Bashを含む)には反映されない**。反映されないセッションでは`$env:Path += ";<上記ディレクトリ>"`をコマンド実行前に追記するか、フルパスで直接呼び出すこと(2026-08-10、T5-A38/A39実地検証で判明)。`agy --version`→`1.1.11`(Ubuntu実機と同一バージョン)。`agy -p "OK" --output-format json`は日本語で応答し正常終了。`agy -p "/usage" --output-format json`の完全なスキーマを確認(§9.7-1の未検証事項を解消):
@@ -80,13 +82,13 @@ Claude and GPT models  週次残 100% / 5時間残 100%
 6. **T5-A38/T5-A39実地検証(2026-08-10、Windows実機)で判明した3件**:
    - `tools/antigravity_delegate.ps1`の`Invoke-AgyProcess`が使っていた`ProcessStartInfo.ArgumentList`(コレクション型API)がこのPCのWindows PowerShell 5.1には存在せず(`[System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')`が空)、agy.exeに引数が1つも渡らずハングしてタイムアウトする実装バグがあった。`.Arguments`(単一文字列)+自前クオート関数に置き換えて修正済み。
    - `~/.gemini/antigravity-cli/settings.json`の`write_file`許可ルールは、公式サンプルのプレースホルダパス(`src/`・`/path/to/project/`)のままだと**このリポジトリの実パスに一致せず機能しない**。`write_file(C:/src/Claude/bean-base/)`のように実パスへ書き換える必要がある(ユーザーが実機で修正・確認済み)。
-   - `command(git)`・`command(npm run (build|test))`・`command(flutter)`はいずれもユーザーが実機で個別に試したが**Windowsでは機能せず**(§5-1の結論どおり)、`command(*)`(全許可)以外に細粒度シェル許可の実用解は無いまま。`.claude/agents/implementer.md`の「セルフチェック(必ず実施)」がagy用の上書きブロックより強く解釈され、agyがシェル拒否時に応答ごと打ち切る(Claude側のような優雅なスキップをしない)ことも判明したため、上書きブロックを「シェルコマンドは1回も試みない」という明示禁止に強化した。この結果、agy委譲は**ファイル編集+読み取り調査**の範囲(セルフチェックはverifierに一任)で実地動作を確認できている。
+   - `command(git)`・`command(npm run (build|test))`・`command(flutter)`(いずれも引数なしの単語1つ)はユーザーが実機で個別に試したが**Windowsでは機能せず**、`.claude/agents/implementer.md`の「セルフチェック(必ず実施)」がagy用の上書きブロックより強く解釈され、agyがシェル拒否時に応答ごと打ち切る(Claude側のような優雅なスキップをしない)ことも判明したため、上書きブロックを「シェルコマンドは1回も試みない」という明示禁止に強化した(この時点ではagy委譲は**ファイル編集+読み取り調査**の範囲に限定)。**同日中に訂正**: 引数まで含めた完全なコマンド文字列(`command(flutter analyze)`等)なら機能することが判明(§5-1訂正、T5-A37完了)。上書きブロックは「上記の完全一致コマンドのみ試みてよい」へ再度緩和し、`flutter analyze`/`flutter test`のセルフチェックが`-Role implementer`経由で実際に動作することを確認済み。
 
 ## 6. 次のアクション
 
 タスク分解は`docs/改修マスタープラン.md` §3 トラックA(T5-A37〜)に登録した。概要:
 
-- ⚠️ユーザー実施: `~/.gemini/antigravity-cli/settings.json`への個別コマンド許可ルール追加、および実効性の確認(§5-1)
+- ~~⚠️ユーザー実施: `~/.gemini/antigravity-cli/settings.json`への個別コマンド許可ルール追加、および実効性の確認(§5-1)~~ → **2026-08-10完了(T5-A37)**
 - `tools/antigravity_delegate.sh`/`.ps1`: ヘッドレス委譲ラッパー実装(ファイル編集は無条件許可、コマンドは許可リスト経由、非0終了時はClaude側サブエージェントへ自動フォールバック)
 - ⚠️ユーザー実施: Windows側の`agy`動作確認
 - パイロット導入・実績記録(まずファイル編集中心のタスクから。品質実績が積み上がるまで本番適用は限定的に)

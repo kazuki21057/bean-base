@@ -2272,3 +2272,14 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **harnessの誤検知**: implementerの報告文に`--dangerously-skip-permissions`という文字列が含まれ、harnessのパターンマッチャーが警告を出したが、実際のコードを確認した結果「このフラグは絶対に渡さない」というコメント内の言及のみで、実装・呼び出しには含まれていないことを確認(誤検知)。
 - **push見送り**: agy本体の実地動作確認ができていない(検証未完了)ため、CLAUDE.mdの運用ルールに従いpush前にユーザー確認が必要と判断。commitのみ実施し、チャットで許可を得てからpushする。
 - **T5-A8「検証待ち」は今回も未着手のまま**(golden環境依存問題が新たな前提条件として追加された)。
+
+### -5.67 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境。ユーザー指示「antigravity周りを優先して」)
+
+- **背景**: 前回セッション(-5.66、アーカイブ参照)でagyラッパー(`tools/antigravity_delegate.ps1`/`.sh`)を実装済みだったが、agy本体が未インストールで実地確認できていなかった。今回はagyが既にインストール済み(`winget install -e --id Google.AntigravityCLI`、`agy --version`→1.1.11)だったため、実地検証から着手した。
+- **PATH問題**: このハーネスのPowerShell/Bashセッションは、winget導入時のPATH登録(ユーザー環境変数、レジストリには反映済み)を引き継いでおらず、素の`agy`コマンドが見つからなかった。実際のインストール先(`%LOCALAPPDATA%\Microsoft\WinGet\Packages\Google.AntigravityCLI_Microsoft.Winget.Source_8wekyb3d8bbwegy.exe`)を特定し、コマンド実行のたびに`$env:Path`へ追記する運用で回避した(design doc記載の`%LOCALAPPDATA%gyin`という以前の記録は誤りだったので修正要)。
+- **T5-A38実地検証でバグ発覚→修正→再検証OK**: 実際に`-Role implementer`で動かすと`You cannot call a method on a null-valued expression`が大量に出てタイムアウト(exit 11)。原因は`Invoke-AgyProcess`が使う`$psi.ArgumentList`(`ProcessStartInfo.ArgumentList`)がこのPCのWindows PowerShell 5.1に存在せず(`[System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList')`が空)、agy.exeへ引数が1つも渡らずハングしていたこと。implementerへ修正委譲し、`.Arguments`(文字列)+自前クオート関数`ConvertTo-ProcessArgumentString`に置き換えて解消(`.sh`側は元々bash配列展開で問題なし、変更不要と確認)。
+- **write_file権限のプレースホルダパス問題**: 修正後も実ファイル編集(`docs/`配下の使い捨てテストファイル)が`write_file`権限で拒否された。ユーザーに`~/.gemini/antigravity-cli/settings.json`の中身を確認してもらったところ、以前貼った「公式ドキュメントのフルサンプル」のプレースホルダパス(`write_file(/path/to/project/)`)がそのまま残っており、実際のリポジトリパスと一致していなかったのが原因。ユーザーが`write_file(C:/src/Claude/bean-base/)`に修正し、直後の再テストでファイル編集が成功した。
+- **セルフチェック指示とagyのハング挙動**: write_file修正後もラッパー経由だけ失敗が続いた。プロンプトログを確認すると、`.claude/agents/implementer.md`の「実装後のセルフチェック(**必ず実施**)」が、ラッパーが先頭に置く「シェルが拒否されたらスキップしてよい」という但し書きより強く解釈され、agyが`flutter analyze`の実行を試みて拒否→**応答ごと打ち切られる**(agyは拒否時に会話全体を中断する、Claude側のような優雅なスキップをしない)ことが直接原因と判明。ラッパー(`.ps1`/`.sh`両方)の上書きブロックを「シェルコマンドは1回も試みない」という明示禁止に強化して解消。再検証で`-Role implementer`(ファイル編集成功)・`-Role adversary`(`--mode plan`、無編集、Critical/Major/Minor判定つきの日本語レポート)いずれも実地成功を確認した。**T5-A38・T5-A39を完了済みへ移動**。
+- **command許可は個別指定が引き続き機能せず(※翌節-5.68で訂正)**: ユーザーが`command(flutter)`を追加して試したが、`command(git)`と同じく拒否メッセージのまま(以前の`command(echo)`/`command(cmd)`の失敗と同様)。`command(*)`以外に細粒度シェル許可の実用解は無いという既存の結論(§5-1)が再確認された…と当初判断したが、この結論は誤りだった(詳細は-5.68節・`rules/lessons_archive.md` L138)。agy委譲は当面**ファイル編集+読み取り調査**の範囲(セルフチェックはverifierに一任)で運用する。
+- 新しい教訓を`rules/lessons_archive.md` L137に記録、`rules/verification.md`インデックスに1行追加。`docs/改修マスタープラン.md`・`docs/antigravity_delegation_design.md` §5-6を更新。T5-A42・T5-A43・T5-A44(依存T5-A38)が次回選定可能になった。
+- **T5-A8(goldenテストのWindows環境依存問題)は今回も未着手のまま**(スコープ外、次回持ち越し)。
