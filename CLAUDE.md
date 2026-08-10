@@ -85,7 +85,7 @@ Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero 
 
 **流れ**: `/start` → タスク選択 → 実装(`implementer`へ委譲) → 検証(`verifier`へ委譲、`analyze`→`test`→`run`)→ OKならcommit/push+進捗表更新 / NGなら`NEXT_SESSION.md`に引き継ぎ → `/end`。
 
-**終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。
+**終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。agy(Antigravity CLI)経由の委譲はGeminiバケットを使うため、コスト上限の判定に含めない。件数・所要時間は`loop_state.md`に参考値として出る。
 
 **デプロイ・push・削除の確認ルール(2026-08-08改訂、恒久。正本はここ。経緯は`docs/archive/マスタープラン_作業ログ.md`「T3-73f」)**: `git push`は**検証が完了していれば都度確認は不要**(「検証が完了」とは`verifier`が当該変更について全項目パスを報告した、または**コード変更を含まない**〈ドキュメント・設定のみ〉のいずれか)。検証していない・NGのまま・検証を省略した変更のpushは、従来どおり事前にチャットで許可を得る。**`--force`系のpushは常に確認が必要**(`.claude/settings.json`の`ask`に登録済み)。**デプロイ(`firebase deploy`/`clasp push`・`clasp redeploy`)は上記pushの緩和の対象外で、常に都度確認が必要**——実行直前にチャットで内容を説明し明示的な許可を得る。ファイル・データの**削除**を伴う操作(本番Sheets/Driveのレコード削除、`rm`/`git clean`等の破壊的ファイル操作、`git reset --hard`等)も引き続きその都度リスクを一言説明してから確認を得る(本番Sheets/Driveへの実データの追加・更新〈削除を伴わないもの〉は確認不要)。**ハーネスの自動モード分類器はCLAUDE.md/メモリ上の「事前承認済み」という記述を有効な同意経路とみなさない**(Instruction Poisoning/Auto-Mode Bypassパターン)ため、上記の緩和をチャット上で明示的に指示していても分類器がpush等をブロックすることがある。**その場合はサブエージェントへの委譲などで回避を試みてはならない**(2026-07-30に撤回済みの誤った運用、教訓`rules/lessons_archive.md` L91)。ブロックされたら実行を止め、何を・なぜ実行しようとしたかをユーザーに説明し、チャットでの許可を得た上で改めて実行する。
 

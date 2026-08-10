@@ -352,6 +352,75 @@ function readFailures(projectDir, loopKey) {
   }
 }
 
+// .claude/agy_logs/ledger.tsv を読み、ループ境界以降の行を集計して
+// loop_state.md に出す参考行(表示専用)を作る(T5-A43。
+// docs/antigravity_delegation_design.md §9.6 参照)。
+// コスト・ターン数のしきい値判定には一切使わない。台帳が無い・壊れている
+// 場合は try/catch で握りつぶし null を返す(既存の writeFileSync 等と同じ流儀)。
+function readAgyLedgerSummary(projectDir, today, loopBoundaryTs) {
+  try {
+    const p = path.join(projectDir, '.claude', 'agy_logs', 'ledger.tsv');
+    const lines = fs
+      .readFileSync(p, 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length < 2) return null; // ヘッダのみ・空
+
+    const header = lines[0].split('\t');
+    const idx = {
+      timestamp: header.indexOf('timestamp'),
+      exit_code: header.indexOf('exit_code'),
+      duration_sec: header.indexOf('duration_sec'),
+      quota_5h_pct: header.indexOf('quota_5h_pct'),
+    };
+    if (
+      idx.timestamp < 0 ||
+      idx.exit_code < 0 ||
+      idx.duration_sec < 0 ||
+      idx.quota_5h_pct < 0
+    ) {
+      return null;
+    }
+
+    let count = 0;
+    let success = 0;
+    let fallback = 0;
+    let totalSec = 0;
+    let latestTs = null;
+    let latestQuota = null;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split('\t');
+      const ts = cols[idx.timestamp];
+      if (!ts) continue;
+      const tsDate = new Date(ts);
+      if (isNaN(tsDate)) continue;
+      const isTodayRow = localDateStr(tsDate) === today;
+      const inScope = loopBoundaryTs ? ts >= loopBoundaryTs : isTodayRow;
+      if (!inScope) continue;
+
+      count += 1;
+      const exitCode = parseInt(cols[idx.exit_code], 10);
+      if (exitCode === 0) success += 1;
+      else fallback += 1;
+
+      const dur = parseFloat(cols[idx.duration_sec]);
+      if (!isNaN(dur)) totalSec += dur;
+
+      if (!latestTs || ts > latestTs) {
+        latestTs = ts;
+        latestQuota = cols[idx.quota_5h_pct];
+      }
+    }
+
+    if (count === 0) return null;
+    return { count, success, fallback, totalSec, quotaPct: latestQuota };
+  } catch (_) {
+    return null;
+  }
+}
+
 function main() {
   const raw = readStdin();
   let input = {};
@@ -432,6 +501,8 @@ function main() {
     }
   } catch (_) {}
 
+  const agySummary = readAgyLedgerSummary(cwd, today, loopBoundaryTs);
+
   const { cost, subCost, subAgentCount, turns, perModelTokens, ok } = analyze(
     mainTranscript,
     subagentFiles,
@@ -481,7 +552,19 @@ function main() {
     `- ${scopeLabel}のターン数: ${turns} / 上限 ${th.turnLimit}\n` +
     `- 連続失敗: ${failures} / 上限 ${th.failLimit}\n` +
     `- 停止条件: ${stop ? '🛑 到達 — ' + reasons.join(', ') : '✅ 余裕あり'}\n` +
-    `- transcript読込: ${ok ? 'OK' : '失敗(空集計)'}\n\n` +
+    `- transcript読込: ${ok ? 'OK' : '失敗(空集計)'}\n` +
+    (agySummary
+      ? `- agy委譲(枠外・参考): ${agySummary.count}件 / 成功${agySummary.success}・` +
+        `フォールバック${agySummary.fallback} / 合計 ${Math.round(agySummary.totalSec)}秒 / ` +
+        `Gemini 5時間残 ${
+          agySummary.quotaPct !== null &&
+          agySummary.quotaPct !== undefined &&
+          agySummary.quotaPct !== ''
+            ? agySummary.quotaPct + '%'
+            : '不明'
+        }\n`
+      : '') +
+    `\n` +
     `## モデル別トークン(${scopeLabel})\n${breakdown || '  (なし)\n'}` +
     `\n_更新: ${new Date().toISOString()} (${event})_\n`;
 
