@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses, unawaited_futures
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

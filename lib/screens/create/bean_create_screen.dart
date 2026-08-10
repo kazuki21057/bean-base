@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';

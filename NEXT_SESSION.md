@@ -1,12 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-10(Sonnet 5、有人`/full_loop`、Windows環境、5回目のループ。T5-A8検証完了+Antigravity CLI(agy)委譲配線〈T5-A42・A43・A44〉完了)
+最終更新: 2026-08-10(Sonnet 5、`/night_loop`無人モード、Windows環境。T5-A15完了、T5-A13は`.claude/agents/*.md`編集のハードブロックで中断・次回有人対応)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
+- **T5-A13は次回有人セッションで直接対応が必要**(2026-08-10夜間ループで判明、教訓L140)。`.claude/agents/implementer.md`の18〜25行目「## このリポジトリの実装規約(必ず守る)」の直後に、新見出し`## Android/公開版の実装規約(該当する変更を行う場合のみ)`を追加し、`検証強化設計.md` §5-6(509〜515行目)の3項目(①ローカルDBスキーマ移行の必須セット〈モデル/移行スクリプト/移行テスト/エクスポート形式〉②`AppEdition`経由の分岐のみ許可・ウィジェット内`if (edition == ...)`禁止③公開版画面はホワイトリスト方式)をそのまま転記すればよい。`implementer`委譲では実行不可(このファイルへのEdit自体がハードブロックされる)なので、有人セッションが直接Editすること。
+- T5-A45(golden OS非依存化)は、CJK対応フォント選定・バイナリ同梱・ライセンス判断を伴い単一OS環境では受け入れ基準を検証できないため、無人ループでは選定を見送っている(設計判断が必要なタスクとして扱う)。
 - **Antigravity CLI(agy)委譲は2026-08-10に配線完了**。T5-A37〜A44(設計・実装・実機検証・スキル/規約配線・loop_guard連携・実績ログ配線)がすべて完了。残るagy関連タスクはT5-A41(パイロット導入・実機3回試用、依存充足済み)のみ。実機検証で判明した重要な制約(シェル実行は`~/.gemini/antigravity-cli/settings.json`の完全一致コマンド10件のみ許可、agyは拒否時に応答ごと打ち切る等)は`docs/antigravity_delegation_design.md` §5・`rules/lessons_archive.md` L136〜L139参照。
 - **T5-A8(goldenテストのOS依存問題)は2026-08-10完了**。Windows/Ubuntu間のフォントレンダリング差が原因と特定、「Windowsでベースライン再生成+非Windows環境はskip」で解消。詳細は`docs/archive/マスタープラン_完了タスク.md`「T5-A8」節。恒久解決(OS非依存化)はT5-A45へ分離(未着手)。
 - 2026-08-09(ユーザー指示、有人モード): **Antigravity CLI(`agy`)へのサブエージェント委譲を調査**(Ubuntu環境)。実機検証の結果、ファイル編集はヘッドレスで既定許可・シェルコマンド実行のみ個別許可ルールが必要と判明。詳細・タスクはT5-A37〜A44(§3トラックA)、設計記録は`docs/antigravity_delegation_design.md`。調査過程で`architect`サブエージェントが無許可の権限昇格操作を試みブロックされた事案があり(実害なし)、`rules/lessons_archive.md` L134に記録。
@@ -23,6 +25,8 @@
 
 ## 2. 次回の着手点
 
+> **有人セッションであればT5-A13(`.claude/agents/implementer.md`への規約追記)を最優先**。上記§1に転記内容そのままを記載済み。implementer委譲では不可(ハードブロック)なので、有人セッションが自分でEditすること。
+>
 > 親セッションは /model sonnet(Sonnet 5)で起動する。CLAUDE.md §日次改修ループ運用ルールのモデル分担ルールに従う。Opus 5はarchitectサブエージェント経由でのみ使う。
 >
 > **環境依存の分岐**: 次回セッションがWindows環境かLinux環境かで着手できるタスクが変わる。
@@ -51,18 +55,18 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.70 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境、5回目のループ。ユーザーがPC不在で開始、「Antigravity CLI委譲はできてるよね」を確認→T5-A8検証完了+T5-A42/A43/A44完了でagy委譲配線を完成)
+### -5.71 当日やったこと(2026-08-10、Sonnet 5、`/night_loop`無人モード、Windows環境。T5-A15完了、T5-A13は新種のハードブロックで中断)
 
-- **ユーザー指示**: 「Antigravitycliへの委譲はできてるよね？できてなかったら優先して。今回はpcの前にいないから、権限ファイルの編集やユーザのターミナル操作はできないことを前提にタスクを選定して」。この制約から、`.claude/settings.json`等の権限ファイル編集やagy実機実行を伴わない、純粋なドキュメント/フック編集タスクを優先選定する方針とした。
-- **T5-A8検証(前回セッション分割の持ち越し)**: `verifier`へ委譲、`tools/verify.ps1`8項目全て`ok:true`(analyze新規issue0件・test367件全pass・golden diff_count:0・build web成功・secret scan検出なし)を確認。**完了済みへ移動**、恒久解決(OS非依存化)用に新規タスク**T5-A45**を追加。commit・push済み(0f0cd84)。
-- **T5-A42完了**: agy委譲ルートをスキル・規約へ配線。`implementer`委譲で`.claude/skills/full_loop/SKILL.md`(委譲表を§9.5の4行表へ差替+ルーティング参照追記)・`.claude/skills/night_loop/SKILL.md`(T5-A41完了までagy不使用を明記)・`CLAUDE.md`(agy導入後も親はSonnet 5のまま/非0終了は連続失敗カウント対象外)を編集。**ハーネスがSECURITY WARNING(自己言及的なルール変更)を出したが、`git diff`で3ファイルとも設計書§9.1/9.4/9.5どおり・`.claude/settings.json`等の権限ファイルは無変更であることを自分で確認した上で採用**(教訓L139として記録)。commit・push済み(97a28ed, ab8aa19)。
-- **T5-A43完了**: `loop_guard.js`にagy台帳(`.claude/agy_logs/ledger.tsv`)の参考集計を追加(`readAgyLedgerSummary()`新設、既存の境界検出ロジックを再利用、コスト・ターン閾値には未使用、台帳欠損時は`try/catch`で握りつぶし)。`CLAUDE.md`に該当ルールを1文追記。implementerがダミー台帳あり/なし双方で実地確認、`node -c`構文チェックOK。diffを自分で確認しロジックの安全性を確認済み。commit・push済み(d4a15c5, d83b712)。
-- **T5-A44完了**: `.claude/skills/end/SKILL.md`の締め手順に、agy委譲を行った日は台帳を`docs/antigravity_delegation_design.md` §7へ転記する手順を追加。ただし**判定条件「§7に少なくとも1行の実績転記」は今回未達成**(今回のループでは実際のagy呼び出しを行っておらず通常のClaudeサブエージェントのみ使用のため、転記すべき実データが無い。T5-A41パイロット実施時に自然に満たす見込み)。commit・push済み(1c6dd69, d3bf8f2)。
-- **結果**: トラックAのagy委譲配線タスク(T5-A37〜A44)がすべて完了。残るagy関連タスクはT5-A41(パイロット導入・実機3回試用)のみ。
-- **新規教訓**: `rules/lessons_archive.md` L139(implementerによる`CLAUDE.md`/`SKILL.md`編集はSECURITY WARNING対象になりうる、実差分確認の徹底)。`rules/verification.md`に1行索引追加。
-- **コード変更**: `.claude/hooks/loop_guard.js`のみ実質的なロジック変更、他は全てMarkdown/ドキュメント。`lib/`は全セッション通じて不変のためデプロイ対象外。ループコスト$8.68/$24(区切りが良いところで`/end`)。
+- **タスク選定**: 表の最上位から選定。T5-A7(L、スキップ)→**T5-A45**(golden OS非依存化、M、依存T5-A8完了済み)は、CJK対応フォントの選定・バイナリ同梱・ライセンス判断を伴い、かつWindows単独のこのセッションでは受け入れ基準(Windows/Ubuntu両方で一致)自体を検証できないため、無人実行のリスクが高いと判断し**選定段階でスキップ**(design judgment相当)。次点の**T5-A13**(implementer.mdへAndroid/公開版規約3項目を追記、S、依存なし、`検証強化設計.md` §5-6からの単純転記)を選定。
+- **T5-A13は中断**: `implementer`へ委譲したところ、`.claude/agents/implementer.md`へのEdit自体が権限エラーで拒否された(設計書からの転記内容は正しく準備されていたが書き込みが実行不可)。implementerは自ら回避策(Write/Bash等での迂回)を取らず、差分をテキスト報告に留めた(適切な挙動)。`.claude/agents/*.md`はエージェントの`tools:`権限を定義するファイルであり、L139(CLAUDE.md/SKILL.md編集はSECURITY WARNINGどまりで実行は通った)とは異なり、こちらはハードブロックされることが新たに判明。**新規教訓L140**として記録(`rules/lessons_archive.md`・`rules/verification.md`に索引追加)。**T5-A13は未完了のまま、次回有人セッションで直接対応が必要**。
+- **代替タスクへ切替・完了**: **T5-A15**(`analysis_options.yaml`にlint4種追加: `avoid_catches_without_on_clauses`/`unawaited_futures`/`avoid_empty_else`/`always_use_package_imports`)を選定・実装。既存違反638件(既存31件から607件増加)のため設計どおりbaseline運用に切替、対象94ファイルの先頭に検出ルールのみを列挙した`// ignore_for_file:`コメントを追加。`verifier`(`verify.ps1`8項目全`ok:true`)・`adversary`(Critical 0、Major 1: baseline運用は既存違反ファイルへの新規追記時のガードも一緒に外してしまう設計上のトレードオフ、と指摘。これはT5-A15自体の完了条件が明示的に要求したbaseline運用の想定内トレードオフであり、実装の不備ではないため差し戻さず採用)を並行起動して検証。**自動pushゲート全条件クリア(条件2/3は未整備のため判定対象外、条件1・4は満たす)につきmainへ直接push**。
+- **完了**: T5-A15。**未完了(次回有人対応)**: T5-A13。
+- **Majorの申し送り**: T5-A15のbaseline運用(94ファイルの`ignore_for_file`)は、今後これらのファイルを編集する際に新規違反が混入してもガードされない。段階的に`ignore_for_file`を剥がしていく後続タスクの要否は次回検討すること(マスタープランに未記載)。
+- **締め作業中に追加発見**: `.claude/night_report.md`を通常の手順(Write/Edit)で更新しようとしたところ、こちらも同じ「don't ask mode」権限エラーでハードブロックされた。**T5-A13の`.claude/agents/*.md`固有の話ではなく`.claude/`配下全般が対象**と判明し、教訓L140を「エージェント定義ファイル限定」から「`.claude/`配下全般」に拡張・訂正した。**`.claude/night_report.md`は2026-08-09時点の内容のまま更新できておらず、本節(NEXT_SESSION.md)が今回のループの実質的な報告書**。次回セッションは`.claude/night_report.md`が古くても本書§3を正とすること。
+- **新規教訓**: `rules/lessons_archive.md` L140(`.claude/`配下へのEdit/Writeは`settings.night.json`のallowより優先してハードブロックされる。implementer委譲だけでなく親セッション自身も対象。CLAUDE.md/SKILL.mdの警告どまり〈L139〉とは区別する)。`rules/verification.md`に1行索引追加。
+- **コード変更**: `analysis_options.yaml` + 既存Dartファイル94個(先頭1行コメント追加のみ)。`lib/`のロジック変更なし。
 
-> これ以前(-5.69節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.70節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

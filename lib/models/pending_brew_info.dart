@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'bean_master.dart';
 import 'equipment_masters.dart';
 import 'method_master.dart';

@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'package:flutter/material.dart';
 import 'bean_list_screen.dart';
 import 'bean_purchase_history_screen.dart';

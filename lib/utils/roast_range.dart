@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import '../models/method_master.dart';
 import '../services/math/encoding.dart';
 

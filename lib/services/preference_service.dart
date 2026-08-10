@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'dart:math';
 
 import '../models/coffee_record.dart';

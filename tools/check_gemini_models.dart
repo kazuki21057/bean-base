@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_catches_without_on_clauses
 import 'dart:io';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';

@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import '../models/bean_master.dart';
 import '../models/coffee_record.dart';
 

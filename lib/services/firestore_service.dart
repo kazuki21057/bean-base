@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/coffee_record.dart';

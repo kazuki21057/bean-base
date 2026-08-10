@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'package:flutter/material.dart';
 import '../utils/image_utils.dart';
 import 'bean_image_platform_interface.dart'

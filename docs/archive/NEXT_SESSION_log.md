@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.70 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境、5回目のループ。ユーザーがPC不在で開始、「Antigravity CLI委譲はできてるよね」を確認→T5-A8検証完了+T5-A42/A43/A44完了でagy委譲配線を完成)
+
+- **ユーザー指示**: 「Antigravitycliへの委譲はできてるよね？できてなかったら優先して。今回はpcの前にいないから、権限ファイルの編集やユーザのターミナル操作はできないことを前提にタスクを選定して」。この制約から、`.claude/settings.json`等の権限ファイル編集やagy実機実行を伴わない、純粋なドキュメント/フック編集タスクを優先選定する方針とした。
+- **T5-A8検証(前回セッション分割の持ち越し)**: `verifier`へ委譲、`tools/verify.ps1`8項目全て`ok:true`(analyze新規issue0件・test367件全pass・golden diff_count:0・build web成功・secret scan検出なし)を確認。**完了済みへ移動**、恒久解決(OS非依存化)用に新規タスク**T5-A45**を追加。commit・push済み(0f0cd84)。
+- **T5-A42完了**: agy委譲ルートをスキル・規約へ配線。`implementer`委譲で`.claude/skills/full_loop/SKILL.md`(委譲表を§9.5の4行表へ差替+ルーティング参照追記)・`.claude/skills/night_loop/SKILL.md`(T5-A41完了までagy不使用を明記)・`CLAUDE.md`(agy導入後も親はSonnet 5のまま/非0終了は連続失敗カウント対象外)を編集。**ハーネスがSECURITY WARNING(自己言及的なルール変更)を出したが、`git diff`で3ファイルとも設計書§9.1/9.4/9.5どおり・`.claude/settings.json`等の権限ファイルは無変更であることを自分で確認した上で採用**(教訓L139として記録)。commit・push済み(97a28ed, ab8aa19)。
+- **T5-A43完了**: `loop_guard.js`にagy台帳(`.claude/agy_logs/ledger.tsv`)の参考集計を追加(`readAgyLedgerSummary()`新設、既存の境界検出ロジックを再利用、コスト・ターン閾値には未使用、台帳欠損時は`try/catch`で握りつぶし)。`CLAUDE.md`に該当ルールを1文追記。implementerがダミー台帳あり/なし双方で実地確認、`node -c`構文チェックOK。diffを自分で確認しロジックの安全性を確認済み。commit・push済み(d4a15c5, d83b712)。
+- **T5-A44完了**: `.claude/skills/end/SKILL.md`の締め手順に、agy委譲を行った日は台帳を`docs/antigravity_delegation_design.md` §7へ転記する手順を追加。ただし**判定条件「§7に少なくとも1行の実績転記」は今回未達成**(今回のループでは実際のagy呼び出しを行っておらず通常のClaudeサブエージェントのみ使用のため、転記すべき実データが無い。T5-A41パイロット実施時に自然に満たす見込み)。commit・push済み(1c6dd69, d3bf8f2)。
+- **結果**: トラックAのagy委譲配線タスク(T5-A37〜A44)がすべて完了。残るagy関連タスクはT5-A41(パイロット導入・実機3回試用)のみ。
+- **新規教訓**: `rules/lessons_archive.md` L139(implementerによる`CLAUDE.md`/`SKILL.md`編集はSECURITY WARNING対象になりうる、実差分確認の徹底)。`rules/verification.md`に1行索引追加。
+- **コード変更**: `.claude/hooks/loop_guard.js`のみ実質的なロジック変更、他は全てMarkdown/ドキュメント。`lib/`は全セッション通じて不変のためデプロイ対象外。ループコスト$8.68/$24(区切りが良いところで`/end`)。
+
 ### -5.69 当日やったこと(2026-08-10、Sonnet 5、有人`/full_loop`、Windows環境、4回目のループ。T5-A8のgolden環境依存問題を解消・検証待ちでセッション分割)
 
 - **タスク選定**: 依存充足済みの候補としてT5-A8(golden環境依存)とT5-A12(night_loop試走+タスクスケジューラ登録)の2つが挙がったが、A12はタスクスケジューラへの登録(無人auto push有効化)を伴うためユーザーに確認、**T5-A8**を選定。

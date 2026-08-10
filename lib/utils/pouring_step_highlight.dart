@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import '../models/pouring_step.dart';
 
 /// タイマー連動で点灯させるステップ(0始まりindex)の集合を返す。

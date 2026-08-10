@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_catches_without_on_clauses
 import 'package:json_annotation/json_annotation.dart';
 
 part 'analysis_snapshot.g.dart';

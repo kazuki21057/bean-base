@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';

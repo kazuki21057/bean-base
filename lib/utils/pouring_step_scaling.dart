@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports
 import '../models/pouring_step.dart';
 
 /// 注湯ステップの湯量を現在の豆量でスケーリングする共通ロジック。

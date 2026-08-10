@@ -23,6 +23,10 @@ linter:
   rules:
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    avoid_catches_without_on_clauses: true
+    unawaited_futures: true
+    avoid_empty_else: true
+    always_use_package_imports: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

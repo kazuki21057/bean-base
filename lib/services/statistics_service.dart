@@ -1,3 +1,4 @@
+// ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math';
