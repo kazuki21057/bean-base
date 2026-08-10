@@ -173,6 +173,7 @@
 - L140 `.claude/`配下へのEdit/Writeは`settings.night.json`のallowより優先してハードブロックされる(implementer委譲・親セッション自身とも)。遭遇したら回避せず`NEXT_SESSION.md`側に内容退避して締めを続行する(T5-A13・night_report.md更新/夜間ループ)
 - L142 agyが既存`.ps1`ファイルを編集するとUTF-8 BOMが失われPowerShell 5.1で構文エラーになることがある。`git diff`1行目の予期しない削除に注意(T5-A41)
 - L143 `gemini-3.1-pro-high`は応答冒頭に`<END_OF_TURN>`が漏れ`response_head`が無意味化することがある。既定は`gemini-3.6-flash-high`を優先(T5-A41)
+- L144(未確認) `AskUserQuestion`応答だけが続くターンは`loop_guard.js`の`UserPromptSubmit`が再発火せず`loop_state.md`が更新されないことがある。往復が多いループはコスト値を鵜呑みにしない(トラックA方針確認ループ)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
