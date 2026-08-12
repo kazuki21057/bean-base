@@ -58,12 +58,19 @@ $NightLogsDir = Join-Path $ClaudeDir 'night_logs'
 if (-not (Test-Path $NightLogsDir)) {
     New-Item -ItemType Directory -Path $NightLogsDir -Force | Out-Null
 }
-$WrapperLogPath = Join-Path $NightLogsDir 'wrapper.log'
+# wrapper.log は日次ローテーション(2026-08-12 障害対応)。単一の追記ファイルを誰かが
+# tail -f 等で開き続けると、その瞬間から書き込み不能になり続ける実害が起きたため、
+# 日次分割にして被害を当日限りに抑える。
+$WrapperLogPath = Join-Path $NightLogsDir ('wrapper-{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
 $LockPath = Join-Path $ClaudeDir 'night_loop.lock'
 $RunsLogPath = Join-Path $ClaudeDir 'night_runs.log'
 $RunCountPath = Join-Path $ClaudeDir 'night_loop_run_count.txt'
 $NightReportPath = Join-Path $RepoRoot 'night_report.md'
 $ProjectsRoot = Join-Path $HOME '.claude\projects'
+# 障害対応(ロック競合等でwrapper.logへの記録が無音で失われる問題への対策):
+# 直近1回の起動結果を必ず上書き記録するファイルと、5時間枠スキップの専用ログ。
+$LastRunPath = Join-Path $ClaudeDir 'night_loop_last_run.json'
+$NightSkipsLogPath = Join-Path $ClaudeDir 'night_skips.log'
 
 $ScriptStart = Get-Date
 $script:LockAcquired = $false
@@ -128,6 +135,39 @@ $DisallowedToolsList = @(
 
 # ============================== ログ・通知 ==============================
 
+# ロック耐性のある1行追記ヘルパー。孤児化した tail -f 等がファイルを掴んでいる場合、
+# Add-Content の失敗は「非終端エラー」でありtry/catchで捕捉されないケースがある
+# (実際に3日間wrapper.logへの記録が無音で失われた障害が発生した)ため、
+# -ErrorAction Stop で強制的に終端エラー化してから捕捉する。
+function Write-LineWithRetry {
+    param(
+        [string]$Path,
+        [string]$Line,
+        [string]$FallbackPath
+    )
+    $maxAttempts = 3
+    $lastError = $null
+    for ($i = 1; $i -le $maxAttempts; $i++) {
+        try {
+            Add-Content -Path $Path -Value $Line -Encoding utf8 -ErrorAction Stop
+            return [pscustomobject]@{ Success = $true; ErrorMessage = $null }
+        } catch {
+            $lastError = $_.Exception.Message
+            if ($i -lt $maxAttempts) {
+                Start-Sleep -Milliseconds 100
+            }
+        }
+    }
+    # 3回とも失敗 → Add-Content と違い一時的な共有違反に強い AppendAllText で
+    # フォールバックファイルへ書き込む。
+    try {
+        [System.IO.File]::AppendAllText($FallbackPath, ($Line + [Environment]::NewLine), [System.Text.Encoding]::UTF8)
+    } catch {
+        # フォールバックすら失敗した場合は諦める(呼び出し元がWrite-Hostで警告する)。
+    }
+    return [pscustomobject]@{ Success = $false; ErrorMessage = $lastError }
+}
+
 function Write-Log {
     param(
         [string]$Level,
@@ -138,10 +178,10 @@ function Write-Log {
     # ストリームに書くと戻り値(ハッシュテーブル/終了コード)に混ざってしまう。
     $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
     Write-Host $line
-    try {
-        Add-Content -Path $WrapperLogPath -Value $line -Encoding utf8
-    } catch {
-        Write-Host ('[{0}] [WARN] wrapper.log への書き込みに失敗しました: {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $_.Exception.Message)
+    $fallbackPath = Join-Path $NightLogsDir ('wrapper.fallback-{0}.log' -f $PID)
+    $result = Write-LineWithRetry -Path $WrapperLogPath -Line $line -FallbackPath $fallbackPath
+    if (-not $result.Success) {
+        Write-Host ('[{0}] [WARN] wrapper.log への書き込みに失敗しました: {1}(フォールバック先: {2})' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $result.ErrorMessage, $fallbackPath)
     }
 }
 
@@ -187,6 +227,31 @@ function Send-NightNotification {
         Write-Log 'WARN' ('night_report.md の更新に失敗しました: {0}' -f $_.Exception.Message)
     }
     Send-ToastNotification -Title 'BeanBase 夜間ループ' -Text $ResultLine
+}
+
+# 直近1回の起動結果を必ず上書き記録する(スキップ経路も含め、何をしたか/しなかったかを
+# 常にファイルとして残す。wrapper.logがロック等で書けない状況でも、この関数自体が
+# 独立したSet-Content呼び出しのため影響を受けにくい)。
+function Save-NightLoopLastRun {
+    param(
+        [string]$Outcome,
+        [string]$Reason,
+        [int]$ExitCode
+    )
+    $data = [ordered]@{
+        startedAt  = $ScriptStart.ToString('o')
+        finishedAt = (Get-Date).ToString('o')
+        outcome    = $Outcome
+        reason     = $Reason
+        exitCode   = $ExitCode
+        dryRun     = [bool]$DryRun.IsPresent
+        force      = [bool]$Force.IsPresent
+    } | ConvertTo-Json -Compress
+    try {
+        Set-Content -Path $LastRunPath -Value $data -Encoding utf8 -ErrorAction Stop
+    } catch {
+        Write-Log 'WARN' ('{0} の書き込みに失敗しました: {1}' -f $LastRunPath, $_.Exception.Message)
+    }
 }
 
 # --disallowedTools を含む起動予定コマンドを組み立てる(設計書§2-4の改訂版がベース。
@@ -305,6 +370,7 @@ function Invoke-NightLoop {
 
         if ($isRunning) {
             Write-Log 'INFO' ('既に実行中です(PID {0})。今回の起動をスキップします(通知なし)。' -f $existingLock.pid)
+            Save-NightLoopLastRun -Outcome 'skipped_lock' -Reason ('既に実行中のためスキップしました(PID {0})' -f $existingLock.pid) -ExitCode 0
             return 0
         }
         Remove-Item -Path $LockPath -Force -ErrorAction SilentlyContinue
@@ -325,6 +391,7 @@ function Invoke-NightLoop {
     if (-not $claudeCmd) {
         Write-Log 'ERROR' 'claude コマンドが見つかりません(PATHを確認してください)。'
         Send-NightNotification -ResultLine '⛔ エラー終了(claude コマンドが見つからない)' -Detail 'claude CLIがPATH上にあるか確認してください。'
+        Save-NightLoopLastRun -Outcome 'error_claude_not_found' -Reason 'claude コマンドが見つかりません(PATHを確認してください)' -ExitCode 2
         return 2
     }
     Write-Log 'INFO' ('claude CLI を検出しました: {0}' -f $claudeCmd.Source)
@@ -339,6 +406,7 @@ function Invoke-NightLoop {
         } else {
             Write-Log 'ERROR' ('config指定のprojectSlug "{0}" が {1} 配下に存在しません。' -f $Config.projectSlug, $ProjectsRoot)
             Send-NightNotification -ResultLine '⛔ エラー終了(config指定のprojectSlugが存在しない)' -Detail 'tools/night_loop.config.json の projectSlug を確認してください。'
+            Save-NightLoopLastRun -Outcome 'error_slug_resolution' -Reason ('config指定のprojectSlug "{0}" が存在しません' -f $Config.projectSlug) -ExitCode 2
             return 2
         }
     } else {
@@ -359,6 +427,7 @@ function Invoke-NightLoop {
             } else {
                 Write-Log 'ERROR' ('プロジェクトslugを解決できませんでした(既定規則候補: {0} / フォールバック候補 {1} 件)。' -f $expectedSlug, $fallbackCandidates.Count)
                 Send-NightNotification -ResultLine '⛔ エラー終了(プロジェクトslugを解決できない)' -Detail ('~/.claude/projects/ 配下を確認し、必要なら tools/night_loop.config.json の projectSlug を明示指定してください。')
+                Save-NightLoopLastRun -Outcome 'error_slug_resolution' -Reason 'プロジェクトslugを解決できませんでした' -ExitCode 2
                 return 2
             }
         }
@@ -375,6 +444,11 @@ function Invoke-NightLoop {
             $elapsedHours = ((Get-Date) - $last).TotalHours
             if ($elapsedHours -lt [double]$Config.sessionWindowHours) {
                 Write-Log 'INFO' ('直近{0}時間以内にセッション活動があるため({1}、経過{2}時間)、今回の発火をスキップします。' -f $Config.sessionWindowHours, $last, [math]::Round($elapsedHours, 2))
+                $skipReason = ('直近{0}時間以内にセッション活動があるため(最終更新{1}、経過{2}時間)' -f $Config.sessionWindowHours, $last, [math]::Round($elapsedHours, 2))
+                $skipFallback = Join-Path $NightLogsDir ('night_skips.fallback-{0}.log' -f $PID)
+                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_session_window', $skipReason
+                $null = Write-LineWithRetry -Path $NightSkipsLogPath -Line $skipLine -FallbackPath $skipFallback
+                Save-NightLoopLastRun -Outcome 'skipped_session_window' -Reason $skipReason -ExitCode 0
                 return 0
             }
             Write-Log 'INFO' ('直近のセッション活動: {0}(経過{1}時間)。5時間枠チェックを通過しました。' -f $last, [math]::Round($elapsedHours, 2))
@@ -409,6 +483,7 @@ function Invoke-NightLoop {
         if ($recentCount -ge [int]$Config.weeklyRunLimit) {
             Write-Log 'INFO' '週次実行上限に達しているため今回の発火をスキップします。'
             Send-NightNotification -ResultLine ('⚠️ スキップ(週次実行上限 {0} 回に到達)' -f $Config.weeklyRunLimit) -Detail 'そのまま待つか、必要なら tools/night_loop.config.json の weeklyRunLimit を見直してください。'
+            Save-NightLoopLastRun -Outcome 'skipped_weekly_limit' -Reason ('週次実行上限{0}回に到達しました(直近7日間{1}回)' -f $Config.weeklyRunLimit, $recentCount) -ExitCode 0
             return 0
         }
     }
@@ -466,6 +541,7 @@ function Invoke-NightLoop {
                 Write-Log 'WARN' ('night_report.md の更新に失敗しました: {0}' -f $_.Exception.Message)
             }
             Send-ToastNotification -Title 'BeanBase 夜間ループ' -Text $toastText
+            Save-NightLoopLastRun -Outcome 'error_settings' -Reason $resultLine -ExitCode 2
             return 2
         }
     }
@@ -487,6 +563,7 @@ function Invoke-NightLoop {
     if ($pullExit -ne 0) {
         Write-Log 'ERROR' ('git pull --ff-only が失敗しました(終了コード {0})。claudeは起動しません。' -f $pullExit)
         Send-NightNotification -ResultLine '⛔ エラー終了(git pull --ff-only 失敗、コンフリクトの可能性)' -Detail 'リポジトリの状態を確認し、手動でpull/コンフリクト解消してください。'
+        Save-NightLoopLastRun -Outcome 'error_git_pull' -Reason ('git pull --ff-only が失敗しました(終了コード {0})' -f $pullExit) -ExitCode 2
         return 2
     }
     Write-Log 'INFO' 'git pull --ff-only が完了しました。'
@@ -527,6 +604,7 @@ function Invoke-NightLoop {
             Write-Log 'INFO' ('[DryRun] 現在の起動回数カウンタ: {0}' -f $currentCount.Trim())
         }
         Write-Log 'INFO' '[DryRun] claudeは起動しません。.claude/night_runs.log への追記も行いません。'
+        Save-NightLoopLastRun -Outcome 'completed' -Reason 'DryRunのためclaudeは起動していません(ガードはすべて通過しました)' -ExitCode 0
         return 0
     }
 
@@ -596,11 +674,13 @@ function Invoke-NightLoop {
     if ($claudeExit -ne 0) {
         Write-Log 'ERROR' ('claude が異常終了しました(終了コード {0})。' -f $claudeExit)
         Send-NightNotification -ResultLine ('⛔ claude が異常終了しました(終了コード {0})' -f $claudeExit) -Detail ('ログを確認してください: {0} / {1}' -f $logPath, $errLogPath)
+        Save-NightLoopLastRun -Outcome 'error_claude_exit' -Reason ('claude が異常終了しました(終了コード {0})' -f $claudeExit) -ExitCode 3
         return 3
     }
 
     $elapsedMinutes = [math]::Round(((Get-Date) - $ScriptStart).TotalMinutes, 1)
     Write-Log 'INFO' ('night_loop.ps1 が正常に終了しました(所要時間 {0}分)。' -f $elapsedMinutes)
+    Save-NightLoopLastRun -Outcome 'completed' -Reason ('正常終了しました(所要時間 {0}分)' -f $elapsedMinutes) -ExitCode 0
     return 0
 }
 
@@ -615,6 +695,7 @@ if ($null -eq $night_config) {
     # ここには来ない)。ロックは未取得のためfinallyでの解放は不要。
     Send-NightNotification -ResultLine ('⛔ エラー終了(設定ファイルのJSONが不正: {0})' -f $ConfigPath) -Detail ('{0} の内容を確認し正しいJSONに修正してください。' -f $ConfigPath)
     Write-Log 'INFO' 'night_loop.ps1 終了(終了コード 2)。'
+    Save-NightLoopLastRun -Outcome 'error_config' -Reason ('設定ファイルのJSONが不正です: {0}' -f $ConfigPath) -ExitCode 2
     exit 2
 }
 
@@ -623,6 +704,7 @@ try {
 } catch {
     Write-Log 'ERROR' ('予期しない例外が発生しました: {0}' -f $_.Exception.Message)
     Send-NightNotification -ResultLine ('⛔ エラー終了(予期しない例外: {0})' -f $_.Exception.Message) -Detail 'wrapper.log を確認してください。'
+    Save-NightLoopLastRun -Outcome 'error_exception' -Reason ('予期しない例外が発生しました: {0}' -f $_.Exception.Message) -ExitCode 2
     $exitCode = 2
 } finally {
     if ($script:LockAcquired -and (Test-Path $LockPath)) {

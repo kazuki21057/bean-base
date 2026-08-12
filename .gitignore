@@ -69,6 +69,8 @@ screenshots/
 .claude/night_logs/
 .claude/night_runs.log
 .claude/night_loop.lock
+.claude/night_loop_last_run.json
+.claude/night_skips.log
 
 # tools/emulator.ps1 の起動時stdout/stderrログ(実行のたびに生成される一時ファイル)
 .claude/emu_logs/
