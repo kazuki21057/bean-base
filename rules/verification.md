@@ -26,6 +26,12 @@
 5. **goldenテスト(`test/golden/`、T5-A8で新設)**: 共通コンポーネント(`lib/widgets/`配下)をライト/ダーク2バリアントで`matchesGoldenFile`により画像比較する。**LLM/エージェントは`flutter test --update-goldens`等でgoldenファイル(`test/golden/**/*.png`)を自動更新してはならない**。意図的なデザイン変更でgoldenが落ちた場合は、差分(`test/golden/failures/`に出力される比較画像)を人間が目視確認した上で、ユーザーの明示的な指示がある場合のみ更新する。新規コンポーネントのgolden追加時の初回生成(まだ比較対象画像が存在しない状態でのベースライン作成)はこの禁止の対象外。**ベースラインはWindows環境で生成した画像に固定する**(T5-A8、2026-08-10決定)。OS間で差が出るのはテキストのラスタライズのみ(図形描画はビット単位一致)で、Ubuntu生成の画像はWindowsで最大2.68%のピクセル差が出て必ず落ちるため。Windows以外の環境では`golden_test_helper.dart`の`skipGoldenOnNonWindows`により6件がスキップされる(失敗にはしない)。**ベースライン生成環境の移行のような、意図的なデザイン変更を伴わない再生成も、ユーザーの明示的な指示があるタスクに限り許可する**(エージェントの自己判断での`--update-goldens`は引き続き禁止)。
 6. **overflow判定のwidget test化(D-4節、T5-A8で導入)**: `test/helpers/overflow_test_helper.dart`の`pumpAndDetectOverflow`/`expectNoOverflow`で、`FlutterError.onError`を差し替えて`A RenderFlex overflowed`をエミュレータ不要のwidget testとして機械判定できる。`tester.view.physicalSize`/`devicePixelRatio`で360x690・411x914・320x690の3サイズを模する。`SettingsScreen`のような`SharedPreferences`/`FutureProvider`を使う画面は、`SharedPreferences.setMockInitialValues({})`とネットワーク依存プロバイダのフェイク差し替えをしないと初期ロードスピナーが解消せず`pumpAndSettle`がタイムアウトする(`test/settings_screen_overflow_test.dart`参照)。
 
+## 既知の失敗しやすい検証経路(2026-08-13新設)
+
+- **Androidエミュレータ**: 検証のリトライ上限は2回までとする。2回試して起動・操作が安定しない場合、3回目は同じ方法を繰り返さず、`architect`へのエスカレーション、または別の確認手段(ブラウザ・widgetテスト等)への切り替えを検討する。
+- **ブラウザ優先**: 可能な限りブラウザ(Chrome、`claude-in-chrome`)での検証を優先する。Androidエミュレータは、`lib/screens`等のUI変更でモバイル固有の挙動(タップ操作・端末サイズ依存レイアウト等)の確認がどうしても必要な場合に限り使う。
+- **GASエンドポイントへの直接curl禁止**: Google Apps Script(GAS)Web Appエンドポイントへ`curl`等で直接POST/GETして検証することはできない(サンドボックスがGAS/Driveトラフィックをブロックすることがあるため。詳細は上記L114等の教訓も参照)。GAS経由の動作確認は、ローカルの`flutter run`(またはローカル配信した`build/web`)でアプリUI経由で行う。
+
 ## コーディング規約
 
 - **ロギング**: 主要アクションと外部サービス連携には `[Antigravity]` prefix で明示的にログを出す。
@@ -175,6 +181,8 @@
 - L143 `gemini-3.1-pro-high`は応答冒頭に`<END_OF_TURN>`が漏れ`response_head`が無意味化することがある。既定は`gemini-3.6-flash-high`を優先(T5-A41)
 - L144(未確認) `AskUserQuestion`応答だけが続くターンは`loop_guard.js`の`UserPromptSubmit`が再発火せず`loop_state.md`が更新されないことがある。往復が多いループはコスト値を鵜呑みにしない(トラックA方針確認ループ)
 - L145 Bashで`tail -f`等の常駐コマンドを実行しない。孤児プロセス化してファイルロックを恒久保持し、無人スクリプトのログ書き込みが無音で失敗し続ける(夜間ループ3日間無音停止バグ)
+- L146 ファイルのmtimeは「セッション活動」の代理指標にならない。アイドル中セッションも周期的にtranscriptを書き換えるため、判定窓と周期が一致すると恒久デッドロックになる(T5-A12)
+- L147 複数のarchitectへ設計・タスク分解を並行/連続委譲すると、それぞれが独立にタスクIDを採番しID衝突・スコープ重複が起きうる。1件反映してから次を委譲するか、使えるID範囲を委譲プロンプトで明示する(T5-A58/A59)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…

@@ -60,6 +60,15 @@
             "command": "node .claude/hooks/loop_guard.js"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -File tools/check_encoding.ps1"
+          }
+        ]
       }
     ],
     "SubagentStop": [

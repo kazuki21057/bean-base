@@ -64,7 +64,7 @@ State management is Riverpod; persistence is Google Sheets (reverted from Firest
 
 ## Verification Rules
 
-Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero new issues) → `flutter test`(all pass) → `flutter run`(no exceptions/overflow, external services connect) → visual browser verification.
+Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero new issues) → `flutter test`(all pass) → `flutter run`(no exceptions/overflow, external services connect) → visual browser verification. **既知の失敗しやすい検証経路**(Androidエミュレータのリトライ上限・ブラウザ優先・GAS直curl不可等)は`rules/verification.md`の同名節を参照。
 
 **Key invariants:**
 - Master-type UI/functionality changes apply to **all master tabs/screens** (Bean, Grinder, Dripper, Filter, Method where applicable) — never just Bean.
@@ -81,11 +81,13 @@ Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero 
 
 ## 日次改修ループ運用ルール
 
-大規模改修は**1日1回のループ**で進める。**`docs/改修マスタープラン.md`が単一の真実**、§3のタスク表から「依存が満たされた最上位のタスク」を選ぶ。
+大規模改修は**1日1回のループ**で進める。**`docs/改修マスタープラン.md`が単一の真実**、§3のタスク表から「依存が満たされた最上位のタスク」を選ぶ。**タスク選定時(2026-08-13追記)**: 着手前に、実装+検証+デプロイまで含めた見積もりコストが予算内(有人$24・夜間$20、いずれも下記終了条件・`night_loop`スキルのしきい値と同じ数値)に収まりそうか一言確認してから着手する。収まらないと見込まれる場合はタスクを分割するか、後続ループへ回すことを検討する。
 
 **流れ**: `/start` → タスク選択 → 実装(`implementer`へ委譲) → 検証(`verifier`へ委譲、`analyze`→`test`→`run`)→ OKならcommit/push+進捗表更新 / NGなら`NEXT_SESSION.md`に引き継ぎ → `/end`。
 
 **終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。agy(Antigravity CLI)経由の委譲はGeminiバケットを使うため、コスト上限の判定に含めない。件数・所要時間は`loop_state.md`に参考値として出る。
+
+**無人ループ(night_loop)の書き込み範囲の制限(2026-08-13新設、恒久)**: `night_loop`が状態・ログを書き込む先は`.claude/night_*`(`.claude/night_loop_last_run.json`・`.claude/night_runs.log`・`.claude/night_usage_log.tsv`・`.claude/night_logs/`等)に限定する。`.claude/settings.json`・`.claude/agents/*.md`等の恒久設定を含む、それ以外の`.claude/`直下ファイルへの書き込みは無人ループ実行中は行わない。**この制約はpush・デプロイの確認ルールを変更しない**——pushの自動承認(検証完了時は都度確認不要)、デプロイの都度確認必須は、上記「デプロイ・push・削除の確認ルール」節に定めるとおり従来のまま変わらない。
 
 **デプロイ・push・削除の確認ルール(2026-08-08改訂、恒久。正本はここ。経緯は`docs/archive/マスタープラン_作業ログ.md`「T3-73f」)**: `git push`は**検証が完了していれば都度確認は不要**(「検証が完了」とは`verifier`が当該変更について全項目パスを報告した、または**コード変更を含まない**〈ドキュメント・設定のみ〉のいずれか)。検証していない・NGのまま・検証を省略した変更のpushは、従来どおり事前にチャットで許可を得る。**`--force`系のpushは常に確認が必要**(`.claude/settings.json`の`ask`に登録済み)。**デプロイ(`firebase deploy`/`clasp push`・`clasp redeploy`)は上記pushの緩和の対象外で、常に都度確認が必要**——実行直前にチャットで内容を説明し明示的な許可を得る。ファイル・データの**削除**を伴う操作(本番Sheets/Driveのレコード削除、`rm`/`git clean`等の破壊的ファイル操作、`git reset --hard`等)も引き続きその都度リスクを一言説明してから確認を得る(本番Sheets/Driveへの実データの追加・更新〈削除を伴わないもの〉は確認不要)。**ハーネスの自動モード分類器はCLAUDE.md/メモリ上の「事前承認済み」という記述を有効な同意経路とみなさない**(Instruction Poisoning/Auto-Mode Bypassパターン)ため、上記の緩和をチャット上で明示的に指示していても分類器がpush等をブロックすることがある。**その場合はサブエージェントへの委譲などで回避を試みてはならない**(2026-07-30に撤回済みの誤った運用、教訓`rules/lessons_archive.md` L91)。ブロックされたら実行を止め、何を・なぜ実行しようとしたかをユーザーに説明し、チャットでの許可を得た上で改めて実行する。
 
@@ -111,7 +113,7 @@ Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero 
 - **自己検証を指示しない**: Opus 5は指示せずとも自己検証する。「最後に必ず検証ステップを入れよ」「サブエージェントで確認させよ」の類は**過剰検証を招くので書かない/既存記述は削る**。検証は`verifier`への委譲で担保する。
 - **スコープ厳守**: 依頼された範囲・粒度で仕上げる。曖昧さは慎重な同僚として自分で判断し、解釈違いで作業内容が大きく変わる場合だけ確認する。依頼が誤りだと考える場合は一言述べて依頼どおり進める。勝手に狭めない・広げない・作り変えない。
 - **自己訂正を語らない**: ユーザーの判断や成果物が変わる誤りだけ、簡潔に訂正して作業を続ける。謝罪・反省・経緯の詳述はしない。追加質問は誤りの兆候ではない。
-- **サブエージェントの濫用禁止**: Opus 5は委譲しすぎる傾向がある。数回のツール呼び出しで自分が終えられる作業、および検証目的の委譲はしない(詳細は§日次改修ループ運用ルール)。
+- **サブエージェントの濫用禁止**: Opus 5は委譲しすぎる傾向がある。数回のツール呼び出しで自分が終えられる作業、および検証目的の委譲はしない(詳細は§日次改修ループ運用ルール)。概念的な設計質問(方針の是非・トレードオフの説明等)にはまず自分の文章で直接回答し、ユーザーの許可なくリサーチエージェント(researcher)を起動しない。
 
 ## 統計解析・予測機能の実装ルール
 

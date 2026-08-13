@@ -83,3 +83,7 @@ test/golden/failures/
 # (実行のたびに生成される一時ファイル。ledger.tsvの実績集計はT5-A38時点ではdocs/への
 # 転記対象では無いため追跡しない)
 .claude/agy_logs/
+
+# tools/check_encoding.ps1(PostToolUseフック)が出すBOM有無の警告ログ
+# (実行のたびに生成される一時ファイル)
+.claude/encoding_warnings.log

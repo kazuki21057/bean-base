@@ -59,8 +59,8 @@
     終了コード:
       0  正常終了 / 正常スキップ(多重起動中・有人セッション活動中・
          作業ツリー汚れあり・週次上限到達)
-      2  エラー終了(設定ファイルJSON不正・claude未検出・slug解決失敗・
-         settings.night.json不在/JSON不正・git pull失敗)
+      2  エラー終了(設定ファイルJSON不正・プリフライトチェック失敗・claude未検出・
+         slug解決失敗・settings.night.json不在/JSON不正・git pull失敗)
       3  claude が異常終了した(claudeの終了コードが非0)
 #>
 
@@ -478,6 +478,30 @@ function Invoke-NightLoop {
     Set-Content -Path $LockPath -Value $lockData -Encoding utf8
     $script:LockAcquired = $true
     Write-Log 'INFO' ('ロックを取得しました(PID {0})。' -f $PID)
+
+    # --- 2.5. プリフライトチェック(T5-A53) ---
+    # 孤児プロセスによるログファイルロック事故(2026-08-12対応、commit 77d6094)や
+    # agyのPATH不在事故のような環境異常を、claude起動前の軽量チェックで早期検知する。
+    # git pullと同様、native exe(powershell.exe)のstderrをPowerShellのErrorRecordに
+    # ラップさせないため cmd /c でストリームを統合してから受け取る。
+    Write-Log 'INFO' 'プリフライトチェック(tools/preflight.ps1)を実行します。'
+    Push-Location $RepoRoot
+    try {
+        $preflightOutput = & cmd /c 'powershell -NoProfile -File "tools\preflight.ps1" 2>&1'
+        $preflightExit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    foreach ($l in $preflightOutput) {
+        if ($l) { Write-Log 'INFO' ('[preflight] {0}' -f $l) }
+    }
+    if ($preflightExit -ne 0) {
+        Write-Log 'ERROR' ('プリフライトチェックが失敗しました(終了コード {0})。claudeは起動しません。' -f $preflightExit)
+        Send-NightNotification -ResultLine '⛔ エラー終了(プリフライトチェック失敗、環境異常の可能性)' -Detail 'wrapper.log の [preflight] 行を確認し、ログファイルのロック・PATH不備・書き込み権限を調査してください。'
+        Save-NightLoopLastRun -Outcome 'error_preflight_failed' -Reason ('プリフライトチェックが失敗しました(終了コード {0})' -f $preflightExit) -ExitCode 2
+        return 2
+    }
+    Write-Log 'INFO' 'プリフライトチェックに合格しました。'
 
     # --- 3. claude CLI の解決 ---
     $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
