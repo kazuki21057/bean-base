@@ -184,38 +184,11 @@ $DisallowedToolsList = @(
 
 # ============================== ログ・通知 ==============================
 
-# ロック耐性のある1行追記ヘルパー。孤児化した tail -f 等がファイルを掴んでいる場合、
-# Add-Content の失敗は「非終端エラー」でありtry/catchで捕捉されないケースがある
-# (実際に3日間wrapper.logへの記録が無音で失われた障害が発生した)ため、
-# -ErrorAction Stop で強制的に終端エラー化してから捕捉する。
-function Write-LineWithRetry {
-    param(
-        [string]$Path,
-        [string]$Line,
-        [string]$FallbackPath
-    )
-    $maxAttempts = 3
-    $lastError = $null
-    for ($i = 1; $i -le $maxAttempts; $i++) {
-        try {
-            Add-Content -Path $Path -Value $Line -Encoding utf8 -ErrorAction Stop
-            return [pscustomobject]@{ Success = $true; ErrorMessage = $null }
-        } catch {
-            $lastError = $_.Exception.Message
-            if ($i -lt $maxAttempts) {
-                Start-Sleep -Milliseconds 100
-            }
-        }
-    }
-    # 3回とも失敗 → Add-Content と違い一時的な共有違反に強い AppendAllText で
-    # フォールバックファイルへ書き込む。
-    try {
-        [System.IO.File]::AppendAllText($FallbackPath, ($Line + [Environment]::NewLine), [System.Text.Encoding]::UTF8)
-    } catch {
-        # フォールバックすら失敗した場合は諦める(呼び出し元がWrite-Hostで警告する)。
-    }
-    return [pscustomobject]@{ Success = $false; ErrorMessage = $lastError }
-}
+# ロック耐性のある1行追記ヘルパー Write-LineWithRetry は tools/lib/loop_io.ps1 へ
+# 移設した(T5-A61、docs/failure_playbook.md §1-3・§7)。tools/failure_playbook.ps1
+# からも同じ実装を共有するため。関数名・シグネチャは変更していないので、以下の
+# 呼び出し箇所は無変更で動く。
+. (Join-Path $PSScriptRoot 'lib\loop_io.ps1')
 
 function Write-Log {
     param(

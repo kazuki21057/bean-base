@@ -1,4 +1,4 @@
-param([string]$ApiKey)
+﻿param([string]$ApiKey)
 
 if (-not $ApiKey) {
     $ApiKey = Read-Host "Input API Key"

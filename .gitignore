@@ -87,3 +87,10 @@ test/golden/failures/
 # tools/check_encoding.ps1(PostToolUseフック)が出すBOM有無の警告ログ
 # (実行のたびに生成される一時ファイル)
 .claude/encoding_warnings.log
+
+# tools/failure_playbook.ps1(T5-A61、失敗プレイブック)の検知ログ・状態・証拠束・発火履歴
+# (実行のたびに生成される一時ファイル。docs/failure_playbook.md §2-4)
+.claude/failure_events.tsv
+.claude/failure_state.json
+.claude/failure_reports/
+.claude/night_outcomes.log

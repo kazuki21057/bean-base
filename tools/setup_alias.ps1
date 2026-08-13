@@ -1,4 +1,4 @@
-# setup_alias.ps1
+﻿# setup_alias.ps1
 
 # Set the target path
 $targetPath = "c:\src\Antigravity\BeanBase2.0"

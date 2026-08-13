@@ -2398,3 +2398,13 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - **結論**: T5-A41完了、3件中3件が「採用」相当。`docs/antigravity_delegation_design.md` §9.5の状態遷移を「パイロット」→**「条件付き常時」**(`docs/`・`tools/`・`.claude/`の非Dartファイル+`lib/`配下のS規模タスクがagy対象)へ移行。「常時委譲」は`lib/`配下での追加3件の実績が必要条件のため未達、次の優先タスクとして申し送る。
 - **マスタープラン更新**: T5-A13・T5-A25・T5-A29・T5-A41を✅完了済みへ移動(38件)。commit b9df8ecでpush済み。
 - **コード変更**: `.claude/agents/implementer.md`・`.claude/skills/{full_loop,night_loop}/SKILL.md`・`tools/{night_loop,antigravity_delegate}.ps1`・`.claude/{full_loop,night_loop}_run_count.txt`(新規)。`lib/`不変のためデプロイ対象外。
+
+### -5.79 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`新規セッション、Windows環境。ユーザー指示「ルール変更タスクについてユーザと一緒に検討しながら改正していきたい」への対応)
+
+- `/full_loop`の呼び出し内容(対話しながら検討したい)が本来の自動一括実行モードと矛盾していたため、AskUserQuestionで確認した上で**対話モードへ切り替え**。`/insights`レポート(2026-08-12)由来のルール変更バックログT5-A49〜A59を1件ずつ提示し、ユーザーと相談しながら方針を決定した。
+- **T5-A49**: 当初案5項目のうち、ユーザー指示で(a)(c)(e)のみ採用・(b)→T5-A55・(d)→T5-A56へ統合。`docs/改修マスタープラン.md`を先に更新してから実装した。
+- **implementerへ委譲**(計約246,000トークン、複数回): T5-A49+A55+A56(CLAUDE.md/rules/verification.md/full_loop SKILL.mdへの追記、78,169トークン)→T5-A50(`tools/check_encoding.ps1`新設、52,257トークン)→T5-A51(`.claude/skills/verify/SKILL.md`新設、61,331トークン)→T5-A52(night_loop headless化の検討、68,359トークン、**結論: 見送り**)→T5-A53(`tools/preflight.ps1`新設+night_loop.ps1組み込み、97,736トークン)→T5-A54(着手前コスト見積もりステップ、56,331トークン)の順に実装。各ステップ後、親が`git diff`で内容を確認(今回新設したT5-A55のdiffレビュールールを実際に適用)。
+- **⚠️上位モデルタスク(T5-A57/A58/A59)はAskUserQuestionで個別に採用可否を確認**: T5-A57(並列マルチトラック夜間ループフリート設計)はgit worktreeの説明・ROI評価を提示した上で**ユーザーと相談し見送りで合意**(トラックB本格化まで再検討しない)。T5-A58(失敗プレイブック設計)はユーザー承認、architectへ委譲(132,015トークン)し`docs/failure_playbook.md`新設(既知障害7件・安全側判断基準・実装タスクT5-A61〜A68へ分解)。T5-A59(受け入れハーネス設計)もユーザー承認、architectへ委譲(108,458トークン)し`docs/acceptance_harness_design.md`新設(適用範囲をM/L・実行成果物変更・機械判定可能の3条件に限定、実装タスクT5-A69〜A72へ分解)。
+- **verifierへ一括検証委譲**(75,684トークン): A49・A50・A51・A53・A54関連の変更を9項目でまとめて検証、全PASS(`lib/`/`test/`無変更・settings.json構文・check_encoding.ps1/preflight.ps1の構文+実地動作〈BOM検知・3種障害注入〉・night_loop.ps1のdiff整合・verifyスキルのfrontmatter・マスタープランとの整合)。
+- `docs/改修マスタープラン.md`を更新(完了済み50件、T5-A61〜A72を新規タスクとして追加)。**重要な申し送り**: T5-A58の設計がT5-A66でT5-A53(`tools/preflight.ps1`)を自身の基盤へ統合する提案をしているが、T5-A53は本セッション中に独立実装・検証済みのため、統合要否は次回セッションでT5-A61着手前にユーザーへ確認してから判断すること。
+- 2026-08-10のトラックA関連の合意事項(T5-A7のトラックB移動・T5-A45先送り・T5-A12の1晩3回観察・T5-A46〜A48ダミータスク追加)、2026-08-13前半セッション(-5.78節、T5-A60・今晩3トリガー観察)は変更なし、引き続き有効。
