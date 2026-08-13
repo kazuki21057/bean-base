@@ -1,12 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-13(Sonnet 5、`/full_loop 検証のみ`同日中6回目のセッション〈夜〉、Windows環境。T5-A65〈FP-05実装〉検証PASS・push済み・完了)
+最終更新: 2026-08-13(Sonnet 5、`/night_loop`23:00枠、Windows環境。T5-A66〈night_loop.ps1配線〉実装2回・レビュー2回で中断、PR待ち)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
+- **【2026-08-13・`/night_loop` 23:00枠】T5-A66(`night_loop.ps1`への失敗プレイブック配線)は実装2回・敵対的レビュー2回まで実施したが中断・PR待ち**。T5-A62〜A65完了により選定、設計(`docs/failure_playbook.md` §6-1・§6-2)は確定済みのため`implementer`へ直接委譲。1回目実装→`verifier`/`adversary`並行検証(verify.ps1全green、adversary Critical 0・Major 2件・Minor 2件)→Major 2件+Minor 1件を`implementer`へ差し戻し修正→再検証(verify.ps1全green、adversary Critical 0だが**Major 4件に増加**)。2回目のMajor指摘のうちMajor-1/Major-4は「Watchdog停止フラグの削除タイミングが早すぎ、Postmortem完了直後に削除するとWatchdogがフラグを一度も観測できないまま消え、**2026-08-12に実際に3日間の無応答障害を起こした『孤児プロセスによるファイルロック』と同種のレースを再現しうる**」という指摘、Major-3は診断ログファイル名が`$PID`のみでPID再利用時に衝突しうるという指摘、Major-2は`Publish-FailurePlaybookStderr`が読み取り失敗時に未転記のまま一時ファイルを削除してしまうという指摘。2回のレビューで収束せず悪化したため単純なバグ修正ではなく設計判断(Watchdogのライフサイクル順序、PID衝突対策)が必要と判断し、3回目の同じやり方での差し戻しはせず中断。`git checkout -b night/T5-A66`でブランチを切り、`tools/night_loop.ps1`の変更(1回目実装+Major/Minor修正、`.claude/night_loop_run_count.txt`のカウンタ増分含む)をコミットしPRを作成した(URLは本節末尾または`night_report.md`参照)。**mainは未変更**。また`.claude/skills/night_loop/SKILL.md`への§6-2該当追記(手順1・5・6・7)は、無人ループが`.claude/night_*`以外へ書き込まないというCLAUDE.mdの恒久ルールにより実装セッション内で適用できず(ハーネスの分類器がブロック、想定どおりの挙動、回避は行っていない)、あわせて次回有人セッションでの対応が必要。**次回セッションの最優先事項**: (1)PRの内容を確認しMajor 4件への対応方針を決める(設計判断が必要なため`architect`への相談を検討)、(2)`.claude/skills/night_loop/SKILL.md`への§6-2追記を適用する、(3)検証中に生成された無害な残置ファイル`.claude/night_logs/test_repro_preflight.err.log`(削除も権限ブロックされ未削除)の削除。
 - **【2026-08-13・同日中6回目のセッション(夜)】T5-A65(FP-05「エージェント/claudeハング」ルール実装)完了**。前セッションでcommitのみ済みだった変更を`verifier`が独立検証(9項目全PASS、exit code修正の再確認含む)→push済み(`ea2a6d5`)。`lib/`不変・GAS変更なしのためデプロイ・本番確認は不要。マスタープラン・完了タスクアーカイブも更新済み。**T5-A65〜A68〈T5-A65依存分〉が揃ったため、次はT5-A66(`night_loop.ps1`への配線)が着手可能**。**5時間枠使用率が77%まで上昇**(週次は22%で余裕あり)——次回セッションは着手前に必ず状況を確認すること。今晩23:00の夜間ループトリガーの発火状況(T5-A12観察)は次回セッションで確認すること。
 - **【2026-08-13・同日中2回目のセッション】T5-A62(FP-01/FP-02ルール拡張)・T5-A63(FP-03エミュレータルール追加)完了・commit/push済み**。マスタープラン記載の「明日以降」タグ(T5-A62〜A66・A68〜A71、計8件)は**ユーザー指示で一括解除**し「本日以降着手可」に変更済み——**今後「明日以降」と指示する際は実際の日付で管理する**(例: 「2026-08-14以降」のように)。
 - **【重要な仕様確認、次回も踏まえること】23:00以降の夜間ループトリガーへの影響を2軸で切り分けた**: (1)Proプラン使用率(5時間枠)によるゲートはT5-A60で撤廃済み・記録専用のため影響なし(ユーザー確認済み)。(2)ただし**`tools/night_loop.config.json`の`activeSessionMinutes`(既定45分)によるガードは別物で現役**——直近45分以内にこのチャットで会話活動があると`skipped_active_session`としてトリガーがスキップされる。今回のセッションは23:00の45分前(22:15頃)を意識して活動を終えるようにした。次回以降も23:00近くにセッションを続ける場合はこの45分ガードを意識すること。
@@ -42,7 +43,9 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-13更新】T5-A61〜A65(失敗プレイブック基盤・FP-01/02/03/04/05/06)は全て完了・検証・push済み**。**次に着手できるのはT5-A66(S、`night_loop.ps1`への配線、T5-A62〜A65依存)**、または**T5-A69(M、受け入れハーネス実装、依存なし)**。
+> **【2026-08-13 23:00枠更新・最優先】T5-A66は実装2回・レビュー2回で中断、`night/T5-A66`ブランチ+PRとして待機中(§1参照)**。次回セッションはまずこのPRの扱いを決めること: Major 4件(Watchdog停止フラグ削除のレース・PID再利用時のログファイル名衝突・stderr読み取り失敗時の未転記削除・SKILL.md未更新)への対応方針を検討し、設計判断が必要なら`architect`へ相談してから`implementer`で仕上げる。それ以外の新規タスクとしては**T5-A69(M、受け入れハーネス実装、依存なし)**が選定可能。
+
+> **【2026-08-13更新・T5-A66着手前の背景情報、上記中断の経緯として参考】T5-A61〜A65(失敗プレイブック基盤・FP-01/02/03/04/05/06)は全て完了・検証・push済み**。
 >   - T5-A66着手時は、T5-A65の実装で判明した設計判断(`docs/failure_playbook.md` §9-7・§9-8に記録済み: `-StallMinutes`/`-HardCapMinutes`をintからdoubleへ変更/証拠束「トリガー」欄の簡易生成方式)を踏まえること。また配線時に`-Mode Watchdog`を実際に別プロセスとして起動する処理(手順9)・`.claude/night_watchdog.stop`の作成(手順10先頭)・Postmortem呼び出しを実装するため、規模的にM相当になる可能性がある(マスタープラン記載はSだが要再見積もり)。**T5-A53(`tools/preflight.ps1`)をこの設計へ統合するかどうかは既にユーザー承認済み**(`preflight.ps1`は作らず`failure_playbook.ps1 -Mode Preflight`に一本化する方針、`docs/failure_playbook.md` §9-5)。
 >   - T5-A67は⚠️ユーザー実施(`.claude/settings.night.json`のallow追加)、T5-A72はトラックB本格化待ちで着手不可。T5-A68(障害注入テスト)はT5-A66・T5-A67の両方が終わってから。
 >
@@ -83,16 +86,17 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.84 当日やったこと(2026-08-13、Sonnet 5、`/full_loop 検証のみ`同日中6回目のセッション〈夜〉、Windows環境。T5-A65検証・push・完了)
+### -5.85 当日やったこと(2026-08-13、Sonnet 5、`/night_loop` 23:00枠、Windows環境。T5-A66実装2回・レビュー2回で中断、PR待ち)
 
-- セッション冒頭、プリフライトOK・使用率取得(開始: セッション70%/週22%)・`git pull`(差分なし)・`loop_state.md`(コスト$0、新規ループ境界)を確認。`NEXT_SESSION.md`に「検証待ち」の記載があったためタスク選定・実装をスキップし検証から再開(ユーザーも`/full_loop 検証のみ`と明示)。5時間枠使用率70%は高めだったが検証のみの軽量ループのため続行。
-- `verifier`へT5-A65の検証を委譲、§2に記載した9観点(既存回帰・BOM・exit code契約・FP-05-HANG-AGYの2連続escalate・Watchdog誤爆回避・対象特定・自己終了・証拠束生成・ファイル復元)全てPASS。前セッションでexit 2→exit 1に修正した箇所も`grep`で再確認済み。
-- 全PASSのためcommit済み(`ea2a6d5`)をそのままpush(`18abf86..ea2a6d5`)。`lib/`不変・GAS変更なしのためデプロイ・本番確認は不要。
-- `docs/改修マスタープラン.md`のT5-A65行を✅完了済みへ移動(完了済み55件)、`docs/archive/マスタープラン_完了タスク.md`に詳細節を追加。`docs/token_optimization_design.md` §7・§8にT5-A65実装セッション分・検証セッション分をまとめて追記(実装セッションの終了時%は未取得のままだったため今回わかる範囲で補完)。
-- 使用率: 終了時点セッション77%/週22%(開始比+7pt/±0pt)。本ループコスト$5.1881・ターン0/30、余裕を残して完了。**5時間枠が77%まで上昇しているため、次回セッションは着手前に必ず状況を確認すること。**
-- T5-A12(夜間ループ3トリガー観察)は今回も確認できず持ち越し(§2参照)。2026-08-10のトラックA関連の合意事項・2026-08-13の一連のセッション(-5.78〜-5.83節、T5-A60〜A65)は変更なし、引き続き有効(詳細はdocs/archive/NEXT_SESSION_log.md)。
+- プリフライト通過済み(`tools/night_loop.ps1`経由起動)、モード判別(`BEANBASE_NIGHT_LOOP=1`=無人、`BEANBASE_NIGHT_TRIGGER=2300`=通常優先ロジック)、`settings.night.json`存在確認、`loop_state.md`(コスト$0)・`git pull`(差分なし)確認。T5-A62〜A65完了によりT5-A66(S、`night_loop.ps1`への失敗プレイブック配線)を選定、設計(`docs/failure_playbook.md` §6-1・§6-2)確定済みのため`implementer`へ直接委譲。
+- 1回目実装(旧`tools/preflight.ps1`呼び出しを`failure_playbook.ps1 -Mode Preflight`へ置換、Watchdog別プロセス起動、Postmortem、`night_outcomes.log`追記、`Send-NightNotification -FailureSummary`)→`verifier`(verify.ps1全8項目green)・`adversary`(Critical 0・Major 2・Minor 2)を並行実行。
+- Major 2件(Watchdog標準出力/エラー未捕捉・停止フラグ削除失敗の無音化)+Minor 1件(`2>$null`が設計書自身のL128禁止事項に抵触)を`implementer`へ差し戻し修正→再度`verifier`(全green)・`adversary`並行実行したところ、**Major指摘が4件に増加**(Major-1/4: Watchdog停止フラグをPostmortem完了直後に削除するとWatchdogが一度も観測できず消え、2026-08-12に実際に3日間の無応答障害を起こした「孤児プロセスによるファイルロック」と同種のレースを再現しうる/Major-2: `Publish-FailurePlaybookStderr`が読み取り失敗時に未転記のまま一時ファイルを削除/Major-3: 診断ログファイル名が`$PID`のみでPID再利用時に衝突しうる)。
+- 2回のレビューで収束せず悪化(1回目Major2→2回目Major4)したため、単純なバグ修正ではなく設計判断(Watchdogライフサイクル順序・PID衝突対策)が必要と判断し、night_loopの中断条件(実装中に設計判断が必要と判明)に該当するとして3回目の差し戻しはせず中断。`git checkout -b night/T5-A66`でブランチを切り`tools/night_loop.ps1`の変更をコミット、PR作成。**mainは未変更**。
+- `.claude/skills/night_loop/SKILL.md`への§6-2該当追記(手順1・5・6・7)は、CLAUDE.mdの「無人ループは`.claude/night_*`以外へ書き込まない」恒久ルールによりハーネスにブロックされ実装セッション内で適用できず(想定どおりの挙動、回避せず)、次回有人セッションへ持ち越し。
+- 検証中に生成された無害な残置ファイル`.claude/night_logs/test_repro_preflight.err.log`は削除も権限ブロックされたため未削除のまま残存(中身は再現テストの生ログのみ、機微情報なし)。
+- コストは`.claude/loop_state.md`/`night_report.md`参照。T5-A12(夜間ループ3トリガー観察)は今回が初回の実地観察(23:00枠)にあたるが、本ループ自体が中断扱いのため観察の完了判定は次回セッションで別途行うこと。
 
-> これ以前(-5.83節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.84節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

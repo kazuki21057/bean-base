@@ -96,6 +96,9 @@ $LastRunPath = Join-Path $ClaudeDir 'night_loop_last_run.json'
 $NightSkipsLogPath = Join-Path $ClaudeDir 'night_skips.log'
 # Proプラン使用率の記録専用ログ(T5-A60、2026-08-13。ゲートは撤廃したが値の記録は継続する)。
 $NightUsageLogPath = Join-Path $ClaudeDir 'night_usage_log.tsv'
+# 失敗プレイブックFP-06(サイレントスタール検知)の唯一のデータ源(T5-A66、
+# docs/failure_playbook.md §2-4)。1行=1発火のtimestamp/outcome/reason。
+$NightOutcomesLogPath = Join-Path $ClaudeDir 'night_outcomes.log'
 
 $ScriptStart = Get-Date
 
@@ -207,6 +210,38 @@ function Write-Log {
     }
 }
 
+# failure_playbook.ps1 の [Console]::Error 進捗メッセージをファイル経由で受け取り、
+# wrapper.log へ [failure_playbook] 行として残す(Minor-1指摘対応)。
+# 標準出力(1行JSON)とは別ストリームのまま受け取る: failure_playbook.ps1 は
+# 成功時もWrite-Output(JSON)の後にWrite-Progress2(stderr)を呼ぶため、
+# cmd /c '... 2>&1' で結合すると「標準出力の最後の行がJSON」という既存の
+# パース前提(Select-Object -Last 1)が崩れる。そのため2>&1統合ではなく、
+# stderrをファイルへ個別リダイレクトし、ここで読んでログへ転記する方式にした。
+function Publish-FailurePlaybookStderr {
+    param(
+        [string]$Path
+    )
+    if (-not (Test-Path $Path)) {
+        return
+    }
+    $lines = @()
+    try {
+        $lines = @(Get-Content -Path $Path -ErrorAction Stop | Where-Object { $_ -and $_.Trim() })
+        foreach ($l in $lines) {
+            Write-Log 'INFO' ('[failure_playbook] {0}' -f $l)
+        }
+    } catch {
+        Write-Log 'WARN' ('failure_playbook.ps1 のstderrログの読み取りに失敗しました(無視して続行): {0}' -f $_.Exception.Message)
+    }
+    try {
+        if ((Get-Item -Path $Path -ErrorAction Stop).Length -eq 0 -or $lines.Count -eq 0) {
+            Remove-Item -Path $Path -Force -ErrorAction Stop
+        }
+    } catch {
+        Write-Log 'WARN' ('failure_playbook.ps1 のstderrログファイルの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
+    }
+}
+
 function Send-ToastNotification {
     param(
         [string]$Title,
@@ -230,10 +265,13 @@ function Send-ToastNotification {
 function Send-NightNotification {
     param(
         [string]$ResultLine,
-        [string]$Detail
+        [string]$Detail,
+        # 失敗プレイブック(T5-A66、docs/failure_playbook.md §6-1)が検知したescalate内容。
+        # 指定時のみnight_report.mdに「## 検知した障害」節を追加する。
+        [string[]]$FailureSummary = @()
     )
     $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm'
-    $body = @(
+    $bodyLines = @(
         ('# 夜間ループ報告 {0}' -f $stamp),
         '',
         '- **タスク**: (未選定 — night_loop.ps1 のガードで中止したため claude を起動していない)',
@@ -241,7 +279,15 @@ function Send-NightNotification {
         '- **検証**: 未実施(claude起動前にラッパースクリプトが中止)',
         ('- **人がやること**: {0}' -f $Detail),
         '- **次のタスク**: 次回のスケジュール発火時に同じ内容で再試行'
-    ) -join "`n"
+    )
+    if ($FailureSummary -and $FailureSummary.Count -gt 0) {
+        $bodyLines += ''
+        $bodyLines += '## 検知した障害'
+        foreach ($f in $FailureSummary) {
+            $bodyLines += ('- {0}' -f $f)
+        }
+    }
+    $body = $bodyLines -join "`n"
     try {
         Set-Content -Path $NightReportPath -Value $body -Encoding utf8
         Write-Log 'INFO' 'night_report.md を更新しました。'
@@ -273,6 +319,15 @@ function Save-NightLoopLastRun {
         Set-Content -Path $LastRunPath -Value $data -Encoding utf8 -ErrorAction Stop
     } catch {
         Write-Log 'WARN' ('{0} の書き込みに失敗しました: {1}' -f $LastRunPath, $_.Exception.Message)
+    }
+
+    # 失敗プレイブックFP-06(サイレントスタール検知)のデータ源への追記(T5-A66、
+    # docs/failure_playbook.md §2-4)。DryRunでは既存のDryRun方針(claudeを起動せず
+    # ガード確認のみ・他の実行記録ログにも追記しない)に揃え、追記しない。
+    if (-not $DryRun.IsPresent) {
+        $outcomesLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), $Outcome, ($Reason -replace "[`t`r`n]", ' ')
+        $outcomesFallback = Join-Path $NightLogsDir ('night_outcomes.fallback-{0}.log' -f $PID)
+        $null = Write-LineWithRetry -Path $NightOutcomesLogPath -Line $outcomesLine -FallbackPath $outcomesFallback
     }
 }
 
@@ -451,30 +506,6 @@ function Invoke-NightLoop {
     Set-Content -Path $LockPath -Value $lockData -Encoding utf8
     $script:LockAcquired = $true
     Write-Log 'INFO' ('ロックを取得しました(PID {0})。' -f $PID)
-
-    # --- 2.5. プリフライトチェック(T5-A53) ---
-    # 孤児プロセスによるログファイルロック事故(2026-08-12対応、commit 77d6094)や
-    # agyのPATH不在事故のような環境異常を、claude起動前の軽量チェックで早期検知する。
-    # git pullと同様、native exe(powershell.exe)のstderrをPowerShellのErrorRecordに
-    # ラップさせないため cmd /c でストリームを統合してから受け取る。
-    Write-Log 'INFO' 'プリフライトチェック(tools/preflight.ps1)を実行します。'
-    Push-Location $RepoRoot
-    try {
-        $preflightOutput = & cmd /c 'powershell -NoProfile -File "tools\preflight.ps1" 2>&1'
-        $preflightExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
-    }
-    foreach ($l in $preflightOutput) {
-        if ($l) { Write-Log 'INFO' ('[preflight] {0}' -f $l) }
-    }
-    if ($preflightExit -ne 0) {
-        Write-Log 'ERROR' ('プリフライトチェックが失敗しました(終了コード {0})。claudeは起動しません。' -f $preflightExit)
-        Send-NightNotification -ResultLine '⛔ エラー終了(プリフライトチェック失敗、環境異常の可能性)' -Detail 'wrapper.log の [preflight] 行を確認し、ログファイルのロック・PATH不備・書き込み権限を調査してください。'
-        Save-NightLoopLastRun -Outcome 'error_preflight_failed' -Reason ('プリフライトチェックが失敗しました(終了コード {0})' -f $preflightExit) -ExitCode 2
-        return 2
-    }
-    Write-Log 'INFO' 'プリフライトチェックに合格しました。'
 
     # --- 3. claude CLI の解決 ---
     $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
@@ -683,6 +714,55 @@ function Invoke-NightLoop {
         }
     }
 
+    # --- 7.4. 失敗プレイブック(Preflight) ---
+    # tools/preflight.ps1 は本設計(docs/failure_playbook.md §1-3・§7 T5-A66行、
+    # 2026-08-13ユーザー承認済み)に統合し、tools/failure_playbook.ps1 -Mode Preflight に
+    # 一本化した(旧2.5節から移設・置換)。FP-01/FP-02/FP-03/FP-06/FP-07を検知し、
+    # 可能なものは自動対処する。exit 2(続行不可、FP-07のみ)ならclaudeを起動せず終了する。
+    # exit 1(検知したが続行可能)は記録して続行する(P1、プレイブックはabort専用理由以外で
+    # ループを止めない)。-Unattended は「有人試走(-Force)でない限り付与する」方針とする
+    # (-ForceはFP-03の自動再起動・FP-05(c)の停止を抑止する「有人時の縮退」§3-2に対応)。
+    Write-Log 'INFO' '失敗プレイブック(tools/failure_playbook.ps1 -Mode Preflight)を実行します。'
+    $playbookUnattendedArgs = @()
+    if (-not $Force) { $playbookUnattendedArgs = @('-Unattended') }
+    $preflightErrLogPath = Join-Path $NightLogsDir ('failure_playbook-preflight-{0}.err.log' -f $PID)
+    Push-Location $RepoRoot
+    try {
+        $preflightJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Preflight @playbookUnattendedArgs 2> $preflightErrLogPath
+        $preflightExit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    Publish-FailurePlaybookStderr -Path $preflightErrLogPath
+    $preflightJsonText = ($preflightJsonLines | Select-Object -Last 1)
+    $preflightResult = $null
+    if ($preflightJsonText) {
+        try {
+            $preflightResult = $preflightJsonText | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            Write-Log 'WARN' ('failure_playbook.ps1(Preflight)の出力JSONを解釈できませんでした: {0}' -f $preflightJsonText)
+        }
+    }
+    if ($preflightResult -and $preflightResult.detected -and $preflightResult.detected.Count -gt 0) {
+        foreach ($d in $preflightResult.detected) {
+            Write-Log 'INFO' ('[failure_playbook] {0}: severity={1} action={2} result={3} detail={4}' -f $d.ruleId, $d.severity, $d.action, $d.result, $d.detail)
+        }
+    }
+    if ($preflightExit -eq 2) {
+        Write-Log 'ERROR' 'failure_playbook.ps1 -Mode Preflight が続行不可(exit 2)を返したため、claudeは起動しません。'
+        $preflightFailureSummary = @()
+        if ($preflightResult -and $preflightResult.escalations) {
+            $preflightFailureSummary = @($preflightResult.escalations | ForEach-Object { '{0}: {1}' -f $_.ruleId, $_.detail })
+        }
+        Send-NightNotification -ResultLine '⛔ エラー終了(失敗プレイブックPreflightが続行不可と判定、環境異常の可能性)' -Detail 'wrapper.log の [failure_playbook] 行と .claude/failure_events.tsv / .claude/failure_reports/ を確認してください。' -FailureSummary $preflightFailureSummary
+        Save-NightLoopLastRun -Outcome 'error_preflight' -Reason 'failure_playbook.ps1 -Mode Preflight が続行不可(exit 2)を返しました' -ExitCode 2
+        return 2
+    } elseif ($preflightExit -eq 1) {
+        Write-Log 'WARN' 'failure_playbook.ps1 -Mode Preflight が検知events(exit 1、続行可能)を返しました。記録して続行します。'
+    } else {
+        Write-Log 'INFO' '失敗プレイブック(Preflight)は検知なし、または自動対処済みです。'
+    }
+
     # --- 7.5. 作業ツリー汚れガード ---
     if ($Force) {
         Write-Log 'INFO' '-Force指定のため作業ツリー汚れガードをスキップします。'
@@ -819,6 +899,34 @@ function Invoke-NightLoop {
         '--disallowedTools'
     ) + $DisallowedToolsList
 
+    # --- 8.5. 失敗プレイブック(Watchdog)を別プロセスとして起動(FP-05(c)) ---
+    # このnight_loop.ps1プロセス($PID)を起点に、claude実行中のstream-jsonが伸びなくなる
+    # 無応答を監視する。DryRunではここまで到達しない(手順9のDryRun分岐で既にreturn済み)。
+    # 起動失敗は致命的にしない(P1、Watchdog不在でも本体のclaude実行は継続する)。
+    $stopFlagPath = Join-Path $ClaudeDir 'night_watchdog.stop'
+    try {
+        Remove-Item -Path $stopFlagPath -Force -ErrorAction Stop
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        # 元々存在しない場合は正常系(前回終了処理で既に削除済み等)なので無警告。
+    } catch {
+        Write-Log 'WARN' ('Watchdog停止フラグの事前削除に失敗しました(fail-open、続行します): {0}' -f $_.Exception.Message)
+    }
+    $watchdogUnattendedArgs = @()
+    if (-not $Force) { $watchdogUnattendedArgs = @('-Unattended') }
+    # Watchdogは別プロセスのためStart-Process既定では標準出力/標準エラーが破棄され、
+    # 実際にプロセスを停止させた場合(FP-05(c))の理由がどこにも残らない(Major-1指摘対応)。
+    # ここでは消さず残すことを優先し、ローテーションは既存の空.err.log削除処理と同様の
+    # 考え方を終了処理側(手順10)で流用する。
+    $watchdogOutLogPath = Join-Path $NightLogsDir ('watchdog-{0}.out.log' -f $PID)
+    $watchdogErrLogPath = Join-Path $NightLogsDir ('watchdog-{0}.err.log' -f $PID)
+    try {
+        $watchdogArgList = @('-NoProfile', '-File', 'tools\failure_playbook.ps1', '-Mode', 'Watchdog', '-WrapperPid', "$PID", '-StreamLogPath', $logPath) + $watchdogUnattendedArgs
+        Start-Process -FilePath 'powershell' -ArgumentList $watchdogArgList -WorkingDirectory $RepoRoot -WindowStyle Hidden -RedirectStandardOutput $watchdogOutLogPath -RedirectStandardError $watchdogErrLogPath | Out-Null
+        Write-Log 'INFO' ('失敗プレイブック(Watchdog)を別プロセスとして起動しました(stdout: {0} / stderr: {1})。' -f $watchdogOutLogPath, $watchdogErrLogPath)
+    } catch {
+        Write-Log 'WARN' ('失敗プレイブック(Watchdog)の起動に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+    }
+
     Push-Location $RepoRoot
     try {
         # stdout(--output-format stream-jsonの出力)だけをTee-Objectでファイル+コンソールへ
@@ -836,6 +944,45 @@ function Invoke-NightLoop {
     }
 
     # --- 10. 終了処理 ---
+    # 10-1. 失敗プレイブック(Postmortem): まずWatchdogを停止フラグで終わらせてから、
+    # 今回のstream-json/stderrを既知障害シグネチャ(FP-02/FP-04/FP-05(a))と照合する。
+    # 失敗しても本体の終了処理は継続する(P1)。
+    try { New-Item -ItemType File -Path $stopFlagPath -Force | Out-Null } catch {
+        Write-Log 'WARN' ('Watchdog停止フラグの作成に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+    }
+    $postmortemFailureSummary = @()
+    try {
+        $postmortemErrLogPath = Join-Path $NightLogsDir ('failure_playbook-postmortem-{0}.err.log' -f $PID)
+        Push-Location $RepoRoot
+        try {
+            $postmortemJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Postmortem -StreamLogPath $logPath -ErrLogPath $errLogPath -ClaudeExitCode $claudeExit 2> $postmortemErrLogPath
+        } finally {
+            Pop-Location
+        }
+        Publish-FailurePlaybookStderr -Path $postmortemErrLogPath
+        $postmortemJsonText = ($postmortemJsonLines | Select-Object -Last 1)
+        if ($postmortemJsonText) {
+            $postmortemResult = $postmortemJsonText | ConvertFrom-Json -ErrorAction Stop
+            if ($postmortemResult.detected) {
+                foreach ($d in $postmortemResult.detected) {
+                    Write-Log 'INFO' ('[failure_playbook] {0}: severity={1} action={2} result={3} detail={4}' -f $d.ruleId, $d.severity, $d.action, $d.result, $d.detail)
+                }
+            }
+            if ($postmortemResult.escalations) {
+                $postmortemFailureSummary = @($postmortemResult.escalations | ForEach-Object { '{0}: {1}' -f $_.ruleId, $_.detail })
+            }
+        }
+    } catch {
+        Write-Log 'WARN' ('失敗プレイブック(Postmortem)の実行または出力解釈に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+    }
+    try {
+        Remove-Item -Path $stopFlagPath -Force -ErrorAction Stop
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        # 元々存在しない場合は正常系なので無警告。
+    } catch {
+        Write-Log 'WARN' ('Watchdog停止フラグの削除に失敗しました(fail-open、続行します): {0}' -f $_.Exception.Message)
+    }
+
     # stderrが1バイトも出なかった場合、0バイトの.err.logがローテーションされずに
     # 発火のたびに溜まり続けるため削除する(Minor-1指摘対応。削除できなくても
     # スクリプトは失敗させない)。
@@ -848,10 +995,25 @@ function Invoke-NightLoop {
         Write-Log 'WARN' ('空の.err.logの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
     }
 
+    # Watchdogのstdout/stderrログも同様に、0バイトなら削除しローテーションする
+    # (Major-1指摘対応で新設。Watchdogは停止フラグ検知後に終了するため通常この時点で
+    # 既にプロセス終了済みだが、まだファイルを保持していてRemove-Itemが失敗しても
+    # 致命的にしない)。
+    foreach ($watchdogLogPath in @($watchdogOutLogPath, $watchdogErrLogPath)) {
+        try {
+            if ($watchdogLogPath -and (Test-Path $watchdogLogPath) -and ((Get-Item $watchdogLogPath).Length -eq 0)) {
+                Remove-Item -Path $watchdogLogPath -Force -ErrorAction Stop
+                Write-Log 'INFO' ('空のWatchdogログを削除しました: {0}' -f $watchdogLogPath)
+            }
+        } catch {
+            Write-Log 'WARN' ('空のWatchdogログの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
+        }
+    }
+
     Write-Log 'INFO' ('claude の終了コード: {0}' -f $claudeExit)
     if ($claudeExit -ne 0) {
         Write-Log 'ERROR' ('claude が異常終了しました(終了コード {0})。' -f $claudeExit)
-        Send-NightNotification -ResultLine ('⛔ claude が異常終了しました(終了コード {0})' -f $claudeExit) -Detail ('ログを確認してください: {0} / {1}' -f $logPath, $errLogPath)
+        Send-NightNotification -ResultLine ('⛔ claude が異常終了しました(終了コード {0})' -f $claudeExit) -Detail ('ログを確認してください: {0} / {1}' -f $logPath, $errLogPath) -FailureSummary $postmortemFailureSummary
         Save-NightLoopLastRun -Outcome 'error_claude_exit' -Reason ('claude が異常終了しました(終了コード {0})' -f $claudeExit) -ExitCode 3
         return 3
     }
