@@ -11,45 +11,53 @@
       powershell -File tools\night_loop.ps1 -DryRun        claudeを起動せず予定コマンドと
                                                              環境変数伝搬だけを確認する
       powershell -File tools\night_loop.ps1 -Force         有人セッション活動チェック・
-                                                             Proプラン使用率ガード・
                                                              作業ツリー汚れガード・
                                                              週次予算ガードをスキップする
                                                              (有人監視下試走用、多重起動
                                                              ガード・slug解決・
                                                              settings.night.json存在チェック・
-                                                             git pullはスキップしない)
+                                                             git pullはスキップしない。
+                                                             Proプラン使用率ログの記録は
+                                                             2026-08-13にゲートから記録専用
+                                                             へ変更したためスキップ対象では
+                                                             なく、-Force指定時も記録する)
       powershell -File tools\night_loop.ps1 -ConfigPath X  既定は tools\night_loop.config.json
 
     tools/night_loop.config.json のキー(JSONにコメントを書けないためここに説明を置く):
-      weeklyRunLimit          週次予算ガードの上限回数(既定12)。直近7日の
-                              .claude/night_runs.log の行数がこれ以上ならスキップする。
+      weeklyRunLimit          週次予算ガードの上限回数(既定15、2026-08-13に12→15へ変更)。
+                              直近7日の.claude/night_runs.log の行数がこれ以上ならスキップする。
       activeSessionMinutes    有人セッション活動チェックの窓の長さ(分、既定45)。
                               プロジェクトのtranscript(*.jsonl)から抽出した最新の会話
                               エントリのtimestampからこの分数未満ならスキップする
                               (2026-08-13、T5-A12。旧sessionWindowHoursのmtime方式は
                               アイドル中セッションのmtime書き換え周期と判定窓が一致し
                               恒久スキップを起こしたため廃止)。
-      usageGuardEnabled       Proプラン使用率ガードの有効/無効(既定true)。
+      usageLogEnabled         Proプラン使用率記録の有効/無効(既定true)。2026-08-13、
+                              ユーザー判断によりゲート(スキップ判定)を撤廃し記録専用に
+                              変更(旧usageGuardEnabledから改名、値は
+                              .claude/night_usage_log.tsvに追記する)。
       usageGuardUrl           使用率取得先URL(既定 http://localhost:3000/)。
       usageGuardTimeoutSec    使用率取得のタイムアウト秒数(既定3)。
-      usageSessionMaxPercent  5時間枠の使用率がこの%以上ならスキップ(既定85)。
-      usageWeekMaxPercent     週次の使用率がこの%以上ならスキップ(既定90)。
       worktreeGuardEnabled    作業ツリー汚れガードの有効/無効(既定true)。
       staleLockHours          多重起動ガードのロックファイルをstale(放棄済み)とみなす
                               経過時間(既定3)。PIDが実在してもこの時間を超えていれば
                               奪取する。
       model                   claude起動時の --model(既定 "sonnet")。
-      maxBudgetUsd            claude起動時の --max-budget-usd(既定8、設計書§5の夜間コスト
-                              上限$8に対応)。旧 maxTurns キーは廃止(--max-turnsはclaude
-                              CLIに実在しないオプションのため2026-08-08に置き換えた)。
+      maxBudgetUsd            claude起動時の --max-budget-usd(既定20、2026-08-13に8→20へ
+                              変更、設計書§5の夜間コスト上限$20に対応)。旧 maxTurns キーは
+                              廃止(--max-turnsはclaude CLIに実在しないオプションのため
+                              2026-08-08に置き換えた)。
       settingsPath            claude起動時の --settings に渡すパス
                               (既定 ".claude\settings.night.json")。
       projectSlug             ~/.claude/projects/ 配下のプロジェクトslugを明示指定したい
                               場合に設定する(既定 null = 自動解決)。指定時は存在確認し、
                               無ければエラー終了する。
+      (廃止キー) usageSessionMaxPercent / usageWeekMaxPercent — 2026-08-13、使用率ガードの
+                              ゲート撤廃に伴い廃止。設定ファイルに残っていてもWARNログを
+                              出すのみで無視される(sessionWindowHoursと同じ非推奨パターン)。
 
     終了コード:
-      0  正常終了 / 正常スキップ(多重起動中・有人セッション活動中・Proプラン使用率上限・
+      0  正常終了 / 正常スキップ(多重起動中・有人セッション活動中・
          作業ツリー汚れあり・週次上限到達)
       2  エラー終了(設定ファイルJSON不正・claude未検出・slug解決失敗・
          settings.night.json不在/JSON不正・git pull失敗)
@@ -86,8 +94,34 @@ $ProjectsRoot = Join-Path $HOME '.claude\projects'
 # 直近1回の起動結果を必ず上書き記録するファイルと、5時間枠スキップの専用ログ。
 $LastRunPath = Join-Path $ClaudeDir 'night_loop_last_run.json'
 $NightSkipsLogPath = Join-Path $ClaudeDir 'night_skips.log'
+# Proプラン使用率の記録専用ログ(T5-A60、2026-08-13。ゲートは撤廃したが値の記録は継続する)。
+$NightUsageLogPath = Join-Path $ClaudeDir 'night_usage_log.tsv'
 
 $ScriptStart = Get-Date
+
+# --- トリガー時刻の判定(T5-A60、2026-08-13新設) ---
+# 23:00/04:10/09:20のどの発火枠かを判定し、claude子プロセスへ環境変数で伝搬する
+# (04:10/09:20枠では承認待ちタスクの準備を優先するため、/night_loopスキル側で使う)。
+# 日付境界をまたぐ23:00枠があるため「その日の00:00からの経過分数」で比較する。
+function Get-NightTriggerLabel {
+    param([datetime]$Timestamp)
+    $minutesOfDay = $Timestamp.Hour * 60 + $Timestamp.Minute
+    # 深夜〜早朝枠(23:00): 21:30〜23:59(1290〜1439分)、および00:00〜01:00(0〜60分)
+    if (($minutesOfDay -ge 1290) -or ($minutesOfDay -le 60)) {
+        return '2300'
+    }
+    # 早朝枠(04:10): 03:00〜05:30(180〜330分)
+    if ($minutesOfDay -ge 180 -and $minutesOfDay -le 330) {
+        return '0410'
+    }
+    # 朝枠(09:20): 08:00〜10:30(480〜630分)
+    if ($minutesOfDay -ge 480 -and $minutesOfDay -le 630) {
+        return '0920'
+    }
+    return 'manual'
+}
+$TriggerLabel = Get-NightTriggerLabel -Timestamp $ScriptStart
+
 $script:LockAcquired = $false
 
 # --- 多層防御: --disallowedTools に渡す一覧(設計書§4-4 denyの全項目をミラー) ---
@@ -332,17 +366,15 @@ function Get-NightLoopConfig {
     param([string]$Path)
 
     $config = @{
-        weeklyRunLimit         = 12
+        weeklyRunLimit         = 15
         activeSessionMinutes   = 45
-        usageGuardEnabled      = $true
+        usageLogEnabled        = $true
         usageGuardUrl          = 'http://localhost:3000/'
         usageGuardTimeoutSec   = 3
-        usageSessionMaxPercent = 85
-        usageWeekMaxPercent    = 90
         worktreeGuardEnabled   = $true
         staleLockHours         = 3
         model                  = 'sonnet'
-        maxBudgetUsd           = 8
+        maxBudgetUsd           = 20
         settingsPath           = '.claude\settings.night.json'
         projectSlug            = $null
     }
@@ -364,13 +396,16 @@ function Get-NightLoopConfig {
         return $null
     }
 
-    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageGuardEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'usageSessionMaxPercent', 'usageWeekMaxPercent', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug')) {
+    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug')) {
         if ($json.PSObject.Properties.Name -contains $key -and $null -ne $json.$key) {
             $config[$key] = $json.$key
         }
     }
     if ($json.PSObject.Properties.Name -contains 'sessionWindowHours') {
         Write-Log 'WARN' '設定の sessionWindowHours は廃止されました(activeSessionMinutes に置き換え)。この値は無視されます。'
+    }
+    if ($json.PSObject.Properties.Name -contains 'usageSessionMaxPercent' -or $json.PSObject.Properties.Name -contains 'usageWeekMaxPercent') {
+        Write-Log 'WARN' '設定の usageSessionMaxPercent / usageWeekMaxPercent は廃止されました(2026-08-13、使用率ガードはゲートではなく記録専用に変更)。これらの値は無視されます。'
     }
     Write-Log 'INFO' ('設定ファイルを読み込みました: {0}' -f $Path)
     return $config
@@ -514,11 +549,13 @@ function Invoke-NightLoop {
         }
     }
 
-    # --- 5.5. Proプラン使用率ガード ---
-    if ($Force) {
-        Write-Log 'INFO' '-Force指定のためProプラン使用率ガードをスキップします。'
-    } elseif ($Config.usageGuardEnabled -ne $true) {
-        Write-Log 'INFO' 'Proプラン使用率ガードは設定で無効化されているためスキップします。'
+    # --- 5.5. Proプラン使用率ログ(2026-08-13、T5-A60でゲートから記録専用へ変更) ---
+    # ユーザー判断によりスキップ判定は撤廃した。5時間枠/週次の値はAPI障害時の傾向分析
+    # 目的で.claude/night_usage_log.tsvへ記録するのみで、処理は継続する。もはや実行を
+    # 止める「ガード」ではないため、-Force指定時も(有人試走モードであっても)記録は
+    # 行う(-Forceが免除するのは実行を止めうるガードのみ)。
+    if ($Config.usageLogEnabled -ne $true) {
+        Write-Log 'INFO' 'Proプラン使用率ログは設定で無効化されているため記録しません。'
     } else {
         $usageSession = $null
         $usageWeek = $null
@@ -540,7 +577,7 @@ function Invoke-NightLoop {
             }
         } catch {
             $usageFailOpen = $true
-            Write-Log 'WARN' ('使用率APIに接続できないため使用率ガードを通過とみなします(fail-open): {0}' -f $_.Exception.Message)
+            Write-Log 'WARN' ('使用率APIに接続できないため使用率ログの記録をスキップします(fail-open): {0}' -f $_.Exception.Message)
         }
 
         if (-not $usageFailOpen) {
@@ -548,18 +585,15 @@ function Invoke-NightLoop {
             if ($null -ne $usageSession) { $sessionText = '{0}%' -f $usageSession }
             $weekText = '未取得'
             if ($null -ne $usageWeek) { $weekText = '{0}%' -f $usageWeek }
+            Write-Log 'INFO' ('Proプラン使用率: 5時間枠{0} / 週次{1}。night_usage_log.tsv に記録します(ゲートではないため処理を継続します)。' -f $sessionText, $weekText)
 
-            $usageOverLimit = (($null -ne $usageSession) -and ($usageSession -ge [int]$Config.usageSessionMaxPercent)) -or (($null -ne $usageWeek) -and ($usageWeek -ge [int]$Config.usageWeekMaxPercent))
-            if ($usageOverLimit) {
-                Write-Log 'INFO' ('Proプラン使用率が上限に達しているため(5時間枠{0} / 週次{1}、しきい値 {2}% / {3}%)、今回の発火をスキップします。' -f $sessionText, $weekText, $Config.usageSessionMaxPercent, $Config.usageWeekMaxPercent)
-                $skipReason = ('Proプラン使用率が上限に達しているため(5時間枠{0} / 週次{1}、しきい値 {2}% / {3}%)' -f $sessionText, $weekText, $Config.usageSessionMaxPercent, $Config.usageWeekMaxPercent)
-                $skipFallback = Join-Path $NightLogsDir ('night_skips.fallback-{0}.log' -f $PID)
-                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_usage_quota', $skipReason
-                $null = Write-LineWithRetry -Path $NightSkipsLogPath -Line $skipLine -FallbackPath $skipFallback
-                Save-NightLoopLastRun -Outcome 'skipped_usage_quota' -Reason $skipReason -ExitCode 0
-                return 0
-            }
-            Write-Log 'INFO' ('Proプラン使用率: 5時間枠{0} / 週次{1}。使用率ガードを通過しました。' -f $sessionText, $weekText)
+            $usageSessionField = ''
+            if ($null -ne $usageSession) { $usageSessionField = [string]$usageSession }
+            $usageWeekField = ''
+            if ($null -ne $usageWeek) { $usageWeekField = [string]$usageWeek }
+            $usageLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), $usageSessionField, $usageWeekField
+            $usageFallback = Join-Path $NightLogsDir ('night_usage_log.fallback-{0}.log' -f $PID)
+            $null = Write-LineWithRetry -Path $NightUsageLogPath -Line $usageLine -FallbackPath $usageFallback
         }
     }
 
@@ -718,14 +752,16 @@ function Invoke-NightLoop {
     if ($DryRun) {
         Write-Log 'INFO' ("[DryRun] 実行予定コマンド:`n" + $plannedCommand)
 
-        Write-Log 'INFO' '[DryRun] BEANBASE_NIGHT_LOOP の子プロセスへの伝搬を実測します。'
+        Write-Log 'INFO' '[DryRun] BEANBASE_NIGHT_LOOP / BEANBASE_NIGHT_TRIGGER の子プロセスへの伝搬を実測します。'
         # 実行前の値を保存し、プローブ後に必ず復元する(ドットソース実行時に
-        # 呼び出し元シェルへ1が残留し有人試走を誤って無人モード判定させる経路を防ぐ、
-        # adversary指摘N2対応)。
+        # 呼び出し元シェルへ値が残留し有人試走を誤って無人モード判定させる経路を防ぐ、
+        # adversary指摘N2対応。BEANBASE_NIGHT_TRIGGERもT5-A60で同じパターンを踏襲する)。
         $previousNightLoopEnv = $env:BEANBASE_NIGHT_LOOP
+        $previousNightTriggerEnv = $env:BEANBASE_NIGHT_TRIGGER
         try {
             $env:BEANBASE_NIGHT_LOOP = '1'
-            $probeOutput = & powershell -NoProfile -Command 'Write-Output "BEANBASE_NIGHT_LOOP=$env:BEANBASE_NIGHT_LOOP"'
+            $env:BEANBASE_NIGHT_TRIGGER = $TriggerLabel
+            $probeOutput = & powershell -NoProfile -Command 'Write-Output "BEANBASE_NIGHT_LOOP=$env:BEANBASE_NIGHT_LOOP"; Write-Output "BEANBASE_NIGHT_TRIGGER=$env:BEANBASE_NIGHT_TRIGGER"'
             foreach ($l in $probeOutput) {
                 if ($l) { Write-Log 'INFO' ('[DryRun probe] {0}' -f $l) }
             }
@@ -735,7 +771,12 @@ function Invoke-NightLoop {
             } else {
                 $env:BEANBASE_NIGHT_LOOP = $previousNightLoopEnv
             }
-            Write-Log 'INFO' '[DryRun] BEANBASE_NIGHT_LOOP を実行前の状態に復元しました。'
+            if ($null -eq $previousNightTriggerEnv) {
+                Remove-Item Env:\BEANBASE_NIGHT_TRIGGER -ErrorAction SilentlyContinue
+            } else {
+                $env:BEANBASE_NIGHT_TRIGGER = $previousNightTriggerEnv
+            }
+            Write-Log 'INFO' '[DryRun] BEANBASE_NIGHT_LOOP / BEANBASE_NIGHT_TRIGGER を実行前の状態に復元しました。'
         }
 
         if (Test-Path $RunCountPath) {
@@ -767,6 +808,7 @@ function Invoke-NightLoop {
     }
 
     $env:BEANBASE_NIGHT_LOOP = '1'
+    $env:BEANBASE_NIGHT_TRIGGER = $TriggerLabel
     Write-Log 'INFO' ("claude を起動します(ログ: {0} / stderr: {1}):`n{2}" -f $logPath, $errLogPath, $plannedCommand)
 
     $claudeArgs = @(
@@ -826,6 +868,7 @@ function Invoke-NightLoop {
 # ============================== エントリポイント ==============================
 
 Write-Log 'INFO' ('night_loop.ps1 起動(DryRun={0}, Force={1}, ConfigPath={2})' -f $DryRun.IsPresent, $Force.IsPresent, $ConfigPath)
+Write-Log 'INFO' ('トリガー時刻を判定しました: {0}' -f $TriggerLabel)
 
 $night_config = Get-NightLoopConfig -Path $ConfigPath
 
