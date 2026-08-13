@@ -7,13 +7,25 @@
     自動対処する。設計判断は docs/failure_playbook.md で確定済みのため、本スクリプトは
     その記述どおりに実装する。
 
-    このスクリプト(T5-A61時点)で実装済みのルール:
-      -Mode Preflight のみ、かつ次の3ルールのみ
-        - FP-01-FILELOCK(シグネチャA・Bのみ。Cの孤児プロセス列挙はT5-A61の対象外)
-        - FP-02-BOM(シグネチャB・Cのみ。AはPostToolUseフック側なので対象外)
-        - FP-07-MISSINGBIN(表の全行)
-      -Mode Watchdog / Postmortem / Check は引数としては受け付けるが、対応するルールが
-      まだ無いため検知0件のまま正常終了する(後続タスクT5-A62〜A66で実装する)。
+    このスクリプト(T5-A63時点)で実装済みのルール:
+      - FP-01-FILELOCK: -Mode Preflight のみ。シグネチャA(排他ロック実測)・
+        B(フォールバックログ存在)・C(孤児容疑プロセスの列挙、warn固定・
+        autoKillLockHolders=true時のみ例外的にkill)の全シグネチャ実装済み。
+      - FP-02-BOM: -Mode Preflight / Postmortem / Check の全モードに対応。
+        シグネチャB(BOM欠落)・C(BOMはあるがParseFileエラー)。対象ファイルは
+        Preflightでは tools/*.ps1 + .claude/hooks/*.ps1 の全件、Postmortem/Checkでは
+        `git diff --name-only` + `git ls-files --others --exclude-standard` の *.ps1。
+        (シグネチャAはPostToolUseフック側〈tools/check_encoding.ps1〉なので対象外)
+      - FP-03-EMULATOR: -Mode Preflight のみ。シグネチャA(死亡)・B(ハング、
+        Preflightでは10秒タイムアウトの軽量版)・C(残骸ロックファイル)・
+        D(直近30分のWERクラッシュ痕跡)を実装。対象AVDは beanbase_ui に固定。
+        自動再起動(tools/emulator.ps1 -Stop → -Start、-Startが内部でClear-StaleEmulator
+        を実行する)は -Unattended 指定時のみ、最大1回(合計2回試行)。有人時は
+        検知内容の提示のみで再起動しない。2回目も失敗した場合はescalateするが
+        ループは中断しない(abortにしない)。
+      - FP-07-MISSINGBIN: -Mode Preflight のみ。表の全行実装済み。
+      -Mode Watchdog は引数としては受け付けるが、対応するルールがまだ無いため
+      検知0件のまま正常終了する(後続タスクT5-A64〜A66で実装する)。
 
     標準出力は1行JSONのみ(§2-3)。人間向けメッセージは Write-Host ではなく
     [Console]::Error へ出す(進捗の可視化用、契約はstdoutの1行JSONのみ)。
@@ -111,6 +123,13 @@ $NightLogsDir = Join-Path $ClaudeDir 'night_logs'
 $EventsPath = Join-Path $ClaudeDir 'failure_events.tsv'
 $StatePath = Join-Path $ClaudeDir 'failure_state.json'
 $ReportsDir = Join-Path $ClaudeDir 'failure_reports'
+
+# FP-03-EMULATOR用のパス(tools/emulator.ps1 と同じ既定値の解決ロジックを踏襲。
+# emulator.ps1自体は呼び出す形で使い、パス解決のみ最小限をここで持つ)。
+$EmulatorScriptPath = Join-Path $RepoRoot 'tools\emulator.ps1'
+$AvdHomePath = if ($env:ANDROID_AVD_HOME) { $env:ANDROID_AVD_HOME } else { Join-Path $env:USERPROFILE '.android\avd' }
+$AndroidSdkRootPath = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+$AdbExePath = Join-Path $AndroidSdkRootPath 'platform-tools\adb.exe'
 
 if (-not $ConfigPath) {
     $ConfigPath = Join-Path $RepoRoot 'tools\failure_playbook.config.json'
@@ -233,7 +252,8 @@ function Update-RuleState {
 
 # ============================== ルール登録簿(§2-5) ==============================
 # 別JSONに切り出さず、スクリプト内のPowerShell配列として持つ(シグネチャと対処コードを
-# 離さない)。T5-A61ではPreflight向けの3ルールのみ実装する。
+# 離さない)。T5-A62時点でFP-01(シグネチャA/B/C)・FP-02(Preflight/Postmortem/Check)・
+# FP-07(表の全行)を実装済み。
 $Rules = @(
     @{
         Id              = 'FP-01-FILELOCK'
@@ -279,6 +299,30 @@ $Rules = @(
                     }
                 }
             }
+            # シグネチャC: 容疑プロセスの孤児検知(§3 FP-01表)。CommandLineに night_logs/wrapper-
+            # を含み、名前がtail.exe/more.com/powershell.exe/pwsh.exeのいずれかで、かつ
+            # ParentProcessIdが指すプロセスが存在しない(孤児)ものを検知する。
+            # Get-CimInstanceが権限不足等で失敗する場合は「容疑者不明」として記録するだけに
+            # 留め、検知はしない(fail-open、§8リスク表)。
+            try {
+                $suspectProcs = Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object {
+                    $_.CommandLine -and
+                    ($_.CommandLine -match 'night_logs' -or $_.CommandLine -match 'wrapper-') -and
+                    ($_.Name -in @('tail.exe', 'more.com', 'powershell.exe', 'pwsh.exe'))
+                }
+                foreach ($proc in $suspectProcs) {
+                    $parentExists = $false
+                    if ($proc.ParentProcessId) {
+                        $parentExists = [bool](Get-Process -Id $proc.ParentProcessId -ErrorAction SilentlyContinue)
+                    }
+                    if (-not $parentExists) {
+                        $findings += "C|$($proc.ProcessId)|プロセス名=$($proc.Name) コマンドライン=$($proc.CommandLine)"
+                    }
+                }
+            } catch {
+                # Get-CimInstance自体が失敗した場合は「容疑者不明」として記録するのみ(検知0件、fail-open)。
+                Write-Progress2 "FP-01-FILELOCK シグネチャC: Get-CimInstance Win32_Process の実行に失敗したため容疑プロセスの列挙をスキップしました(容疑者不明): $($_.Exception.Message)"
+            }
             $findings
         }
         Repair          = {
@@ -306,6 +350,24 @@ $Rules = @(
                     # 切替先にも書けない = その場でescalate(自動リトライ0回、§3 FP-01)
                     return @{ Action = 'switch_failed'; Result = 'escalate'; Detail = "$path の切替に失敗しました: $($_.Exception.Message)" }
                 }
+            } elseif ($kind -eq 'C') {
+                # シグネチャC: 孤児容疑プロセス。原則warn(kill禁止)。例外は
+                # autoKillLockHolders=true かつ 孤児 かつ 名前がtail.exe/more.com かつ
+                # -Unattended指定時の3条件を全て満たす場合のみ自動終了する(§3 FP-01)。
+                $suspectPid = $path
+                $procName = $null
+                if ($msg -match 'プロセス名=(\S+)') { $procName = $Matches[1] }
+                $isKillableName = ($procName -in @('tail.exe', 'more.com'))
+                if ($Config.autoKillLockHolders -eq $true -and $isKillableName -and $Unattended) {
+                    try {
+                        Stop-Process -Id ([int]$suspectPid) -Force -ErrorAction Stop
+                        return @{ Action = 'killed'; Result = 'ok'; Detail = "PID=$suspectPid($procName)を自動終了しました。$msg" }
+                    } catch {
+                        return @{ Action = 'kill_failed'; Result = 'warned'; Detail = "PID=$suspectPid の自動終了に失敗しました: $($_.Exception.Message)。終了すべきPID=$suspectPid — $msg" }
+                    }
+                } else {
+                    return @{ Action = 'none'; Result = 'warned'; Detail = "終了すべきPID=$suspectPid — $msg(自動対処なし、記録のみ)" }
+                }
             } else {
                 # シグネチャB: kill等の自動対処はしない。記録のみ(§3 FP-01)。
                 return @{ Action = 'none'; Result = 'warned'; Detail = "$path — $msg(自動対処なし、記録のみ)" }
@@ -315,7 +377,7 @@ $Rules = @(
     @{
         Id              = 'FP-02-BOM'
         Title           = '.ps1 の UTF-8 BOM 喪失'
-        Phase           = @('Preflight')
+        Phase           = @('Preflight', 'Postmortem', 'Check')
         Severity        = 'auto'
         MaxAutoAttempts = 1
         Detect          = {
@@ -331,8 +393,31 @@ $Rules = @(
                     $targetFiles += Get-ChildItem -Path $hooksDir -Filter '*.ps1' -File -ErrorAction SilentlyContinue
                 }
             } else {
-                # Postmortem/Check(git diff起点の対象抽出)はT5-A61の対象外。
+                # Postmortem/Check: git diff --name-only + git ls-files --others --exclude-standard
+                # の *.ps1 のみを対象にする(§3 FP-02表)。$RepoRootをカレントディレクトリとして
+                # 実行するため `git -C` を使う。gitコマンド自体が失敗してもfail-openで検知0件とする。
                 $targetFiles = @()
+                $diffFiles = @()
+                $untrackedFiles = @()
+                try {
+                    $diffFiles = @(& git -C $RepoRoot diff --name-only 2>$null)
+                } catch {
+                    $diffFiles = @()
+                }
+                try {
+                    $untrackedFiles = @(& git -C $RepoRoot ls-files --others --exclude-standard 2>$null)
+                } catch {
+                    $untrackedFiles = @()
+                }
+                $candidateRelPaths = @($diffFiles) + @($untrackedFiles)
+                foreach ($rel in $candidateRelPaths) {
+                    if (-not $rel) { continue }
+                    if ($rel -notmatch '\.ps1$') { continue }
+                    $full = Join-Path $RepoRoot $rel
+                    if (Test-Path $full) {
+                        $targetFiles += Get-Item -Path $full -ErrorAction SilentlyContinue
+                    }
+                }
             }
             foreach ($f in $targetFiles) {
                 $path = $f.FullName
@@ -380,6 +465,170 @@ $Rules = @(
             } else {
                 # PARSEERR単独(BOMは既にある)はBOM修復では直せないため即escalate
                 return @{ Action = 'none'; Result = 'escalate'; Detail = "$path — $msg" }
+            }
+        }
+    },
+    @{
+        Id              = 'FP-03-EMULATOR'
+        Title           = 'Android エミュレータのクラッシュ / ハング'
+        Phase           = @('Preflight')
+        Severity        = 'auto'
+        # Repair内で「2回目の起動も失敗→escalate」を1回のDetect/Repair呼び出し内で
+        # 完結させるため、連続ループ回数によるUpdate-RuleStateの自動escalateは使わない。
+        MaxAutoAttempts = 999
+        Detect          = {
+            $evidence = @()
+            $targetAvd = 'beanbase_ui'
+            $serial = $null
+            $isRunning = $false
+
+            # シグネチャA(死亡): tools/emulator.ps1 -Status の判定結果をそのまま使う。
+            # Show-Status内部で「adb devices + AVD名一致」を突き合わせているため、
+            # 「-Statusが実行中AVDを返さない」「adb devicesにシリアルが出ない」を
+            # 二重実装せずこの1回の呼び出しで両方判定する(§3 FP-03表A、車輪の再発明回避)。
+            if (-not (Test-Path $AdbExePath)) {
+                $evidence += "A|adb.exeが見つかりません($AdbExePath)のためエミュレータの状態確認ができません"
+            } elseif (-not (Test-Path $EmulatorScriptPath)) {
+                $evidence += 'A|tools/emulator.ps1 が見つかりません'
+            } else {
+                # adbデーモン未起動状態でtools/emulator.ps1内部の `adb devices` を呼ぶと、
+                # adb.exeが標準エラーへ出す "daemon not running; starting now" 行が
+                # $ErrorActionPreference='Stop' 下でNativeCommandErrorとして終了例外化し、
+                # AVDが実際には正常なのに死亡と誤検知する(実機で再現確認済み)。
+                # Start-Processはパイプライン経由でエラーストリームを扱わないため、
+                # 事前にこちらでデーモンを起動しておくことでこの誤検知を避ける
+                # (emulator.ps1自体は変更しない、失敗しても致命的ではないためfail-open)。
+                try {
+                    Start-Process -FilePath $AdbExePath -ArgumentList 'start-server' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
+                } catch {
+                    # 事前起動に失敗しても後続の-Status判定に委ねる(fail-open)
+                }
+                $statusText = ''
+                try {
+                    $statusText = (& $EmulatorScriptPath -Status -AvdName $targetAvd *>&1 | Out-String)
+                } catch {
+                    $evidence += "A|tools/emulator.ps1 -Status の実行時に例外が発生しました: $($_.Exception.Message)"
+                }
+                if ($statusText -match 'シリアル:\s*(emulator-\d+)') {
+                    $serial = $Matches[1]
+                    $isRunning = $true
+                } elseif ($statusText -match '停止しています') {
+                    $evidence += "A|tools/emulator.ps1 -Status がAVD '$targetAvd' の停止を報告しました"
+                } elseif ($statusText.Trim()) {
+                    $evidence += "A|tools/emulator.ps1 -Status の出力から起動状態を判定できませんでした: $($statusText.Trim())"
+                }
+            }
+
+            # シグネチャB(ハング、Preflight向け軽量版): 厳密な120秒監視はWatchdogモード
+            # (後続タスク)の領分のため、Preflightではadbコマンドの単発応答有無(10秒タイムアウト)
+            # での簡易判定に留める(§3 FP-03表Bの注記どおり)。
+            if ($isRunning -and $serial -and (Test-Path $AdbExePath)) {
+                try {
+                    $psi = New-Object System.Diagnostics.ProcessStartInfo
+                    $psi.FileName = $AdbExePath
+                    $psi.Arguments = "-s $serial get-state"
+                    $psi.RedirectStandardOutput = $true
+                    $psi.RedirectStandardError = $true
+                    $psi.UseShellExecute = $false
+                    $proc = [System.Diagnostics.Process]::Start($psi)
+                    $exited = $proc.WaitForExit(10000)
+                    if (-not $exited) {
+                        $evidence += "B|adb -s $serial get-state が10秒以内に応答しませんでした(ハングの疑い)"
+                        try { $proc.Kill() } catch {}
+                    } else {
+                        $stateOut = $proc.StandardOutput.ReadToEnd().Trim()
+                        if ($stateOut -match 'offline') {
+                            $evidence += "B|adb -s $serial get-state が device offline を返しました"
+                        } elseif ($stateOut -ne 'device') {
+                            $evidence += "B|adb -s $serial get-state の応答が想定外です: $stateOut"
+                        }
+                    }
+                } catch {
+                    $evidence += "B|adb -s $serial get-state の実行に失敗しました: $($_.Exception.Message)"
+                }
+            }
+
+            # シグネチャC(残骸): ロックファイルが残存しているのにadb devicesに現れない
+            # (=シグネチャAで停止と判定された場合のみ意味を持つ)。
+            $avdDir = Join-Path $AvdHomePath "$targetAvd.avd"
+            $lockFiles = @('hardware-qemu.ini.lock', 'multiinstance.lock') |
+                ForEach-Object { Join-Path $avdDir $_ } | Where-Object { Test-Path $_ }
+            if ($lockFiles.Count -gt 0 -and -not $isRunning) {
+                $evidence += "C|ロックファイルが残存しています($($lockFiles -join ', '))が adb devices に '$targetAvd' が現れません"
+            }
+
+            # シグネチャD(クラッシュ痕跡): 直近30分のWindowsエラー報告にqemu-system-x86_64を
+            # 含むイベント(T5-A30 / tools/emulator.ps1 の Invoke-Doctor と同じ確認手法・同じ
+            # 既定ウィンドウ幅を踏襲。本スクリプトはループ開始時刻を引数で受け取っていないため、
+            # 直近30分を「ループ開始時刻」の代替として扱う。設計に無い箇所の解釈、完了報告に明記)。
+            try {
+                $since = (Get-Date).AddMinutes(-30)
+                $werEvents = Get-WinEvent -FilterHashtable @{LogName = 'Application'; ProviderName = 'Windows Error Reporting'; StartTime = $since } -ErrorAction SilentlyContinue
+                if ($werEvents) {
+                    $crashEvents = $werEvents | Where-Object { $_.Message -match 'qemu-system-x86_64' }
+                    if ($crashEvents) {
+                        $evidence += "D|直近30分にqemu-system-x86_64を含むWindowsエラー報告イベントが$($crashEvents.Count)件あります"
+                    }
+                }
+            } catch {
+                # WER取得失敗はfail-openで見逃す(検知しない)
+            }
+
+            if ($evidence.Count -eq 0) {
+                @()
+            } else {
+                # 複数シグネチャが同時発火しても対処(再起動)は1イベントにつき1回にまとめる
+                # (§3 FP-03「最大1回(合計2回試行)」はDetect1回あたりの回数であり、
+                # シグネチャごとの多重実行を避けるため単一のfindingにまとめて返す)。
+                @(($evidence -join ' / '))
+            }
+        }
+        Repair          = {
+            param($detail)
+            $targetAvd = 'beanbase_ui'
+            if (-not $Unattended) {
+                # 有人時はFP-03の自動再起動を行わない(§3 FP-03・§3-2「有人時の縮退」)。
+                return @{ Action = 'none'; Result = 'warned'; Detail = "検知内容: $detail (有人時のため自動再起動は行いません)" }
+            }
+            # adbデーモン未起動時の誤例外化を避けるため、Detect側と同じ事前起動を行う
+            # (詳細はDetectのコメント参照)。
+            try {
+                Start-Process -FilePath $AdbExePath -ArgumentList 'start-server' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
+            } catch {
+                # 失敗しても後続の-Stop/-Start判定に委ねる(fail-open)
+            }
+            $success = $false
+            $attemptLog = @()
+            for ($attempt = 1; $attempt -le 2; $attempt++) {
+                try {
+                    & $EmulatorScriptPath -Stop -AvdName $targetAvd *>&1 | Out-Null
+                } catch {
+                    $attemptLog += "試行${attempt}: -Stop で例外が発生しました: $($_.Exception.Message)"
+                }
+                # -Startは内部でClear-StaleEmulatorを実行してから起動する(tools/emulator.ps1の
+                # Start-Avd実装)ため、「-Stop → Clear-StaleEmulator → -Start」の3段階(§3 FP-03)は
+                # -Stop に続けて -Start を呼ぶだけで満たされる(車輪の再発明回避)。
+                try {
+                    & $EmulatorScriptPath -Start -AvdName $targetAvd *>&1 | Out-Null
+                    $checkText = (& $EmulatorScriptPath -Status -AvdName $targetAvd *>&1 | Out-String)
+                    if ($checkText -match 'シリアル:\s*(emulator-\d+)') {
+                        $success = $true
+                        $attemptLog += "試行${attempt}: 起動成功(シリアル: $($Matches[1]))"
+                        break
+                    } else {
+                        $attemptLog += "試行${attempt}: -Start 後もAVD '$targetAvd' の起動を確認できませんでした"
+                    }
+                } catch {
+                    $attemptLog += "試行${attempt}: -Start で例外が発生しました: $($_.Exception.Message)"
+                }
+            }
+            $summary = "検知内容: $detail 。対処ログ: $($attemptLog -join ' | ')"
+            if ($success) {
+                return @{ Action = 'restarted'; Result = 'ok'; Detail = $summary }
+            } else {
+                # 2回目の起動も失敗→escalate。ただしループ自体は中断しない(abortにしない、
+                # abortが許されるのはFP-07のみ、§2-3・§3 FP-03)。
+                return @{ Action = 'restart_failed'; Result = 'escalate'; Detail = "$summary 。2回目の起動も失敗したためescalateします(ループは中断しません。Android検証は未実施として扱ってください)" }
             }
         }
     },

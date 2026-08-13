@@ -861,3 +861,13 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **対処**: `loop_io.ps1`のドットソース**直前**に、FP-02-BOMのRepairロジックと同じ処理(内容を1バイトも変えずBOMを先頭付与)を専用に単独実行するブートストラップ修復を追加した。`Write-LineWithRetry`等loop_io.ps1側の関数はこの時点で未読み込みのため、`failure_events.tsv`への正式記録はせず`[Console]::Error`への1行メッセージのみに留めた(通常の検知・記録経路とは別扱いと割り切った)。
 
 **一般化**: 障害検知・自動修復の仕組みを実装するときは、「検知ロジックが実行される前に読み込まれる/初期化される依存ファイル・依存処理」をリストアップし、それらが検知ロジックの通常の対象範囲に含まれていても実際には保護されない(先に落ちるため)ことを疑う。対象範囲を広げるだけでなく、**依存を読み込む直前に、その依存固有の最小限の自己修復を個別に置く**設計が必要になる。同様のパターンは「設定ファイルを読み込んでから設定ファイルの妥当性を検証する」「ロガーを初期化する前にロガー自身の初期化失敗を記録しようとする」等でも起こりうる。
+
+## L149 PowerShellの`$ErrorActionPreference='Stop'`下で外部プロセス(adb等)を`&`呼び出しすると、正常系の標準エラー出力1行だけで`NativeCommandError`として例外化し、実際には正常な状態を異常と誤検知する(2026-08-13、T5-A63)
+
+**事象**: `tools/failure_playbook.ps1`のFP-03-EMULATOR実装で、`tools/emulator.ps1 -Status`を`&`演算子で呼び出すと、adbデーモンが未起動の状態では`adb devices`が`* daemon not running; starting now`という**正常系の**メッセージを標準エラーへ出す。呼び出し元スクリプトが`$ErrorActionPreference='Stop'`を設定していると、このstderr出力1行だけで`NativeCommandError`として終了例外化され、実際にはAVDが正常(またはこれから確認できる状態)なのに「死亡」と誤検知した。
+
+**なぜ起きたか**: PowerShell 5.1では、ネイティブ実行ファイル(.exe)がstderrに何か書き込むと、それが警告メッセージであっても`$ErrorActionPreference='Stop'`環境下では例外に昇格しうる(exit codeが0でも起きる)。adbはデーモン自動起動時の案内メッセージを正常系でもstderrに出す設計のため、このパターンに引っかかりやすい。
+
+**対処**: `adb`を直接呼び出す前に`Start-Process -FilePath adb.exe -ArgumentList 'start-server' -Wait`でデーモンを事前起動しておく(`Start-Process`はパイプライン経由でエラーストリームを例外化しない)。これにより後続の`adb devices`/`emulator.ps1 -Status`呼び出し時にはデーモンが既に起動済みとなり、案内メッセージ自体が発生しなくなる。
+
+**一般化**: `$ErrorActionPreference='Stop'`な環境から外部プロセスを`&`で呼び出す際、そのプロセスが「正常系でもstderrに何か書く」設計になっていないか疑う(adb・一部のCLIツールで見られる)。疑わしい場合は`*>&1 | Out-String`でリダイレクトして例外化を避けるか、初回呼び出し分の「案内メッセージ」自体を`Start-Process`等の別経路で先に消化しておく。この教訓は[[T5-A63]]相当のエミュレータ関連スクリプト全般(`tools/emulator.ps1`・Watchdogモード実装時等)に当てはまる。
