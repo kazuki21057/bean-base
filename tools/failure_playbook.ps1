@@ -7,7 +7,7 @@
     自動対処する。設計判断は docs/failure_playbook.md で確定済みのため、本スクリプトは
     その記述どおりに実装する。
 
-    このスクリプト(T5-A63時点)で実装済みのルール:
+    このスクリプト(T5-A64時点)で実装済みのルール:
       - FP-01-FILELOCK: -Mode Preflight のみ。シグネチャA(排他ロック実測)・
         B(フォールバックログ存在)・C(孤児容疑プロセスの列挙、warn固定・
         autoKillLockHolders=true時のみ例外的にkill)の全シグネチャ実装済み。
@@ -23,9 +23,20 @@
         を実行する)は -Unattended 指定時のみ、最大1回(合計2回試行)。有人時は
         検知内容の提示のみで再起動しない。2回目も失敗した場合はescalateするが
         ループは中断しない(abortにしない)。
-      - FP-07-MISSINGBIN: -Mode Preflight のみ。表の全行実装済み。
-      -Mode Watchdog は引数としては受け付けるが、対応するルールがまだ無いため
-      検知0件のまま正常終了する(後続タスクT5-A64〜A66で実装する)。
+      - FP-04-PERMISSION: -Mode Postmortem のみ。シグネチャA(権限拒否メッセージ、
+        tool名を捕捉)・B(dontAskモード拒否)・C(agyのheadlessモード拒否文字列)・
+        D(.claude/agy_logs/ledger.tsvのexit_code=12)の全シグネチャ実装済み。
+        1件でも検知したら即escalate、自動対処は一切行わない(.claude/settings*.json
+        のallow/denyを書き換えることは絶対に禁止、P3)。night_reportの「人がやること」に
+        allowへ追加する候補行をDetailとして出力する。
+      - FP-06-SILENTSTALL: -Mode Preflight のみ。.claude/night_outcomes.log(TSV、
+        Save-NightLoopLastRunからの追記はT5-A66で配線予定、ファイル不在時は検知0件で
+        fail-open)を読み、直近3回/5回同一outcome(completed以外)・直近72時間completed
+        なし・直近5回中error_*が3件以上、のいずれかで即escalate。5回連続のときは
+        Detailに"SEVERE"種別を含め、後続タスク(T5-A66のnight_report見出し変更)が
+        判別できるようにする。自動対処なし(検知・通知のみ)。
+      -Mode Watchdog は引数としては受け付けるが、対応するルール(FP-05(c))がまだ無いため
+      検知0件のまま正常終了する(後続タスクで実装・配線する)。
 
     標準出力は1行JSONのみ(§2-3)。人間向けメッセージは Write-Host ではなく
     [Console]::Error へ出す(進捗の可視化用、契約はstdoutの1行JSONのみ)。
@@ -250,10 +261,28 @@ function Update-RuleState {
     }
 }
 
+# 「当ループ境界」以降かどうかの判定に使う共通ヘルパー(FP-04シグネチャD・FP-04の
+# .jsonl/.err.logフォールバック走査で使用)。.claude/loop_boundary.txt はloop_guard.jsが
+# 書く既存ファイルで、先頭トークンがISO8601タイムスタンプ。読めない・存在しない場合は
+# $null を返し、呼び出し側はフィルタせず全件を対象にする(fail-open、境界不明なら
+# 見逃すより多めに拾う方を優先する)。
+function Get-LoopBoundaryTime {
+    $path = Join-Path $ClaudeDir 'loop_boundary.txt'
+    if (-not (Test-Path $path)) { return $null }
+    try {
+        $raw = (Get-Content -Path $path -Raw -Encoding UTF8 -ErrorAction Stop).Trim()
+        if (-not $raw) { return $null }
+        $tsToken = ($raw -split '\s+')[0]
+        return [datetime]::Parse($tsToken, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+    } catch {
+        return $null
+    }
+}
+
 # ============================== ルール登録簿(§2-5) ==============================
 # 別JSONに切り出さず、スクリプト内のPowerShell配列として持つ(シグネチャと対処コードを
-# 離さない)。T5-A62時点でFP-01(シグネチャA/B/C)・FP-02(Preflight/Postmortem/Check)・
-# FP-07(表の全行)を実装済み。
+# 離さない)。T5-A64時点でFP-01(シグネチャA/B/C)・FP-02(Preflight/Postmortem/Check)・
+# FP-03(シグネチャA〜D)・FP-04(シグネチャA〜D)・FP-06(3条件)・FP-07(表の全行)を実装済み。
 $Rules = @(
     @{
         Id              = 'FP-01-FILELOCK'
@@ -630,6 +659,205 @@ $Rules = @(
                 # abortが許されるのはFP-07のみ、§2-3・§3 FP-03)。
                 return @{ Action = 'restart_failed'; Result = 'escalate'; Detail = "$summary 。2回目の起動も失敗したためescalateします(ループは中断しません。Android検証は未実施として扱ってください)" }
             }
+        }
+    },
+    @{
+        Id              = 'FP-04-PERMISSION'
+        Title           = 'dontAskモードによる権限拒否'
+        Phase           = @('Postmortem')
+        Severity        = 'auto'
+        # 1件でも検知したら即escalateする方式(§3 FP-04)のため連続回数は使わない。
+        # switch文の中で常にResult='escalate'を返すのでこの値自体は判定に効かない。
+        MaxAutoAttempts = 0
+        Detect          = {
+            $findings = @()
+            $targets = @()
+            if ($StreamLogPath -and (Test-Path $StreamLogPath)) {
+                $targets += Get-Item -Path $StreamLogPath -ErrorAction SilentlyContinue
+            }
+            if ($ErrLogPath -and (Test-Path $ErrLogPath)) {
+                $targets += Get-Item -Path $ErrLogPath -ErrorAction SilentlyContinue
+            }
+            if ($targets.Count -eq 0) {
+                # -StreamLogPath/-ErrLogPathが未指定の場合(手動実行・テスト等)のフォールバック:
+                # 当ループ境界(.claude/loop_boundary.txt)以降に更新された .jsonl / .err.log を
+                # night_logs配下から拾う(境界不明ならfail-openで全件対象、FP-01シグネチャBの
+                # 24時間フォールバックと同じ考え方)。night_loop.ps1からの正規呼び出しでは
+                # 常に-StreamLogPath/-ErrLogPathが渡されるため、この分岐は主にテスト用。
+                $boundaryTime = Get-LoopBoundaryTime
+                if (Test-Path $NightLogsDir) {
+                    $candidates = @(Get-ChildItem -Path $NightLogsDir -Include '*.jsonl', '*.err.log' -File -Recurse -ErrorAction SilentlyContinue)
+                    foreach ($c in $candidates) {
+                        if (-not $boundaryTime -or $c.LastWriteTime -ge $boundaryTime) {
+                            $targets += $c
+                        }
+                    }
+                }
+            }
+            $sigA = [regex]::new('Permission to use (?<tool>[A-Za-z_]+) has been denied', 'IgnoreCase')
+            $sigB = [regex]::new("running in don'?t ask mode", 'IgnoreCase')
+            $sigC = [regex]::new('permission that headless mode cannot prompt for', 'IgnoreCase')
+            foreach ($t in $targets) {
+                if (-not $t) { continue }
+                $text = $null
+                try {
+                    $text = Get-Content -Path $t.FullName -Raw -ErrorAction Stop
+                } catch {
+                    continue
+                }
+                if (-not $text) { continue }
+                foreach ($m in $sigA.Matches($text)) {
+                    $tool = $m.Groups['tool'].Value
+                    $findings += "A|$tool|$($t.FullName) で権限拒否を検知しました(`"$($m.Value)`")"
+                }
+                if ($sigB.IsMatch($text)) {
+                    $findings += "B|$($t.FullName)|$($t.FullName) に don't ask mode での拒否を示す文字列がありました"
+                }
+                if ($sigC.IsMatch($text)) {
+                    $findings += "C|$($t.FullName)|$($t.FullName) に agy(headless mode)の権限拒否文字列がありました"
+                }
+            }
+            # シグネチャD: .claude/agy_logs/ledger.tsv の当ループ境界以降でexit_code=12の行
+            # (docs/antigravity_delegation_design.md §9.4の headless権限拒否と同一の終了コード)。
+            $ledgerPath = Join-Path $ClaudeDir 'agy_logs\ledger.tsv'
+            if (Test-Path $ledgerPath) {
+                $boundaryTime = Get-LoopBoundaryTime
+                try {
+                    $ledgerLines = @(Get-Content -Path $ledgerPath -Encoding UTF8 -ErrorAction Stop)
+                    for ($i = 1; $i -lt $ledgerLines.Count; $i++) {
+                        if (-not $ledgerLines[$i]) { continue }
+                        $cols = $ledgerLines[$i] -split "`t"
+                        if ($cols.Count -lt 5) { continue }
+                        $rowTs = $cols[0]; $rowTaskId = $cols[1]; $rowExitCode = $cols[4]
+                        if ($rowExitCode -ne '12') { continue }
+                        $rowTime = $null
+                        try { $rowTime = [datetime]::ParseExact($rowTs, 'yyyyMMdd_HHmmss', $null) } catch { $rowTime = $null }
+                        if ($boundaryTime -and $rowTime -and $rowTime -lt $boundaryTime) { continue }
+                        $findings += "D|$rowTaskId|.claude/agy_logs/ledger.tsv の行(timestamp=$rowTs)でexit_code=12(agyのheadlessモード権限拒否)を検知しました"
+                    }
+                } catch {
+                    # ledger.tsvが読めない場合はfail-openで見逃す
+                }
+            }
+            $findings
+        }
+        Repair          = {
+            param($detail)
+            # 自動対処は禁止(P3)。.claude/settings*.json のallow/denyは絶対に書き換えない。
+            # 代わりにallowへ追加すべき候補行を人がそのまま貼れる形でDetailに生成する(§3 FP-04)。
+            $parts = $detail -split '\|', 3
+            $kind = $parts[0]; $target = $parts[1]; $msg = $parts[2]
+            switch ($kind) {
+                'A' {
+                    $allowLine = '"' + $target + '(*)"'
+                    $advice = "人がやること: .claude/settings.night.json の permissions.allow に次の1行を追加候補として検討してください(実際に必要なコマンドパターンに応じて調整): $allowLine"
+                    return @{ Action = 'none'; Result = 'escalate'; Detail = "$msg 。$advice" }
+                }
+                'B' {
+                    return @{ Action = 'none'; Result = 'escalate'; Detail = "$msg 。人がやること: 直近のログを確認し、.claude/settings.night.json の permissions.allow に不足しているツールが無いか確認してください" }
+                }
+                'C' {
+                    return @{ Action = 'none'; Result = 'escalate'; Detail = "$msg 。人がやること: agy(headless mode)側の権限不足です。docs/antigravity_delegation_design.md §9.4 を参照してください" }
+                }
+                'D' {
+                    return @{ Action = 'none'; Result = 'escalate'; Detail = "$msg (task_id=$target) 。人がやること: agy委譲がheadless権限不足で失敗しています。ledger.tsvのverdict列を確認してください" }
+                }
+                default {
+                    return @{ Action = 'none'; Result = 'escalate'; Detail = $detail }
+                }
+            }
+        }
+    },
+    @{
+        Id              = 'FP-06-SILENTSTALL'
+        Title           = '同一スキップ/エラーの連続(サイレントスタール)'
+        Phase           = @('Preflight')
+        Severity        = 'auto'
+        # 検知した時点で常にescalateを返すため連続回数による自動escalate判定は使わない。
+        MaxAutoAttempts = 0
+        Detect          = {
+            $findings = @()
+            $outcomesLogPath = Join-Path $ClaudeDir 'night_outcomes.log'
+            if (-not (Test-Path $outcomesLogPath)) {
+                # データ源(Save-NightLoopLastRunからの追記)がまだ配線されていない場合を含め、
+                # ファイル不在時は検知0件として扱う(fail-open、§3 FP-06)。
+                return $findings
+            }
+            $rawLines = @()
+            try {
+                $rawLines = @(Get-Content -Path $outcomesLogPath -Encoding UTF8 -ErrorAction Stop)
+            } catch {
+                return $findings
+            }
+            $rows = @()
+            foreach ($line in $rawLines) {
+                if (-not $line) { continue }
+                $cols = $line -split "`t"
+                if ($cols.Count -lt 2) { continue }
+                $rowTs = $cols[0]
+                $rowOutcome = $cols[1]
+                $rowReason = if ($cols.Count -ge 3) { $cols[2] } else { '' }
+                $parsedTs = $null
+                try {
+                    $parsedTs = [datetime]::Parse($rowTs, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                } catch {
+                    try { $parsedTs = [datetime]$rowTs } catch { $parsedTs = $null }
+                }
+                $rows += [pscustomobject]@{ Timestamp = $rowTs; ParsedTimestamp = $parsedTs; Outcome = $rowOutcome; Reason = $rowReason }
+            }
+            if ($rows.Count -eq 0) { return $findings }
+
+            function Test-SameNonCompletedStreak {
+                param($Set)
+                if (-not $Set -or $Set.Count -eq 0) { return $false }
+                $first = $Set[0].Outcome
+                if ($first -eq 'completed') { return $false }
+                foreach ($r in $Set) { if ($r.Outcome -ne $first) { return $false } }
+                return $true
+            }
+
+            $last5 = @($rows | Select-Object -Last 5)
+            $last3 = @($rows | Select-Object -Last 3)
+
+            # 条件1派生: 直近5回連続で同一outcome(completed以外)ならSEVERE、
+            # そうでなく直近3回連続なら通常のSTREAK3として扱う(重複計上を避ける)。
+            if ($last5.Count -eq 5 -and (Test-SameNonCompletedStreak $last5)) {
+                $lastRow = $last5[-1]
+                $findings += "SEVERE|$($lastRow.Outcome)|直近5回連続でoutcome=$($lastRow.Outcome)です(理由: $($lastRow.Reason))"
+            } elseif ($last3.Count -eq 3 -and (Test-SameNonCompletedStreak $last3)) {
+                $lastRow = $last3[-1]
+                $findings += "STREAK3|$($lastRow.Outcome)|直近3回連続でoutcome=$($lastRow.Outcome)です(理由: $($lastRow.Reason))"
+            }
+
+            # 条件2: 直近72時間にoutcome=completedが1件も無い
+            $cutoff = (Get-Date).AddHours(-72)
+            $hasCompletedRecent = (@($rows | Where-Object { $_.ParsedTimestamp -and $_.ParsedTimestamp -ge $cutoff -and $_.Outcome -eq 'completed' })).Count -gt 0
+            if (-not $hasCompletedRecent) {
+                $findings += 'NOCOMPLETE72H|completed|直近72時間にoutcome=completedの記録がありません'
+            }
+
+            # 条件3: 直近5回にerror_*(前方一致)が3件以上含まれる
+            if ($last5.Count -gt 0) {
+                $errorCount = (@($last5 | Where-Object { $_.Outcome -like 'error_*' })).Count
+                if ($errorCount -ge 3) {
+                    $findings += "ERRORBURST|error_*|直近$($last5.Count)件中$($errorCount)件がerror_*系のoutcomeです"
+                }
+            }
+
+            $findings
+        }
+        Repair          = {
+            param($detail)
+            # 自動対処なし(検知・通知のみ)。全条件をescalateとして扱う(§3 FP-06、
+            # 3回連続/72時間/5回中3件はいずれも同等の扱いでよいと確定済み)。
+            $parts = $detail -split '\|', 3
+            $kind = $parts[0]; $outcome = $parts[1]; $msg = $parts[2]
+            if ($kind -eq 'SEVERE') {
+                # 5回連続はより深刻な扱い。後続タスク(night_report見出し変更)が判別できるよう
+                # Detail先頭に"SEVERE"種別を残す(§3 FP-06「5回連続」の扱い)。
+                return @{ Action = 'none'; Result = 'escalate'; Detail = "SEVERE|$msg(5回連続。night_reportの見出しを「# ⛔ 夜間ループが停止しています(outcome=$outcome が5回連続)」相当に変更してください)" }
+            }
+            return @{ Action = 'none'; Result = 'escalate'; Detail = $msg }
         }
     },
     @{
