@@ -57,8 +57,8 @@
 | `-StreamLogPath` | string | — | Watchdog/Postmortem が読む `.claude/night_logs/<stamp>.jsonl` |
 | `-ErrLogPath` | string | — | Postmortem が読む `.claude/night_logs/<stamp>.err.log` |
 | `-ClaudeExitCode` | int | 0 | Postmortem に渡す claude の終了コード |
-| `-StallMinutes` | int | 20 | Watchdog: jsonl が伸びない許容時間(1段目) |
-| `-HardCapMinutes` | int | 90 | Watchdog: 起動からの絶対上限 |
+| `-StallMinutes` | double(T5-A65実装時にintから変更。理由は§9-7) | 20 | Watchdog: jsonl が伸びない許容時間(1段目) |
+| `-HardCapMinutes` | double(同上) | 90 | Watchdog: 起動からの絶対上限 |
 | `-Unattended` | switch | — | 無人モード(`$env:BEANBASE_NIGHT_LOOP -eq '1'` を呼び出し元が判定して渡す)。FP-03/FP-05 の自動対処はこの指定時のみ実行する |
 | `-ConfigPath` | string | `tools\failure_playbook.config.json` | しきい値の上書き(無ければ既定値で続行、`night_loop.config.json` と同じ方針) |
 
@@ -483,3 +483,5 @@
 | 4 | `autoKillLockHolders` を将来 true にするか | **当面 false 固定**。3日連続でフォールバックログが出る事態が実際に繰り返された場合のみ再検討する |
 | 5 | T5-A53(`tools/preflight.ps1`)の統合はユーザー承認が要るか | マスタープラン上の別タスクを閉じる判断のため、T5-A66 実施時にユーザーへ一言確認する(重複実装を避ける意図)。**2026-08-13、ユーザー承認済み。**統合方針(§1-3・§7 T5-A66行のとおり `preflight.ps1` は作らず `failure_playbook.ps1 -Mode Preflight` に一本化する)を正式に採用し、実際の切替配線は T5-A66 で行う |
 | 6 | `tools/lib/loop_io.ps1`(T5-A61で新設、`failure_playbook.ps1`がドットソースする依存)自身がBOMを喪失した場合、FP-02-BOMルール(ドットソース後にしか動かない)では救えないことがT5-A61実装中に判明した(教訓L148) | ドットソース**直前**に`loop_io.ps1`専用の最小限BOM事前チェック・修復を単独で実行するブートストラップ処理を追加して解消済み(`tools/failure_playbook.ps1` 63〜84行目付近)。`failure_events.tsv`への正式記録はせず`[Console]::Error`への1行メッセージのみ(通常のFP-02-BOM検知・記録経路とは別扱い)。T5-A62以降で同種の「エンジンより先に読み込まれる依存」を追加する場合は同じ手当てが必要になることに注意 |
+| 7 | `-StallMinutes`/`-HardCapMinutes`を§2-2表どおり`int`型で実装したところ、§8のテスト方法(「0.02分=1.2秒のような小さい値に上書きして短時間で検証」)で渡す分数分がPowerShellのパラメータバインド時に丸められ`0`になり、意図した2段階(警告→停止)の検証ができない実害がT5-A65実装中に判明した | `int`から`double`へ変更して解消(T5-A65)。既定値20/90自体は変わらず、算術・文字列展開とも互換のため他への影響はない。§2-2表を更新済み |
+| 8 | FP-05(c)の証拠束(§5)の「トリガー」欄は元テンプレート例が`0410 / 無人モード`(=起動時刻+モード)だが、`night_loop.ps1`の実際の起動トリガー種別(cron/手動等)はWatchdogプロセス単体からは取得できない | Watchdog起動時刻(`HHmm`)+`-Unattended`有無から`"<HHmm> / 無人モード"`のように簡易生成する実装とした(T5-A65)。厳密なトリガー種別(`BEANBASE_NIGHT_TRIGGER`等)の反映はT5-A66の配線時に呼び出し元から渡す形で拡張可能 |

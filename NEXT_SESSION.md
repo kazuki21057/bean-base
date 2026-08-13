@@ -1,13 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-13(Sonnet 5、`/full_loop`同日中3回目のセッション〈夜〉、Windows環境。T5-A64〈FP-04/FP-06追加〉実装・検証)
+最終更新: 2026-08-13(Sonnet 5、`/full_loop`同日中5回目のセッション〈夜〉、Windows環境。T5-A65〈FP-05実装〉実装完了・**検証待ち**)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-13・同日中3回目のセッション(夜)】T5-A64(FP-04権限拒否・FP-06サイレントスタールルールの実装)完了、commit/push待ち**(検証全PASS済みのため確認不要ルールを適用してこのまま実行してよい)。**今晩23:00の夜間ループトリガーはまだ発火前**(セッション開始時刻20:26台のため)、T5-A12の3トリガー観察は依然次回以降へ持ち越し。使用率: セッション開始24%/週17%→終了時点セッション43%/週19%(詳細は`docs/token_optimization_design.md` §7・§8)。**ユーザー指示によりコスト見積もりは今後$だけでなく5時間枠使用率も併記する**。
+- **【2026-08-13・同日中5回目のセッション(夜)】T5-A65(FP-05「エージェント/claudeハング」ルール実装)を実装完了・commitのみ済み、`verifier`検証は未実施のまま次回セッションへ持ち越し**(セッション分割ルール、本ループcostが$7を超えたため。手順3.5)。**push・デプロイは行っていない**。次回セッション冒頭で`/full_loop 検証のみ`(または`/verify`)から再開すること。詳細は§3「-5.83」節。今晩23:00の夜間ループトリガーはこのセッション中(21時台)に発火する可能性がある——次回セッションでT5-A12の観察状況もあわせて確認すること。
 - **【2026-08-13・同日中2回目のセッション】T5-A62(FP-01/FP-02ルール拡張)・T5-A63(FP-03エミュレータルール追加)完了・commit/push済み**。マスタープラン記載の「明日以降」タグ(T5-A62〜A66・A68〜A71、計8件)は**ユーザー指示で一括解除**し「本日以降着手可」に変更済み——**今後「明日以降」と指示する際は実際の日付で管理する**(例: 「2026-08-14以降」のように)。
 - **【重要な仕様確認、次回も踏まえること】23:00以降の夜間ループトリガーへの影響を2軸で切り分けた**: (1)Proプラン使用率(5時間枠)によるゲートはT5-A60で撤廃済み・記録専用のため影響なし(ユーザー確認済み)。(2)ただし**`tools/night_loop.config.json`の`activeSessionMinutes`(既定45分)によるガードは別物で現役**——直近45分以内にこのチャットで会話活動があると`skipped_active_session`としてトリガーがスキップされる。今回のセッションは23:00の45分前(22:15頃)を意識して活動を終えるようにした。次回以降も23:00近くにセッションを続ける場合はこの45分ガードを意識すること。
 - T5-A62の実装は`tools/failure_playbook.ps1`にFP-01のシグネチャC(孤児容疑プロセス検知、warn固定・`autoKillLockHolders=true`時のみ例外的にkill)、FP-02のPostmortem/Checkモード対応(`git diff --name-only`+`git ls-files --others --exclude-standard`起点)を追加。T5-A63はFP-03-EMULATOR(エミュレータ死亡/ハング/残骸/クラッシュ痕跡の4シグネチャ)を新規追加、`-Unattended`時のみ`tools/emulator.ps1`経由で自動再起動(最大1回)、有人時は提示のみ。いずれも`implementer`実装→`git diff`で親が差分レビュー→`verifier`が独立再検証で全項目PASS(詳細は`docs/archive/マスタープラン_完了タスク.md`「T5-A62」「T5-A63」節)。`lib/`不変・GAS変更なしのためデプロイ対象外。
@@ -42,7 +42,15 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-13更新】T5-A61〜A64(失敗プレイブック基盤・FP-01/FP-02拡張・FP-03追加・FP-04/FP-06追加)は完了済み**。**次に着手できるのはT5-A65(M、FP-05)**(T5-A61依存のみ、ユーザー承認により本日以降着手可)。実装時はT5-A65のFP-05(c)(子孫プロセス特定停止のしきい値20分/40分/90分は暫定値、実測3回分を見てから調整の想定)は`docs/failure_playbook.md` §3 FP-05節を必ず読むこと。T5-A65完了後、T5-A69〜A71(受け入れハーネス実装、T5-A61と別系統でT5-A61完了済みのため既に着手可能・依存はT5-A69自体は「なし」)も選定候補になる。**T5-A64実装時の観察事項**: `docs/failure_playbook.md` §3-1の一覧表ではFP-06の「重大度」が`warn`表記だが、実装は同ファイル§3 FP-06節の詳細記述に従い常に`escalate`を返す仕様にした(表記の整合はT5-A66配線時に検討)。T5-A66はT5-A62〜A65全ての完了後(T5-A65待ちのみ)。T5-A67は⚠️ユーザー実施、T5-A72はトラックB本格化待ちで着手不可。
+> **【2026-08-13最優先】T5-A65は実装完了・commit済みだが未検証**。次回セッション冒頭は**新規タスク選定を行わず**、まず`verifier`へT5-A65の検証を委譲すること。検証観点(委譲プロンプトに含めること):
+>   1. `powershell -File tools\failure_playbook.ps1 -Mode Preflight`/`-Mode Postmortem`/`-Mode Check`が従来どおり完走し、既存ルール(FP-01〜04/06/07)に回帰が無いこと。BOM(EF BB BF)保持。
+>   2. FP-05-HANG-AGY: `.claude/agy_logs/ledger.tsv`に同一task_idでexit_code=11を2行仮追記→`-Mode Postmortem`で2回目がescalateになること(検証後は必ず元に戻す)。
+>   3. Watchdog(`-Mode Watchdog`)を短い`-StallMinutes`/`-HardCapMinutes`(double型、例: 0.02)で実行し、(a)対象プロセス0件時は停止処理を行わずexit 1でescalateのみ (b)`night_loop`をコマンドラインに含むnode.exe(対象)のみ停止されデコイ(含まないnode.exe)は無傷であること (c)有人時(`-Unattended`未指定)は停止せず検知のみであること、をそれぞれ実地確認。**exit codeは1であること**(exit 2はFP-07専用、`docs/failure_playbook.md` §2-3のP1規約。実装時に一度2で誤実装され親のdiffレビューで発見・修正済み、再発していないか要確認)。
+>   4. `.claude/failure_reports/`に§5フォーマットの証拠束が生成されること。
+>   5. `.claude/failure_state.json`・`.claude/failure_events.tsv`・`.claude/agy_logs/ledger.tsv`など検証で触れたファイルがテスト前の状態に復元されていること。
+> 全項目PASSならcommit済みの内容をそのままpush可(追加commitは不要、既にcommit済み)。`lib/`不変・GAS変更なしのためデプロイ対象外、本番確認も不要。
+>
+> **検証PASS後**: `docs/改修マスタープラン.md`のT5-A65行を完了済みへ移動。次に着手できるのはT5-A66(`night_loop.ps1`への配線、T5-A62〜A65依存、S)またはT5-A69(受け入れハーネス実装、依存なし)。T5-A65の実装で判明した設計判断(`docs/failure_playbook.md` §9-7・§9-8に記録済み: `-StallMinutes`/`-HardCapMinutes`をintからdoubleへ変更/証拠束「トリガー」欄の簡易生成方式)はT5-A66着手時に踏まえること。T5-A67は⚠️ユーザー実施、T5-A72はトラックB本格化待ちで着手不可。
 >
 > **【2026-08-13更新】§1に記載の今晩3トリガー観察が最優先確認事項**。それ以外は判定基準:
 >   - **無人時間帯の発火で`night_runs.log`が増分**→ T5-A12を✅完了済みへ移す。T5-A17の(b)も検証完了として✅へ。T5-A46〜A48のマスタープラン行と`docs/night_loop_verification_log.md`を削除してよい(ユーザー承認済み、検証専用のため)。T5-A16に着手できる。
@@ -77,18 +85,18 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.82 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`同日中3回目のセッション〈夜〉、Windows環境。T5-A64実装)
+### -5.83 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`同日中5回目のセッション〈夜〉、Windows環境。T5-A65実装、**検証待ちでセッション分割**)
 
-- セッション冒頭、プリフライトOK・使用率取得(開始: セッション24%/週17%)・`git pull`(差分なし)・`loop_state.md`(コスト$0)を確認。現在時刻20:26台のため今晩23:00の夜間ループトリガーは未発火、T5-A12観察は今回も持ち越し。
-- タスク選定: NEXT_SESSION.mdの推奨どおり**T5-A64(FP-04権限拒否・FP-06サイレントスタールルールの実装、Sサイズ)**を選定。設計・実装方針に曖昧さが無くT5-A62/A63と同型のためarchitectを介さず`implementer`へ直接委譲。
-- **T5-A64完了**。`tools/failure_playbook.ps1`に**FP-04-PERMISSION**(`Phase=Postmortem`、シグネチャA〜D、権限拒否検知は即escalate・`.claude/settings*.json`の自動書き換えは絶対禁止・allow追加候補行をDetailに生成)と**FP-06-SILENTSTALL**(`Phase=Preflight`、`.claude/night_outcomes.log`基点で3回連続/72時間completedなし/5回中error_*3件以上を検知、常にescalate)を新規実装。実装中に日本語混在の変数展開バグ(`$errorCount件が`が識別子として丸ごと解釈)をimplementer自身が発見・修正。`git diff`で親が差分レビュー(BOM=EF BB BF維持を確認)→`verifier`が独立再検証、6項目全てPASS(FP-04はダミー`.jsonl`でescalate検知+`.claude/settings*.json`ハッシュ不変を確認、FP-06は実データ不在を確認の上でテスト用行を作成・検証後に削除して復元)。差し戻し無しの1往復で完了。
-- **観察事項(記録のみ、判断未実施)**: `docs/failure_playbook.md` §3-1の一覧表でFP-06の「重大度」が`warn`表記だが、実装は同ファイル§3 FP-06節の詳細記述(エスカレーション基準)に従い常に`escalate`を返す。次回T5-A66配線時か表記整理タスクで扱う候補として申し送り。
-- `docs/改修マスタープラン.md`・`docs/archive/マスタープラン_完了タスク.md`「T5-A64」節を更新(完了済み54件)。`tools/failure_playbook.ps1`のみの変更・`lib/`不変・GAS変更なしのためデプロイ対象外、`night_loop.ps1`への配線(T5-A66)は未実施。
-- ユーザー指示により**今後のコスト見積もりは$だけでなく5時間枠使用率も併記する**方針に変更(メモリへ記録済み)。
-- 使用率: 終了時点セッション43%/週19%(開始比+19pt/+2pt)。本ループコスト$9.8963/$24・ターン0/30(フック計測値)、余裕を残して完了。
-- 2026-08-10のトラックA関連の合意事項・2026-08-13前半セッション(-5.78節、T5-A60)・-5.79節(T5-A49〜A60のバックログ対応)・-5.80節(T5-A61完了)・-5.81節(T5-A62・A63完了)は変更なし、引き続き有効(詳細はdocs/archive/NEXT_SESSION_log.md)。
+- セッション冒頭、プリフライトOK・使用率取得(開始: セッション46%/週19%)・`git pull`(差分なし)・`loop_state.md`(コスト$0)を確認。
+- タスク選定: NEXT_SESSION.mdの推奨どおり**T5-A65(FP-05「エージェント/claudeハング」ルール実装、Mサイズ、依存T5-A61完了済み)**を選定。⚠️上位モデルタスクは依存未充足のためこの通常タスクへフォールバック。設計(`docs/failure_playbook.md` §3 FP-05-HANG節)は確定済みのためarchitectを介さず`implementer`へ直接委譲。着手前に証拠束生成機能(§5)が未実装であることに気づき、見積もりをM目安からやや上振れ($8〜12)と修正のうえ着手。
+- **implementerが実装**: FP-05-HANG-AGY(FP-05(a)、`-Mode Postmortem`、`.claude/agy_logs/ledger.tsv`のexit_code=11を検知・記録のみ、同一task_id2回連続でescalate。タスクID単位カウントは`failure_state.json`のルールエントリへ`lastTaskId`/`taskConsecutive`を追加する形でimplementerが設計判断・報告)、FP-05(c)Watchdogモード(`-Mode Watchdog`単独プロセス、30秒間隔ポーリング、`-StallMinutes`/`-HardCapMinutes`をintからdoubleへ型変更、`Get-WatchdogTargets`で深さ5まで再帰的に子孫プロセス列挙しName=claude.exe/node.exeかつCommandLineにnight_loop含むものだけ対象、対象0件ならescalateのみ、有人時は停止せず検知のみ、2段階の警告→停止)、`Generate-EvidenceBundle`(§5証拠束生成、新規関数)を実装。
+- **親のdiffレビューで規約違反を発見・差し戻し**: `docs/failure_playbook.md` §2-3(79行目)「exit 2を返してよいのはFP-07のみ、スタール検知は絶対にabortしない」というP1規約に反し、Watchdogのエスカレーション3箇所(有人時縮退/対象0件/実停止)がすべて`exit 2`を返していた。implementerへ差し戻し、`exit 1`への修正・再テスト(3シナリオ再実行してexit=1確認・BOM確認)を完了。**この種のdiffレビューは今後も委譲直後に必ず行うこと**(既存の「必須diffレビュー」ルールが実際に機能した事例)。
+- テスト内容(implementer実施、既存ファイルはすべて復元済み): 構文・BOM確認、`-Mode Preflight/Postmortem/Check`の既存ルール回帰無し確認、FP-05-HANG-AGYの2連続escalate確認、Watchdogの誤爆回避(対象0件/デコイプロセス無傷)・2段階警告→停止・自己終了(停止フラグ/WrapperPid消滅)を実プロセスで確認。
+- **セッション分割ルール(コスト$15.9 > 閾値$7)により、ここでcommitのみ実施しpushはしない**。次回セッションで`verifier`検証(観点は§2参照)→PASSならpush。`lib/`不変・GAS変更なしのためデプロイ対象外。
+- 使用率: このセッションでの終了時点は未取得(session split優先のため`docs/token_optimization_design.md` §8への追記は次回セッション冒頭にまとめて行う)。
+- 2026-08-10のトラックA関連の合意事項・2026-08-13の一連のセッション(-5.78〜-5.82節、T5-A60〜A64)は変更なし、引き続き有効(詳細はdocs/archive/NEXT_SESSION_log.md)。
 
-> これ以前(-5.81節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.82節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

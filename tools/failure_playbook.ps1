@@ -35,8 +35,21 @@
         なし・直近5回中error_*が3件以上、のいずれかで即escalate。5回連続のときは
         Detailに"SEVERE"種別を含め、後続タスク(T5-A66のnight_report見出し変更)が
         判別できるようにする。自動対処なし(検知・通知のみ)。
-      -Mode Watchdog は引数としては受け付けるが、対応するルール(FP-05(c))がまだ無いため
-      検知0件のまま正常終了する(後続タスクで実装・配線する)。
+      - FP-05-HANG-AGY(FP-05(a)): -Mode Postmortem のみ。.claude/agy_logs/ledger.tsvの
+        当ループ境界以降でexit_code=11(agy委譲の外側タイムアウトによるkill)を検知する。
+        自動対処は「記録するだけで挙動を変えない」(既存のagy→Claudeフォールバックは不変、
+        .claude/loop_failures.txtの連続失敗にも数えない)。同一task_idで2回連続exit_code=11を
+        検知した場合のみescalateする(failure_state.jsonの本ルールエントリへ
+        lastTaskId/taskConsecutiveを追加して判定、T5-A65で確定したスキーマ)。
+      - FP-05(c)(Watchdog、claude本体の無応答): -Mode Watchdog を単独プロセスとして起動すると、
+        30秒間隔で-StreamLogPathの.jsonlのLength/LastWriteTimeを監視する。-StallMinutes
+        (既定20分)無成長で警告のみ、その2倍(既定40分)またはhardcap(既定90分)到達で
+        Get-CimInstance Win32_Processにより-WrapperPidから深さ5まで再帰的に子孫プロセスを
+        列挙し、Name=claude.exe/node.exeかつCommandLineにnight_loopを含むものだけを対象に
+        子孫から順にStop-Process -Forceする(対象0件なら停止せずescalateのみ、誤爆回避)。
+        -Unattended未指定(有人時)は停止せず検知のみ。停止・escalate時はGenerate-EvidenceBundle
+        で証拠束(§5)を生成する。.claude/night_watchdog.stopの存在または-WrapperPidの消滅を
+        検知すると自ら終了する(孤児化防止)。
 
     標準出力は1行JSONのみ(§2-3)。人間向けメッセージは Write-Host ではなく
     [Console]::Error へ出す(進捗の可視化用、契約はstdoutの1行JSONのみ)。
@@ -63,8 +76,12 @@ param(
     [string]$StreamLogPath = '',
     [string]$ErrLogPath = '',
     [int]$ClaudeExitCode = 0,
-    [int]$StallMinutes = 20,
-    [int]$HardCapMinutes = 90,
+    # 設計(docs/failure_playbook.md §2-2)ではintと記載されているが、テスト運用(§8・T5-A65)で
+    # 0.02分のような分数分の指定が必須なためdoubleへ変更する(既定値20/90自体は変わらず、
+    # 算術・文字列展開とも互換。intのままだとPowerShellのバインド時に小数が丸められ0になり、
+    # 分数指定でのテストが意図通り機能しない実害があったため、T5-A65実装中に確定した判断)。
+    [double]$StallMinutes = 20,
+    [double]$HardCapMinutes = 90,
     [switch]$Unattended,
     [string]$ConfigPath = ''
 )
@@ -281,8 +298,10 @@ function Get-LoopBoundaryTime {
 
 # ============================== ルール登録簿(§2-5) ==============================
 # 別JSONに切り出さず、スクリプト内のPowerShell配列として持つ(シグネチャと対処コードを
-# 離さない)。T5-A64時点でFP-01(シグネチャA/B/C)・FP-02(Preflight/Postmortem/Check)・
-# FP-03(シグネチャA〜D)・FP-04(シグネチャA〜D)・FP-06(3条件)・FP-07(表の全行)を実装済み。
+# 離さない)。T5-A65時点でFP-01(シグネチャA/B/C)・FP-02(Preflight/Postmortem/Check)・
+# FP-03(シグネチャA〜D)・FP-04(シグネチャA〜D)・FP-05-HANG-AGY(FP-05(a))・
+# FP-06(3条件)・FP-07(表の全行)を実装済み。FP-05(c)(Watchdogモード)はこの配列の外
+# (メイン処理の手前)で単独処理として実装している(下記参照)。
 $Rules = @(
     @{
         Id              = 'FP-01-FILELOCK'
@@ -769,6 +788,71 @@ $Rules = @(
         }
     },
     @{
+        Id              = 'FP-05-HANG-AGY'
+        Title           = 'agy委譲のハング(外側タイムアウトによるkill)'
+        Phase           = @('Postmortem')
+        Severity        = 'auto'
+        # 記録するだけで挙動を変えない(§3 FP-05(a))。連続回数の判定はタスクID単位で
+        # Repair内が$Stateを直接読み書きして行うため、ルール単位のMaxAutoAttemptsは使わない。
+        MaxAutoAttempts = 999
+        Detect          = {
+            $findings = @()
+            $ledgerPath = Join-Path $ClaudeDir 'agy_logs\ledger.tsv'
+            if (Test-Path $ledgerPath) {
+                $boundaryTime = Get-LoopBoundaryTime
+                try {
+                    $ledgerLines = @(Get-Content -Path $ledgerPath -Encoding UTF8 -ErrorAction Stop)
+                    for ($i = 1; $i -lt $ledgerLines.Count; $i++) {
+                        if (-not $ledgerLines[$i]) { continue }
+                        $cols = $ledgerLines[$i] -split "`t"
+                        if ($cols.Count -lt 5) { continue }
+                        $rowTs = $cols[0]; $rowTaskId = $cols[1]; $rowExitCode = $cols[4]
+                        if ($rowExitCode -ne '11') { continue }
+                        $rowTime = $null
+                        try { $rowTime = [datetime]::ParseExact($rowTs, 'yyyyMMdd_HHmmss', $null) } catch { $rowTime = $null }
+                        if ($boundaryTime -and $rowTime -and $rowTime -lt $boundaryTime) { continue }
+                        $findings += "AGY|$rowTaskId|.claude/agy_logs/ledger.tsv の行(timestamp=$rowTs)でexit_code=11(agy委譲の外側タイムアウトによるkill、docs/antigravity_delegation_design.md §9.4)を検知しました"
+                    }
+                } catch {
+                    # ledger.tsvが読めない場合はfail-openで見逃す
+                }
+            }
+            $findings
+        }
+        Repair          = {
+            param($detail)
+            # 設計判断(T5-A65、docs/failure_playbook.md §3 FP-05(a)には「同一タスクで2回連続
+            # exit 11→escalate」としか書かれておらずスキーマは未確定だったため、本スクリプトで
+            # failure_state.jsonの本ルールエントリへ lastTaskId / taskConsecutive を追加して
+            # 確定する。既存のUpdate-RuleStateはルール単位の連続回数のみを扱うため、ここでは
+            # Repair内で直接$Stateを読み書きする(他ルールのUpdate-RuleState呼び出しとは独立)。
+            $parts = $detail -split '\|', 3
+            $kind = $parts[0]; $taskId = $parts[1]; $msg = $parts[2]
+            $ruleId = 'FP-05-HANG-AGY'
+            if (-not ($State.PSObject.Properties.Name -contains $ruleId)) {
+                $newEntry = [pscustomobject]@{ consecutive = 0; lastAt = $null; lastAction = $null; lastResult = $null; escalated = $false }
+                $State | Add-Member -NotePropertyName $ruleId -NotePropertyValue $newEntry -Force
+            }
+            $entry = $State.$ruleId
+            if (-not ($entry.PSObject.Properties.Name -contains 'lastTaskId')) {
+                $entry | Add-Member -NotePropertyName 'lastTaskId' -NotePropertyValue $null -Force
+            }
+            if (-not ($entry.PSObject.Properties.Name -contains 'taskConsecutive')) {
+                $entry | Add-Member -NotePropertyName 'taskConsecutive' -NotePropertyValue 0 -Force
+            }
+            if ($entry.lastTaskId -eq $taskId -and $taskId) {
+                $entry.taskConsecutive = [int]$entry.taskConsecutive + 1
+            } else {
+                $entry.lastTaskId = $taskId
+                $entry.taskConsecutive = 1
+            }
+            if ($entry.taskConsecutive -ge 2) {
+                return @{ Action = 'none'; Result = 'escalate'; Detail = "$msg (task_id=$taskId が2回連続でexit_code=11)。人がやること: agy側の恒常的な問題を疑い、docs/antigravity_delegation_design.md の委譲判断を見直してください" }
+            }
+            return @{ Action = 'none'; Result = 'ok'; Detail = "$msg (記録のみ。既存のagy→Claudeフォールバック挙動は変更しません。.claude/loop_failures.txtの連続失敗にも数えません)" }
+        }
+    },
+    @{
         Id              = 'FP-06-SILENTSTALL'
         Title           = '同一スキップ/エラーの連続(サイレントスタール)'
         Phase           = @('Preflight')
@@ -919,6 +1003,302 @@ $Rules = @(
         }
     }
 )
+
+# ============================== 証拠束生成(§5、T5-A65) ==============================
+# night_loop.ps1 / claude が読むだけの人間向けMarkdownを固定フォーマットで生成する。
+# Watchdog(FP-05(c))が停止処理を行った際に呼ぶ。将来的に未知障害(§4)からも呼べるよう
+# 汎用の引数構成にしているが、配線は本タスク(T5-A65)のスコープ外(呼び出しはWatchdogのみ)。
+function Get-TailTextSafe {
+    param([string]$Path, [int]$Lines, [string]$EmptyMessage)
+    if (-not $Path -or -not (Test-Path $Path)) { return $EmptyMessage }
+    try {
+        $content = @(Get-Content -Path $Path -Tail $Lines -Encoding UTF8 -ErrorAction Stop)
+        if ($content.Count -eq 0) { return $EmptyMessage }
+        return ($content -join [Environment]::NewLine)
+    } catch {
+        return "$EmptyMessage(読み取りに失敗: $($_.Exception.Message))"
+    }
+}
+
+function Generate-EvidenceBundle {
+    param(
+        [string]$RuleId = 'unknown',
+        [string]$Outcome = '',
+        $ClaudeExitCodeValue = $null,
+        [string]$Trigger = '',
+        [string]$DurationText = '',
+        [string]$WrapperLogPathOverride = '',
+        [string]$ErrLogPathOverride = '',
+        [string]$StreamLogPathOverride = ''
+    )
+    Ensure-Dirs
+    $now = Get-Date
+    $titleStamp = $now.ToString('yyyy-MM-dd HH:mm:ss')
+    $fileStamp = $now.ToString('yyyyMMdd-HHmmss')
+    $reportPath = Join-Path $ReportsDir ("{0}-{1}.md" -f $fileStamp, $RuleId)
+
+    $wrapperLogPath = if ($WrapperLogPathOverride) { $WrapperLogPathOverride } else { Join-Path $NightLogsDir ('wrapper-{0}.log' -f (Get-Date -Format 'yyyyMMdd')) }
+    $errLogPathResolved = if ($ErrLogPathOverride) { $ErrLogPathOverride } else { $ErrLogPath }
+    $streamLogPathResolved = if ($StreamLogPathOverride) { $StreamLogPathOverride } else { $StreamLogPath }
+
+    $wrapperTail = Get-TailTextSafe -Path $wrapperLogPath -Lines 40 -EmptyMessage '(wrapperログが見つかりません)'
+    $errTail = Get-TailTextSafe -Path $errLogPathResolved -Lines 40 -EmptyMessage 'stderr は出力されていません'
+
+    $jsonlTail = '(stream-jsonログが見つかりません)'
+    if ($streamLogPathResolved -and (Test-Path $streamLogPathResolved)) {
+        try {
+            $jlines = @(Get-Content -Path $streamLogPathResolved -Tail 3 -Encoding UTF8 -ErrorAction Stop)
+            if ($jlines.Count -gt 0) {
+                $truncated = $jlines | ForEach-Object {
+                    if ($_.Length -gt 500) { $_.Substring(0, 500) + '...(truncated)' } else { $_ }
+                }
+                $jsonlTail = ($truncated -join [Environment]::NewLine)
+            } else {
+                $jsonlTail = '(stream-jsonログは空です)'
+            }
+        } catch {
+            $jsonlTail = "(stream-jsonログの読み取りに失敗しました: $($_.Exception.Message))"
+        }
+    }
+
+    $gitStatusText = 'クリーン'
+    try {
+        $gitLines = @(& git -C $RepoRoot status --porcelain 2>$null)
+        $gitLines = @($gitLines | Where-Object { $_ })
+        if ($gitLines.Count -gt 0) { $gitStatusText = ($gitLines -join [Environment]::NewLine) }
+    } catch {
+        $gitStatusText = "(git status の取得に失敗しました: $($_.Exception.Message))"
+    }
+
+    $outcomesTail = Get-TailTextSafe -Path (Join-Path $ClaudeDir 'night_outcomes.log') -Lines 5 -EmptyMessage '(night_outcomes.log が見つかりません、または記録がありません)'
+
+    # 既知シグネチャとの照合結果: $Rules配列の各ルールのDetectを(Repairは呼ばず)安全に呼び出す。
+    # 例外は「判定不能」として扱いfail-openにする(§5)。
+    $sigLines = @()
+    foreach ($r in $Rules) {
+        try {
+            $f = @(& $r.Detect)
+            if ($f.Count -gt 0) {
+                $sigLines += "- $($r.Id): 一致"
+            } else {
+                $sigLines += "- $($r.Id): 不一致"
+            }
+        } catch {
+            $sigLines += "- $($r.Id): 判定不能($($_.Exception.Message))"
+        }
+    }
+
+    $exitCodeText = if ($null -ne $ClaudeExitCodeValue) { $ClaudeExitCodeValue.ToString() } else { '(不明)' }
+
+    $lines = @()
+    $lines += "# 障害レポート $titleStamp — $RuleId"
+    $lines += ''
+    $lines += "- **phase**: $PhaseLower"
+    $lines += "- **outcome**: $Outcome"
+    $lines += "- **claude 終了コード**: $exitCodeText"
+    $lines += "- **トリガー**: $Trigger"
+    $lines += "- **所要時間**: $DurationText"
+    $lines += ''
+    $lines += '## 直近の wrapper ログ(末尾40行)'
+    $lines += '```'
+    $lines += $wrapperTail
+    $lines += '```'
+    $lines += ''
+    $lines += '## stderr(末尾40行)'
+    $lines += '```'
+    $lines += $errTail
+    $lines += '```'
+    $lines += ''
+    $lines += '## stream-json の最終3イベント'
+    $lines += '```'
+    $lines += $jsonlTail
+    $lines += '```'
+    $lines += ''
+    $lines += '## 作業ツリーの状態'
+    $lines += '```'
+    $lines += $gitStatusText
+    $lines += '```'
+    $lines += ''
+    $lines += '## 直近5回の発火結果'
+    $lines += '```'
+    $lines += $outcomesTail
+    $lines += '```'
+    $lines += ''
+    $lines += '## 既知シグネチャとの照合結果'
+    $lines += $sigLines
+
+    $md = ($lines -join [Environment]::NewLine)
+    try {
+        Set-Content -Path $reportPath -Value $md -Encoding utf8
+        return $reportPath
+    } catch {
+        Write-Progress2 "証拠束の書き込みに失敗しました: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# ============================== Watchdogモード(FP-05(c)、T5-A65) ==============================
+# night_loop.ps1 の手順9で別プロセスとして起動される想定(§2-1)。既存のPreflight/Postmortem/
+# Checkのメイン処理(ルール配列を1回ずつ回す)とは別建てで、内部にポーリングループを持つ。
+
+# 監視対象プロセスの特定(§3 FP-05(c))。$RootPidから深さ5まで再帰的に子孫プロセスを列挙し、
+# Name=claude.exe/node.exe かつ CommandLineに night_loop を含むものだけを対象にする。
+# 名前一致の総当たりkillを避けるための厳密な特定手順(誤爆回避)。
+function Get-WatchdogTargets {
+    param([int]$RootPid)
+    $maxDepth = 5
+    $currentPids = @($RootPid)
+    $allDescendants = @()
+    for ($d = 1; $d -le $maxDepth; $d++) {
+        if ($currentPids.Count -eq 0) { break }
+        $children = @()
+        foreach ($p in $currentPids) {
+            try {
+                $kids = @(Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId=$p" -ErrorAction Stop)
+                foreach ($k in $kids) { $children += $k }
+            } catch {
+                # 取得失敗はfail-open(その系統の探索はここで打ち切るのみ、全体は継続)
+            }
+        }
+        if ($children.Count -eq 0) { break }
+        $allDescendants += $children
+        $currentPids = $children | ForEach-Object { $_.ProcessId }
+    }
+    $targets = @($allDescendants | Where-Object {
+            $_.Name -in @('claude.exe', 'node.exe') -and $_.CommandLine -and ($_.CommandLine -match 'night_loop')
+        })
+    # $allDescendantsは深さの浅い順に追加されているため、フィルタ後に反転すると
+    # 深い(=子孫側)ものが先頭に来る。「子孫から順に」停止するための近似的な順序付け。
+    [array]::Reverse($targets)
+    return $targets
+}
+
+if ($Mode -eq 'Watchdog') {
+    try {
+        Write-Progress2 "Watchdogモードを開始します(WrapperPid=$WrapperPid, StallMinutes=$StallMinutes, HardCapMinutes=$HardCapMinutes, Unattended=$($Unattended.IsPresent))。"
+        Ensure-EventsFile
+        $watchdogStart = Get-Date
+        $stopFlagPath = Join-Path $ClaudeDir 'night_watchdog.stop'
+        $pollIntervalSec = 30
+        $warnedStall = $false
+        $lastLen = $null
+        $lastWrite = $null
+        $noGrowthSinceUtc = $null
+
+        while ($true) {
+            # Watchdog自身の自己終了条件(孤児化防止、毎ポーリングで確認、§3 FP-05(c))。
+            if (Test-Path $stopFlagPath) {
+                Write-Progress2 "停止フラグ($stopFlagPath)を検知したため終了します。"
+                $selfStopObj = [ordered]@{ ok = $true; phase = 'watchdog'; detected = @(); escalate = $false; escalations = @() }
+                ($selfStopObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+                exit 0
+            }
+            $wrapperAlive = [bool](Get-Process -Id $WrapperPid -ErrorAction SilentlyContinue)
+            if (-not $wrapperAlive) {
+                Write-Progress2 "WrapperPid=$WrapperPid が既に存在しないため終了します。"
+                $selfStopObj = [ordered]@{ ok = $true; phase = 'watchdog'; detected = @(); escalate = $false; escalations = @() }
+                ($selfStopObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+                exit 0
+            }
+
+            $elapsedMin = ((Get-Date) - $watchdogStart).TotalMinutes
+            $hardcapHit = ($elapsedMin -ge $HardCapMinutes)
+
+            # stall判定: -StreamLogPathの.jsonlのLength/LastWriteTimeを都度取得するのみで、
+            # ファイルハンドルは保持しない(§3 FP-05(c)、Watchdog自身がFP-01の原因になるのを防ぐ)。
+            $curLen = $null
+            $curWrite = $null
+            if ($StreamLogPath -and (Test-Path $StreamLogPath)) {
+                try {
+                    $item = Get-Item -LiteralPath $StreamLogPath -ErrorAction Stop
+                    $curLen = $item.Length
+                    $curWrite = $item.LastWriteTime
+                } catch {
+                    # 取得失敗はfail-open(stall扱いにしない)
+                }
+            }
+
+            if (($null -ne $curLen) -and ($null -ne $lastLen) -and ($curLen -eq $lastLen) -and ($curWrite -eq $lastWrite)) {
+                if (-not $noGrowthSinceUtc) { $noGrowthSinceUtc = Get-Date }
+            } else {
+                $noGrowthSinceUtc = $null
+                $warnedStall = $false
+            }
+            $lastLen = $curLen
+            $lastWrite = $curWrite
+
+            $noGrowthMin = if ($noGrowthSinceUtc) { ((Get-Date) - $noGrowthSinceUtc).TotalMinutes } else { 0 }
+            $stallHit = ($noGrowthMin -ge $StallMinutes)
+            $doubleStallHit = ($noGrowthMin -ge ($StallMinutes * 2))
+
+            if ($hardcapHit -or $doubleStallHit) {
+                $triggerReason = if ($hardcapHit) { "hardcap到達(起動から$([math]::Round($elapsedMin,1))分、上限${HardCapMinutes}分)" } else { "stream-jsonが$([math]::Round($noGrowthMin,1))分間無成長(閾値$($StallMinutes * 2)分)" }
+                $durationText = "{0:N1}分" -f $elapsedMin
+                $triggerText = "$($watchdogStart.ToString('HHmm')) / $(if ($Unattended) { '無人モード' } else { '有人モード' })"
+
+                if (-not $Unattended) {
+                    # 有人時の縮退(§3-2): 停止処理は行わず検知のみ(FP-03と同じ扱い)。
+                    Write-FailureEvent -Phase 'watchdog' -RuleId 'FP-05-HANG-WATCHDOG' -Severity 'escalate' -Action 'none' -Result 'escalate' -Detail "$triggerReason を検知しましたが有人モードのため停止処理は行わず検知のみとします。"
+                    $reportPath = Generate-EvidenceBundle -RuleId 'FP-05-HANG-WATCHDOG' -Outcome 'error_watchdog_stall' -Trigger $triggerText -DurationText $durationText
+                    $stopObj = [ordered]@{ ok = $false; phase = 'watchdog'; detected = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; severity = 'escalate'; action = 'none'; result = 'escalate'; detail = $triggerReason }); escalate = $true; escalations = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; detail = $triggerReason }); reportPath = $reportPath }
+                    ($stopObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+                    Write-Progress2 "$triggerReason (有人時のため停止処理なし。証拠束: $reportPath)"
+                    # exit 2はFP-07の必須バイナリ不在・ディスク空き不足専用(P1・§2-3)。
+                    # スタール/hardcap検知は絶対にabortしないため、ここは「検知したが続行可能」の
+                    # exit 1とする(JSONのok:false/escalate:true/escalationsで検知内容は伝える)。
+                    exit 1
+                }
+
+                $targets = Get-WatchdogTargets -RootPid $WrapperPid
+                if ($targets.Count -eq 0) {
+                    # 対象0件なら停止処理を行わずescalateのみ(誤爆回避、§3-2の唯一の例外条件)。
+                    Write-FailureEvent -Phase 'watchdog' -RuleId 'FP-05-HANG-WATCHDOG' -Severity 'escalate' -Action 'none' -Result 'escalate' -Detail "$triggerReason を検知しましたが、対象プロセス(WrapperPid=$WrapperPid の子孫でName=claude.exe/node.exeかつCommandLineにnight_loopを含むもの)が0件のため停止処理は行わずescalateのみとします。"
+                    $reportPath = Generate-EvidenceBundle -RuleId 'FP-05-HANG-WATCHDOG' -Outcome 'error_watchdog_stall' -Trigger $triggerText -DurationText $durationText
+                    $stopObj = [ordered]@{ ok = $false; phase = 'watchdog'; detected = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; severity = 'escalate'; action = 'none'; result = 'escalate'; detail = $triggerReason }); escalate = $true; escalations = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; detail = $triggerReason }); reportPath = $reportPath }
+                    ($stopObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+                    Write-Progress2 "$triggerReason (対象0件のため停止処理なし。証拠束: $reportPath)"
+                    # exit 2はFP-07専用(P1・§2-3)。対象0件の誤爆回避時もexit 1とする。
+                    exit 1
+                }
+
+                # 子孫から順にStop-Process -Force(§3 FP-05(c)。作業ツリーには一切触れない)。
+                $stoppedList = @()
+                foreach ($t in $targets) {
+                    try {
+                        Stop-Process -Id $t.ProcessId -Force -ErrorAction Stop
+                        $stoppedList += "PID=$($t.ProcessId)($($t.Name))"
+                    } catch {
+                        $stoppedList += "PID=$($t.ProcessId)($($t.Name)) 停止失敗: $($_.Exception.Message)"
+                    }
+                }
+                $stopDetail = "$triggerReason を検知し、対象プロセスを停止しました: $($stoppedList -join ', ')"
+                Write-FailureEvent -Phase 'watchdog' -RuleId 'FP-05-HANG-WATCHDOG' -Severity 'escalate' -Action 'stopped_process' -Result 'escalate' -Detail $stopDetail
+                $reportPath = Generate-EvidenceBundle -RuleId 'FP-05-HANG-WATCHDOG' -Outcome 'error_watchdog_stall' -Trigger $triggerText -DurationText $durationText
+                $stopObj = [ordered]@{ ok = $false; phase = 'watchdog'; detected = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; severity = 'escalate'; action = 'stopped_process'; result = 'escalate'; detail = $stopDetail }); escalate = $true; escalations = @(@{ ruleId = 'FP-05-HANG-WATCHDOG'; detail = $stopDetail }); reportPath = $reportPath }
+                ($stopObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+                Write-Progress2 "$stopDetail (証拠束: $reportPath)"
+                # exit 2はFP-07専用(P1・§2-3)。プロセス停止を実施した場合もexit 1とする。
+                exit 1
+            } elseif ($stallHit -and -not $warnedStall) {
+                Write-FailureEvent -Phase 'watchdog' -RuleId 'FP-05-HANG-WATCHDOG' -Severity 'warn' -Action 'none' -Result 'warned' -Detail "stream-jsonが${StallMinutes}分間変化していません(StreamLogPath=$StreamLogPath)。監視を継続します(1段目、警告のみ)。"
+                $warnedStall = $true
+            }
+
+            Start-Sleep -Seconds $pollIntervalSec
+        }
+    } catch {
+        # フェイルオープン(P1): Watchdog自身の例外でループを止めない。記録だけ残してexit 0する。
+        try {
+            Write-FailureEvent -Phase 'watchdog' -RuleId 'FP-INTERNAL' -Severity 'warn' -Action 'none' -Result 'internal_error' -Detail $_.Exception.Message
+        } catch {
+            # 記録すら失敗した場合は諦める
+        }
+        Write-Progress2 "Watchdog内部エラーが発生しましたが、fail-openの方針によりexit 0で終了します: $($_.Exception.Message)"
+        $fallbackObj = [ordered]@{ ok = $true; phase = 'watchdog'; detected = @(); escalate = $false; escalations = @(); internalError = $_.Exception.Message }
+        ($fallbackObj | ConvertTo-Json -Compress -Depth 10) | Write-Output
+        exit 0
+    }
+}
 
 # ============================== メイン処理 ==============================
 try {
