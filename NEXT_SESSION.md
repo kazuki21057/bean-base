@@ -1,13 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-13(Sonnet 5、`/full_loop`同日中5回目のセッション〈夜〉、Windows環境。T5-A65〈FP-05実装〉実装完了・**検証待ち**)
+最終更新: 2026-08-13(Sonnet 5、`/full_loop 検証のみ`同日中6回目のセッション〈夜〉、Windows環境。T5-A65〈FP-05実装〉検証PASS・push済み・完了)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-13・同日中5回目のセッション(夜)】T5-A65(FP-05「エージェント/claudeハング」ルール実装)を実装完了・commitのみ済み、`verifier`検証は未実施のまま次回セッションへ持ち越し**(セッション分割ルール、本ループcostが$7を超えたため。手順3.5)。**push・デプロイは行っていない**。次回セッション冒頭で`/full_loop 検証のみ`(または`/verify`)から再開すること。詳細は§3「-5.83」節。今晩23:00の夜間ループトリガーはこのセッション中(21時台)に発火する可能性がある——次回セッションでT5-A12の観察状況もあわせて確認すること。
+- **【2026-08-13・同日中6回目のセッション(夜)】T5-A65(FP-05「エージェント/claudeハング」ルール実装)完了**。前セッションでcommitのみ済みだった変更を`verifier`が独立検証(9項目全PASS、exit code修正の再確認含む)→push済み(`ea2a6d5`)。`lib/`不変・GAS変更なしのためデプロイ・本番確認は不要。マスタープラン・完了タスクアーカイブも更新済み。**T5-A65〜A68〈T5-A65依存分〉が揃ったため、次はT5-A66(`night_loop.ps1`への配線)が着手可能**。**5時間枠使用率が77%まで上昇**(週次は22%で余裕あり)——次回セッションは着手前に必ず状況を確認すること。今晩23:00の夜間ループトリガーの発火状況(T5-A12観察)は次回セッションで確認すること。
 - **【2026-08-13・同日中2回目のセッション】T5-A62(FP-01/FP-02ルール拡張)・T5-A63(FP-03エミュレータルール追加)完了・commit/push済み**。マスタープラン記載の「明日以降」タグ(T5-A62〜A66・A68〜A71、計8件)は**ユーザー指示で一括解除**し「本日以降着手可」に変更済み——**今後「明日以降」と指示する際は実際の日付で管理する**(例: 「2026-08-14以降」のように)。
 - **【重要な仕様確認、次回も踏まえること】23:00以降の夜間ループトリガーへの影響を2軸で切り分けた**: (1)Proプラン使用率(5時間枠)によるゲートはT5-A60で撤廃済み・記録専用のため影響なし(ユーザー確認済み)。(2)ただし**`tools/night_loop.config.json`の`activeSessionMinutes`(既定45分)によるガードは別物で現役**——直近45分以内にこのチャットで会話活動があると`skipped_active_session`としてトリガーがスキップされる。今回のセッションは23:00の45分前(22:15頃)を意識して活動を終えるようにした。次回以降も23:00近くにセッションを続ける場合はこの45分ガードを意識すること。
 - T5-A62の実装は`tools/failure_playbook.ps1`にFP-01のシグネチャC(孤児容疑プロセス検知、warn固定・`autoKillLockHolders=true`時のみ例外的にkill)、FP-02のPostmortem/Checkモード対応(`git diff --name-only`+`git ls-files --others --exclude-standard`起点)を追加。T5-A63はFP-03-EMULATOR(エミュレータ死亡/ハング/残骸/クラッシュ痕跡の4シグネチャ)を新規追加、`-Unattended`時のみ`tools/emulator.ps1`経由で自動再起動(最大1回)、有人時は提示のみ。いずれも`implementer`実装→`git diff`で親が差分レビュー→`verifier`が独立再検証で全項目PASS(詳細は`docs/archive/マスタープラン_完了タスク.md`「T5-A62」「T5-A63」節)。`lib/`不変・GAS変更なしのためデプロイ対象外。
@@ -42,15 +42,13 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-13最優先】T5-A65は実装完了・commit済みだが未検証**。次回セッション冒頭は**新規タスク選定を行わず**、まず`verifier`へT5-A65の検証を委譲すること。検証観点(委譲プロンプトに含めること):
->   1. `powershell -File tools\failure_playbook.ps1 -Mode Preflight`/`-Mode Postmortem`/`-Mode Check`が従来どおり完走し、既存ルール(FP-01〜04/06/07)に回帰が無いこと。BOM(EF BB BF)保持。
->   2. FP-05-HANG-AGY: `.claude/agy_logs/ledger.tsv`に同一task_idでexit_code=11を2行仮追記→`-Mode Postmortem`で2回目がescalateになること(検証後は必ず元に戻す)。
->   3. Watchdog(`-Mode Watchdog`)を短い`-StallMinutes`/`-HardCapMinutes`(double型、例: 0.02)で実行し、(a)対象プロセス0件時は停止処理を行わずexit 1でescalateのみ (b)`night_loop`をコマンドラインに含むnode.exe(対象)のみ停止されデコイ(含まないnode.exe)は無傷であること (c)有人時(`-Unattended`未指定)は停止せず検知のみであること、をそれぞれ実地確認。**exit codeは1であること**(exit 2はFP-07専用、`docs/failure_playbook.md` §2-3のP1規約。実装時に一度2で誤実装され親のdiffレビューで発見・修正済み、再発していないか要確認)。
->   4. `.claude/failure_reports/`に§5フォーマットの証拠束が生成されること。
->   5. `.claude/failure_state.json`・`.claude/failure_events.tsv`・`.claude/agy_logs/ledger.tsv`など検証で触れたファイルがテスト前の状態に復元されていること。
-> 全項目PASSならcommit済みの内容をそのままpush可(追加commitは不要、既にcommit済み)。`lib/`不変・GAS変更なしのためデプロイ対象外、本番確認も不要。
+> **【2026-08-13更新】T5-A61〜A65(失敗プレイブック基盤・FP-01/02/03/04/05/06)は全て完了・検証・push済み**。**次に着手できるのはT5-A66(S、`night_loop.ps1`への配線、T5-A62〜A65依存)**、または**T5-A69(M、受け入れハーネス実装、依存なし)**。
+>   - T5-A66着手時は、T5-A65の実装で判明した設計判断(`docs/failure_playbook.md` §9-7・§9-8に記録済み: `-StallMinutes`/`-HardCapMinutes`をintからdoubleへ変更/証拠束「トリガー」欄の簡易生成方式)を踏まえること。また配線時に`-Mode Watchdog`を実際に別プロセスとして起動する処理(手順9)・`.claude/night_watchdog.stop`の作成(手順10先頭)・Postmortem呼び出しを実装するため、規模的にM相当になる可能性がある(マスタープラン記載はSだが要再見積もり)。**T5-A53(`tools/preflight.ps1`)をこの設計へ統合するかどうかは既にユーザー承認済み**(`preflight.ps1`は作らず`failure_playbook.ps1 -Mode Preflight`に一本化する方針、`docs/failure_playbook.md` §9-5)。
+>   - T5-A67は⚠️ユーザー実施(`.claude/settings.night.json`のallow追加)、T5-A72はトラックB本格化待ちで着手不可。T5-A68(障害注入テスト)はT5-A66・T5-A67の両方が終わってから。
 >
-> **検証PASS後**: `docs/改修マスタープラン.md`のT5-A65行を完了済みへ移動。次に着手できるのはT5-A66(`night_loop.ps1`への配線、T5-A62〜A65依存、S)またはT5-A69(受け入れハーネス実装、依存なし)。T5-A65の実装で判明した設計判断(`docs/failure_playbook.md` §9-7・§9-8に記録済み: `-StallMinutes`/`-HardCapMinutes`をintからdoubleへ変更/証拠束「トリガー」欄の簡易生成方式)はT5-A66着手時に踏まえること。T5-A67は⚠️ユーザー実施、T5-A72はトラックB本格化待ちで着手不可。
+> **【5時間枠使用率77%、要注意】** 次回セッション着手前に必ず状況を確認すること。週次は22%で余裕がある。
+>
+> **今晩23:00からの夜間ループトリガー観察(T5-A12)は依然未確認のまま持ち越し**。次回セッションで`.claude/night_loop_last_run.json`・`.claude/night_runs.log`を確認すること。判定基準(無人発火でnight_runs.log増分→T5-A12完了/`skipped_active_session`継続なら`activeSessionMinutes`見直しをarchitectへ相談/`night_loop_last_run.json`自体が更新されなければ発火自体の問題として新規調査)は`docs/archive/NEXT_SESSION_log.md`「-5.78」節以前の記述を参照。
 >
 > **【2026-08-13更新】§1に記載の今晩3トリガー観察が最優先確認事項**。それ以外は判定基準:
 >   - **無人時間帯の発火で`night_runs.log`が増分**→ T5-A12を✅完了済みへ移す。T5-A17の(b)も検証完了として✅へ。T5-A46〜A48のマスタープラン行と`docs/night_loop_verification_log.md`を削除してよい(ユーザー承認済み、検証専用のため)。T5-A16に着手できる。
@@ -85,18 +83,16 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.83 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`同日中5回目のセッション〈夜〉、Windows環境。T5-A65実装、**検証待ちでセッション分割**)
+### -5.84 当日やったこと(2026-08-13、Sonnet 5、`/full_loop 検証のみ`同日中6回目のセッション〈夜〉、Windows環境。T5-A65検証・push・完了)
 
-- セッション冒頭、プリフライトOK・使用率取得(開始: セッション46%/週19%)・`git pull`(差分なし)・`loop_state.md`(コスト$0)を確認。
-- タスク選定: NEXT_SESSION.mdの推奨どおり**T5-A65(FP-05「エージェント/claudeハング」ルール実装、Mサイズ、依存T5-A61完了済み)**を選定。⚠️上位モデルタスクは依存未充足のためこの通常タスクへフォールバック。設計(`docs/failure_playbook.md` §3 FP-05-HANG節)は確定済みのためarchitectを介さず`implementer`へ直接委譲。着手前に証拠束生成機能(§5)が未実装であることに気づき、見積もりをM目安からやや上振れ($8〜12)と修正のうえ着手。
-- **implementerが実装**: FP-05-HANG-AGY(FP-05(a)、`-Mode Postmortem`、`.claude/agy_logs/ledger.tsv`のexit_code=11を検知・記録のみ、同一task_id2回連続でescalate。タスクID単位カウントは`failure_state.json`のルールエントリへ`lastTaskId`/`taskConsecutive`を追加する形でimplementerが設計判断・報告)、FP-05(c)Watchdogモード(`-Mode Watchdog`単独プロセス、30秒間隔ポーリング、`-StallMinutes`/`-HardCapMinutes`をintからdoubleへ型変更、`Get-WatchdogTargets`で深さ5まで再帰的に子孫プロセス列挙しName=claude.exe/node.exeかつCommandLineにnight_loop含むものだけ対象、対象0件ならescalateのみ、有人時は停止せず検知のみ、2段階の警告→停止)、`Generate-EvidenceBundle`(§5証拠束生成、新規関数)を実装。
-- **親のdiffレビューで規約違反を発見・差し戻し**: `docs/failure_playbook.md` §2-3(79行目)「exit 2を返してよいのはFP-07のみ、スタール検知は絶対にabortしない」というP1規約に反し、Watchdogのエスカレーション3箇所(有人時縮退/対象0件/実停止)がすべて`exit 2`を返していた。implementerへ差し戻し、`exit 1`への修正・再テスト(3シナリオ再実行してexit=1確認・BOM確認)を完了。**この種のdiffレビューは今後も委譲直後に必ず行うこと**(既存の「必須diffレビュー」ルールが実際に機能した事例)。
-- テスト内容(implementer実施、既存ファイルはすべて復元済み): 構文・BOM確認、`-Mode Preflight/Postmortem/Check`の既存ルール回帰無し確認、FP-05-HANG-AGYの2連続escalate確認、Watchdogの誤爆回避(対象0件/デコイプロセス無傷)・2段階警告→停止・自己終了(停止フラグ/WrapperPid消滅)を実プロセスで確認。
-- **セッション分割ルール(コスト$15.9 > 閾値$7)により、ここでcommitのみ実施しpushはしない**。次回セッションで`verifier`検証(観点は§2参照)→PASSならpush。`lib/`不変・GAS変更なしのためデプロイ対象外。
-- 使用率: このセッションでの終了時点は未取得(session split優先のため`docs/token_optimization_design.md` §8への追記は次回セッション冒頭にまとめて行う)。
-- 2026-08-10のトラックA関連の合意事項・2026-08-13の一連のセッション(-5.78〜-5.82節、T5-A60〜A64)は変更なし、引き続き有効(詳細はdocs/archive/NEXT_SESSION_log.md)。
+- セッション冒頭、プリフライトOK・使用率取得(開始: セッション70%/週22%)・`git pull`(差分なし)・`loop_state.md`(コスト$0、新規ループ境界)を確認。`NEXT_SESSION.md`に「検証待ち」の記載があったためタスク選定・実装をスキップし検証から再開(ユーザーも`/full_loop 検証のみ`と明示)。5時間枠使用率70%は高めだったが検証のみの軽量ループのため続行。
+- `verifier`へT5-A65の検証を委譲、§2に記載した9観点(既存回帰・BOM・exit code契約・FP-05-HANG-AGYの2連続escalate・Watchdog誤爆回避・対象特定・自己終了・証拠束生成・ファイル復元)全てPASS。前セッションでexit 2→exit 1に修正した箇所も`grep`で再確認済み。
+- 全PASSのためcommit済み(`ea2a6d5`)をそのままpush(`18abf86..ea2a6d5`)。`lib/`不変・GAS変更なしのためデプロイ・本番確認は不要。
+- `docs/改修マスタープラン.md`のT5-A65行を✅完了済みへ移動(完了済み55件)、`docs/archive/マスタープラン_完了タスク.md`に詳細節を追加。`docs/token_optimization_design.md` §7・§8にT5-A65実装セッション分・検証セッション分をまとめて追記(実装セッションの終了時%は未取得のままだったため今回わかる範囲で補完)。
+- 使用率: 終了時点セッション77%/週22%(開始比+7pt/±0pt)。本ループコスト$5.1881・ターン0/30、余裕を残して完了。**5時間枠が77%まで上昇しているため、次回セッションは着手前に必ず状況を確認すること。**
+- T5-A12(夜間ループ3トリガー観察)は今回も確認できず持ち越し(§2参照)。2026-08-10のトラックA関連の合意事項・2026-08-13の一連のセッション(-5.78〜-5.83節、T5-A60〜A65)は変更なし、引き続き有効(詳細はdocs/archive/NEXT_SESSION_log.md)。
 
-> これ以前(-5.82節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.83節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

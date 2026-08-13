@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.83 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`同日中5回目のセッション〈夜〉、Windows環境。T5-A65実装、検証待ちでセッション分割)
+
+- セッション冒頭、プリフライトOK・使用率取得(開始: セッション46%/週19%)・`git pull`(差分なし)・`loop_state.md`(コスト$0)を確認。
+- タスク選定: NEXT_SESSION.mdの推奨どおりT5-A65(FP-05「エージェント/claudeハング」ルール実装、Mサイズ、依存T5-A61完了済み)を選定。⚠️上位モデルタスクは依存未充足のためこの通常タスクへフォールバック。設計(`docs/failure_playbook.md` §3 FP-05-HANG節)は確定済みのためarchitectを介さず`implementer`へ直接委譲。着手前に証拠束生成機能(§5)が未実装であることに気づき、見積もりをM目安からやや上振れ($8〜12)と修正のうえ着手。
+- implementerが実装: FP-05-HANG-AGY(FP-05(a)、`-Mode Postmortem`、`.claude/agy_logs/ledger.tsv`のexit_code=11を検知・記録のみ、同一task_id2回連続でescalate。タスクID単位カウントは`failure_state.json`のルールエントリへ`lastTaskId`/`taskConsecutive`を追加する形でimplementerが設計判断・報告)、FP-05(c)Watchdogモード(`-Mode Watchdog`単独プロセス、30秒間隔ポーリング、`-StallMinutes`/`-HardCapMinutes`をintからdoubleへ型変更、`Get-WatchdogTargets`で深さ5まで再帰的に子孫プロセス列挙しName=claude.exe/node.exeかつCommandLineにnight_loop含むものだけ対象、対象0件ならescalateのみ、有人時は停止せず検知のみ、2段階の警告→停止)、`Generate-EvidenceBundle`(§5証拠束生成、新規関数)を実装。
+- 親のdiffレビューで規約違反を発見・差し戻し: `docs/failure_playbook.md` §2-3(79行目)「exit 2を返してよいのはFP-07のみ、スタール検知は絶対にabortしない」というP1規約に反し、Watchdogのエスカレーション3箇所(有人時縮退/対象0件/実停止)がすべて`exit 2`を返していた。implementerへ差し戻し、`exit 1`への修正・再テスト(3シナリオ再実行してexit=1確認・BOM確認)を完了。この種のdiffレビューは今後も委譲直後に必ず行うこと(既存の「必須diffレビュー」ルールが実際に機能した事例)。
+- テスト内容(implementer実施、既存ファイルはすべて復元済み): 構文・BOM確認、`-Mode Preflight/Postmortem/Check`の既存ルール回帰無し確認、FP-05-HANG-AGYの2連続escalate確認、Watchdogの誤爆回避(対象0件/デコイプロセス無傷)・2段階警告→停止・自己終了(停止フラグ/WrapperPid消滅)を実プロセスで確認。
+- セッション分割ルール(コスト$15.9 > 閾値$7)により、ここでcommitのみ実施しpushはしない。次回セッションで`verifier`検証→push(結果は-5.84節参照)。`lib/`不変・GAS変更なしのためデプロイ対象外。
+- 2026-08-10のトラックA関連の合意事項・2026-08-13前半セッション(-5.78〜-5.82節、T5-A60〜A64)は変更なし、引き続き有効。
+
 ### -5.82 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`同日中4回目のセッション〈夜〉、Windows環境。T5-A64実装〈前セッション分〉)
 
 - セッション冒頭、プリフライトOK・使用率取得(開始: セッション24%/週17%)・`git pull`(差分なし)・`loop_state.md`(コスト$0)を確認。現在時刻20:26台のため今晩23:00の夜間ループトリガーは未発火、T5-A12観察は今回も持ち越し。
