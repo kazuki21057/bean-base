@@ -10,32 +10,47 @@
       powershell -File tools\night_loop.ps1               通常起動
       powershell -File tools\night_loop.ps1 -DryRun        claudeを起動せず予定コマンドと
                                                              環境変数伝搬だけを確認する
-      powershell -File tools\night_loop.ps1 -Force         5時間枠チェックと週次予算ガードを
-                                                             スキップする(有人監視下試走用、
-                                                             多重起動ガード・slug解決・
+      powershell -File tools\night_loop.ps1 -Force         有人セッション活動チェック・
+                                                             Proプラン使用率ガード・
+                                                             作業ツリー汚れガード・
+                                                             週次予算ガードをスキップする
+                                                             (有人監視下試走用、多重起動
+                                                             ガード・slug解決・
                                                              settings.night.json存在チェック・
                                                              git pullはスキップしない)
       powershell -File tools\night_loop.ps1 -ConfigPath X  既定は tools\night_loop.config.json
 
     tools/night_loop.config.json のキー(JSONにコメントを書けないためここに説明を置く):
-      weeklyRunLimit     週次予算ガードの上限回数(既定12)。直近7日の .claude/night_runs.log
-                         の行数がこれ以上ならスキップする。
-      sessionWindowHours 5時間枠チェックの窓の長さ(既定5)。プロジェクトのtranscript
-                         (*.jsonl)の最新更新時刻からこの時間未満ならスキップする。
-      staleLockHours     多重起動ガードのロックファイルをstale(放棄済み)とみなす経過時間
-                         (既定3)。PIDが実在してもこの時間を超えていれば奪取する。
-      model              claude起動時の --model(既定 "sonnet")。
-      maxBudgetUsd       claude起動時の --max-budget-usd(既定8、設計書§5の夜間コスト上限
-                         $8に対応)。旧 maxTurns キーは廃止(--max-turnsはclaude CLIに
-                         実在しないオプションのため2026-08-08に置き換えた)。
-      settingsPath       claude起動時の --settings に渡すパス
-                         (既定 ".claude\settings.night.json")。
-      projectSlug        ~/.claude/projects/ 配下のプロジェクトslugを明示指定したい場合に
-                         設定する(既定 null = 自動解決)。指定時は存在確認し、無ければ
-                         エラー終了する。
+      weeklyRunLimit          週次予算ガードの上限回数(既定12)。直近7日の
+                              .claude/night_runs.log の行数がこれ以上ならスキップする。
+      activeSessionMinutes    有人セッション活動チェックの窓の長さ(分、既定45)。
+                              プロジェクトのtranscript(*.jsonl)から抽出した最新の会話
+                              エントリのtimestampからこの分数未満ならスキップする
+                              (2026-08-13、T5-A12。旧sessionWindowHoursのmtime方式は
+                              アイドル中セッションのmtime書き換え周期と判定窓が一致し
+                              恒久スキップを起こしたため廃止)。
+      usageGuardEnabled       Proプラン使用率ガードの有効/無効(既定true)。
+      usageGuardUrl           使用率取得先URL(既定 http://localhost:3000/)。
+      usageGuardTimeoutSec    使用率取得のタイムアウト秒数(既定3)。
+      usageSessionMaxPercent  5時間枠の使用率がこの%以上ならスキップ(既定85)。
+      usageWeekMaxPercent     週次の使用率がこの%以上ならスキップ(既定90)。
+      worktreeGuardEnabled    作業ツリー汚れガードの有効/無効(既定true)。
+      staleLockHours          多重起動ガードのロックファイルをstale(放棄済み)とみなす
+                              経過時間(既定3)。PIDが実在してもこの時間を超えていれば
+                              奪取する。
+      model                   claude起動時の --model(既定 "sonnet")。
+      maxBudgetUsd            claude起動時の --max-budget-usd(既定8、設計書§5の夜間コスト
+                              上限$8に対応)。旧 maxTurns キーは廃止(--max-turnsはclaude
+                              CLIに実在しないオプションのため2026-08-08に置き換えた)。
+      settingsPath            claude起動時の --settings に渡すパス
+                              (既定 ".claude\settings.night.json")。
+      projectSlug             ~/.claude/projects/ 配下のプロジェクトslugを明示指定したい
+                              場合に設定する(既定 null = 自動解決)。指定時は存在確認し、
+                              無ければエラー終了する。
 
     終了コード:
-      0  正常終了 / 正常スキップ(多重起動中・5時間枠内・週次上限到達)
+      0  正常終了 / 正常スキップ(多重起動中・有人セッション活動中・Proプラン使用率上限・
+         作業ツリー汚れあり・週次上限到達)
       2  エラー終了(設定ファイルJSON不正・claude未検出・slug解決失敗・
          settings.night.json不在/JSON不正・git pull失敗)
       3  claude が異常終了した(claudeの終了コードが非0)
@@ -254,6 +269,40 @@ function Save-NightLoopLastRun {
     }
 }
 
+# 有人セッション活動チェック用ヘルパー(2026-08-13、T5-A12)。
+# transcript(*.jsonl)の「最終更新時刻(mtime)」は、開いたままのセッションが会話が無くても
+# 周期的に書き換えることが実測で確認されており(旧方式は判定窓5時間と書き換え周期5時間が
+# 一致し恒久スキップを起こした)、代理指標として成立しない。会話エントリ自体のtimestampを
+# 見る方式に切り替える。
+function Get-LastConversationActivity {
+    param([string]$TranscriptDir)
+
+    $jsonlFiles = @(Get-ChildItem -Path $TranscriptDir -Filter '*.jsonl' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 5)
+
+    $latest = $null
+    $pattern = '"timestamp":"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)"'
+    foreach ($file in $jsonlFiles) {
+        $lines = Get-Content -Path $file.FullName -Tail 200 -ErrorAction SilentlyContinue
+        foreach ($line in $lines) {
+            $matches = [regex]::Matches($line, $pattern)
+            foreach ($m in $matches) {
+                $ts = $null
+                try {
+                    $ts = [datetime]::Parse($m.Groups[1].Value, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind).ToLocalTime()
+                } catch {
+                    continue
+                }
+                if ($null -eq $latest -or $ts -gt $latest) {
+                    $latest = $ts
+                }
+            }
+        }
+    }
+    return $latest
+}
+
 # --disallowedTools を含む起動予定コマンドを組み立てる(設計書§2-4の改訂版がベース。
 # ただしstdout/stderrの扱いはadversary指摘M3対応でTee-Object単独+stderr個別ファイルに
 # 変更しているため、実際にInvoke-NightLoopが実行する内容と一致させて表示する)。
@@ -283,13 +332,19 @@ function Get-NightLoopConfig {
     param([string]$Path)
 
     $config = @{
-        weeklyRunLimit     = 12
-        sessionWindowHours = 5
-        staleLockHours     = 3
-        model              = 'sonnet'
-        maxBudgetUsd       = 8
-        settingsPath       = '.claude\settings.night.json'
-        projectSlug        = $null
+        weeklyRunLimit         = 12
+        activeSessionMinutes   = 45
+        usageGuardEnabled      = $true
+        usageGuardUrl          = 'http://localhost:3000/'
+        usageGuardTimeoutSec   = 3
+        usageSessionMaxPercent = 85
+        usageWeekMaxPercent    = 90
+        worktreeGuardEnabled   = $true
+        staleLockHours         = 3
+        model                  = 'sonnet'
+        maxBudgetUsd           = 8
+        settingsPath           = '.claude\settings.night.json'
+        projectSlug            = $null
     }
 
     if (-not (Test-Path $Path)) {
@@ -309,10 +364,13 @@ function Get-NightLoopConfig {
         return $null
     }
 
-    foreach ($key in @('weeklyRunLimit', 'sessionWindowHours', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug')) {
+    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageGuardEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'usageSessionMaxPercent', 'usageWeekMaxPercent', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug')) {
         if ($json.PSObject.Properties.Name -contains $key -and $null -ne $json.$key) {
             $config[$key] = $json.$key
         }
+    }
+    if ($json.PSObject.Properties.Name -contains 'sessionWindowHours') {
+        Write-Log 'WARN' '設定の sessionWindowHours は廃止されました(activeSessionMinutes に置き換え)。この値は無視されます。'
     }
     Write-Log 'INFO' ('設定ファイルを読み込みました: {0}' -f $Path)
     return $config
@@ -434,26 +492,74 @@ function Invoke-NightLoop {
     }
     $TranscriptDir = Join-Path $ProjectsRoot $slug
 
-    # --- 5. 5時間枠チェック ---
+    # --- 5. 有人セッション活動チェック ---
     if ($Force) {
-        Write-Log 'INFO' '-Force指定のため5時間枠チェックをスキップします。'
+        Write-Log 'INFO' '-Force指定のため有人セッション活動チェックをスキップします。'
     } else {
-        $jsonlFiles = @(Get-ChildItem -Path $TranscriptDir -Filter '*.jsonl' -ErrorAction SilentlyContinue)
-        if ($jsonlFiles.Count -gt 0) {
-            $last = ($jsonlFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
-            $elapsedHours = ((Get-Date) - $last).TotalHours
-            if ($elapsedHours -lt [double]$Config.sessionWindowHours) {
-                Write-Log 'INFO' ('直近{0}時間以内にセッション活動があるため({1}、経過{2}時間)、今回の発火をスキップします。' -f $Config.sessionWindowHours, $last, [math]::Round($elapsedHours, 2))
-                $skipReason = ('直近{0}時間以内にセッション活動があるため(最終更新{1}、経過{2}時間)' -f $Config.sessionWindowHours, $last, [math]::Round($elapsedHours, 2))
+        $lastActivity = Get-LastConversationActivity -TranscriptDir $TranscriptDir
+        if ($null -eq $lastActivity) {
+            Write-Log 'INFO' 'transcriptに会話エントリが見つからないため、有人セッション活動チェックを通過とみなします。'
+        } else {
+            $elapsedMinutes = ((Get-Date) - $lastActivity).TotalMinutes
+            if ($elapsedMinutes -lt [double]$Config.activeSessionMinutes) {
+                Write-Log 'INFO' ('直近{0}分以内に有人セッションの会話活動があるため(最終会話{1}、経過{2}分)、今回の発火をスキップします。' -f $Config.activeSessionMinutes, $lastActivity, [math]::Round($elapsedMinutes, 1))
+                $skipReason = ('直近{0}分以内に有人セッションの会話活動があるため(最終会話{1}、経過{2}分)' -f $Config.activeSessionMinutes, $lastActivity, [math]::Round($elapsedMinutes, 1))
                 $skipFallback = Join-Path $NightLogsDir ('night_skips.fallback-{0}.log' -f $PID)
-                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_session_window', $skipReason
+                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_active_session', $skipReason
                 $null = Write-LineWithRetry -Path $NightSkipsLogPath -Line $skipLine -FallbackPath $skipFallback
-                Save-NightLoopLastRun -Outcome 'skipped_session_window' -Reason $skipReason -ExitCode 0
+                Save-NightLoopLastRun -Outcome 'skipped_active_session' -Reason $skipReason -ExitCode 0
                 return 0
             }
-            Write-Log 'INFO' ('直近のセッション活動: {0}(経過{1}時間)。5時間枠チェックを通過しました。' -f $last, [math]::Round($elapsedHours, 2))
-        } else {
-            Write-Log 'INFO' 'transcriptファイルが1件も見つからないため、5時間枠チェックを通過とみなします。'
+            Write-Log 'INFO' ('直近の会話活動: {0}(経過{1}分)。有人セッション活動チェックを通過しました。' -f $lastActivity, [math]::Round($elapsedMinutes, 1))
+        }
+    }
+
+    # --- 5.5. Proプラン使用率ガード ---
+    if ($Force) {
+        Write-Log 'INFO' '-Force指定のためProプラン使用率ガードをスキップします。'
+    } elseif ($Config.usageGuardEnabled -ne $true) {
+        Write-Log 'INFO' 'Proプラン使用率ガードは設定で無効化されているためスキップします。'
+    } else {
+        $usageSession = $null
+        $usageWeek = $null
+        $usageFailOpen = $false
+        try {
+            $usageResponse = Invoke-WebRequest -Uri $Config.usageGuardUrl -TimeoutSec $Config.usageGuardTimeoutSec -UseBasicParsing
+            $usageContent = $usageResponse.Content
+            $sessionMatch = [regex]::Match($usageContent, 'Current session:\s*(\d+)%', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($sessionMatch.Success) {
+                $usageSession = [int]$sessionMatch.Groups[1].Value
+            } else {
+                Write-Log 'WARN' '使用率APIのレスポンスから5時間枠の値を取得できませんでした。'
+            }
+            $weekMatch = [regex]::Match($usageContent, 'Current week[^:]*:\s*(\d+)%', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($weekMatch.Success) {
+                $usageWeek = [int]$weekMatch.Groups[1].Value
+            } else {
+                Write-Log 'WARN' '使用率APIのレスポンスから週次の値を取得できませんでした。'
+            }
+        } catch {
+            $usageFailOpen = $true
+            Write-Log 'WARN' ('使用率APIに接続できないため使用率ガードを通過とみなします(fail-open): {0}' -f $_.Exception.Message)
+        }
+
+        if (-not $usageFailOpen) {
+            $sessionText = '未取得'
+            if ($null -ne $usageSession) { $sessionText = '{0}%' -f $usageSession }
+            $weekText = '未取得'
+            if ($null -ne $usageWeek) { $weekText = '{0}%' -f $usageWeek }
+
+            $usageOverLimit = (($null -ne $usageSession) -and ($usageSession -ge [int]$Config.usageSessionMaxPercent)) -or (($null -ne $usageWeek) -and ($usageWeek -ge [int]$Config.usageWeekMaxPercent))
+            if ($usageOverLimit) {
+                Write-Log 'INFO' ('Proプラン使用率が上限に達しているため(5時間枠{0} / 週次{1}、しきい値 {2}% / {3}%)、今回の発火をスキップします。' -f $sessionText, $weekText, $Config.usageSessionMaxPercent, $Config.usageWeekMaxPercent)
+                $skipReason = ('Proプラン使用率が上限に達しているため(5時間枠{0} / 週次{1}、しきい値 {2}% / {3}%)' -f $sessionText, $weekText, $Config.usageSessionMaxPercent, $Config.usageWeekMaxPercent)
+                $skipFallback = Join-Path $NightLogsDir ('night_skips.fallback-{0}.log' -f $PID)
+                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_usage_quota', $skipReason
+                $null = Write-LineWithRetry -Path $NightSkipsLogPath -Line $skipLine -FallbackPath $skipFallback
+                Save-NightLoopLastRun -Outcome 'skipped_usage_quota' -Reason $skipReason -ExitCode 0
+                return 0
+            }
+            Write-Log 'INFO' ('Proプラン使用率: 5時間枠{0} / 週次{1}。使用率ガードを通過しました。' -f $sessionText, $weekText)
         }
     }
 
@@ -543,6 +649,39 @@ function Invoke-NightLoop {
             Send-ToastNotification -Title 'BeanBase 夜間ループ' -Text $toastText
             Save-NightLoopLastRun -Outcome 'error_settings' -Reason $resultLine -ExitCode 2
             return 2
+        }
+    }
+
+    # --- 7.5. 作業ツリー汚れガード ---
+    if ($Force) {
+        Write-Log 'INFO' '-Force指定のため作業ツリー汚れガードをスキップします。'
+    } elseif ($Config.worktreeGuardEnabled -ne $true) {
+        Write-Log 'INFO' '作業ツリー汚れガードは設定で無効化されているためスキップします。'
+    } else {
+        Push-Location $RepoRoot
+        try {
+            $statusOutput = & cmd /c 'git status --porcelain 2>&1'
+            $statusExit = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        if ($statusExit -ne 0) {
+            Write-Log 'WARN' ('git status --porcelain が失敗しました(終了コード {0})。作業ツリー汚れガードは通過とみなします(直後の git pull が同じ異常を捕まえます)。' -f $statusExit)
+        } else {
+            $dirtyLines = @($statusOutput | Where-Object { $_ -and $_.Trim() })
+            if ($dirtyLines.Count -gt 0) {
+                $dirtyCount = $dirtyLines.Count
+                $firstLine = $dirtyLines[0]
+                Write-Log 'INFO' ('作業ツリーに未コミットの変更が{0}件あるため(先頭: {1})、今回の発火をスキップします。' -f $dirtyCount, $firstLine)
+                $skipReason = ('作業ツリーに未コミットの変更が{0}件あるため(先頭: {1})' -f $dirtyCount, $firstLine)
+                $skipFallback = Join-Path $NightLogsDir ('night_skips.fallback-{0}.log' -f $PID)
+                $skipLine = "{0}`t{1}`t{2}" -f (Get-Date).ToString('o'), 'skipped_dirty_worktree', $skipReason
+                $null = Write-LineWithRetry -Path $NightSkipsLogPath -Line $skipLine -FallbackPath $skipFallback
+                Send-NightNotification -ResultLine '⚠️ スキップ(作業ツリーに未コミットの変更あり)' -Detail 'git status を確認し、コミットまたは退避してから次回の発火を待ってください。'
+                Save-NightLoopLastRun -Outcome 'skipped_dirty_worktree' -Reason $skipReason -ExitCode 0
+                return 0
+            }
+            Write-Log 'INFO' '作業ツリーはクリーンです。'
         }
     }
 

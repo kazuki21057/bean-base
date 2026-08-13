@@ -1,13 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-12(Sonnet 5、`/full_loop`新規セッション、Windows環境。夜間ループが2026-08-10登録以降3日間無音停止していた原因〈孤児化した`tail.exe`によるwrapper.logロック競合〉をarchitectが特定・implementerが修正、observability強化)
+最終更新: 2026-08-13(Sonnet 5、`/full_loop`新規セッション、Windows環境。**検証待ち**。夜間ループが08-12の修正後も一度も本処理を実行できていなかった別バグ〈`sessionWindowHours`判定がmtimeの周期書き換えで恒久デッドロック〉をarchitectが特定、implementerが「有人セッション活動チェック」を会話timestamp基準に再設計・実装。commit済み・push/検証は次回セッション)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-12最優先】夜間ループが2026-08-10のタスクスケジューラ登録以降、実質3日間〈6回のトリガー全て〉何もしていなかった不具合を修正済み**。根本原因: 過去のセッションでBashから起動した`tail -f .claude/night_logs/wrapper.log`が親プロセス消滅後も孤児として残り(PID 23764)、`wrapper.log`のファイルロックを握り続けていた。`Write-Log`の`Add-Content`失敗は非終端エラーのため既存の`try/catch`で捕捉されず、夜間ループは無音のまま「何をしたか一切記録できない」状態になっていた(タスクスケジューラ自体は`LastTaskResult=0`=成功と誤報告し続けていた)。**対応**: (1)孤児プロセスをユーザー許可を得て停止済み(`Stop-Process`は分類器にブロックされたため、回避せずチャットで確認してから実行)。(2)`tools/night_loop.ps1`に`architect`原因究明→`implementer`実装で恒久対策を実装・commit・push済み(77d6094): `Write-Log`のロック耐性化(`-ErrorAction Stop`+3回リトライ+`wrapper.fallback-<PID>.log`)/`wrapper.log`の日次ローテーション化/全returnパスで`.claude/night_loop_last_run.json`に`outcome`・`reason`等を上書き記録/5時間枠スキップ専用の`.claude/night_skips.log`。**今夜23:00のトリガー後、`.claude/night_loop_last_run.json`の`startedAt`が23:00台になっているかを見れば「発火したか」が、`outcome`を見れば「なぜ完了/スキップしたか」が一目で分かる**。もし`outcome`が`skipped_session_window`であれば「原因B(5時間枠チェックが頻繁に短時間セッションと衝突している)」が確定するので、`sessionWindowHours`やトリガー時刻の見直しを検討すること(architectの調査ではこの仮説は未確定のまま持ち越されている)。
+- **【2026-08-13最優先・検証待ち】08-12の修正後も夜間ループは一度も本処理(`claude -p`起動)を実行できていなかった(別バグ)**。08-12の修正でobservabilityは直ったが、再登録(8/10)以降に確認できた直近4回のトリガー(8/12 10:02〈手動〉・23:00、8/13 04:10・09:20)は**全て`skipped_session_window`でスキップ**、`.claude/night_runs.log`は8/9〜8/10の3件のまま増えていなかった。**根本原因(architectが実測で特定)**: 判定に使っていた「プロジェクト内`*.jsonl`の最終更新時刻(mtime)」が、**会話が無くてもアイドル中のセッションによって5時間周期で書き換わる**ため、判定窓(`sessionWindowHours`既定5時間)と一致して恒久デッドロックになっていた(4回の経過時間はいずれも0.07〜0.39時間で「ぎりぎり」ではなく直近数十分前の書き換えが常に検知されていた。全126jsonlに問題時刻の会話エントリは1件も無いことを確認済み)。稼働中プロセスの検出も同様に破綻する(アイドルセッションのプロセスが11.7時間生存)ため不採用。**対策**: mtime方式を撤廃し、(G1)transcript内の会話`timestamp`(UTC→JST変換)を見る「有人セッション活動チェック」(既定45分)、(G2)Proプラン使用率API(`localhost:3000`、fail-open)による使用率ガード、(G3)`git status --porcelain`による作業ツリー汚れガード、の3本立てに再設計。`tools/night_loop.ps1`・`tools/night_loop.config.json`を実装済み、implementerがDryRun等で構文・BOM・UTC変換・fail-openを確認済み(詳細は§3参照)。**コスト閾値超過($10.7)によりこのセッションではpush・verifier検証・実地の3トリガー観察が未完了**。次回セッションでverifier検証→push→今晩の3トリガー観察、が必要。
+- **【2026-08-12】夜間ループが2026-08-10のタスクスケジューラ登録以降、実質3日間〈6回のトリガー全て〉何もしていなかった不具合を修正済み**。根本原因: 過去のセッションでBashから起動した`tail -f .claude/night_logs/wrapper.log`が親プロセス消滅後も孤児として残り(PID 23764)、`wrapper.log`のファイルロックを握り続けていた。`Write-Log`の`Add-Content`失敗は非終端エラーのため既存の`try/catch`で捕捉されず、夜間ループは無音のまま「何をしたか一切記録できない」状態になっていた(タスクスケジューラ自体は`LastTaskResult=0`=成功と誤報告し続けていた)。**対応**: (1)孤児プロセスをユーザー許可を得て停止済み(`Stop-Process`は分類器にブロックされたため、回避せずチャットで確認してから実行)。(2)`tools/night_loop.ps1`に`architect`原因究明→`implementer`実装で恒久対策を実装・commit・push済み(77d6094): `Write-Log`のロック耐性化(`-ErrorAction Stop`+3回リトライ+`wrapper.fallback-<PID>.log`)/`wrapper.log`の日次ローテーション化/全returnパスで`.claude/night_loop_last_run.json`に`outcome`・`reason`等を上書き記録/5時間枠スキップ専用の`.claude/night_skips.log`。**今夜23:00のトリガー後、`.claude/night_loop_last_run.json`の`startedAt`が23:00台になっているかを見れば「発火したか」が、`outcome`を見れば「なぜ完了/スキップしたか」が一目で分かる**。もし`outcome`が`skipped_session_window`であれば「原因B(5時間枠チェックが頻繁に短時間セッションと衝突している)」が確定するので、`sessionWindowHours`やトリガー時刻の見直しを検討すること(architectの調査ではこの仮説は未確定のまま持ち越されている)。
 - **教訓**: Bashツールで`tail -f`等の常駐監視コマンドを実行しない(親プロセスが消えても孤児として残り、対象ファイルへの書き込みを恒久的にブロックする)。ログの末尾だけ見たい場合は`Get-Content -Tail N`(常駐しない)を使う。
 - **2026-08-10、トラックA自動選定枯渇への対応をユーザーと合意**: (1)**T5-A7をトラックAからトラックBへ分類変更**(依存が`T5-B1`のためトラックA完成の前提と矛盾していた。IDはT5-A7のまま`docs/改修マスタープラン.md`のトラックB/P0節へ移動済み)。(2)**T5-A45(goldenのOS非依存化)は先送りで確定**(ユーザー: Ubuntu環境はあまり使わないため今は不要)。(3)**T5-A12の観察を「3晩」から「1晩のうち5時間10分間隔の3回」へ圧縮する方針にユーザー指示で変更**——タスクスケジューラを単一タスク`BeanBase_NightLoop`(23:00/04:10/09:20の3トリガー、`tools\night_loop.ps1`起動、WakeToRun有効、LogonType Interactive)へ再登録済み(旧`BeanBase_NightLoop_2300`は削除)。`NextRunTime`は2026-08-10 23:00、以降04:10・09:20と続く。**現状トラックAに着手可能なタスクが無いため、実装→検証→pushの一連の流れを検証する目的でダミータスクT5-A46/A47/A48(`docs/night_loop_verification_log.md`に1行ずつ追記するだけの安全な逐次タスク、A47→A46/A48→A47の依存で1回の発火につき1件ずつ消化される設計)をマスタープランに追加した**。**3回とも成功すればT5-A12は段階4・5を同時に満たし完了済みにできる**(04:10・09:20が既に登録済みのため)。失敗した場合は原因を確認し、必要なら23:00枠のみに縮退することを検討する。T5-A46〜A48は検証専用のため、3回の確認が終わったら`docs/night_loop_verification_log.md`ごとマスタープランから削除してよい(ユーザー承認済み)。
 - **T5-A41(agyパイロット試用)は2026-08-10完了**。`tools/antigravity_delegate.ps1`経由でT5-A25/T5-A29/T5-A13の3タスクを実際にagyへ委譲、3件とも「採用」相当と判定。`docs/antigravity_delegation_design.md` §9.5の状態遷移を「パイロット」→**「条件付き常時」**(`docs/`・`tools/`・`.claude/`の非Dartファイル+`lib/`配下のS規模タスクがagy対象)へ移行済み。「常時委譲」への移行には`lib/`配下での追加3件の実績が必要。**ただし`lib/`配下のタスクは現状ほぼ全てトラックB(製品開発)所属で、「トラックA完成までトラックB本格化させない」規約(§4)に抵触するため、当面この実績蓄積は着手見送り**。トラックAが完成し次第、依存の満たされた`lib/`配下S規模タスクでagy委譲を試みること。
@@ -27,9 +28,10 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-12更新、最優先】次回セッションはまず今晩(23:00/04:10/09:20)の夜間ループが実際に発火・完走したかを`.claude/night_loop_last_run.json`で確認すること**(2026-08-12に無音停止バグ〈孤児化した`tail.exe`によるwrapper.logロック競合〉を修正済み、詳細は§1参照)。確認順序: (1)`.claude/night_loop_last_run.json`の`startedAt`が23:00/04:10/09:20台になっているか(なっていなければ発火自体していない→タスクスケジューラ側〈`Get-ScheduledTaskInfo`・`Microsoft-Windows-TaskScheduler/Operational`イベントログ〉を確認)。(2)`outcome`の値を見る——`completed`なら正常完走、`skipped_session_window`なら5時間枠チェックが頻繁に短時間セッションと衝突している「原因B」が確定(architectが未確定のまま持ち越した仮説)、その場合は`tools/night_loop.config.json`の`sessionWindowHours`かトリガー時刻の見直しをarchitectに検討させる。(3)`.claude/night_skips.log`・`docs/night_loop_verification_log.md`(T5-A46〜A48が1行ずつ追記されていれば実際にタスクまで到達した証拠)・`git log`も併せて確認する。
->   - **3回とも`completed`でT5-A46〜A48も完了**→ T5-A12を✅完了済みへ移す。T5-A17の(b)も検証完了として✅へ。T5-A46〜A48のマスタープラン行と`docs/night_loop_verification_log.md`を削除してよい(ユーザー承認済み、検証専用のため)。T5-A16に着手できる。
->   - **`skipped_session_window`が続く**→ 原因Bが確定。`sessionWindowHours`短縮かトリガー時刻の間引きをarchitectへ相談。
+> **【2026-08-13更新、最優先・検証待ちの続き】まず`git log -1`でcommit(未push)の内容を確認し、`verifier`へ検証を委譲すること**(委譲テンプレートは`full_loop`スキル手順4参照。判定条件: `tools\night_loop.ps1 -DryRun`で有人セッション中なら`skipped_active_session`が出ること、`-DryRun -Force`で`outcome=completed`になること、`localhost:3000`不通環境で使用率ガードがfail-open〈WARN後に処理継続〉すること、`.claude/night_skips.log`がタブ区切り3列のまま・`night_loop_last_run.json`のキーが7つのままであること。`lib/`/`test/`は無変更のため`flutter analyze`/`test`/`build`は形式確認のみでよい)。検証OKならpush(コード変更を含むが検証済みのため確認不要、`CLAUDE.md`§日次改修ループ運用ルール参照)。
+> **push後、今晩以降の3トリガー(23:00/04:10/09:20)を`.claude/night_loop_last_run.json`・`.claude/night_runs.log`で観察すること**。判定基準: 有人セッション中の発火は`skipped_active_session`、真に無人の発火は`outcome=completed`となり`night_runs.log`が増分することを期待(§1参照、architect実測に基づく回帰テストの期待値: 8/12 10:02・23:00はスキップが正しく、8/13 04:10・09:20は実行が正しい、が現行データでの検証済み期待値)。
+>   - **無人時間帯の発火で`night_runs.log`が増分**→ T5-A12を✅完了済みへ移す。T5-A17の(b)も検証完了として✅へ。T5-A46〜A48のマスタープラン行と`docs/night_loop_verification_log.md`を削除してよい(ユーザー承認済み、検証専用のため)。T5-A16に着手できる。
+>   - **無人時間帯でも`skipped_active_session`や新設ガード(`skipped_usage_quota`/`skipped_dirty_worktree`)が続く**→ 新設ガードの閾値(`activeSessionMinutes`等)の見直しをarchitectへ相談。
 >   - **`night_loop_last_run.json`自体が更新されていない**→ 発火そのものの問題(タスクスケジューラ設定・Windows側要因)、新規の原因究明が必要。
 >
 > **上記確認が完了するまで新規の自動選定可能タスクは無い可能性が高い**(トラックBは既存規約により本格化せず、⚠️上位モデルタスクは依存未充足)。その場合は`full_loop`スキルの規則3(ユーザー承認待ち)に従い、状況を報告してユーザーに次の判断(トラックB本格化の是非を含む)を仰ぐこと。
@@ -60,18 +62,17 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.76 当日やったこと(2026-08-12、Sonnet 5、`/full_loop`新規セッション、Windows環境。夜間ループ無音停止バグの発見・原因究明・修正)
+### -5.77 当日やったこと(2026-08-13、Sonnet 5、`/full_loop`新規セッション、Windows環境。**検証待ち**。夜間ループが本当に一度も実行できていなかった原因の特定と修正)
 
-- **状況確認**: 使用率`Current session`5%・`Current week`89%(週次が既に高水準)。`git pull`は最新、`.claude/loop_state.md`は余裕あり。しかし前回セッション(2026-08-10)がタスクスケジューラへ登録した夜間ループ(23:00/04:10/09:20)の成果物(`night_report.md`・`docs/night_loop_verification_log.md`・T5-A46〜A48・commit)が一切見当たらないことに気づき、`Get-ScheduledTaskInfo`で確認したところ`LastTaskResult=0`(成功)なのに`.claude/night_logs/wrapper.log`が2026-08-09 20:29で更新停止していることを発見。
-- **ユーザーに方針確認**(`AskUserQuestion`1往復): 週次使用率89%という高水準と、夜間ループが3日間無音停止している異常の両方を提示。ユーザーは「通常どおり最優先タスク(agy正式運用)を実施」を選択、夜間ループについては「特に心当たりはない」との回答。ただしagy正式運用移行の次段階は`lib/`配下タスクの実績蓄積が必要でトラックB本格化禁止ルールに抵触し着手不可と判明したため、実質的にこの夜間ループ異常が本ループで唯一対応可能な事項と判断。
-- **architectへ原因究明を委譲**(117,491トークン): 孤児化した`tail -f`プロセス(PID 23764、2026-08-09 20:29:44起動)が`wrapper.log`のファイルロックを握り続け、`Write-Log`の`Add-Content`失敗が非終端エラーのため`try/catch`で捕捉されず無音で記録が失われていたことを特定(Restart Manager APIで実証)。5時間枠スキップの可能性も未確定の副次仮説として提示。
-- **ユーザー許可を得て孤児プロセスを停止**(`Stop-Process`が分類器にブロックされたため、チャットで説明→許可を得てから実行。回避は試みず)。
-- **implementerへ恒久対策の実装を委譲**(76,376トークン): `tools/night_loop.ps1`に(1)`Write-Log`のロック耐性化(`-ErrorAction Stop`+3回リトライ+フォールバックファイル)(2)`wrapper.log`の日次ローテーション化(3)全returnパスで`.claude/night_loop_last_run.json`に`outcome`等を上書き記録(4)5時間枠スキップ専用の`.claude/night_skips.log`、を実装。PSParser構文チェック・`-DryRun`実行・BOM維持・git status確認で検証済み。
-- **commit・push済み**(77d6094)。`docs/token_optimization_design.md` §7・§8、`rules/lessons_archive.md`(L145)・`rules/verification.md`に記録。
-- **今夜23:00のトリガー後、`.claude/night_loop_last_run.json`を見れば発火有無と`outcome`(完了/各種スキップ理由)が判別できるようになった**(次回セッションでの最優先確認事項、§2参照)。
+- ユーザー指示「現在の状況を確認して。うまくタスクスケジューラが起動してなければ原因調査して。」を受けて調査を実施。
+- **状況確認**: `Get-ScheduledTaskInfo`でタスクスケジューラ自体は23:00/04:10/09:20に正しく発火(`LastTaskResult=0`)していることを確認。しかし`.claude/night_skips.log`を見ると再登録(8/10)以降の直近4回のトリガー(8/12 10:02手動・23:00、8/13 04:10・09:20)が**全て`skipped_session_window`**で、`.claude/night_runs.log`(実処理が走ると増える)は8/9〜8/10の3件のまま止まっていることを発見。08-12の修正(observability強化)は正しく機能したが、それによって「実は一度も本処理を実行できていない」別の不具合が可視化された形。
+- **architectへ原因究明・再設計を委譲**(83,963トークン): 当初の想定(教訓L141=有人セッションとの同時実行懸念)は誤りで、正本`開発運用基盤設計.md` §2-2記載の本来の目的は「Proプラン5時間枠の食い合い防止」と判明。実測で真因を特定: 判定に使っていた`*.jsonl`のmtimeが**会話が無くてもアイドル中のセッションにより5時間周期で書き換わり**、判定窓(`sessionWindowHours`既定5時間)と一致して恒久デッドロックになっていた(全126jsonlに問題時刻の会話エントリが1件も無いことを確認)。稼働中プロセスの検出も同様に破綻(アイドルプロセスが11.7時間生存)するため不採用と判断。mtime方式を撤廃し、(G1)会話`timestamp`基準の「有人セッション活動チェック」(45分)・(G2)Proプラン使用率APIガード(fail-open)・(G3)作業ツリー汚れガードの3本立てへ再設計、implementerへの実装タスク仕様まで分解。
+- **implementerへ実装を委譲**(100,146トークン): `tools/night_loop.ps1`・`tools/night_loop.config.json`を仕様どおり実装。構文チェック・BOM維持・DryRun(有人セッション中は`skipped_active_session`、`-Force`で`outcome=completed`)・UTC/JST変換・fail-open・既存資産(スキーマ)の非破壊、を確認済み(implementer自身の検証、詳細は実装コミットのdiff参照)。
+- `docs/android_release/開発運用基盤設計.md` §2-1・§2-2・§2-5、`rules/lessons_archive.md`(L146)、`docs/改修マスタープラン.md`(T5-A12行に判明事項を追記、ステータス🔶のまま)も更新済み。
+- **セッション分割ルール(コスト$10.7 > 閾値$7)により、ここでcommitのみ実施しpushはしない**。次回セッションでverifier検証→push→今晩以降の3トリガー実地観察が必要(§1・§2参照)。
 - 2026-08-10のトラックA関連の合意事項(T5-A7のトラックB移動・T5-A45先送り・T5-A12の1晩3回観察・T5-A46〜A48ダミータスク追加)は変更なし、引き続き有効。
 
-> これ以前(-5.75節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.76節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

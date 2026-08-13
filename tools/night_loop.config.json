@@ -1,6 +1,12 @@
 {
   "weeklyRunLimit": 12,
-  "sessionWindowHours": 5,
+  "activeSessionMinutes": 45,
+  "usageGuardEnabled": true,
+  "usageGuardUrl": "http://localhost:3000/",
+  "usageGuardTimeoutSec": 3,
+  "usageSessionMaxPercent": 85,
+  "usageWeekMaxPercent": 90,
+  "worktreeGuardEnabled": true,
   "staleLockHours": 3,
   "model": "sonnet",
   "maxBudgetUsd": 8,
