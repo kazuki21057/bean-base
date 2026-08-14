@@ -221,3 +221,4 @@
 - L97 `Bash`ツール(Git Bash)にPowerShellのhere-string(`@'...'@`)を渡すとコミットメッセージの先頭・末尾に`@`行が混入する。多行はheredocか`-F <fi…
 - L156 プロンプトで出典規則を強化するとURL捏造は止まるが「実在URLへの無関係な帰属」は止まらない。呼び出し側に機械照合(URL取得+引用の原文照合)の関門を置く。SPAは`unverifiable`として失敗と区別する。全文: `rules/lessons_archive.md`
 - L157 PowerShell 5.1の`Set-Content -Encoding UTF8`はBOM無しファイルにBOMを付ける。既存エンコーディングを保つなら`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`。`.ps1`はBOM付きが正解で逆になる。全文: `rules/lessons_archive.md`
+- L158 agy 1.1.13の`-p`ヘッドレスモードは`/usage`・`/help`等の組み込みスラッシュコマンドを展開せず通常プロンプトとして誤解釈し権限拒否で失敗する。回避を試みず「このバージョンでは計測不能」と結論づけて次善策へ切り替える。全文: `rules/lessons_archive.md`

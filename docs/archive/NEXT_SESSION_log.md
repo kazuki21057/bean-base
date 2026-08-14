@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.91 当日やったこと(2026-08-14、Opus 5、`/full_loop`新規セッション、Windows環境。T5-A79完了・T5-A80起票)
+
+- ユーザー依頼「agyのresearcher委譲について、agy自身に出典確認強化で対応できないか。agyでサブスク内でproが使えるならpro化で委譲範囲を拡大できるか。サブエージェントのsonnetが4.6になっていないか確認して5にして」で起動。プリフライトOK・起動回数カウンタ12・`git pull`差分なし・使用率(開始: セッション29%/週37%)。
+- **サブエージェントのモデルは既にSonnet 5だった(修正不要)**。`~/.claude/projects/.../<session>/subagents/*.jsonl`の`"model"`を直近5セッション分実測し、すべて`claude-sonnet-5`(architectは`claude-opus-5`)。`.claude/agents/*.md`の`model: sonnet`は`claude-sonnet-5`に解決されている。**`claude-sonnet-4-6`はagy側のモデル一覧に出てくる名前**で、Claude Codeのサブエージェントとは別物。
+- **T5-A79完了**: T5-A75で404捏造が起きたのと同じテーマ(Material 3のブレークポイント)を、出典検証規則を強化したプロンプトで`gemini-3.1-pro-high`と`gemini-3.7-flash-high`の2モデルに投げて比較。**プロンプト強化だけで失敗の型①(実在しないURLを出典に書く)は再発しなくなった**(pro側は404だった公式ページを出典にせず「推測・未確認」へ自ら降格)。**しかし型②(実在URLへの無関係な帰属)はプロンプトでは保証できない**ため、機械照合を必須の関門として実装した——`tools/verify_citations.ps1`(新規、出典表のURLを実取得しHTTPステータス+引用の原文照合)と`tools/antigravity_delegate.ps1`への配線(researcher役のみ検証ブロック挿入、実行後に自動検証、失敗時 exit 18 `CITATION_UNVERIFIED`)。verifierが5項目全PASS。
+- **proへは切り替えない(結論)**: `agy -p /usage`の生JSONで、**FlashとProは`Gemini Models`という同一クォータバケットを共有**(「Quota is consumed proportionally to the cost of the tokens」)と判明——proはサブスク内で使えるが枠を速く食う。加えて提供されるproは`gemini-3.1-pro-high`で**Flash最新(3.7)より2世代古く**、実測でもflashの方が網羅性・正確さで上回った(flash: 6ドメイン8出典・M3公式値が正解と一致 / pro: 1URLに7主張集中・M3公式値は取得失敗で未確認扱い)。既定はT5-A78の最新Flash自動解決のまま。
+- **T5-A80を新規起票(S、未着手)**: `agy -p /usage`は`Gemini Models`とは別に**`Claude and GPT models`グループ(Claude Sonnet 4.6/Opus 4.6/GPT-OSS、週次100%・5時間100%で完全未使用)**を持つ。これがユーザーのClaude Pro枠と別勘定なら、**委譲範囲の拡大余地はpro化より遥かに大きい**。`-Model claude-sonnet-4-6`で1回実呼び出しし、当該バケットが減る一方で`localhost:3000`のClaude Pro使用率が動かないことを前後比較して実証する。
+- `researcher`役の状態は**「パイロット再開(機械検証必須)」**へ差し替え(設計書§9.1)。T5-A75で課した「親が手作業でWebFetch 2本」の条件は機械検証に置き換えた。昇格判定は従来どおり3件中2件以上で、今回のpro/flash 2件を1件目・2件目として数える。
+- 教訓2件: **L156**(プロンプトの品質規則は「守れるものを守らせる」まで。守れているかの判定は呼び出し側の機械的な関門で持つ。SPAは`unverifiable`として失敗と区別する)・**L157**(PowerShell 5.1の`Set-Content -Encoding UTF8`はBOM無しファイルにBOMを付ける。`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`を使う。`.ps1`はBOM付きが正解で逆になる)。
+- agyが生成した調査レポート2本(`docs/research/2026-08-14_m3_breakpoints_{pro,flash}.md`)は機械検証を通っている(flash: 8行中6 passed・2 unverifiable、pro: 7行全passed・`overused_urls`警告)ためcommitした。**M3公式のブレークポイント値(compact <600 / medium 600–839 / expanded 840–1199 / large 1200–1599 / XL ≥1600)はPhase 1のナビ切り替え幅の根拠に使える**(現行は640px)。
+
 ### -5.90 当日やったこと(2026-08-14、Opus 5、`/full_loop`新規セッション、Windows環境。T5-A78・T5-A75・T5-A74完了、agy researcher役はClaude固定へ差し戻し)
 
 - ユーザーから「Antigravity CLIのモデルが固定されていたらデフォルト(最新)で使うようにして。最近はgemini flash 3.6から3.7になるらしい。その他進められることを実行して」という直接依頼で`/full_loop`が起動。プリフライトOK・起動回数カウンタ11・`git pull`(差分なし)。使用率はユーザーがAPIサーバーを起動し直して再取得(開始: セッション3%/週35%——前セッション終了時の88%から5時間枠がリセットされた直後)。

@@ -949,3 +949,11 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **対処**: `[System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding $false))`で書き直してBOMを除去した。
 
 **一般化**: PowerShell 5.1の`Set-Content`/`Out-File -Encoding utf8`は**常にBOM付き**。既存ファイルのエンコーディングを保って書き戻すなら`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`を使う。逆に`.ps1`(BOM必須、L127/L142)へ書くときはBOM付きが正しいので、**ファイル種別ごとにどちらが正解かが逆になる**点に注意する。行単位の置換は、可能ならEditツールのように元のエンコーディングを保つ手段を優先する。
+
+## L158 agy 1.1.13のヘッドレスモード(`-p`)は`/usage`・`/help`等の組み込みスラッシュコマンドを展開せず、通常プロンプトとして誤解釈して権限エラーで失敗する(2026-08-14、T5-A80)
+
+**事象**: `agy -p "/usage" --output-format json`を実行すると、`/usage`がクライアント側の組み込みコマンドとして展開されず(`--log-file`のログに`Slash commands unchanged, skipping update`)、そのまま自然文プロンプトとして解釈され、`C:\Program Files\Git`のような無関係なディレクトリへの`ListDir`/`read_file`を試みて権限拒否され応答が空になった。`--output-format text`でも同様、`/help`でも同一パターンが再現した。旧バージョン(1.1.11/1.1.12)では`/usage`が消費ゼロで構造化JSONを返すことが確認されていたため(`docs/antigravity_delegation_design.md` §2)、これは1.1.13で新規に混入したregressionの疑い(原因未特定)。
+
+**対処**: 今回は`~/.gemini/antigravity-cli/settings.json`への許可追加や`--dangerously-skip-permissions`は使わず(エージェントに自分自身の権限設定ファイルを触らせない原則、L140系)、`agy -p "/usage"`前提の計測(クォータ残量の前後比較など)は**今回のバージョンでは実施不能**と判断してタスクを打ち切った(判定不能として正直に報告、無理に確証を捏造しない)。
+
+**一般化**: agyのバージョンが上がったら、`/usage`のような組み込みコマンド依存の手順(クォータ計測・許可リスト確認等)は**まず単独で1回試して現在も機能するか確認してから**本題の計測に使う。失敗時に権限緩和や`--dangerously-skip-permissions`で回避しようとせず、「このバージョンでは計測不能」と結論づけて次善策(状況証拠での代替判断、対話モードでの再検証等)に切り替える。
