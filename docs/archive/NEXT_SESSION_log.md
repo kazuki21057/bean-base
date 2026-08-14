@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.86 当日やったこと(2026-08-14、Sonnet 5、`/full_loop`日中セッション、Windows環境。T5-A69完了・commit/push済み)
+
+- セッション冒頭、プリフライトOK・起動回数カウンタ7・使用率取得(開始: セッション2%〈直近リセット直後〉/週25%)・`git pull`(差分なし)・`loop_state.md`(コスト$0、新規ループ境界)を確認。**作業ツリーが4ファイルdirtyのまま**だったため調査したところ、前日04:10の夜間ループがT5-A69(受け入れハーネス実装その1)へ着手し`tools/verify.ps1`/`tools/verify.sh`への`-Task`引数実装まで進めていたが、`claude.exe: Background tasks still running after 600s; terminating`でラッパーごと強制終了され、検証・commit前に中断していたと判明(`.claude/night_logs/20260814-041009.err.log`)。さらにこの残置dirty状態が原因で、当日09:20枠の夜間ループが`skipped_dirty_worktree`で自動スキップされていたことも`.claude/night_loop_last_run.json`で確認した。
+- 中断分のT5-A69を完成させる方が合理的と判断(設計は`docs/acceptance_harness_design.md`で確定済み、新規決定不要のため`architect`は呼ばず`implementer`へ直接委譲)。`tools/acceptance/t5_a69_check.ps1`(フォールトインジェクション3ケース、BOM付きUTF-8)を新規作成させ、あわせて実装済み`Invoke-CheckAcceptance`内の`$final.scripts = @($scriptEntries)`がPowerShell 5.1で`List[object]`を`@()`ラップすると必ず例外化するバグ(`tools/acceptance/`にスクリプトが1件でもあると`acceptance`項目が毎回クラッシュ)を発見・`.ToArray()`で修正(教訓L151)。
+- `git diff`で差分レビュー(想定外の変更なし)→`verifier`へ検証委譲、4条件(9項目全green・`-Task T5-A69`判定・単体実行3ケース・BOM)全てPASS。`lib/`・GAS変更なしのためデプロイ・本番確認は不要と判断。
+- `docs/改修マスタープラン.md`のT5-A69行を✅完了済みへ移動(完了済み56件)、`docs/archive/マスタープラン_完了タスク.md`に詳細節を追加。`rules/lessons_archive.md`にL151(PowerShell 5.1の`@(List[object])`例外化)を追記、`rules/verification.md`へインデックス1行追加。
+- **次に着手可能**: T5-A70(5ファイルへの受け入れハーネス配線)・T5-A71(未完了タスク行への受入欄付与)。T5-A66(PR #3、Major指摘4件・設計判断待ち)は引き続き有人判断待ちのまま。
+- **新たな要調査事項(次回検討)**: 無人ループがサブエージェント委譲中に`run_in_background`相当の処理を600秒超走らせると、ラッパーごと強制終了され作業ツリーがdirtyのまま残り、次回発火がスキップされる連鎖が今回実際に発生した。`skipped_dirty_worktree`自体は安全側の正しい挙動(壊れた状態でコミットしない)だが、「次回発火まで誰も気づかない」という点は改善余地がある。対処案(例: dirty検知時に`night_report.md`で明示的に警告を出す〈今回は実際に出ていた〉/実装フェーズのタイムアウトをより短く設定し途中経過でcommitさせる、等)を新規タスク化するか、次回セッションで判断すること。
+- 使用率: 終了時点は§8参照(取得できていれば記載)。本ループコストは`.claude/loop_state.md`参照。
+
 ### -5.85 当日やったこと(2026-08-13、Sonnet 5、`/night_loop` 23:00枠、Windows環境。T5-A66実装2回・レビュー2回で中断、PR待ち)
 
 - プリフライト通過済み(`tools/night_loop.ps1`経由起動)、モード判別(`BEANBASE_NIGHT_LOOP=1`=無人、`BEANBASE_NIGHT_TRIGGER=2300`=通常優先ロジック)、`settings.night.json`存在確認、`loop_state.md`(コスト$0)・`git pull`(差分なし)確認。T5-A62〜A65完了によりT5-A66(S、`night_loop.ps1`への失敗プレイブック配線)を選定、設計(`docs/failure_playbook.md` §6-1・§6-2)確定済みのため`implementer`へ直接委譲。

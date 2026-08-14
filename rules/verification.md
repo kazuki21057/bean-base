@@ -188,6 +188,7 @@
 - L149 `$ErrorActionPreference='Stop'`下で外部プロセス(adb等)を`&`呼び出しすると、正常系のstderr出力1行だけで`NativeCommandError`化し誤検知しうる。`Start-Process`での事前起動やリダイレクトで回避(T5-A63、`tools/emulator.ps1 -Status`呼び出し時のadbデーモン未起動誤検知)
 - L150 敵対的レビューを2回繰り返してもMajor指摘が減らず増加する場合は個別バグではなく設計判断が必要な兆候。局所修正を重ねず中断してPRへ回す(T5-A66、night_loop、Watchdog停止フラグ削除のレースが過去の実障害〈孤児プロセスのファイルロック〉と同種と判明)
 - L151 PowerShell 5.1で`@()`が`System.Collections.Generic.List[object]`型の変数を包むと`Argument types do not match`で必ず例外化する。`.ToArray()`で明示変換すれば回避できる(T5-A69、`tools/verify.ps1`の`Invoke-CheckAcceptance`が`tools/acceptance/`にスクリプトが1件でもあると毎回クラッシュしていた)
+- L152 「フラグを立てて相手プロセスの自主終了を待つ」設計はフラグ削除・後片付けを能動的な終了確認(`WaitForExit`)より前に置くとL145と同種のファイルロック事故を再生産する。`Start-Process -PassThru`+`WaitForExit`+強制終了フォールバックで終了確認してから後片付けする(T5-A66、Watchdog停止シーケンス)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
