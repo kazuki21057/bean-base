@@ -81,7 +81,8 @@ function Write-ResultAndExit {
         $Tokens = $null,
         [bool]$Fallback = $false,
         [string]$FallbackReason = $null,
-        [string]$ErrorMessage = $null
+        [string]$ErrorMessage = $null,
+        $Citations = $null
     )
 
     $obj = [ordered]@{
@@ -103,6 +104,7 @@ function Write-ResultAndExit {
         tokens             = $Tokens
         fallback           = $Fallback
         fallback_reason    = $FallbackReason
+        citations          = $Citations
     }
     if ($ErrorMessage) { $obj["error"] = $ErrorMessage }
 
@@ -375,6 +377,30 @@ $OverrideBlock = @'
   ```
 '@
 
+# --- researcher役のときだけ挿入する「出典検証ブロック」(T5-A79、文面確定済み・改変しない) ---
+$CitationBlock = @'
+## 出典検証の追加規則(この役割定義より優先する)
+
+1. 出典として書いてよいURLは、**この作業中に実際に取得(fetch)して本文を読んだURLだけ**です。検索結果のスニペット・記憶・推測でURLを書いてはいけません。「存在しそうなURL」を組み立てて書くことを禁止します。
+2. 取得に失敗した(404・タイムアウト等)URLは出典にしないでください。そのURLに頼っていた主張は「推測・未確認」節へ移してください。
+3. **1つの主張には、その主張を直接裏付ける1本のURLを対応させてください。** 1本のURLで複数の主張を裏付ける場合は、主張ごとに、そのページ本文からの**原文引用(20〜120字、改変禁止)**を個別に付けてください。
+4. レポート末尾に次の表を必ず付けてください(列名・順序を変えない)。
+
+   ```
+   ## 出典一覧
+
+   | # | 主張ID | URL | HTTPステータス | 取得日 | 裏付け引用(原文ママ) |
+   |---|---|---|---|---|---|
+   | 1 | C1 | https://... | 200 | 2026-08-14 | ... |
+   ```
+
+   - 本文の各主張の先頭に `[C1]` `[C2]` の形で主張IDを振り、表と対応させてください。
+   - 「裏付け引用」は、そのページ本文に**一字一句そのまま存在する**連続した文字列にしてください(要約・翻訳・省略記号での改変をしない)。**この引用は機械的に照合されます**。照合できない引用を書くと、その調査は自動的に不合格になります。
+   - HTTPステータスは実際に取得したときの値を書いてください(取得できていない行は書かない)。
+
+5. 確実な出典が2本未満しか得られなかった場合は、無理に埋めず「出典不足のため結論を出せない」と報告してください。**出典を作文するくらいなら、調べられなかったと報告する方が良い結果です。**
+'@
+
 # --- 層3: タスク本文 + Files + DoneWhen + TaskId をプロンプト末尾へ追記 -----------------
 # 判断: 見出し構成(## タスク/## 対象ファイル/## 完了条件/## タスクID)は設計書に
 # 文面指定が無いため、読みやすさ優先で機械的に組み立てた(ラッパーの実装詳細であり、
@@ -407,7 +433,11 @@ if ($TaskId) {
 $TaskSection = ($TaskSectionLines -join "`n")
 
 $RoleBody = Get-RoleBody -RoleName $Role
-$FullPrompt = $OverrideBlock + "`n`n" + $RoleBody + "`n`n" + $TaskSection
+if ($Role -eq 'researcher') {
+    $FullPrompt = $OverrideBlock + "`n`n" + $CitationBlock + "`n`n" + $RoleBody + "`n`n" + $TaskSection
+} else {
+    $FullPrompt = $OverrideBlock + "`n`n" + $RoleBody + "`n`n" + $TaskSection
+}
 
 # プロンプトは常に全文をログへ書く(直接渡す/参照渡しに関わらず、response_logと同様に
 # 監査・T5-A41比較用に残す。§9.2「実装上の地雷」)。
@@ -634,6 +664,72 @@ if ($Parsed) {
     }
 }
 
+# --- 出典検証(T5-A79、researcher役かつagy実行が成功=exit 0相当のときだけ実施) --------
+# 判断: exit 17(読み取り専用役なのに変更発生)の判定は上のif/elseifチェーンで
+# 既に確定済み。ここは$ExitCode -eq 0のときにしか到達しないため、17と18が同時に
+# 成立する場合は自動的に17が優先される(教訓L154の判定を弱めない)。
+$Citations = $null
+if (($Role -eq 'researcher') -and ($ExitCode -eq 0)) {
+    # レポートの特定順: (a)変更ファイルのうちdocs/research/配下の.mdで最も新しいもの
+    # (複数ある場合はファイルの最終更新日時で判定) → (b)無ければラッパーが書いた
+    # <OutDir>/<timestamp>_researcher_response.md。
+    $ResearchCandidates = @($ChangedFiles | Where-Object { $_ -match '^docs/research/.*\.md$' })
+    $ReportForCitations = $null
+    if ($ResearchCandidates.Count -gt 0) {
+        $bestPath = $null
+        $bestTime = [datetime]::MinValue
+        foreach ($cand in $ResearchCandidates) {
+            $candFull = Join-Path $RepoRoot $cand
+            if (Test-Path $candFull) {
+                $t = (Get-Item $candFull).LastWriteTime
+                if ((-not $bestPath) -or ($t -gt $bestTime)) { $bestTime = $t; $bestPath = $cand }
+            } elseif (-not $bestPath) {
+                $bestPath = $cand
+            }
+        }
+        $ReportForCitations = $bestPath
+    } elseif ($ResponseLogRel -and (Test-Path (Join-Path $RepoRoot $ResponseLogRel))) {
+        $ReportForCitations = $ResponseLogRel
+    }
+
+    if (-not $ReportForCitations) {
+        Write-Progress2 "出典検証: 検証対象のレポートファイルが見つかりませんでした"
+        $Citations = [ordered]@{ ok = $false; status = "REPORT_NOT_FOUND"; report = $null }
+        $ExitCode = 18
+        $Status = "CITATION_UNVERIFIED"
+        $FallbackReason = "出典の実在性・引用の照合に失敗しました。Claude researcherへ委譲し直してください。"
+    } else {
+        Write-Progress2 "出典検証中: $ReportForCitations"
+        $VerifyCitationsScript = Join-Path $RepoRoot "tools\verify_citations.ps1"
+        # 判断: MaxUrls既定20 x TimeoutSec既定30秒の最悪ケース(約600秒)に余裕を
+        # 持たせた外側タイムアウト(設計書に明記が無いためラッパー実装として設定)。
+        $CitationRun = Invoke-AgyProcess -FilePath "powershell" `
+            -ArgumentList @('-NoProfile', '-File', $VerifyCitationsScript, '-ReportPath', $ReportForCitations, '-Json') `
+            -TimeoutMs 700000
+
+        $CitationJson = $null
+        try { $CitationJson = $CitationRun.Stdout | ConvertFrom-Json -ErrorAction Stop } catch {}
+
+        if ($CitationRun.TimedOut -or -not $CitationJson) {
+            Write-Progress2 "出典検証スクリプトの出力を解析できませんでした(exit=$($CitationRun.ExitCode) timeout=$($CitationRun.TimedOut))"
+            $Citations = [ordered]@{ ok = $false; status = "CITATION_CHECK_ERROR"; report = $ReportForCitations; exit_code = $CitationRun.ExitCode }
+            $ExitCode = 18
+            $Status = "CITATION_UNVERIFIED"
+            $FallbackReason = "出典の実在性・引用の照合に失敗しました。Claude researcherへ委譲し直してください。"
+        } else {
+            $Citations = $CitationJson
+            Write-Progress2 "出典検証結果: exit=$($CitationRun.ExitCode) checked=$($CitationJson.checked) passed=$($CitationJson.passed) failed=$($CitationJson.failed)"
+            if ($CitationRun.ExitCode -ne 0) {
+                # verify_citations.ps1のexit 1(CITATION_FAILED)・exit 3(NO_CITATION_TABLE/
+                # NO_CITATIONS)のいずれも、出典表を書かないこと自体を含めて不合格とする。
+                $ExitCode = 18
+                $Status = "CITATION_UNVERIFIED"
+                $FallbackReason = "出典の実在性・引用の照合に失敗しました。Claude researcherへ委譲し直してください。"
+            }
+        }
+    }
+}
+
 $Fallback = ($ExitCode -ne 0)
 $Ok = ($ExitCode -eq 0)
 
@@ -645,4 +741,4 @@ Add-LedgerRow -DurationSec $Run.DurationSec -ResponseChars $ResponseChars -Chang
 Write-ResultAndExit -Ok $Ok -ExitCode $ExitCode -Status $Status -DurationSec $Run.DurationSec `
     -ResponseChars $ResponseChars -ResponseHead $ResponseHead -ResponseLog $ResponseLogRel `
     -PromptLog $PromptLogRel -RawLog $RawLogRel -ChangedFiles $ChangedFiles -Quota $Quota -Tokens $Tokens `
-    -Fallback $Fallback -FallbackReason $FallbackReason
+    -Fallback $Fallback -FallbackReason $FallbackReason -Citations $Citations
