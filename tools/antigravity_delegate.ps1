@@ -113,10 +113,10 @@ function Write-ResultAndExit {
 }
 
 # --- 引数バリデーション(exit 2) -------------------------------------------
-$AllowedRoles = @('implementer', 'adversary', 'researcher')
+$AllowedRoles = @('implementer', 'adversary', 'researcher', 'architect')
 if ($AllowedRoles -notcontains $Role) {
     Write-ResultAndExit -Ok $false -ExitCode 2 -Status "ARG_ERROR" `
-        -ErrorMessage "-Role は implementer/adversary/researcher のいずれかを指定してください(指定値: '$Role')" `
+        -ErrorMessage "-Role は implementer/adversary/researcher/architect のいずれかを指定してください(指定値: '$Role')" `
         -Fallback $false
 }
 
@@ -494,20 +494,28 @@ function Invoke-QuotaPreflight {
 
     if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not $result.Stdout) {
         Write-Progress2 "クォータ事前チェックが取得できませんでした(exit=$($result.ExitCode) timeout=$($result.TimedOut))"
-        return [ordered]@{ gemini_weekly_remaining_pct = $null; gemini_5h_remaining_pct = $null; source = "preflight_unavailable" }
+        return [ordered]@{ gemini_weekly_remaining_pct = $null; gemini_5h_remaining_pct = $null; source = "preflight_unavailable"; bucket = "gemini" }
     }
 
     $weekly = Get-QuotaPctFromText -Text $result.Stdout -Pattern '(?i)weekly[^0-9\-]{0,40}(\d+(?:\.\d+)?)'
     $fiveHour = Get-QuotaPctFromText -Text $result.Stdout -Pattern '(?i)(?:5h|5[_ -]?hour|five[_ -]?hour)[^0-9\-]{0,40}(\d+(?:\.\d+)?)'
 
     if (($null -eq $weekly) -and ($null -eq $fiveHour)) {
-        return [ordered]@{ gemini_weekly_remaining_pct = $null; gemini_5h_remaining_pct = $null; source = "preflight_unavailable" }
+        return [ordered]@{ gemini_weekly_remaining_pct = $null; gemini_5h_remaining_pct = $null; source = "preflight_unavailable"; bucket = "gemini" }
     }
-    return [ordered]@{ gemini_weekly_remaining_pct = $weekly; gemini_5h_remaining_pct = $fiveHour; source = "preflight" }
+    return [ordered]@{ gemini_weekly_remaining_pct = $weekly; gemini_5h_remaining_pct = $fiveHour; source = "preflight"; bucket = "gemini" }
 }
 
+# 判断: Claude/GPT系モデル(agy経由でもAnthropic Claude Proプラン枠を消費しない別勘定
+# バケット、T5-A83)はGeminiクォータ事前チェックの対象外とする。$SkipQuotaCheckが
+# 指定されている場合はそちらを優先し、従来通り$Quota=$nullのままにする。
 $Quota = $null
-if (-not $SkipQuotaCheck) {
+if ($SkipQuotaCheck) {
+    $Quota = $null
+} elseif ($Model -match '^(claude-|gpt-)') {
+    Write-Progress2 "Claude/GPT系モデルのためクォータ事前チェックをスキップします(別勘定バケット): model=$Model"
+    $Quota = [ordered]@{ gemini_weekly_remaining_pct = $null; gemini_5h_remaining_pct = $null; source = "not_applicable_claude_gpt_bucket"; bucket = "claude_gpt" }
+} else {
     Write-Progress2 "クォータ事前チェック中..."
     $Quota = Invoke-QuotaPreflight
     if (($null -ne $Quota.gemini_weekly_remaining_pct -and $Quota.gemini_weekly_remaining_pct -lt 10) -or
@@ -524,14 +532,19 @@ if (-not $SkipQuotaCheck) {
 # --- モデル/エフォート/モード ---------------------------------------------------------
 # §9.2: モデルIDが -high/-medium/-low で終わる場合は --effort を渡さない(二重指定回避)。
 # それ以外のときだけ既定 medium を渡す。ユーザーが明示的に -Effort を指定した場合はそれを尊重する。
+# T5-A83: ただしClaude/GPT系モデル(claude-/gpt-接頭辞)は上記より優先して --effort を
+# 一切渡さない(ユーザーが -Effort を明示指定していても無視する)。
 $EffortToPass = $null
-if ($PSBoundParameters.ContainsKey('Effort') -and $Effort) {
+if ($Model -match '^(claude-|gpt-)') {
+    # Claude/GPTモデルは --effort を一切渡さない(ユーザー指定があっても無視)
+    $EffortToPass = $null
+} elseif ($PSBoundParameters.ContainsKey('Effort') -and $Effort) {
     $EffortToPass = $Effort
 } elseif ($Model -notmatch '-(high|medium|low)$') {
     $EffortToPass = "medium"
 }
 
-$ModeByRole = @{ implementer = "accept-edits"; adversary = "plan"; researcher = "plan" }
+$ModeByRole = @{ implementer = "accept-edits"; adversary = "plan"; researcher = "plan"; architect = "plan" }
 $Mode = $ModeByRole[$Role]
 
 $TimeoutMin = [int][math]::Floor($TimeoutSec / 60)

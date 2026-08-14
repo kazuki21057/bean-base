@@ -127,10 +127,10 @@ emit_result_and_exit() {
 
 # --- 引数バリデーション(exit 2) -------------------------------------------
 case "$ROLE" in
-  implementer|adversary|researcher) ;;
+  implementer|adversary|researcher|architect) ;;
   *)
     emit_result_and_exit false 2 "ARG_ERROR" null 0 "" "" "" "" "[]" "null" "null" false "" \
-      "--role は implementer/adversary/researcher のいずれかを指定してください(指定値: '$ROLE')"
+      "--role は implementer/adversary/researcher/architect のいずれかを指定してください(指定値: '$ROLE')"
     ;;
 esac
 
@@ -387,7 +387,14 @@ get_quota_pct() {
 
 QUOTA_JSON="null"
 QUOTA_5H_PCT=""
-if [[ "$SKIP_QUOTA_CHECK" != true ]]; then
+if [[ "$SKIP_QUOTA_CHECK" == true ]]; then
+  QUOTA_JSON="null"
+elif [[ "$MODEL" =~ ^(claude-|gpt-) ]]; then
+  # T5-A83: Claude/GPT系モデル(agy経由でもAnthropic Claude Proプラン枠を消費しない
+  # 別勘定バケット)はGeminiクォータ事前チェックの対象外とする。
+  progress "Claude/GPT系モデルのためクォータ事前チェックをスキップします(別勘定バケット): model=${MODEL}"
+  QUOTA_JSON='{"gemini_weekly_remaining_pct":null,"gemini_5h_remaining_pct":null,"source":"not_applicable_claude_gpt_bucket","bucket":"claude_gpt"}'
+else
   progress "クォータ事前チェック中..."
   quota_stdout="$(mktemp)"
   quota_stderr="$(mktemp)"
@@ -409,9 +416,9 @@ if [[ "$SKIP_QUOTA_CHECK" != true ]]; then
   if [[ -n "$weekly_pct" || -n "$five_hour_pct" ]]; then
     QUOTA_JSON=$(jq -n \
       --argjson w "${weekly_pct:-null}" --argjson f "${five_hour_pct:-null}" \
-      '{gemini_weekly_remaining_pct: $w, gemini_5h_remaining_pct: $f, source: "preflight"}')
+      '{gemini_weekly_remaining_pct: $w, gemini_5h_remaining_pct: $f, source: "preflight", bucket: "gemini"}')
   else
-    QUOTA_JSON='{"gemini_weekly_remaining_pct":null,"gemini_5h_remaining_pct":null,"source":"preflight_unavailable"}'
+    QUOTA_JSON='{"gemini_weekly_remaining_pct":null,"gemini_5h_remaining_pct":null,"source":"preflight_unavailable","bucket":"gemini"}'
   fi
   QUOTA_5H_PCT="$five_hour_pct"
 
@@ -428,9 +435,14 @@ if [[ "$SKIP_QUOTA_CHECK" != true ]]; then
   fi
 fi
 
+
 # --- モデル/エフォート/モード ---------------------------------------------------------
+# T5-A83: Claude/GPT系モデル(claude-/gpt-接頭辞)は他条件より優先して --effort を
+# 一切渡さない(ユーザーが --effort を明示指定していても無視する)。
 EFFORT_TO_PASS=""
-if [[ "$EFFORT_SET" == true && -n "$EFFORT" ]]; then
+if [[ "$MODEL" =~ ^(claude-|gpt-) ]]; then
+  EFFORT_TO_PASS=""
+elif [[ "$EFFORT_SET" == true && -n "$EFFORT" ]]; then
   EFFORT_TO_PASS="$EFFORT"
 elif [[ ! "$MODEL" =~ -(high|medium|low)$ ]]; then
   EFFORT_TO_PASS="medium"
@@ -438,7 +450,7 @@ fi
 
 case "$ROLE" in
   implementer) MODE="accept-edits" ;;
-  adversary|researcher) MODE="plan" ;;
+  adversary|researcher|architect) MODE="plan" ;;
 esac
 
 TIMEOUT_MIN=$(( TIMEOUT_SEC / 60 ))

@@ -2560,3 +2560,13 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - 新規決定(§9.1ルーティング表の再設計)を伴うため`architect`へT5-A82を委譲。**成果**: 現行の「不可」判定を型a(ツールアクセス制約、恒久)/型b(モデル品質・コスト制約、別勘定確定で解消)に切り分け。`verifier`・`ui_verifier`は型aで不可維持(claude-in-chrome・emulator制御が無いため、モデルを変えても解消しない)。`adversary`はレビューの多様性を優先しGemini維持、フェーズ完了ループのみ`claude-sonnet-4-6`の2本目レビューを試す方針をT5-A77へ追記。`researcher`(型b、T5-A75/A79の失敗はモデル起因の可能性大)→`implementer`(型b、対象拡大余地)→`architect`(型b主体、コスト最大要因だが設計誤りのリスクも最大)の順で段階的パイロットを設計。
 - `docs/antigravity_delegation_design.md` §12新設(前提の検知条件・型分類・再設計後のルーティング表・パイロット計画12.4〜12.9)。実装タスクT5-A83(ラッパーのClaudeモデル対応)〜T5-A89(配線)を`docs/改修マスタープラン.md`へ起票。**T5-A84(スモーク検証3件+3pバケット消費実測)が通らなければT5-A85以降は全て中止**という関門を明記。
 - 変更ファイル: `docs/antigravity_delegation_design.md`(§7追記・§12新設)、`docs/改修マスタープラン.md`(T5-A82完了処理・T5-A83〜A89追加・T5-A77へ1行追記)、`docs/token_optimization_design.md`(§7・§8に本ループ分追記)。`lib/`不変・コード変更なしのため`analyze`/`test`/`build`・デプロイ・verifier委譲は不要。
+
+### -5.95 当日やったこと(2026-08-14、Sonnet 5、`/full_loop`、Windows環境。T5-A70完了、受け入れハーネスの5ファイル配線)
+
+- ユーザー指示「上位モデルのサブエージェントはagyに委譲しないで。その他軽めのタスクを一つ実行して」で起動。プリフライトOK・起動回数カウンタ15→16・`git pull`差分なし・使用率(開始: セッション22%/週44%)。
+- 未完了タスクから依存充足済みのSサイズタスクを比較検討し、**T5-A70(受け入れハーネス設計T5-A59の実装その2)を選定**——文言が`docs/acceptance_harness_design.md` §8に確定済みで設計判断を伴わない純粋な配線作業のため、architect/agyいずれにも委譲せず`implementer`(Claude)のみで完結させた(ユーザー指示の「上位モデルのサブエージェントをagyに委譲しない」を自然に満たす選定)。
+- `implementer`が`.claude/skills/full_loop/SKILL.md`・`.claude/skills/night_loop/SKILL.md`・`.claude/agents/verifier.md`・`.claude/skills/verify/SKILL.md`・`rules/verification.md`の5ファイルへ、設計書の確定済み文言をそのまま追記(`tools/verify.ps1`の`-Task`オプション・`checks.acceptance`結果をスキル・エージェント定義から参照できるようにする配線)。親が`git diff`で5ファイル・11行追加/7行削除のみであることを確認。
+- `verifier`へ検証委譲。通常実行(`tools/verify.ps1`)は9項目全PASS(analyze issue増分0、test 367 pass、build成功、回帰なし)。タスク固有の完了条件——`-Task T5-A70`実行時にT5-A70用の受け入れ資産が存在しないため`checks.acceptance.reason:"acceptance_missing"`・トップレベル`ok:false`になること——も確認できた(想定どおりの挙動、バグではない)。
+- コード変更を含まないためデプロイ・本番確認は不要。commit・push実施(push時刻はcommit直後)。
+- 変更ファイル: 上記5ファイルのみ。`docs/改修マスタープラン.md`(T5-A70完了処理、完了済み66件目)・`NEXT_SESSION.md`も更新。
+- **次に着手可能**: T5-A83(S、agy委譲ラッパーのClaudeモデル対応)・T5-A88(S、verify_citationsのリポジトリ内引用モード)・T5-A81(S)・T5-A71(S、未完了タスク行への受入欄付与)・T5-A16・T5-A68(M)。T5-A84以降はT5-A83完了後。
