@@ -6,7 +6,7 @@
 
 > **出力は必ず絞る(2026-08-02)**: `analyze`/`test` の全文出力は1回で7k〜13k文字あり、以後のリクエスト全部に課金され続ける(`CLAUDE.md`§トークン運用規約)。下記の短出力形を既定とし、**失敗したときだけ**詳細を取り直す。
 
-0. **一括検証スクリプト(2026-08-08新設、まずこれを使う)**: `tools/verify.ps1`(Windows)/`tools/verify.sh`(Bash)が、下記1〜2の静的解析・自動テストに加えビルド等を含む8項目を1コマンドでまとめて実行し、結果をJSON 1つで標準出力へ返す。
+0. **一括検証スクリプト(2026-08-08新設、まずこれを使う)**: `tools/verify.ps1`(Windows)/`tools/verify.sh`(Bash)が、下記1〜2の静的解析・自動テストに加えビルド等を含む9項目を1コマンドでまとめて実行し、結果をJSON 1つで標準出力へ返す。`-Task <タスクID>`を付けると受け入れ資産の合否(`checks.acceptance`)も判定する。受け入れ資産の要否判定・作成規約は`docs/acceptance_harness_design.md`が正本。
    - 実行: `powershell -File tools/verify.ps1`(Windows、引数`-Edition personal|public`、既定`public`)。Bash環境では`tools/verify.sh`が同一の8項目・同一JSONスキーマを返すが**`jq`必須**(`jq`不在時は`{"ok":false,"error":"jq_not_found",...}`を返し非ゼロ終了する既知の制約。その場合は下記フォールバックへ切り替える)。
    - **読み方**: 標準出力のJSON(各項目の`ok:true/false`の**サマリのみ**)を読む。**失敗した項目だけ**、その`log`フィールドが指す`.claude/verify_logs/<timestamp>_<項目名>.log`を`Grep`/`Read(offset/limit)`で該当箇所だけ読む。成功項目のログ・生出力は読まない。
    - これで静的解析・自動テスト・ビルドが完了していれば、下記1・2は実施済みとみなしてよい。下記3(実行時検証)・4(視覚検証)はこのスクリプトでは自動化できないため、引き続き自分で行う。

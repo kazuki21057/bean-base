@@ -19,11 +19,11 @@ tools: Read, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-in-chrome__ta
 
 ## 検証の基本フロー
 
-**自分で`flutter analyze`/`flutter test`/`flutter build`を個別に叩かない**。実行コマンド・引数・`jq`不在時のフォールバック手順は`rules/verification.md`§必須検証フロー(あなたが自分でReadすること)に従い、`tools/verify.ps1`(Windows本命)/`tools/verify.sh`(Bash)を1回実行して標準出力のJSON1つだけを読む(進捗メッセージは全てstderrなので混ざらない)。
+**自分で`flutter analyze`/`flutter test`/`flutter build`を個別に叩かない**。実行コマンド・引数・`jq`不在時のフォールバック手順は`rules/verification.md`§必須検証フロー(あなたが自分でReadすること)に従い、`tools/verify.ps1`(Windows本命)/`tools/verify.sh`(Bash)を1回実行して標準出力のJSON1つだけを読む(進捗メッセージは全てstderrなので混ざらない)。委譲プロンプトでタスクIDが指定された場合は`powershell -File tools/verify.ps1 -Task <タスクID>`の形で実行する。
 
 - **`implementer`の自己申告(「analyze通りました」「テスト全パスしました」)は証拠として扱わない**。あなたが`tools/verify.ps1`を独立に再実行した結果だけを採用する(自己検証バイアスの排除)。
 
-### JSONスキーマ(`checks`直下の8項目、`tools/verify.ps1`の実装と一致)
+### JSONスキーマ(`checks`直下の9項目、`tools/verify.ps1`の実装と一致)
 
 | キー | 主なフィールド |
 |---|---|
@@ -35,6 +35,7 @@ tools: Read, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-in-chrome__ta
 | `golden` | `ok` / `diff_count` / (失敗時)`log` |
 | `codegen_clean` | `ok` / (失敗時)`log`、タイムアウト時のみ`reason:"timeout"` |
 | `secret_scan` | `ok` / (失敗時)`log` |
+| `acceptance` | `ok` / `task` / `required` / `dart` / `scripts` / (失敗時)`reason`・`log`。`-Task <タスクID>`が渡されたときだけタスク固有の合否を判定する。`reason:"acceptance_missing"`は「受け入れ資産が作られていない」ことを意味し、合格ではない |
 
 **`skipped:true`の項目は「合格」ではなく「未実施」として報告する**。`note`をそのまま引用すること。
 
@@ -59,4 +60,4 @@ tools: Read, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-in-chrome__ta
 
 ## 報告
 
-8項目を1行ずつの短い表(項目 / ok / 主要な数値)+ 失敗項目の要点(ログから抜いた件数・エラー種別・ファイル:行)+ `integration_test`の実施状況(未実施ならその理由)+ ブラウザ確認の結果、を日本語で簡潔にまとめる。手順書に報告テンプレートがあれば**それをそのまま埋める**。**結論を急がず、観測値を落とさないこと**が最優先。
+9項目を1行ずつの短い表(項目 / ok / 主要な数値)+ 失敗項目の要点(ログから抜いた件数・エラー種別・ファイル:行)+ `integration_test`の実施状況(未実施ならその理由)+ ブラウザ確認の結果、を日本語で簡潔にまとめる。手順書に報告テンプレートがあれば**それをそのまま埋める**。**結論を急がず、観測値を落とさないこと**が最優先。

@@ -31,6 +31,7 @@ description: Use when the user runs "/verify", or when any task's verification p
    | golden | PASS/FAIL/未実施 | diff_count |
    | codegen_clean | PASS/FAIL/未実施 | timeout時はreason |
    | secret_scan | PASS/FAIL/未実施 | 検出内容があれば要点 |
+   | acceptance | PASS/FAIL/未実施 | タスクIDと、失敗した個別チェック名。`acceptance_missing`はFAIL |
    | integration_test(エミュレータ) | PASS/FAIL/未実施 | 未実施ならその理由 |
    | ブラウザ確認 | PASS/FAIL/未実施 | 確認した画面・操作 |
 

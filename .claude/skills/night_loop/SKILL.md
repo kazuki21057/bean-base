@@ -60,7 +60,7 @@ description: Use when the user asks to run one unattended overnight iteration of
      - カウンタ値が **10の倍数(10, 20, 30...)** の場合、通常の検証に加えて **`/code-review`(effort=medium相当、対象: 直近の `git diff`)** のレビューを実行する（`CLAUDE.md`「`/code-review`の定期実行ルール」(3)参照）。
      - Critical/Major指摘が出た場合は、その場で `implementer` に差し戻して修正させてから再検証を行う。修正後の再検証でも問題がなければ手順5へ進む（`implementer`が2回失敗した場合は§中断条件に従い中断する）。
    - `verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`)。
-     - `verifier`への委譲プロンプトには検証コマンドとして**`powershell -File tools\verify.ps1`を1回実行し、標準出力のJSONだけを読む**ことを明記する(`tools/verify.sh`は`jq`必須のためWindowsでは使わない)。実行時はツール上限の600000ms(10分)をタイムアウトとして明示指定する(この環境での実測は約3分)。失敗した項目があれば、その項目の`log`パスだけを読み直す。`test_coverage_delta`はトップレベル`ok`に含まれない参考値であり、それ単独では合否を左右しない。`build_apk_release`は当面`skipped:true`が正常。
+     - `verifier`への委譲プロンプトには検証コマンドとして**`powershell -File tools\verify.ps1`を1回実行し、標準出力のJSONだけを読む**ことを明記する(`tools/verify.sh`は`jq`必須のためWindowsでは使わない)。**タスクIDが判明している場合は`-Task <タスクID>`付きで実行し**、`checks.acceptance`の結果(`ok`・`reason`・失敗した個別チェック名)も報告させる(受け入れ資産が免除のタスクでは`-Task`を付けない)。実行時はツール上限の600000ms(10分)をタイムアウトとして明示指定する(この環境での実測は約3分)。失敗した項目があれば、その項目の`log`パスだけを読み直す。`test_coverage_delta`はトップレベル`ok`に含まれない参考値であり、それ単独では合否を左右しない。`build_apk_release`は当面`skipped:true`が正常。
      - `adversary`への委譲プロンプトには変更内容・変更ファイル一覧を渡し、Critical/Major指摘を報告させる。
    - UI変更を伴い、かつ`ui_verifier`が整備済み(T5-A4完了後)であれば、同一メッセージにさらに`ui_verifier`を追加して3体並行起動する。
 
@@ -75,6 +75,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | **判定対象外(スキップ)。T5-A4完了で解除** |
    | 4 | `adversary`のCritical指摘がゼロ | adversary | 適用(常時判定) |
    | 5 | (T5-A66新設)変更ファイルに`.ps1`が含まれる場合、`powershell -File tools\failure_playbook.ps1 -Mode Check`がexit 0を返す | failure_playbook.ps1のJSON(終了コード) | `.ps1`変更が無いループは判定対象外(スキップ)。exit 0以外(BOM喪失等を検知)ならゲートを落とす |
+   | 6 | (T5-A59新設)`checks.acceptance`が`ok:true`(受け入れ資産が免除のタスクは判定対象外) | verify.ps1のJSON | 適用(常時判定)。`reason:"acceptance_missing"`は**ゲートを落とす**。個別スクリプトの`skipped`はゲートを落とさない |
 
    - **全条件を満たした場合**: 手順6の締めを行い、最後に`git push origin main`。
    - **1つでも落ちた場合**(設計書§4-2、ゲート不通過時の手順):
