@@ -64,7 +64,7 @@ State management is Riverpod; persistence is Google Sheets (reverted from Firest
 
 ## Verification Rules
 
-Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero new issues) → `flutter test`(all pass) → `flutter run`(no exceptions/overflow, external services connect) → visual browser verification. **既知の失敗しやすい検証経路**(Androidエミュレータのリトライ上限・ブラウザ優先・GAS直curl不可等)は`rules/verification.md`の同名節を参照。
+Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero new issues) → `flutter test`(all pass) → `flutter run`(no exceptions/overflow, external services connect) → visual browser verification. **既知の失敗しやすい検証経路**(Androidエミュレータのリトライ上限・ブラウザ優先・GAS直curl不可等)は`rules/verification.md`の同名節を参照。無人夜間ループの既知障害の検知・自動対処・エスカレーション基準は`docs/failure_playbook.md`が正本(`tools/failure_playbook.ps1`が実装)。
 
 **Key invariants:**
 - Master-type UI/functionality changes apply to **all master tabs/screens** (Bean, Grinder, Dripper, Filter, Method where applicable) — never just Bean.

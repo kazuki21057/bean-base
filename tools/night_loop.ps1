@@ -101,6 +101,13 @@ $NightUsageLogPath = Join-Path $ClaudeDir 'night_usage_log.tsv'
 $NightOutcomesLogPath = Join-Path $ClaudeDir 'night_outcomes.log'
 
 $ScriptStart = Get-Date
+$RunStamp = $ScriptStart.ToString('yyyyMMdd-HHmmss')
+$WatchdogStopFlagPath = Join-Path $ClaudeDir 'night_watchdog.stop'
+$WatchdogStopTimeoutMs = 45000  # failure_playbook.ps1の$pollIntervalSec=30に15秒の余裕を足した値。ポーリング間隔を変える場合はこの値も「間隔+15秒」以上に合わせる
+$script:WatchdogProcess = $null
+$script:WatchdogOutLogPath = $null
+$script:WatchdogErrLogPath = $null
+$script:WatchdogStopHandled = $false
 
 # --- トリガー時刻の判定(T5-A60、2026-08-13新設) ---
 # 23:00/04:10/09:20のどの発火枠かを判定し、claude子プロセスへ環境変数で伝搬する
@@ -217,29 +224,91 @@ function Write-Log {
 # cmd /c '... 2>&1' で結合すると「標準出力の最後の行がJSON」という既存の
 # パース前提(Select-Object -Last 1)が崩れる。そのため2>&1統合ではなく、
 # stderrをファイルへ個別リダイレクトし、ここで読んでログへ転記する方式にした。
-function Publish-FailurePlaybookStderr {
+function Publish-FailurePlaybookLog {
     param(
-        [string]$Path
+        [string]$Path,
+        [string]$Label = 'failure_playbook'
     )
-    if (-not (Test-Path $Path)) {
+    if ([string]::IsNullOrEmpty($Path) -or -not (Test-Path $Path)) {
         return
     }
+    $readOk = $false
     $lines = @()
     try {
         $lines = @(Get-Content -Path $Path -ErrorAction Stop | Where-Object { $_ -and $_.Trim() })
-        foreach ($l in $lines) {
-            Write-Log 'INFO' ('[failure_playbook] {0}' -f $l)
-        }
+        $readOk = $true
     } catch {
-        Write-Log 'WARN' ('failure_playbook.ps1 のstderrログの読み取りに失敗しました(無視して続行): {0}' -f $_.Exception.Message)
+        Write-Log 'WARN' ('{0} のログ読み取りに失敗したため、転記せずファイルを残します: {1} — {2}' -f $Label, $Path, $_.Exception.Message)
+    }
+    # 読み取りに失敗した場合はここで抜け、削除に進ませない(Major-2対応:
+    # 未転記のまま診断ログを消してしまう自作自演を防ぐ)。
+    if (-not $readOk) {
+        return
+    }
+    foreach ($l in $lines) {
+        Write-Log 'INFO' ('[failure_playbook] {0}: {1}' -f $Label, $l)
     }
     try {
-        if ((Get-Item -Path $Path -ErrorAction Stop).Length -eq 0 -or $lines.Count -eq 0) {
-            Remove-Item -Path $Path -Force -ErrorAction Stop
+        Remove-Item -Path $Path -Force -ErrorAction Stop
+    } catch {
+        Write-Log 'WARN' ('{0} のログファイルの削除に失敗しました(無視して続行): {1}' -f $Label, $_.Exception.Message)
+    }
+}
+
+# フラグ作成 → 実際の終了確認 → フラグ削除 → ログ転記・削除。終了確認前に
+# 削除・クリーンアップへ進んではならない(2026-08-12の孤児プロセスによる
+# ファイルロック事故と同種の再発を防ぐため。教訓L145)。
+function Request-NightWatchdogStop {
+    if (Test-Path $WatchdogStopFlagPath) {
+        return
+    }
+    try {
+        New-Item -ItemType File -Path $WatchdogStopFlagPath -Force | Out-Null
+    } catch {
+        Write-Log 'WARN' ('Watchdog停止フラグの作成に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+    }
+}
+
+# フラグ作成 → 実際の終了確認 → フラグ削除 → ログ転記・削除。終了確認前に
+# 削除・クリーンアップへ進んではならない(2026-08-12の孤児プロセスによる
+# ファイルロック事故と同種の再発を防ぐため。教訓L145)。
+function Stop-NightWatchdog {
+    if ($script:WatchdogStopHandled) {
+        return
+    }
+    $script:WatchdogStopHandled = $true
+
+    Request-NightWatchdogStop
+
+    try {
+        if ($script:WatchdogProcess -and -not $script:WatchdogProcess.HasExited) {
+            $exited = $script:WatchdogProcess.WaitForExit($WatchdogStopTimeoutMs)
+            if (-not $exited) {
+                Write-Log 'WARN' ('Watchdog(PID {0})が停止フラグに{1}秒以内に応答しなかったため強制終了します。' -f $script:WatchdogProcess.Id, ($WatchdogStopTimeoutMs / 1000))
+                try {
+                    Stop-Process -Id $script:WatchdogProcess.Id -Force -ErrorAction Stop
+                    $null = $script:WatchdogProcess.WaitForExit(5000)
+                } catch {
+                    Write-Log 'WARN' ('Watchdogの強制終了に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+                }
+            } else {
+                Write-Log 'INFO' ('Watchdogが停止フラグに応答して終了しました(PID {0})。' -f $script:WatchdogProcess.Id)
+            }
         }
     } catch {
-        Write-Log 'WARN' ('failure_playbook.ps1 のstderrログファイルの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
+        Write-Log 'WARN' ('Watchdogの終了確認中にエラーが発生しました(無視して続行します): {0}' -f $_.Exception.Message)
     }
+
+    try {
+        Remove-Item -Path $WatchdogStopFlagPath -Force -ErrorAction Stop
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        # 既に無い場合は何もしない
+    } catch {
+        Write-Log 'WARN' ('Watchdog停止フラグの削除に失敗しました(fail-open、続行します): {0}' -f $_.Exception.Message)
+    }
+
+    Publish-FailurePlaybookLog -Path $script:WatchdogOutLogPath -Label 'watchdog-stdout'
+    Publish-FailurePlaybookLog -Path $script:WatchdogErrLogPath -Label 'watchdog-stderr'
 }
 
 function Send-ToastNotification {
@@ -725,7 +794,7 @@ function Invoke-NightLoop {
     Write-Log 'INFO' '失敗プレイブック(tools/failure_playbook.ps1 -Mode Preflight)を実行します。'
     $playbookUnattendedArgs = @()
     if (-not $Force) { $playbookUnattendedArgs = @('-Unattended') }
-    $preflightErrLogPath = Join-Path $NightLogsDir ('failure_playbook-preflight-{0}.err.log' -f $PID)
+    $preflightErrLogPath = Join-Path $NightLogsDir ('failure_playbook-preflight-{0}-{1}.err.log' -f $RunStamp, $PID)
     Push-Location $RepoRoot
     try {
         $preflightJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Preflight @playbookUnattendedArgs 2> $preflightErrLogPath
@@ -733,7 +802,7 @@ function Invoke-NightLoop {
     } finally {
         Pop-Location
     }
-    Publish-FailurePlaybookStderr -Path $preflightErrLogPath
+    Publish-FailurePlaybookLog -Path $preflightErrLogPath -Label 'preflight'
     $preflightJsonText = ($preflightJsonLines | Select-Object -Last 1)
     $preflightResult = $null
     if ($preflightJsonText) {
@@ -903,9 +972,8 @@ function Invoke-NightLoop {
     # このnight_loop.ps1プロセス($PID)を起点に、claude実行中のstream-jsonが伸びなくなる
     # 無応答を監視する。DryRunではここまで到達しない(手順9のDryRun分岐で既にreturn済み)。
     # 起動失敗は致命的にしない(P1、Watchdog不在でも本体のclaude実行は継続する)。
-    $stopFlagPath = Join-Path $ClaudeDir 'night_watchdog.stop'
     try {
-        Remove-Item -Path $stopFlagPath -Force -ErrorAction Stop
+        Remove-Item -Path $WatchdogStopFlagPath -Force -ErrorAction Stop
     } catch [System.Management.Automation.ItemNotFoundException] {
         # 元々存在しない場合は正常系(前回終了処理で既に削除済み等)なので無警告。
     } catch {
@@ -917,13 +985,17 @@ function Invoke-NightLoop {
     # 実際にプロセスを停止させた場合(FP-05(c))の理由がどこにも残らない(Major-1指摘対応)。
     # ここでは消さず残すことを優先し、ローテーションは既存の空.err.log削除処理と同様の
     # 考え方を終了処理側(手順10)で流用する。
-    $watchdogOutLogPath = Join-Path $NightLogsDir ('watchdog-{0}.out.log' -f $PID)
-    $watchdogErrLogPath = Join-Path $NightLogsDir ('watchdog-{0}.err.log' -f $PID)
+    $script:WatchdogOutLogPath = Join-Path $NightLogsDir ('watchdog-{0}-{1}.out.log' -f $RunStamp, $PID)
+    $script:WatchdogErrLogPath = Join-Path $NightLogsDir ('watchdog-{0}-{1}.err.log' -f $RunStamp, $PID)
     try {
         $watchdogArgList = @('-NoProfile', '-File', 'tools\failure_playbook.ps1', '-Mode', 'Watchdog', '-WrapperPid', "$PID", '-StreamLogPath', $logPath) + $watchdogUnattendedArgs
-        Start-Process -FilePath 'powershell' -ArgumentList $watchdogArgList -WorkingDirectory $RepoRoot -WindowStyle Hidden -RedirectStandardOutput $watchdogOutLogPath -RedirectStandardError $watchdogErrLogPath | Out-Null
-        Write-Log 'INFO' ('失敗プレイブック(Watchdog)を別プロセスとして起動しました(stdout: {0} / stderr: {1})。' -f $watchdogOutLogPath, $watchdogErrLogPath)
+        $script:WatchdogProcess = Start-Process -FilePath 'powershell' -ArgumentList $watchdogArgList -WorkingDirectory $RepoRoot -WindowStyle Hidden -RedirectStandardOutput $script:WatchdogOutLogPath -RedirectStandardError $script:WatchdogErrLogPath -PassThru
+        # Windows PowerShell 5.1でHasExited/ExitCodeを安定して読むためのハンドルキャッシュ。
+        # 既に終了していると例外になりうるので握り潰す。
+        try { $null = $script:WatchdogProcess.Handle } catch { }
+        Write-Log 'INFO' ('失敗プレイブック(Watchdog)を別プロセスとして起動しました(PID {0}, stdout: {1} / stderr: {2})。' -f $script:WatchdogProcess.Id, $script:WatchdogOutLogPath, $script:WatchdogErrLogPath)
     } catch {
+        $script:WatchdogProcess = $null
         Write-Log 'WARN' ('失敗プレイブック(Watchdog)の起動に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
     }
 
@@ -947,19 +1019,18 @@ function Invoke-NightLoop {
     # 10-1. 失敗プレイブック(Postmortem): まずWatchdogを停止フラグで終わらせてから、
     # 今回のstream-json/stderrを既知障害シグネチャ(FP-02/FP-04/FP-05(a))と照合する。
     # 失敗しても本体の終了処理は継続する(P1)。
-    try { New-Item -ItemType File -Path $stopFlagPath -Force | Out-Null } catch {
-        Write-Log 'WARN' ('Watchdog停止フラグの作成に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
-    }
+    # Postmortem実行中にWatchdogがフラグを観測できるよう、先にフラグだけ立てる。
+    Request-NightWatchdogStop
     $postmortemFailureSummary = @()
     try {
-        $postmortemErrLogPath = Join-Path $NightLogsDir ('failure_playbook-postmortem-{0}.err.log' -f $PID)
+        $postmortemErrLogPath = Join-Path $NightLogsDir ('failure_playbook-postmortem-{0}-{1}.err.log' -f $RunStamp, $PID)
         Push-Location $RepoRoot
         try {
             $postmortemJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Postmortem -StreamLogPath $logPath -ErrLogPath $errLogPath -ClaudeExitCode $claudeExit 2> $postmortemErrLogPath
         } finally {
             Pop-Location
         }
-        Publish-FailurePlaybookStderr -Path $postmortemErrLogPath
+        Publish-FailurePlaybookLog -Path $postmortemErrLogPath -Label 'postmortem'
         $postmortemJsonText = ($postmortemJsonLines | Select-Object -Last 1)
         if ($postmortemJsonText) {
             $postmortemResult = $postmortemJsonText | ConvertFrom-Json -ErrorAction Stop
@@ -975,13 +1046,7 @@ function Invoke-NightLoop {
     } catch {
         Write-Log 'WARN' ('失敗プレイブック(Postmortem)の実行または出力解釈に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
     }
-    try {
-        Remove-Item -Path $stopFlagPath -Force -ErrorAction Stop
-    } catch [System.Management.Automation.ItemNotFoundException] {
-        # 元々存在しない場合は正常系なので無警告。
-    } catch {
-        Write-Log 'WARN' ('Watchdog停止フラグの削除に失敗しました(fail-open、続行します): {0}' -f $_.Exception.Message)
-    }
+    Stop-NightWatchdog
 
     # stderrが1バイトも出なかった場合、0バイトの.err.logがローテーションされずに
     # 発火のたびに溜まり続けるため削除する(Minor-1指摘対応。削除できなくても
@@ -993,21 +1058,6 @@ function Invoke-NightLoop {
         }
     } catch {
         Write-Log 'WARN' ('空の.err.logの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
-    }
-
-    # Watchdogのstdout/stderrログも同様に、0バイトなら削除しローテーションする
-    # (Major-1指摘対応で新設。Watchdogは停止フラグ検知後に終了するため通常この時点で
-    # 既にプロセス終了済みだが、まだファイルを保持していてRemove-Itemが失敗しても
-    # 致命的にしない)。
-    foreach ($watchdogLogPath in @($watchdogOutLogPath, $watchdogErrLogPath)) {
-        try {
-            if ($watchdogLogPath -and (Test-Path $watchdogLogPath) -and ((Get-Item $watchdogLogPath).Length -eq 0)) {
-                Remove-Item -Path $watchdogLogPath -Force -ErrorAction Stop
-                Write-Log 'INFO' ('空のWatchdogログを削除しました: {0}' -f $watchdogLogPath)
-            }
-        } catch {
-            Write-Log 'WARN' ('空のWatchdogログの削除に失敗しました(無視して続行): {0}' -f $_.Exception.Message)
-        }
     }
 
     Write-Log 'INFO' ('claude の終了コード: {0}' -f $claudeExit)
@@ -1048,6 +1098,9 @@ try {
     Save-NightLoopLastRun -Outcome 'error_exception' -Reason ('予期しない例外が発生しました: {0}' -f $_.Exception.Message) -ExitCode 2
     $exitCode = 2
 } finally {
+    # 手順9〜10の途中で例外が出た経路でもWatchdogを確実に終了させるための保険。
+    # $script:WatchdogStopHandledにより正常系では二重実行にならず何もしない。
+    Stop-NightWatchdog
     if ($script:LockAcquired -and (Test-Path $LockPath)) {
         Remove-Item -Path $LockPath -Force -ErrorAction SilentlyContinue
         Write-Log 'INFO' 'ロックを解放しました。'

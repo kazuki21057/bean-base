@@ -262,6 +262,7 @@
 - **検知シグネチャ**: `-Mode Watchdog` を `night_loop.ps1` の手順9で**別プロセスとして先に起動**し、30秒間隔で次を見る。
   - **stall**: `-StreamLogPath` の `.jsonl` の `Length` と `LastWriteTime` が **`StallMinutes`(既定20分)変化しない**、かつ対象プロセスが生存している
   - **hardcap**: 起動から **`HardCapMinutes`(既定90分)** 経過
+- Watchdogの診断ログを `.claude/night_logs/watchdog-<yyyyMMdd-HHmmss>-<wrapper PID>.out.log` / `.err.log` にリダイレクトし、Watchdog終了確認後に wrapper.log へ `[failure_playbook] watchdog-stdout:` / `watchdog-stderr:` として転記してから削除する。
 - **監視対象プロセスの特定**(名前一致の総当たりを禁止するための手順、確定):
   1. `Get-CimInstance Win32_Process -Filter "ParentProcessId=$WrapperPid"` から**深さ5まで再帰的に子孫を列挙**する(`claude` は `.cmd` シム経由で `cmd.exe` → `node.exe` になりうるため、直接の子だけでは足りない)
   2. そのうち `Name` が `claude.exe` / `node.exe` で、かつ `CommandLine` に `night_loop` を含むものだけを対象とする
@@ -271,7 +272,7 @@
   - 2段目(合計 `StallMinutes`×2 = 40分 無成長、または hardcap 到達): 上記で確定した対象を**子孫から順に** `Stop-Process -Id <pid> -Force` する
   - 停止後: `Save-NightLoopLastRun -Outcome 'error_watchdog_stall'`、証拠束(§5)を生成、night_report に停止時刻・`.jsonl` の最終行・`git status --porcelain` の一覧を書く
 - **作業ツリーには一切触らない**。`git stash` / `git reset` / `git checkout --` の自動実行は禁止(P2、かつ夜間プロファイルの deny 対象)。停止後は作業ツリーが汚れたまま残るため、次回発火は既存の「作業ツリー汚れガード」でスキップされる——これは**意図した挙動**(壊れた状態で次のタスクを始めない)。ただしそのスキップは FP-06 が拾って「停止しています」と通知する。
-- **Watchdog 自身の制約(重要)**: 監視対象ファイルを**開いたまま保持しない**。`Get-Item` の `Length` / `LastWriteTime` のみを見る。ハンドルを保持すると Watchdog 自身が FP-01 の原因になる。また `night_loop.ps1` は claude 終了後に `.claude/night_watchdog.stop` を作成し、Watchdog はその存在または `WrapperPid` の消滅を検知して**自ら終了する**(孤児化させない)。
+- **Watchdog 自身の制約(重要)**: 監視対象ファイルを**開いたまま保持しない**。`Get-Item` の `Length` / `LastWriteTime` のみを見る。ハンドルを保持すると Watchdog 自身が FP-01 の原因になる。また `night_loop.ps1` は claude 終了後に `.claude/night_watchdog.stop` を作成し、Watchdog はその存在または `WrapperPid` の消滅を検知して**自ら終了する**(孤児化させない)。フラグは片方向の通知に過ぎないため、`night_loop.ps1` 側は `Start-Process -PassThru` で保持したプロセスオブジェクトに対し `WaitForExit(45秒)` で実際の終了を確認する。タイムアウト時は `Stop-Process -Force` で回収する。順序は「フラグ作成→終了確認→フラグ削除→診断ログの転記・削除」で固定し、終了確認より前にフラグ削除やログ削除へ進んではならない(Watchdogがフラグを一度も観測できないレース、および `-RedirectStandardOutput/-RedirectStandardError` のハンドル保持による削除失敗=FP-01の自作自演を防ぐ)。タイムアウト値は「ポーリング間隔+15秒」以上を保つ。
 
 **エスカレーション基準**: Watchdog が停止処理を実行したら**常に人間へ**。同じタスクを自動で再試行しない(`failure_state.json` に記録し、`/night_loop` スキル手順1が読んで別タスクを選ぶ)。
 
@@ -401,8 +402,8 @@
 | 挿入位置 | 内容 |
 |---|---|
 | 手順7.5(作業ツリー汚れガード)の**直前** | `-Mode Preflight` を実行。exit 2 なら claude を起動せず `Save-NightLoopLastRun -Outcome 'error_preflight'` で終了(exit 2)。exit 1 なら記録して続行 |
-| 手順9(claude 起動)の**直前** | `Start-Process powershell -ArgumentList '-NoProfile','-File','tools\failure_playbook.ps1','-Mode','Watchdog','-WrapperPid',$PID,'-StreamLogPath',$logPath -WindowStyle Hidden` で Watchdog を起動 |
-| 手順10(終了処理)の**先頭** | `.claude/night_watchdog.stop` を作成して Watchdog を終わらせ、`-Mode Postmortem -StreamLogPath ... -ErrLogPath ... -ClaudeExitCode $claudeExit` を実行 |
+| 手順9(claude 起動)の**直前** | `Start-Process powershell -ArgumentList '-NoProfile','-File','tools\failure_playbook.ps1','-Mode','Watchdog','-WrapperPid',$PID,'-StreamLogPath',$logPath -WindowStyle Hidden -PassThru` で Watchdog を起動し、戻り値のプロセスオブジェクトを `$script:WatchdogProcess` に保持する(終了確認に使う)。標準出力/標準エラーは `.claude/night_logs/watchdog-<RunStamp>-<PID>.out.log` / `.err.log` へリダイレクトする |
+| 手順10(終了処理)の**先頭** | `.claude/night_watchdog.stop` を作成 → `-Mode Postmortem` 実行 → Watchdog の終了を確認(`WaitForExit`、タイムアウト時は `Stop-Process -Force`)→ フラグ削除・診断ログ転記、の順で実行 |
 | `Save-NightLoopLastRun` | `.claude/night_outcomes.log` への追記を追加(`Write-LineWithRetry` を使う) |
 | `Send-NightNotification` | 任意引数 `-FailureSummary`(文字列配列)を追加し、night_report に `## 検知した障害` 節として出力する |
 | `Write-LineWithRetry` | 定義を `tools/lib/loop_io.ps1` へ移し、`. (Join-Path $PSScriptRoot 'lib\loop_io.ps1')` でドットソースする(同名・同シグネチャなので呼び出し側は無変更) |
@@ -433,7 +434,7 @@
 |---|---|---|---|---|
 | **T5-A61** | プレイブック基盤: `tools/lib/loop_io.ps1`(`Write-LineWithRetry` の移設)+ `tools/failure_playbook.ps1` の骨格(§2-2 の引数・§2-3 の1行JSON・終了コード・§2-5 のルール配列・§2-4 の記録層)+ `-Mode Preflight` に **FP-02 / FP-07 / FP-01(シグネチャA・B)** を実装。`night_loop.ps1` は `Write-LineWithRetry` をドットソースに置き換える | `-Mode Preflight` が1行JSONを返し `.claude/failure_events.tsv` と `.claude/failure_state.json` が生成される。BOM を意図的に落とした `.ps1` を置くと自動修復され `ParseFile` エラー0件になる。`night_loop.ps1 -DryRun` が従来どおり成功する | なし | **M** |
 | **T5-A62** | FP-06: `Save-NightLoopLastRun` に `.claude/night_outcomes.log` 追記を追加、新 outcome(`error_preflight` / `error_claude_exit_unknown` / `error_watchdog_stall`)を定義、Preflight に連続判定(3回連続/72時間/5回中3件)を実装。`Send-NightNotification -FailureSummary` と night_report の `## 検知した障害` 節 | `night_outcomes.log` に同一 outcome を3行仕込むと Preflight が warn を出し、night_report に「人がやること」が入る。5行なら見出しが `# ⛔ 夜間ループが停止しています` になる | T5-A61 | **S** |
-| **T5-A63** | FP-05(c): `-Mode Watchdog` の実装(30秒間隔・stall2段階・hardcap・§3 FP-05 の子孫プロセス特定手順・`night_watchdog.stop` による自己終了・ハンドル非保持)+ `night_loop.ps1` 手順9/10 への配線 | ダミーの長時間プロセスを対象に、1段目で警告のみ・2段目で対象のみ停止することを実測。対象0件のときは停止せず escalate だけになることを実測。claude 正常終了時に Watchdog が自動終了し孤児が残らないことを確認 | T5-A61 | **M** |
+| **T5-A63** | FP-05(c): `-Mode Watchdog` の実装(30秒間隔・stall2段階・hardcap・§3 FP-05 の子孫プロセス特定手順・`night_watchdog.stop` による自己終了・ハンドル非保持)+ `night_loop.ps1` 手順9/10 への配線 | ダミーの長時間プロセスを対象に、1段目で警告のみ・2段目で対象のみ停止することを実測。対象0件のときは停止せず escalate だけになることを実測。claude 正常終了時に Watchdog が自動終了し孤児が残らないことを確認。かつ `night_loop.ps1` 終了時点で `watchdog-*` の診断ログが残っていない(=ハンドルが解放されている) | T5-A61 | **M** |
 | **T5-A64** | FP-04 + 未知障害: `-Mode Postmortem` の実装(§3 FP-04 の正規表現4種、`.jsonl`/`.err.log` 走査、§5 の証拠束生成、全ルールの照合結果出力)+ `night_loop.ps1` 手順10 への配線 | 権限拒否文字列を含むダミー `.jsonl` を置くと FP-04 が escalate になり、`allow` 追加候補行が night_report に出る。どのシグネチャにも合致しない非0終了で `error_claude_exit_unknown` と証拠束が生成される | T5-A61 | **S** |
 | **T5-A65** | FP-03: エミュレータの検知(シグネチャ A〜D)と復旧(`-Stop` → `Clear-StaleEmulator` → `-Start`、最大1回、`-Unattended` 時のみ、AVD は `beanbase_ui` 固定)。復旧失敗時に「Android 検証は未実施」を `failure_state.json` へ記録 | エミュレータ停止状態から Preflight を実行すると1回だけ再起動を試み、結果が `failure_events.tsv` に残る。有人モードでは再起動せず検知のみになることを確認 | T5-A61 | **S** |
 | **T5-A66** | `-Mode Check` の実装 + 配線一式: `.claude/skills/night_loop/SKILL.md`(手順1・5・6・7)、`docs/android_release/開発運用基盤設計.md` §7、`rules/verification.md` インデックス、`CLAUDE.md` 1文、`.gitignore` 4パス。あわせて **T5-A53(`tools/preflight.ps1`)を本設計に統合済みとして閉じる** | `grep -n "failure_playbook" .claude/skills/night_loop/SKILL.md CLAUDE.md rules/verification.md docs/android_release/開発運用基盤設計.md` が全ファイルでヒットする。BOM を落とした `.ps1` を含む変更で `-Mode Check` が非0を返す | T5-A61〜T5-A65 | **S** |
@@ -470,6 +471,12 @@
 | `.claude/failure_state.json` が壊れている / 存在しない | 例外にせず新規作成して続行する |
 | Watchdog 起動中に claude が正常終了 | Watchdog が60秒以内に自ら終了し、プロセスが残らない(**孤児化させないこと自体が FP-01 の予防**) |
 | ロック中のファイルへ書けない状態 | 切替先ファイルに全ログが残り、`night_report.md` が更新される |
+
+### 8-3. 既知のリスクと緩和
+
+| リスク | 緩和 |
+|---|---|
+| Watchdog が停止フラグに応答せず強制終了された場合、Watchdog 自身の JSON 出力・証拠束が失われる | wrapper.log に強制終了の WARN を残す。強制終了自体が異常の兆候なので、この行が出たら人が `failure_events.tsv` を確認する |
 
 ---
 

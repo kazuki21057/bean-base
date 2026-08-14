@@ -26,6 +26,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    - **有人試走モード**(ユーザーがチャットで明示的に`/night_loop`を呼んだ場合)に限り、未設置でも継続してよい。ただし**§無人実行で絶対にしないこと**の禁止事項は有人試走でも同様に守る。
 
 1. **状況確認**
+   - **失敗プレイブックのエスカレーション確認(T5-A66新設)**: `.claude/failure_state.json`をReadする。`escalated:true`のルールがあれば、その内容を締めのnight_reportへ必ず転記する。`FP-05-HANG`が`escalated:true`の場合、**前回停止したタスクと同じタスクを選ばない**(手順2のタスク選定時に候補から除外する)。
    - `.claude/loop_state.md`を読み、当ループのコスト・ターン数・連続失敗回数を確認する。**上限は表示値ではなく夜間値(コスト$20/ターン80/連続失敗2)で自己判定する**(T5-A11完了後は表示値をそのまま使ってよい)。いずれか到達していれば新規着手せず手順6(締め、中断扱い)へ。
    - `loop_state.md`の数値は`/night_loop`をループ境界として認識しない(`loop_guard.js`は`/start`・`/full_loop`のみ検出、T5-A11で対応予定)ため、同日の他セッション分を含んでいる可能性がある。判断に迷う場合は安全側(しきい値超過とみなして中断)に倒す。
    - `NEXT_SESSION.md`と`docs/改修マスタープラン.md` §3の未完了行を読む。読むファイルは`CLAUDE.md`§毎ループの読み取り最小セットに従い、アーカイブは全読みせず必要時のみgrepする。
@@ -73,6 +74,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    | 2 | `integration_test`スモークが全パス | verifier | **`integration_test`未整備(T5-A7未完了)の間は「判定対象外(スキップ)」。`verifier`が「未実施(理由)」と報告した場合はゲートを落とさない(T5-A2で定義済みの`verifier`既定挙動どおり)。ただしスイートが存在するのに実行して失敗した場合は落とす(未整備によるスキップと実行失敗を区別する)。T5-A7完了で解除** |
    | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | **判定対象外(スキップ)。T5-A4完了で解除** |
    | 4 | `adversary`のCritical指摘がゼロ | adversary | 適用(常時判定) |
+   | 5 | (T5-A66新設)変更ファイルに`.ps1`が含まれる場合、`powershell -File tools\failure_playbook.ps1 -Mode Check`がexit 0を返す | failure_playbook.ps1のJSON(終了コード) | `.ps1`変更が無いループは判定対象外(スキップ)。exit 0以外(BOM喪失等を検知)ならゲートを落とす |
 
    - **全条件を満たした場合**: 手順6の締めを行い、最後に`git push origin main`。
    - **1つでも落ちた場合**(設計書§4-2、ゲート不通過時の手順):
@@ -88,12 +90,12 @@ description: Use when the user asks to run one unattended overnight iteration of
    1. `NEXT_SESSION.md`更新(直近1セッション分、古い節はアーカイブへ)
    2. `docs/改修マスタープラン.md`進捗表更新
    3. 新しい教訓があれば`rules/lessons_archive.md`に全文追記 + `rules/verification.md`のインデックスに1行
-   4. `night_report.md`を**上書き**(下記テンプレート、1画面に収まる長さ)。**本ループで2件実施した場合は`NEXT_SESSION.md`・`night_report.md`に両方のタスクの結果をまとめて1回で記載する**。
+   4. `night_report.md`を**上書き**(下記テンプレート、1画面に収まる長さ)。**本ループで2件実施した場合は`NEXT_SESSION.md`・`night_report.md`に両方のタスクの結果をまとめて1回で記載する**。**(T5-A66新設)**失敗プレイブックが検知した障害があれば`## 検知した障害`節を追加する: 自動対処できたものは1行、`escalated:true`のものは「人がやること」欄へ書く。
    5. commit
    6. 手順5の判定に従い`git push origin main`、または`night/<タスクID>`ブランチ+PR
 
 7. **通知**
-   - **`PushNotification`を成功時・中断時とも必ず送る**(ユーザーは画面を見ていない前提)。1〜2文の日本語要約。
+   - **`PushNotification`を成功時・中断時とも必ず送る**(ユーザーは画面を見ていない前提)。1〜2文の日本語要約。**(T5-A66新設)**失敗プレイブックのescalateがあれば、その内容を通知本文に含める。
    - **`AskUserQuestion`は使わない**(無人実行では応答が得られないため)。質問が必要になった時点で§中断条件に該当するものとして扱い、`night_report.md`に理由を書いて終了する。**この規定は無人モード限定**であり、有人試走モードでは`AskUserQuestion`を使ってよい(§0参照)。
 
 ## 中断して終わる条件(新規タスクを発明しない)
