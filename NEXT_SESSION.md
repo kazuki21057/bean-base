@@ -52,7 +52,9 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-15最新】T5-A83完了。次に最優先で着手できるのはT5-A84(S、Claudeモデルのスモーク検証3件+3pバケット消費実測、⚠️一部ユーザー実施——対話モードTUIでの`/usage`前後値確認が必要)**。**T5-A84が通らなければT5-A85〜A87〈researcher/implementer/architectのClaudeモデルパイロット〉は着手しない**(詳細は`docs/antigravity_delegation_design.md` §12.8依存図)。T5-A88(S、verify_citationsのリポジトリ内引用モード)・T5-A89(S、配線、依存T5-A83のみで今回充足)はT5-A84の結果を待たず着手可。
+> **【2026-08-15新規発見、T5-A84着手前に確認】教訓L158を訂正済み**——`agy -p "/usage"`の失敗はagy側regressionではなくGit Bash(MSYS)のパス自動変換が真因と判明(PowerShellまたは`MSYS_NO_PATHCONV=1`付きBashなら`Claude and GPT models`バケット残量まで含め正常取得できることを実測確認、`rules/lessons_archive.md` L158訂正版参照)。本番`.ps1`ラッパー(`Invoke-AgyProcess`)はGit Bashを経由せず`ProcessStartInfo`で直接起動するため元々無傷の可能性が高い(未確認)。**T5-A84着手時、⚠️ユーザー実施(TUI手動確認)が本当に必要か、ラッパー経由の`Invoke-QuotaPreflight`で自動計測できないかをまず確認すること**。ユーザー指示によりT5-A83の実装見直しは今回行わず、L158訂正のみで留めた。
+>
+> **【2026-08-15最新】T5-A83完了。次に最優先で着手できるのはT5-A84(S、Claudeモデルのスモーク検証3件+3pバケット消費実測、⚠️一部ユーザー実施——対話モードTUIでの`/usage`前後値確認が必要、ただし上記発見により自動化の余地あり)**。**T5-A84が通らなければT5-A85〜A87〈researcher/implementer/architectのClaudeモデルパイロット〉は着手しない**(詳細は`docs/antigravity_delegation_design.md` §12.8依存図)。T5-A88(S、verify_citationsのリポジトリ内引用モード)・T5-A89(S、配線、依存T5-A83のみで今回充足)はT5-A84の結果を待たず着手可。
 >
 > **【2026-08-14更新】T5-A70・T5-A82・T5-A83は完了済み**。次に着手できるのは T5-A84(最優先)・T5-A88・T5-A89・T5-A81(S、researcher出力への構造化JSONスキーマ導入)・T5-A71(S、未完了タスク行への受入欄付与)・T5-A16(トークン実測記録)・T5-A68(M、障害注入テスト)。T5-A75・T5-A76・T5-A78・T5-A79・T5-A80は完了済み。
 >

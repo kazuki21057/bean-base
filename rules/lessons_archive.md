@@ -950,10 +950,15 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 
 **一般化**: PowerShell 5.1の`Set-Content`/`Out-File -Encoding utf8`は**常にBOM付き**。既存ファイルのエンコーディングを保って書き戻すなら`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`を使う。逆に`.ps1`(BOM必須、L127/L142)へ書くときはBOM付きが正しいので、**ファイル種別ごとにどちらが正解かが逆になる**点に注意する。行単位の置換は、可能ならEditツールのように元のエンコーディングを保つ手段を優先する。
 
-## L158 agy 1.1.13のヘッドレスモード(`-p`)は`/usage`・`/help`等の組み込みスラッシュコマンドを展開せず、通常プロンプトとして誤解釈して権限エラーで失敗する(2026-08-14、T5-A80)
+## L158 【2026-08-15訂正】agy `-p "/usage"`の失敗はagy自体のregressionではなく、Git Bash(MSYS)の自動パス変換が引数`/usage`を絶対パスと誤認しWindowsパスへ書き換えていたことが真因(当初診断は誤り。2026-08-14、T5-A80/2026-08-15、`/full_loop`実測で訂正)
 
-**事象**: `agy -p "/usage" --output-format json`を実行すると、`/usage`がクライアント側の組み込みコマンドとして展開されず(`--log-file`のログに`Slash commands unchanged, skipping update`)、そのまま自然文プロンプトとして解釈され、`C:\Program Files\Git`のような無関係なディレクトリへの`ListDir`/`read_file`を試みて権限拒否され応答が空になった。`--output-format text`でも同様、`/help`でも同一パターンが再現した。旧バージョン(1.1.11/1.1.12)では`/usage`が消費ゼロで構造化JSONを返すことが確認されていたため(`docs/antigravity_delegation_design.md` §2)、これは1.1.13で新規に混入したregressionの疑い(原因未特定)。
+**事象(訂正後)**: Bashツール(Git Bash/MSYS)経由で`agy -p "/usage" --output-format json`を実行すると、シェルが引数`/usage`を絶対パスとみなして自動変換し(MSYS2の既知の挙動)、agyには`/usage`ではなく別のWindowsパス文字列(`C:\Program Files\Git`配下等)が渡っていた。agy側は組み込みスラッシュコマンドとして認識できず自然文プロンプトとして誤解釈し、無関係なディレクトリへの`ListDir`/`read_file`を試みて権限拒否・応答空になっていた。
 
-**対処**: 今回は`~/.gemini/antigravity-cli/settings.json`への許可追加や`--dangerously-skip-permissions`は使わず(エージェントに自分自身の権限設定ファイルを触らせない原則、L140系)、`agy -p "/usage"`前提の計測(クォータ残量の前後比較など)は**今回のバージョンでは実施不能**と判断してタスクを打ち切った(判定不能として正直に報告、無理に確証を捏造しない)。
+**当初の誤診断**: 上記事象を「agy 1.1.13で新規混入したheadless regression」と結論づけていたが誤り。**stdinブロッキングが原因という説(外部Geminiレポート)も誤り**(検証の結果、Bash側は`< /dev/null`で遮断しても失敗が再現し無関係と判明)。
 
-**一般化**: agyのバージョンが上がったら、`/usage`のような組み込みコマンド依存の手順(クォータ計測・許可リスト確認等)は**まず単独で1回試して現在も機能するか確認してから**本題の計測に使う。失敗時に権限緩和や`--dangerously-skip-permissions`で回避しようとせず、「このバージョンでは計測不能」と結論づけて次善策(状況証拠での代替判断、対話モードでの再検証等)に切り替える。
+**再検証(2026-08-15)で判明した事実**:
+1. Bashで`MSYS_NO_PATHCONV=1 agy -p "/usage" ...`を実行すると**成功し、`Claude and GPT models`バケットの残量まで含む完全なJSONが取得できた**(パス変換無効化で再現的に解消)。
+2. PowerShellから`& $agyPath -p "/usage" ...`を直接実行すると(stdin遮断の有無に関わらず)**常に成功する**(MSYS経由ではないため元々影響を受けない)。
+3. 本番ラッパー`tools/antigravity_delegate.ps1`の`Invoke-AgyProcess`は`System.Diagnostics.ProcessStartInfo`でagy.exeを直接起動しており、Git Bashを経由しない。上記2と同一の起動方式のため、**本番ラッパーは元々このバグの影響を受けていなかった可能性が高い**——影響はBashツールでの検証時に限定されていたとみられる(未確定、実際のラッパー実行での再確認は今後の課題)。
+
+**一般化**: agy等のCLIへスラッシュ始まりの引数(`/usage`等)を渡す検証は、**Bashツール(Git Bash/MSYS環境)ではなくPowerShellで行う**か、Bashで行う場合は`MSYS_NO_PATHCONV=1`を付ける。逆に「ヘッドレスでは計測不能」という結論を出す前に、**実行環境(シェル)を変えて再現するかを確認する**——同一コマンドでもBash/PowerShellで挙動が異なりうる(MSYSパス変換はGit Bash特有で、WSLやPowerShellには無い)。
