@@ -18,7 +18,7 @@ $ agy --version
 
 主要フラグ: `-p`/`--print`(ヘッドレス単発実行)、`--output-format`(text/json/stream-json)、`--model`、`--effort`(low/medium/high。モデルIDに`-high`等が含まれる場合は二重指定を避ける)、`--add-dir`(ワークスペース追加)、`--mode`(accept-edits/plan)、`--dangerously-skip-permissions`、`--sandbox`、`--print-timeout`(既定5m0s)。
 
-利用可能モデル(`agy models`): `gemini-3.6-flash-{high,medium,low}` / `gemini-3.5-flash-{high,medium,low}` / `gemini-3.1-pro-{high,low}` / `claude-sonnet-4-6` / `claude-opus-4-6-thinking` / `gpt-oss-120b-medium`(agy経由でClaude/GPTも中継可能だが、Claude利用枠節約という目的には使わない)。
+利用可能モデル(`agy models`): `gemini-3.6-flash-{high,medium,low}` / `gemini-3.5-flash-{high,medium,low}` / `gemini-3.1-pro-{high,low}` / `claude-sonnet-4-6` / `claude-opus-4-6-thinking` / `gpt-oss-120b-medium`(agy経由でClaude/GPTも中継可能だが、Claude利用枠節約という目的には使わない)。**2026-08-14再取得時点では`gemini-3.7-flash-{high,medium,low}`が追加され最新世代になっている**(T5-A78)。新モデルの追従はハードコードではなく、ラッパー側で`agy models`の出力から`gemini-<major>.<minor>-flash-high`のうち数値最大のものを自動解決する方式に変更済み(§9.2参照)。
 
 クォータ(`agy -p "/usage" --output-format json`、消費ゼロで取得可能):
 ```
@@ -210,7 +210,7 @@ T5-A28の集計では、当時のループ消費のうち親セッションが�
 | `-Files` / `--files` | — | 空 | 対象ファイルの相対パス一覧(カンマ区切り)。プロンプトに列挙する |
 | `-DoneWhen` / `--done-when` | — | 空 | 完了条件を1行で |
 | `-TaskId` / `--task-id` | — | 空 | `T5-A38`等。台帳に記録するだけ |
-| `-Model` / `--model` | — | `gemini-3.6-flash-high` | agyの`--model`にそのまま渡す |
+| `-Model` / `--model` | — | 空(自動解決) | 空のときだけ`agy models`を実行し、`gemini-<major>.<minor>-flash-high`のうち数値最大のものを自動解決してagyの`--model`に渡す(T5-A78)。取得失敗・タイムアウト(目安30秒)・候補ゼロの場合はフォールバック値`gemini-3.6-flash-high`を使う(ラッパー自体は失敗させない)。明示指定時は自動解決せずその値をそのまま渡す |
 | `-Effort` / `--effort` | — | 自動 | **モデルIDが`-high`/`-medium`/`-low`で終わる場合は`--effort`を渡さない**(§2の二重指定回避)。それ以外のときだけ既定`medium`を渡す |
 | `-TimeoutSec` / `--timeout-sec` | — | `600` | agyへは`--print-timeout <N>m<M>s`形式で渡し、加えてラッパー側で`N+60`秒の外側タイムアウトを掛けてプロセスをkillする |
 | `-WorkDir` / `--work-dir` | — | リポジトリルート | `--add-dir`に渡す |

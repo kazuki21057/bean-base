@@ -38,7 +38,7 @@ TASK_FILE=""
 FILES=""
 DONE_WHEN=""
 TASK_ID=""
-MODEL="gemini-3.6-flash-high"
+MODEL=""
 EFFORT=""
 EFFORT_SET=false
 TIMEOUT_SEC=600
@@ -159,6 +159,96 @@ mkdir -p "$OUT_DIR_FULL"
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
+# --- agy実行ファイルの探索(agy → agy.exe の順。モデル自動解決にも使うため先に行う。
+# ここでは未検出でも打ち切らず AGY_BIN="" のまま続行し、DRY_RUN後の本チェックでexit 10とする) ---
+AGY_BIN=""
+if command -v agy >/dev/null 2>&1; then
+  AGY_BIN="$(command -v agy)"
+elif command -v agy.exe >/dev/null 2>&1; then
+  AGY_BIN="$(command -v agy.exe)"
+fi
+
+# --- 外部プロセス実行の共通処理 -------------------------------------------------------
+# 地雷回避: `2>&1` でstdout/stderrを合流させない(.ps1版と同じ理由の踏襲。Bashでは
+# ErrorRecord化の問題は無いが、JSON応答にstderrの雑音が混ざらないよう個別ファイルへ
+# リダイレクトする)。外側タイムアウトは GNU coreutils の `timeout` を使う。
+run_agy() {
+  local timeout_sec_outer="$1"; shift
+  local stdout_file="$1"; shift
+  local stderr_file="$1"; shift
+
+  local start_ts end_ts
+  start_ts=$(date +%s.%N)
+  timeout -k 10s "${timeout_sec_outer}s" "$AGY_BIN" "$@" >"$stdout_file" 2>"$stderr_file"
+  local rc=$?
+  end_ts=$(date +%s.%N)
+  DURATION_SEC=$(awk -v s="$start_ts" -v e="$end_ts" 'BEGIN{printf "%.1f", e-s}')
+
+  TIMED_OUT=false
+  if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+    TIMED_OUT=true
+  fi
+  RUN_EXIT_CODE=$rc
+}
+
+# --- モデル自動解決(--model省略時のみ。T5-A78) --------------------------------------------
+# `--model` が空文字(既定)のときだけ「agy models」で利用可能なモデル一覧を取得し、
+# `gemini-<major>.<minor>-flash-high` 形式のうち major.minor が数値として最大のものを選ぶ
+# (-highサフィックス固定。§9.2「モデルIDが-high/-medium/-lowで終わる場合は--effortを
+# 渡さない」ルールとの整合のため)。取得失敗・タイムアウト・候補ゼロのいずれでも
+# ラッパー自体は失敗させず、フォールバック値 gemini-3.6-flash-high を使って続行する。
+resolve_latest_gemini_flash_model() {
+  local fallback="gemini-3.6-flash-high"
+  if [[ -z "$AGY_BIN" ]]; then
+    progress "agyが見つからないためモデル自動解決をスキップし、フォールバックを使用します: ${fallback}"
+    echo "$fallback"
+    return
+  fi
+  local models_stdout models_stderr
+  models_stdout="$(mktemp)"
+  models_stderr="$(mktemp)"
+  run_agy 30 "$models_stdout" "$models_stderr" models
+  local models_rc=$RUN_EXIT_CODE
+  local models_timed_out=$TIMED_OUT
+  local models_text
+  models_text="$(cat "$models_stdout" 2>/dev/null || true)"
+  rm -f "$models_stdout" "$models_stderr"
+
+  if [[ "$models_timed_out" == true || "$models_rc" -ne 0 || -z "$models_text" ]]; then
+    progress "agy models が失敗/タイムアウトしたため、フォールバックを使用します: ${fallback} (exit=${models_rc} timeout=${models_timed_out})"
+    echo "$fallback"
+    return
+  fi
+
+  local best_model="" best_major=-1 best_minor=-1
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local first_field major minor
+    first_field="$(printf '%s' "$line" | awk -F'\t' '{print $1}' | sed 's/^ *//;s/ *$//')"
+    if [[ "$first_field" =~ ^gemini-([0-9]+)\.([0-9]+)-flash-high$ ]]; then
+      major="${BASH_REMATCH[1]}"
+      minor="${BASH_REMATCH[2]}"
+      if (( major > best_major || (major == best_major && minor > best_minor) )); then
+        best_major=$major
+        best_minor=$minor
+        best_model=$first_field
+      fi
+    fi
+  done <<<"$models_text"
+
+  if [[ -z "$best_model" ]]; then
+    progress "agy models の出力に候補(gemini-<major>.<minor>-flash-high)が無かったため、フォールバックを使用します: ${fallback}"
+    echo "$fallback"
+    return
+  fi
+  echo "$best_model"
+}
+
+if [[ -z "$MODEL" ]]; then
+  MODEL="$(resolve_latest_gemini_flash_model)"
+  progress "モデル自動解決: ${MODEL}"
+fi
+
 progress "role=${ROLE} task_id=${TASK_ID} model=${MODEL} dry_run=${DRY_RUN}"
 
 # --- 台帳(ledger.tsv)への追記 -------------------------------------------
@@ -275,13 +365,7 @@ if [[ "$DRY_RUN" == true ]]; then
     '{"input":null,"output":null,"source":"unavailable"}' false ""
 fi
 
-# --- agy実行ファイルの探索(agy → agy.exe の順。両方無ければexit 10) -------------------
-AGY_BIN=""
-if command -v agy >/dev/null 2>&1; then
-  AGY_BIN="$(command -v agy)"
-elif command -v agy.exe >/dev/null 2>&1; then
-  AGY_BIN="$(command -v agy.exe)"
-fi
+# --- agy未検出チェック(探索・run_agy定義は前段(モデル自動解決ブロック)で実施済み。ここでは判定のみ) ---
 if [[ -z "$AGY_BIN" ]]; then
   progress "agy/agy.exe がPATH上に見つかりません"
   add_ledger_row 10 0 0 0
@@ -290,29 +374,6 @@ if [[ -z "$AGY_BIN" ]]; then
     "agy/agy.exeがPATH上に見つかりません。Claude側サブエージェントへ委譲してください。"
 fi
 progress "agy実行ファイル: ${AGY_BIN}"
-
-# --- 外部プロセス実行の共通処理 -------------------------------------------------------
-# 地雷回避: `2>&1` でstdout/stderrを合流させない(.ps1版と同じ理由の踏襲。Bashでは
-# ErrorRecord化の問題は無いが、JSON応答にstderrの雑音が混ざらないよう個別ファイルへ
-# リダイレクトする)。外側タイムアウトは GNU coreutils の `timeout` を使う。
-run_agy() {
-  local timeout_sec_outer="$1"; shift
-  local stdout_file="$1"; shift
-  local stderr_file="$1"; shift
-
-  local start_ts end_ts
-  start_ts=$(date +%s.%N)
-  timeout -k 10s "${timeout_sec_outer}s" "$AGY_BIN" "$@" >"$stdout_file" 2>"$stderr_file"
-  local rc=$?
-  end_ts=$(date +%s.%N)
-  DURATION_SEC=$(awk -v s="$start_ts" -v e="$end_ts" 'BEGIN{printf "%.1f", e-s}')
-
-  TIMED_OUT=false
-  if [[ $rc -eq 124 || $rc -eq 137 ]]; then
-    TIMED_OUT=true
-  fi
-  RUN_EXIT_CODE=$rc
-}
 
 # --- クォータ事前チェック(§9.2、消費ゼロ) ---------------------------------------------
 # 判断: `agy -p "/usage" --output-format json` のJSONスキーマは未確認(§9.7-1)。

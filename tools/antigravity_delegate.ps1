@@ -27,7 +27,7 @@ param(
     [string]$Files = "",
     [string]$DoneWhen = "",
     [string]$TaskId = "",
-    [string]$Model = "gemini-3.6-flash-high",
+    [string]$Model = "",
     [string]$Effort = "",
     [int]$TimeoutSec = 600,
     [string]$WorkDir = "",
@@ -144,132 +144,12 @@ New-Item -ItemType Directory -Force -Path $OutDirFull | Out-Null
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
-Write-Progress2 "role=$Role task_id=$TaskId model=$Model dry_run=$($DryRun.IsPresent)"
-
-# --- 台帳(ledger.tsv)への追記 -------------------------------------------
-function Add-LedgerRow {
-    param(
-        [double]$DurationSec = 0,
-        [int]$ResponseChars = 0,
-        [int]$ChangedFileCount = 0,
-        $Quota5hPct = $null
-    )
-    $ledgerPath = Join-Path $OutDirFull "ledger.tsv"
-    if (-not (Test-Path $ledgerPath)) {
-        "timestamp`ttask_id`trole`tmodel`texit_code`tduration_sec`tresponse_chars`tchanged_file_count`tquota_5h_pct`tverdict" |
-            Out-File -FilePath $ledgerPath -Encoding utf8
-    }
-    $quotaStr = ""
-    if ($null -ne $Quota5hPct) { $quotaStr = "$Quota5hPct" }
-    # verdict(ok/ng/fallback)は起動時点では空欄。採否確定後に親が埋める(§9.2)。
-    $line = "$Timestamp`t$TaskId`t$Role`t$Model`t$script:ExitCodeForLedger`t$DurationSec`t$ResponseChars`t$ChangedFileCount`t$quotaStr`t"
-    Add-Content -Path $ledgerPath -Value $line -Encoding utf8
-}
-
-# --- 層2: .claude/agents/<role>.md からYAMLフロントマターを除去して本文を取得 --------
-function Get-RoleBody([string]$RoleName) {
-    $path = Join-Path $RepoRoot ".claude/agents/$RoleName.md"
-    if (-not (Test-Path $path)) { return "" }
-    $text = Get-Content -Raw -Encoding UTF8 -Path $path
-    if ($text -match '(?s)^---\r?\n.*?\r?\n---\r?\n') {
-        $text = $text.Substring($Matches[0].Length)
-    }
-    return $text.TrimStart("`r", "`n")
-}
-
-# --- 層1と層2の間に挟む「agy固有の制約ブロック」(docs/antigravity_delegation_design.md §9.3、文面確定済み・改変しない) ---
-$OverrideBlock = @'
-## この実行環境での上書き規則(このあとに続く役割定義より優先する)
-
-- あなたはGoogle Antigravity CLI(ヘッドレス)として動いています。ブラウザ操作ツール(claude-in-chrome)は使えません。
-- **シェルコマンドは、次の完全一致の文字列のみ実行を試みてよく、それ以外は1回も試みないでください**(引数が1文字でも違うと拒否され、拒否されると応答全体が失敗扱いで打ち切られます): `flutter analyze` / `flutter test` / `flutter build web` / `flutter pub get` / `dart run build_runner build --force-jit` / `git status` / `git diff` / `git log --oneline -20` / `git show HEAD` / `powershell -File tools/verify.ps1` / `powershell -File tools/verify.ps1 -Edition personal`。上記以外のコマンド(特定ファイル指定の`flutter test <path>`等を含む)は実行を試みず、報告に「未実施」と書いてください。正式な検証(ブラウザでの実データ確認等)は別のエージェントが行います。
-- `git commit`/`git push`/`firebase deploy`/`clasp push`/本番データの削除は**絶対に実行しないでください**。
-- 指示された対象ファイル以外を編集しないでください。
-- 既存の`.ps1`ファイルを編集する場合、元のファイルがUTF-8 BOM付きであればBOMを失わないでください(日本語コメントを含む`.ps1`がBOM無しUTF-8で保存されると、PowerShell 5.1で構文エラーになります)。
-- 報告は**日本語**で、**1,200文字以内**にしてください。長い引用・生ログの貼り付けは不要です。
-- 報告の最後に、次の3見出しを必ずこの形式で付けてください。
-
-  ```
-  ## 変更ファイル
-  - <相対パス> (新規|変更)
-  ## 保留した判断
-  - <指示に無くて決められなかった点。無ければ「なし」>
-  ## 未実施
-  - <できなかったこと・理由。無ければ「なし」>
-  ```
-'@
-
-# --- 層3: タスク本文 + Files + DoneWhen + TaskId をプロンプト末尾へ追記 -----------------
-# 判断: 見出し構成(## タスク/## 対象ファイル/## 完了条件/## タスクID)は設計書に
-# 文面指定が無いため、読みやすさ優先で機械的に組み立てた(ラッパーの実装詳細であり、
-# 「フィールド名・画面ID等の仕様」には当たらない判断として実装)。
-$FilesList = @()
-if ($Files) {
-    $FilesList = @($Files -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-}
-$TaskBodyRaw = Get-Content -Raw -Encoding UTF8 -Path $TaskFileResolved
-
-$TaskSectionLines = New-Object System.Collections.Generic.List[string]
-$TaskSectionLines.Add("## タスク")
-$TaskSectionLines.Add("")
-$TaskSectionLines.Add($TaskBodyRaw.TrimEnd())
-if ($FilesList.Count -gt 0) {
-    $TaskSectionLines.Add("")
-    $TaskSectionLines.Add("## 対象ファイル")
-    foreach ($f in $FilesList) { $TaskSectionLines.Add("- $f") }
-}
-if ($DoneWhen) {
-    $TaskSectionLines.Add("")
-    $TaskSectionLines.Add("## 完了条件")
-    $TaskSectionLines.Add($DoneWhen)
-}
-if ($TaskId) {
-    $TaskSectionLines.Add("")
-    $TaskSectionLines.Add("## タスクID")
-    $TaskSectionLines.Add($TaskId)
-}
-$TaskSection = ($TaskSectionLines -join "`n")
-
-$RoleBody = Get-RoleBody -RoleName $Role
-$FullPrompt = $OverrideBlock + "`n`n" + $RoleBody + "`n`n" + $TaskSection
-
-# プロンプトは常に全文をログへ書く(直接渡す/参照渡しに関わらず、response_logと同様に
-# 監査・T5-A41比較用に残す。§9.2「実装上の地雷」)。
-$PromptLogPath = Join-Path $OutDirFull "${Timestamp}_${Role}_prompt.md"
-$FullPrompt | Out-File -FilePath $PromptLogPath -Encoding utf8
-$PromptLogRel = Get-RelativePath $PromptLogPath
-
-# 8,000文字を超える場合はファイル参照渡しに切り替える(§9.2実装上の地雷)。
-if ($FullPrompt.Length -le 8000) {
-    $PromptArg = $FullPrompt
-} else {
-    $PromptArg = "${PromptLogRel} を読んで、その指示に従って作業してください。"
-    Write-Progress2 "プロンプトが8000文字を超えたため($($FullPrompt.Length)文字)、ファイル参照渡しに切り替えました: $PromptLogRel"
-}
-
-# --- DryRun: agyを起動せずプロンプトだけ組み立てて終了 -------------------------------
-# 判断: DryRun時の出力スキーマ(status="DRY_RUN"、exit 0固定)は設計書に明記が無いため、
-# 「起動しない」という要件を満たす最小の実装として追加した。
-if ($DryRun) {
-    Write-Progress2 "-DryRun のためagyを起動せずプロンプトのみ出力しました: $PromptLogRel"
-    $script:ExitCodeForLedger = 0
-    Write-ResultAndExit -Ok $true -ExitCode 0 -Status "DRY_RUN" -DurationSec 0 `
-        -ResponseChars 0 -ResponseHead "" -PromptLog $PromptLogRel -Fallback $false
-}
-
-# --- agy実行ファイルの探索(agy → agy.exe の順。両方無ければexit 10) -------------------
+# --- agy実行ファイルの探索(agy → agy.exe の順。モデル自動解決にも使うため先に行う。
+# ここでは未検出でも打ち切らず $AgyExePath=$null のまま続行し、DryRun後の本チェックでexit 10とする) ---
 $AgyCmd = Get-Command agy -ErrorAction SilentlyContinue
 if (-not $AgyCmd) { $AgyCmd = Get-Command agy.exe -ErrorAction SilentlyContinue }
-if (-not $AgyCmd) {
-    Write-Progress2 "agy/agy.exe がPATH上に見つかりません"
-    $script:ExitCodeForLedger = 10
-    Add-LedgerRow -DurationSec 0 -ResponseChars 0 -ChangedFileCount 0
-    Write-ResultAndExit -Ok $false -ExitCode 10 -Status "AGY_NOT_FOUND" -DurationSec 0 `
-        -PromptLog $PromptLogRel -Fallback $true `
-        -FallbackReason "agy/agy.exeがPATH上に見つかりません。Claude側サブエージェントへ委譲してください。"
-}
-$AgyExePath = $AgyCmd.Source
-Write-Progress2 "agy実行ファイル: $AgyExePath"
+$AgyExePath = $null
+if ($AgyCmd) { $AgyExePath = $AgyCmd.Source }
 
 # 地雷回避: このPC(Windows PowerShell 5.1.26100.8875)では
 # [System.Diagnostics.ProcessStartInfo].GetProperty('ArgumentList') が空を返す、
@@ -385,6 +265,184 @@ function Invoke-AgyProcess {
         DurationSec = [math]::Round($sw.Elapsed.TotalSeconds, 1)
     }
 }
+
+# --- モデル自動解決(-Model省略時のみ。T5-A78) --------------------------------------------
+# `-Model` が空文字(既定)のときだけ「agy models」で利用可能なモデル一覧を取得し、
+# `gemini-<major>.<minor>-flash-high` 形式のうち major.minor が数値として最大のものを選ぶ
+# (-highサフィックス固定。§9.2「モデルIDが-high/-medium/-lowで終わる場合は--effortを
+# 渡さない」ルールとの整合のため)。取得失敗・タイムアウト・候補ゼロのいずれでも
+# ラッパー自体は失敗させず、フォールバック値 gemini-3.6-flash-high を使って続行する。
+function Resolve-LatestGeminiFlashModel {
+    param([string]$AgyPath)
+    $fallback = "gemini-3.6-flash-high"
+    if (-not $AgyPath) {
+        Write-Progress2 "agyが見つからないためモデル自動解決をスキップし、フォールバックを使用します: $fallback"
+        return $fallback
+    }
+    $result = $null
+    try {
+        $result = Invoke-AgyProcess -FilePath $AgyPath -ArgumentList @('models') -TimeoutMs 30000
+    } catch {
+        Write-Progress2 "agy models の実行中に例外が発生したため、フォールバックを使用します: $fallback ($($_.Exception.Message))"
+        return $fallback
+    }
+    if (-not $result -or $result.TimedOut -or $result.ExitCode -ne 0 -or -not $result.Stdout) {
+        $exitInfo = "取得失敗"
+        if ($result) { $exitInfo = "exit=$($result.ExitCode) timeout=$($result.TimedOut)" }
+        Write-Progress2 "agy models が失敗/タイムアウトしたため、フォールバックを使用します: $fallback ($exitInfo)"
+        return $fallback
+    }
+    $bestModel = $null
+    $bestMajor = -1
+    $bestMinor = -1
+    foreach ($line in ($result.Stdout -split "`r?`n")) {
+        if (-not $line) { continue }
+        $firstField = ($line -split "`t")[0].Trim()
+        if ($firstField -match '^gemini-(\d+)\.(\d+)-flash-high$') {
+            $major = [int]$Matches[1]
+            $minor = [int]$Matches[2]
+            if (($major -gt $bestMajor) -or (($major -eq $bestMajor) -and ($minor -gt $bestMinor))) {
+                $bestMajor = $major
+                $bestMinor = $minor
+                $bestModel = $firstField
+            }
+        }
+    }
+    if (-not $bestModel) {
+        Write-Progress2 "agy models の出力に候補(gemini-<major>.<minor>-flash-high)が無かったため、フォールバックを使用します: $fallback"
+        return $fallback
+    }
+    return $bestModel
+}
+
+if (-not $Model) {
+    $Model = Resolve-LatestGeminiFlashModel -AgyPath $AgyExePath
+    Write-Progress2 "モデル自動解決: $Model"
+}
+
+Write-Progress2 "role=$Role task_id=$TaskId model=$Model dry_run=$($DryRun.IsPresent)"
+
+# --- 台帳(ledger.tsv)への追記 -------------------------------------------
+function Add-LedgerRow {
+    param(
+        [double]$DurationSec = 0,
+        [int]$ResponseChars = 0,
+        [int]$ChangedFileCount = 0,
+        $Quota5hPct = $null
+    )
+    $ledgerPath = Join-Path $OutDirFull "ledger.tsv"
+    if (-not (Test-Path $ledgerPath)) {
+        "timestamp`ttask_id`trole`tmodel`texit_code`tduration_sec`tresponse_chars`tchanged_file_count`tquota_5h_pct`tverdict" |
+            Out-File -FilePath $ledgerPath -Encoding utf8
+    }
+    $quotaStr = ""
+    if ($null -ne $Quota5hPct) { $quotaStr = "$Quota5hPct" }
+    # verdict(ok/ng/fallback)は起動時点では空欄。採否確定後に親が埋める(§9.2)。
+    $line = "$Timestamp`t$TaskId`t$Role`t$Model`t$script:ExitCodeForLedger`t$DurationSec`t$ResponseChars`t$ChangedFileCount`t$quotaStr`t"
+    Add-Content -Path $ledgerPath -Value $line -Encoding utf8
+}
+
+# --- 層2: .claude/agents/<role>.md からYAMLフロントマターを除去して本文を取得 --------
+function Get-RoleBody([string]$RoleName) {
+    $path = Join-Path $RepoRoot ".claude/agents/$RoleName.md"
+    if (-not (Test-Path $path)) { return "" }
+    $text = Get-Content -Raw -Encoding UTF8 -Path $path
+    if ($text -match '(?s)^---\r?\n.*?\r?\n---\r?\n') {
+        $text = $text.Substring($Matches[0].Length)
+    }
+    return $text.TrimStart("`r", "`n")
+}
+
+# --- 層1と層2の間に挟む「agy固有の制約ブロック」(docs/antigravity_delegation_design.md §9.3、文面確定済み・改変しない) ---
+$OverrideBlock = @'
+## この実行環境での上書き規則(このあとに続く役割定義より優先する)
+
+- あなたはGoogle Antigravity CLI(ヘッドレス)として動いています。ブラウザ操作ツール(claude-in-chrome)は使えません。
+- **シェルコマンドは、次の完全一致の文字列のみ実行を試みてよく、それ以外は1回も試みないでください**(引数が1文字でも違うと拒否され、拒否されると応答全体が失敗扱いで打ち切られます): `flutter analyze` / `flutter test` / `flutter build web` / `flutter pub get` / `dart run build_runner build --force-jit` / `git status` / `git diff` / `git log --oneline -20` / `git show HEAD` / `powershell -File tools/verify.ps1` / `powershell -File tools/verify.ps1 -Edition personal`。上記以外のコマンド(特定ファイル指定の`flutter test <path>`等を含む)は実行を試みず、報告に「未実施」と書いてください。正式な検証(ブラウザでの実データ確認等)は別のエージェントが行います。
+- `git commit`/`git push`/`firebase deploy`/`clasp push`/本番データの削除は**絶対に実行しないでください**。
+- 指示された対象ファイル以外を編集しないでください。
+- 既存の`.ps1`ファイルを編集する場合、元のファイルがUTF-8 BOM付きであればBOMを失わないでください(日本語コメントを含む`.ps1`がBOM無しUTF-8で保存されると、PowerShell 5.1で構文エラーになります)。
+- 報告は**日本語**で、**1,200文字以内**にしてください。長い引用・生ログの貼り付けは不要です。
+- 報告の最後に、次の3見出しを必ずこの形式で付けてください。
+
+  ```
+  ## 変更ファイル
+  - <相対パス> (新規|変更)
+  ## 保留した判断
+  - <指示に無くて決められなかった点。無ければ「なし」>
+  ## 未実施
+  - <できなかったこと・理由。無ければ「なし」>
+  ```
+'@
+
+# --- 層3: タスク本文 + Files + DoneWhen + TaskId をプロンプト末尾へ追記 -----------------
+# 判断: 見出し構成(## タスク/## 対象ファイル/## 完了条件/## タスクID)は設計書に
+# 文面指定が無いため、読みやすさ優先で機械的に組み立てた(ラッパーの実装詳細であり、
+# 「フィールド名・画面ID等の仕様」には当たらない判断として実装)。
+$FilesList = @()
+if ($Files) {
+    $FilesList = @($Files -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+$TaskBodyRaw = Get-Content -Raw -Encoding UTF8 -Path $TaskFileResolved
+
+$TaskSectionLines = New-Object System.Collections.Generic.List[string]
+$TaskSectionLines.Add("## タスク")
+$TaskSectionLines.Add("")
+$TaskSectionLines.Add($TaskBodyRaw.TrimEnd())
+if ($FilesList.Count -gt 0) {
+    $TaskSectionLines.Add("")
+    $TaskSectionLines.Add("## 対象ファイル")
+    foreach ($f in $FilesList) { $TaskSectionLines.Add("- $f") }
+}
+if ($DoneWhen) {
+    $TaskSectionLines.Add("")
+    $TaskSectionLines.Add("## 完了条件")
+    $TaskSectionLines.Add($DoneWhen)
+}
+if ($TaskId) {
+    $TaskSectionLines.Add("")
+    $TaskSectionLines.Add("## タスクID")
+    $TaskSectionLines.Add($TaskId)
+}
+$TaskSection = ($TaskSectionLines -join "`n")
+
+$RoleBody = Get-RoleBody -RoleName $Role
+$FullPrompt = $OverrideBlock + "`n`n" + $RoleBody + "`n`n" + $TaskSection
+
+# プロンプトは常に全文をログへ書く(直接渡す/参照渡しに関わらず、response_logと同様に
+# 監査・T5-A41比較用に残す。§9.2「実装上の地雷」)。
+$PromptLogPath = Join-Path $OutDirFull "${Timestamp}_${Role}_prompt.md"
+$FullPrompt | Out-File -FilePath $PromptLogPath -Encoding utf8
+$PromptLogRel = Get-RelativePath $PromptLogPath
+
+# 8,000文字を超える場合はファイル参照渡しに切り替える(§9.2実装上の地雷)。
+if ($FullPrompt.Length -le 8000) {
+    $PromptArg = $FullPrompt
+} else {
+    $PromptArg = "${PromptLogRel} を読んで、その指示に従って作業してください。"
+    Write-Progress2 "プロンプトが8000文字を超えたため($($FullPrompt.Length)文字)、ファイル参照渡しに切り替えました: $PromptLogRel"
+}
+
+# --- DryRun: agyを起動せずプロンプトだけ組み立てて終了 -------------------------------
+# 判断: DryRun時の出力スキーマ(status="DRY_RUN"、exit 0固定)は設計書に明記が無いため、
+# 「起動しない」という要件を満たす最小の実装として追加した。
+if ($DryRun) {
+    Write-Progress2 "-DryRun のためagyを起動せずプロンプトのみ出力しました: $PromptLogRel"
+    $script:ExitCodeForLedger = 0
+    Write-ResultAndExit -Ok $true -ExitCode 0 -Status "DRY_RUN" -DurationSec 0 `
+        -ResponseChars 0 -ResponseHead "" -PromptLog $PromptLogRel -Fallback $false
+}
+
+# --- agy未検出チェック(探索・モデル自動解決は前段(モデル自動解決ブロック)で実施済み。ここでは判定のみ) ---
+if (-not $AgyExePath) {
+    Write-Progress2 "agy/agy.exe がPATH上に見つかりません"
+    $script:ExitCodeForLedger = 10
+    Add-LedgerRow -DurationSec 0 -ResponseChars 0 -ChangedFileCount 0
+    Write-ResultAndExit -Ok $false -ExitCode 10 -Status "AGY_NOT_FOUND" -DurationSec 0 `
+        -PromptLog $PromptLogRel -Fallback $true `
+        -FallbackReason "agy/agy.exeがPATH上に見つかりません。Claude側サブエージェントへ委譲してください。"
+}
+Write-Progress2 "agy実行ファイル: $AgyExePath"
 
 # --- クォータ事前チェック(§9.2、消費ゼロ) ---------------------------------------------
 # 判断: `agy -p "/usage" --output-format json` のJSONスキーマは未確認(§9.7-1)。
