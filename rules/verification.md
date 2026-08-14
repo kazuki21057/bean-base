@@ -190,6 +190,8 @@
 - L151 PowerShell 5.1で`@()`が`System.Collections.Generic.List[object]`型の変数を包むと`Argument types do not match`で必ず例外化する。`.ToArray()`で明示変換すれば回避できる(T5-A69、`tools/verify.ps1`の`Invoke-CheckAcceptance`が`tools/acceptance/`にスクリプトが1件でもあると毎回クラッシュしていた)
 - L152 「フラグを立てて相手プロセスの自主終了を待つ」設計はフラグ削除・後片付けを能動的な終了確認(`WaitForExit`)より前に置くとL145と同種のファイルロック事故を再生産する。`Start-Process -PassThru`+`WaitForExit`+強制終了フォールバックで終了確認してから後片付けする(T5-A66、Watchdog停止シーケンス)
 - L153 `.claude/settings*.json`のallow/denyにWindowsパスを書くとき単一バックスラッシュはJSONエスケープ(`\f`等)として誤解釈されうる。常に`\\`で二重化するか`/`区切りにする(T5-A67、`tools\failure_playbook.ps1`が`\f`でフォームフィード化し無音で不一致になっていた)
+- L154 agyの`--mode plan`はファイル書き込みを禁止しない(agy本体はexit 0を返す)。読み取り専用役の違反を検出できるのはラッパーの実行前後`git status`差分によるexit 17判定だけなので、この判定を緩和・無効化しない(T5-A75、researcher役3件すべてが`docs/research/`にファイルを作成)
+- L155 agy(Gemini)`researcher`役の出典は「実在しないURL」「実在するURLへの無関係な帰属」の2型で壊れ、報告の体裁が良好でも見分けられない。親が最低2本を実際に開いて実在性と整合性を確認するまで採用しない。同じURLが繰り返し引用されている報告は特に疑う(T5-A75、3件中2件が不採用)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
