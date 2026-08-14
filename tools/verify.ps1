@@ -18,7 +18,8 @@
 #>
 
 param(
-    [string]$Edition = "public"
+    [string]$Edition = "public",
+    [string]$Task = ""
 )
 
 # 標準出力にJSON以外の文字が混じらないよう、進捗メッセージは全てstderrへ出す。
@@ -485,6 +486,196 @@ function Invoke-CheckSecretScan {
     }
 }
 
+# 9. acceptance: タスク固有の受け入れ資産(tools/acceptance/*.ps1, test/acceptance/*.dart)を
+#    毎回全件回帰実行し(ゴールデンループ)、-Task 指定時はそのタスクの受け入れ資産の
+#    有無・合否も判定する。仕様の正本: docs/acceptance_harness_design.md §7.2
+function ConvertTo-AcceptanceTaskId([string]$TaskId) {
+    return ($TaskId.ToLowerInvariant() -replace '-', '_')
+}
+
+function Invoke-CheckAcceptance {
+    param([string]$TaskId)
+
+    $acceptanceDir = Join-Path $RepoRoot "tools\acceptance"
+    $testAcceptanceDir = Join-Path $RepoRoot "test\acceptance"
+    $testDir = Join-Path $RepoRoot "test"
+
+    $scriptFiles = @()
+    if (Test-Path $acceptanceDir) {
+        $scriptFiles = @(Get-ChildItem -Path $acceptanceDir -Filter "*_check.ps1" -File -ErrorAction SilentlyContinue | Sort-Object Name)
+    }
+
+    # 4. $Task が空で tools/acceptance/ も空(またはディレクトリ無し)の場合はスキップ扱い。
+    if ((-not $TaskId) -and $scriptFiles.Count -eq 0) {
+        return [ordered]@{ ok = $true; skipped = $true; note = "受け入れ資産なし(タスク指定なし)" }
+    }
+
+    # 1. tools/acceptance/ 配下の *_check.ps1 を全件実行する(過去タスクの受け入れも毎回回帰実行)。
+    $scriptEntries = New-Object System.Collections.Generic.List[object]
+    $scriptsPassed = 0
+    $scriptsFailed = 0
+    $scriptsSkipped = 0
+    $overallReason = ""
+    $overallOk = $true
+
+    foreach ($sf in $scriptFiles) {
+        $id = $sf.BaseName
+        $log = Get-LogPath "acceptance_$id"
+        $relPath = Get-RelativePath $sf.FullName
+        $result = Invoke-LoggedCommand -FilePath "powershell" `
+            -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $relPath) `
+            -LogPath $log -TimeoutMs 60000
+
+        $logText = ""
+        if (Test-Path $log) { $logText = Get-Content -Raw -Encoding UTF8 -Path $log -ErrorAction SilentlyContinue }
+        if (-not $logText) { $logText = "" }
+
+        # stdout/stderr がマージされたログから、先頭が `{` である最終行をJSONとして扱う。
+        $jsonLine = $null
+        $lines = @($logText -split "`r?`n")
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            if ($lines[$i].TrimStart().StartsWith("{")) { $jsonLine = $lines[$i]; break }
+        }
+        $parsed = $null
+        if ($jsonLine) {
+            try { $parsed = $jsonLine | ConvertFrom-Json } catch { $parsed = $null }
+        }
+
+        $entry = [ordered]@{ name = $sf.Name; exit = $result.ExitCode; ok = $false; skipped = $false; summary = "" }
+
+        if ($result.TimedOut) {
+            $entry.ok = $false
+            $entry.summary = "timeout"
+            $entry.log = $log
+            $scriptsFailed++
+            $overallOk = $false
+            if (-not $overallReason) { $overallReason = "timeout" }
+        } elseif ($result.ExitCode -eq 2) {
+            # 判定不能(前提不足) → skip扱い。「未実施」を「合格」として飲み込まないよう、
+            # passed には計上しない。
+            $entry.skipped = $true
+            $entry.ok = $true
+            $scriptsSkipped++
+            if ($parsed -and $parsed.reason) { $entry.summary = [string]$parsed.reason } else { $entry.summary = "skipped" }
+        } elseif ($result.ExitCode -eq 0 -or $result.ExitCode -eq 1) {
+            if (-not $parsed) {
+                $entry.ok = $false
+                $entry.summary = "json_parse_failed"
+                $entry.log = $log
+                $scriptsFailed++
+                $overallOk = $false
+                if (-not $overallReason) { $overallReason = "json_parse_failed" }
+            } else {
+                $checksArr = @($parsed.checks)
+                $checksPassCount = @($checksArr | Where-Object { $_.ok }).Count
+                $entry.ok = [bool]$parsed.ok
+                $entry.summary = "$checksPassCount/$($checksArr.Count) pass"
+                if ($entry.ok) {
+                    $scriptsPassed++
+                } else {
+                    $entry.log = $log
+                    $scriptsFailed++
+                    $overallOk = $false
+                    if (-not $overallReason) { $overallReason = "script_failed" }
+                }
+            }
+        } else {
+            # 3以上・その他: スクリプト自身の異常
+            $entry.ok = $false
+            $entry.summary = "script_error(exit=$($result.ExitCode))"
+            $entry.log = $log
+            $scriptsFailed++
+            $overallOk = $false
+            if (-not $overallReason) { $overallReason = "script_error" }
+        }
+
+        $scriptEntries.Add($entry)
+    }
+
+    # 2〜3. $Task が指定されている場合、そのタスクの受け入れ資産の有無・合否を判定する。
+    $dartResult = $null
+    $required = $false
+
+    if ($TaskId) {
+        $required = $true
+        $normalized = ConvertTo-AcceptanceTaskId $TaskId
+        $scriptAssetPath = Join-Path $acceptanceDir "${normalized}_check.ps1"
+        $dartAssetPath = Join-Path $testAcceptanceDir "${normalized}_acceptance_test.dart"
+        $scriptAssetFound = Test-Path $scriptAssetPath
+        $dartAssetFound = Test-Path $dartAssetPath
+
+        $groupMarker = "受け入れ($TaskId)"
+        $groupFile = $null
+        if (-not $dartAssetFound -and (Test-Path $testDir)) {
+            $dartFiles = Get-ChildItem -Path $testDir -Recurse -Filter "*.dart" -ErrorAction SilentlyContinue
+            foreach ($df in $dartFiles) {
+                $t = Get-Content -Raw -Encoding UTF8 -Path $df.FullName -ErrorAction SilentlyContinue
+                if ($t -and $t.Contains($groupMarker)) {
+                    $groupFile = $df
+                    break
+                }
+            }
+        }
+
+        $anyFound = $scriptAssetFound -or $dartAssetFound -or ($null -ne $groupFile)
+
+        if (-not $anyFound) {
+            # どれも無ければ「必須なのに書かなかった」ことを機械的に捕まえる。
+            $dartResult = [ordered]@{ found = $false; path = ""; ok = $false; note = "" }
+            $overallOk = $false
+            $overallReason = "acceptance_missing"
+        } elseif ($dartAssetFound) {
+            # 3. 単独再実行(このタスク単体の合否を独立に記録する)
+            $dartLog = Get-LogPath "acceptance_dart_$normalized"
+            $dartRelPath = Get-RelativePath $dartAssetPath
+            $dartRunResult = Invoke-LoggedCommand -FilePath "flutter" -ArgumentList @("test", $dartRelPath) -LogPath $dartLog -TimeoutMs 300000
+            $dartOk = ($dartRunResult.ExitCode -eq 0) -and (-not $dartRunResult.TimedOut)
+            $dartResult = [ordered]@{ found = $true; path = (Get-RelativePath $dartAssetPath); ok = $dartOk; note = "" }
+            if (-not $dartOk) {
+                $dartResult.log = $dartLog
+                $overallOk = $false
+                if (-not $overallReason) { $overallReason = "script_failed" }
+            }
+        } elseif ($null -ne $groupFile) {
+            # 既存ファイルへの group 追加形式。単独再実行はせず test 項目の結果に含まれる。
+            $dartResult = [ordered]@{
+                found = $true
+                path  = (Get-RelativePath $groupFile.FullName)
+                ok    = $resultTest.ok
+                note  = "既存テストファイル内のgroupのため単独再実行は省略(testの結果に含まれる)"
+            }
+            if (-not $resultTest.ok) {
+                $overallOk = $false
+                if (-not $overallReason) { $overallReason = "script_failed" }
+            }
+        } else {
+            # tools/acceptance/<id>_check.ps1 のみで成立(PowerShell受け入れスクリプトのみのタスク)。
+            $matchingEntry = $scriptEntries | Where-Object { $_.name -eq "${normalized}_check.ps1" } | Select-Object -First 1
+            $scriptOk = $true
+            if ($matchingEntry) { $scriptOk = ([bool]$matchingEntry.ok) -or ([bool]$matchingEntry.skipped) }
+            $dartResult = [ordered]@{ found = $false; path = ""; ok = $scriptOk; note = "Dart受け入れ資産なし(PowerShell受け入れスクリプトで代替)" }
+        }
+    }
+
+    $final = [ordered]@{
+        ok       = [bool]$overallOk
+        task     = $TaskId
+        required = $required
+    }
+    if ($dartResult) { $final.dart = $dartResult }
+    # 注意: この環境のPowerShell 5.1(Build 26100系)では `@($genericListInstance)` を
+    # ハッシュテーブル/OrderedDictionaryのプロパティへ直接代入すると
+    # 「Argument types do not match」(PSEnumerableBinder内部エラー)で必ず例外になる
+    # (List[object]をToArray()で明示変換すれば回避できる、実測で確認済み)。
+    $final.scripts = $scriptEntries.ToArray()
+    $final.passed = $scriptsPassed
+    $final.failed = $scriptsFailed
+    $final.skipped = $scriptsSkipped
+    if (-not $overallOk -and $overallReason) { $final.reason = $overallReason }
+
+    return $final
+}
+
 # --- 実行 -------------------------------------------------------------------
 # 軽い検査から順に実行する(重いビルドは最後)。
 Write-Progress2 "analyze 実行中..."
@@ -495,6 +686,8 @@ Write-Progress2 "test_coverage_delta 判定中..."
 $resultCoverage = Invoke-CheckCoverageDelta
 Write-Progress2 "secret_scan 実行中..."
 $resultSecret = Invoke-CheckSecretScan
+Write-Progress2 "acceptance 実行中..."
+$resultAcceptance = Invoke-CheckAcceptance -TaskId $Task
 Write-Progress2 "codegen_clean 実行中..."
 $resultCodegen = Invoke-CheckCodegenClean
 Write-Progress2 "golden 実行中..."
@@ -513,10 +706,11 @@ $checks = [ordered]@{
     golden               = $resultGolden
     codegen_clean        = $resultCodegen
     secret_scan          = $resultSecret
+    acceptance           = $resultAcceptance
 }
 
 $overallOk = $resultAnalyze.ok -and $resultTest.ok -and $resultApk.ok -and `
-    $resultWeb.ok -and $resultGolden.ok -and $resultCodegen.ok -and $resultSecret.ok
+    $resultWeb.ok -and $resultGolden.ok -and $resultCodegen.ok -and $resultSecret.ok -and $resultAcceptance.ok
 
 $final = [ordered]@{
     ok     = [bool]$overallOk
