@@ -517,3 +517,26 @@ agyを`--add-dir`付きで直接呼び、**許可4件・拒否2件**を1回ず�
 | 6 | `powershell -File tools/verify.ps1 -Task T5-A69 -Extra x` | **拒否**(トークン数超過。`.*`が1トークンしか吸わないことの確認) |
 
 6が許可されてしまった場合は「`.*`が複数トークンに及ぶ」ことを意味し、10-1の作業モデルが誤りなので**拡張ルールを全て撤回**し、完全一致列挙に戻す。この結果(どちらだったか)を§5-7へ追記する。
+
+## 11. 外部レポート(Gemini作成)のファクトチェックと反映(2026-08-14)
+
+ユーザーがGeminiに投げて得た`docs/antigravity_claude_orchestration_report.md`を検証した(親セッションが直接`WebFetch`/`WebSearch`で実施——§9.1の「本リポジトリの意思決定に直結する一次情報の確認はagy researcherの除外対象」を体現する事例)。
+
+**出典5件の検証結果**:
+
+| # | 出典 | 実在性 | 主張の裏付け |
+|---|---|---|---|
+| 1 | `antigravity.google/docs/cli/overview` | 実在 | CLIの位置付け(軽量TUI、Antigravity 2.0と同一エージェントコア)の記述と一致 |
+| 2 | `antigravity.google/docs/cli/headless` | 実在 | ヘッドレスモード(`-p`、text/json/stream-json)の記述と一致 |
+| 3 | `antigravity.google/docs/cli/commands/usage` | 実在 | `/usage`パネルの例示はGeminiモデルのみ(`Gemini 3.5 Flash`等)。**ClaudeモデルやAnthropic課金への言及は無く、課金分離の主張を裏付けない** |
+| 4 | `discuss.ai.google.dev`のスレッド | 実在 | 内容は「Opus選択時にモデル自身がSonnetと自己申告する」というモデルルーティングの不一致についてで、**課金/クォータ分離とは無関係**。実在URLへの無関係な帰属(T5-A75で確認済みの失敗パターン②と同型、教訓L155) |
+| 5 | "PADISO Engineering Report: Model Evaluation for Code Generation & Reasoning: Sonnet vs. Gemini Architectures (2026)" | **実在確認できず** | PADISOは実在する企業ブログだが該当タイトルの記事・レポートは検索で見つからない。**捏造出典の疑いが濃厚** |
+
+**中心的主張(§1「Token/Billing Separation」= agy経由のClaude Sonnet呼び出しはAnthropic側の課金・トークンを消費しない)は、T5-A80(2026-08-14完了・判定不能)と同一の主張**。本レポートはこれを断定調で述べるが、根拠として挙げた出典4・5はいずれも主張を裏付けない(4は無関係、5は捏造疑い)。**新規の実証にはならないため、T5-A80の結論(判定不能・§9.1ルーティング表の変更は見送り)を維持する。**
+
+**その他の記載の評価**:
+- §1「Accuracy Gap Cause」(Flashの探索深度・contextual boundariesが精度差の原因)は出典の無い分析的主張。既存の実測(T5-A79: `gemini-3.1-pro-high`より`gemini-3.7-flash-high`が上回った)と矛盾はしないが独立した裏付けも無い——仮説以上の扱いはしない。
+- §2の委譲アーキテクチャ表が"Research Worker"役にGemini Pro/Sonnetを割り当てる提案は、**T5-A79の実測(proは2世代遅れでflashに劣り、かつFlashと同一クォータバケットを共有)と矛盾**。採用しない。
+- §3の実践ガイド(contract-driven prompting・3層構成・JSON出力契約・workspace isolation)は一般論としては妥当で、**大部分は本設計書§9.2〜9.3で同等以上に実装済み**(3層プロンプト構造、stdout 1行JSON契約、`response_log`への全文退避等)。目新しい提案は2点のみ:
+  - (a) 調査系タスクの**出力内容自体**にファイルパス/行範囲/根拠のJSONスキーマを課す案(既存のJSON契約はラッパーのメタデータ用で、中身のスキーマは未規定)。実装コストが低く、`researcher`役の報告精度向上に寄与しうる。→ **T5-A81として起票**(§改修マスタープラン.md)。
+  - (b) agyのコード編集を専用worktree/ブランチへ隔離してからdiffレビューする案。**採用しない**——現状は作業ツリー直編集+コミット前`git diff`レビュー(§9.3)で同等の安全性を確保しており、単独運用・小規模リポジトリの現状ではworktreeのマージ・後片付けの運用コストが見合わない。将来トラックB本格化でagy委譲頻度が増えた場合に再検討する。
