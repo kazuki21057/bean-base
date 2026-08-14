@@ -24,10 +24,15 @@ fi
 
 # --- 引数解析 -----------------------------------------------------------
 EDITION="public"
+TASK=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --edition)
       EDITION="${2:-public}"
+      shift 2
+      ;;
+    --task)
+      TASK="${2:-}"
       shift 2
       ;;
     *)
@@ -379,12 +384,189 @@ run_secret_scan() {
   fi
 }
 
+normalize_task_id() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | tr '-' '_'
+}
+
+pwsh_available() {
+  command -v pwsh >/dev/null 2>&1
+}
+
+# 9. acceptance: タスク固有の受け入れ資産(tools/acceptance/*.ps1, test/acceptance/*.dart)を
+#    毎回全件回帰実行し(ゴールデンループ)、--task 指定時はそのタスクの受け入れ資産の
+#    有無・合否も判定する。仕様の正本: docs/acceptance_harness_design.md §7.2・§7.3
+#    pwsh が PATH に無い環境では *.ps1 は全てskip扱いとし、acceptanceがfailにならないようにする。
+run_acceptance() {
+  local acceptance_dir="tools/acceptance"
+  local test_acceptance_dir="test/acceptance"
+
+  local script_files=()
+  if [[ -d "$acceptance_dir" ]]; then
+    while IFS= read -r -d '' f; do
+      script_files+=("$f")
+    done < <(find "$acceptance_dir" -maxdepth 1 -type f -name "*_check.ps1" -print0 2>/dev/null | sort -z)
+  fi
+
+  if [[ -z "$TASK" && ${#script_files[@]} -eq 0 ]]; then
+    echo '{"ok": true, "skipped": true, "note": "受け入れ資産なし(タスク指定なし)"}'
+    return
+  fi
+
+  local scripts_json="[]"
+  local passed=0 failed=0 skipped=0
+  local overall_ok=true
+  local overall_reason=""
+  local pwsh_ok
+  if pwsh_available; then pwsh_ok=true; else pwsh_ok=false; fi
+
+  local sf
+  for sf in "${script_files[@]}"; do
+    local base id log entry
+    base="$(basename "$sf")"
+    id="${base%.ps1}"
+
+    if [[ "$pwsh_ok" == false ]]; then
+      entry=$(jq -n --arg name "$base" '{name: $name, skipped: true, reason: "pwsh_not_found"}')
+      skipped=$((skipped + 1))
+      scripts_json=$(echo "$scripts_json" | jq --argjson e "$entry" '. + [$e]')
+      continue
+    fi
+
+    log="$(log_path "acceptance_${id}")"
+    timeout -k 5s 60s pwsh -NoProfile -ExecutionPolicy Bypass -File "$sf" >"$log" 2>&1
+    local exit_code=$?
+    local timed_out=false
+    if [[ $exit_code -eq 124 || $exit_code -eq 137 ]]; then
+      timed_out=true
+    fi
+
+    local json_line=""
+    json_line=$(grep -E '^\s*\{' "$log" 2>/dev/null | tail -1)
+    local parsed_ok="" parsed_reason="" checks_pass=0 checks_total=0
+    local json_valid=false
+    if [[ -n "$json_line" ]] && echo "$json_line" | jq -e . >/dev/null 2>&1; then
+      json_valid=true
+      parsed_ok=$(echo "$json_line" | jq -r '.ok')
+      parsed_reason=$(echo "$json_line" | jq -r '.reason // ""')
+      checks_total=$(echo "$json_line" | jq '[.checks[]?] | length')
+      checks_pass=$(echo "$json_line" | jq '[.checks[]? | select(.ok==true)] | length')
+    fi
+
+    if [[ "$timed_out" == true ]]; then
+      entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg log "$log" \
+        '{name: $name, exit: $exit, ok: false, skipped: false, summary: "timeout", log: $log}')
+      failed=$((failed + 1)); overall_ok=false
+      [[ -z "$overall_reason" ]] && overall_reason="timeout"
+    elif [[ $exit_code -eq 2 ]]; then
+      local summary="skipped"
+      [[ -n "$parsed_reason" ]] && summary="$parsed_reason"
+      entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg summary "$summary" \
+        '{name: $name, exit: $exit, ok: true, skipped: true, summary: $summary}')
+      skipped=$((skipped + 1))
+    elif [[ $exit_code -eq 0 || $exit_code -eq 1 ]]; then
+      if [[ "$json_valid" == false ]]; then
+        entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg log "$log" \
+          '{name: $name, exit: $exit, ok: false, skipped: false, summary: "json_parse_failed", log: $log}')
+        failed=$((failed + 1)); overall_ok=false
+        [[ -z "$overall_reason" ]] && overall_reason="json_parse_failed"
+      elif [[ "$parsed_ok" == "true" ]]; then
+        entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg summary "${checks_pass}/${checks_total} pass" \
+          '{name: $name, exit: $exit, ok: true, skipped: false, summary: $summary}')
+        passed=$((passed + 1))
+      else
+        entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg summary "${checks_pass}/${checks_total} pass" --arg log "$log" \
+          '{name: $name, exit: $exit, ok: false, skipped: false, summary: $summary, log: $log}')
+        failed=$((failed + 1)); overall_ok=false
+        [[ -z "$overall_reason" ]] && overall_reason="script_failed"
+      fi
+    else
+      entry=$(jq -n --arg name "$base" --argjson exit "$exit_code" --arg log "$log" \
+        '{name: $name, exit: $exit, ok: false, skipped: false, summary: ("script_error(exit=" + ($exit | tostring) + ")"), log: $log}')
+      failed=$((failed + 1)); overall_ok=false
+      [[ -z "$overall_reason" ]] && overall_reason="script_error"
+    fi
+
+    scripts_json=$(echo "$scripts_json" | jq --argjson e "$entry" '. + [$e]')
+  done
+
+  local dart_json="null"
+  local required=false
+
+  if [[ -n "$TASK" ]]; then
+    required=true
+    local normalized script_asset dart_asset script_found=false dart_found=false group_file=""
+    normalized="$(normalize_task_id "$TASK")"
+    script_asset="${acceptance_dir}/${normalized}_check.ps1"
+    dart_asset="${test_acceptance_dir}/${normalized}_acceptance_test.dart"
+    [[ -f "$script_asset" ]] && script_found=true
+    [[ -f "$dart_asset" ]] && dart_found=true
+
+    if [[ "$dart_found" == false ]]; then
+      group_file=$(grep -rlF "受け入れ(${TASK})" test 2>/dev/null | head -1 || true)
+    fi
+
+    if [[ "$script_found" == false && "$dart_found" == false && -z "$group_file" ]]; then
+      dart_json='{"found": false, "path": "", "ok": false, "note": ""}'
+      overall_ok=false
+      overall_reason="acceptance_missing"
+    elif [[ "$dart_found" == true ]]; then
+      local dart_log dart_rc
+      dart_log="$(log_path "acceptance_dart_${normalized}")"
+      timeout -k 10s 300s flutter test "$dart_asset" >"$dart_log" 2>&1
+      dart_rc=$?
+      if [[ $dart_rc -eq 0 ]]; then
+        dart_json=$(jq -n --arg path "$dart_asset" '{found: true, path: $path, ok: true, note: ""}')
+      else
+        dart_json=$(jq -n --arg path "$dart_asset" --arg log "$dart_log" \
+          '{found: true, path: $path, ok: false, note: "", log: $log}')
+        overall_ok=false
+        [[ -z "$overall_reason" ]] && overall_reason="script_failed"
+      fi
+    elif [[ -n "$group_file" ]]; then
+      local test_ok
+      test_ok=$(echo "$RESULT_TEST" | jq -r '.ok')
+      dart_json=$(jq -n --arg path "$group_file" --argjson ok "$test_ok" \
+        '{found: true, path: $path, ok: $ok, note: "既存テストファイル内のgroupのため単独再実行は省略(testの結果に含まれる)"}')
+      if [[ "$test_ok" != "true" ]]; then
+        overall_ok=false
+        [[ -z "$overall_reason" ]] && overall_reason="script_failed"
+      fi
+    else
+      local script_ok
+      script_ok=$(echo "$scripts_json" | jq --arg name "${normalized}_check.ps1" \
+        '([.[] | select(.name == $name)] | .[0]) as $m | if $m == null then true else (($m.ok // false) or ($m.skipped // false)) end')
+      dart_json=$(jq -n --argjson ok "$script_ok" \
+        '{found: false, path: "", ok: $ok, note: "Dart受け入れ資産なし(PowerShell受け入れスクリプトで代替)"}')
+    fi
+  fi
+
+  local final
+  final=$(jq -n \
+    --argjson ok "$overall_ok" \
+    --arg task "$TASK" \
+    --argjson required "$required" \
+    --argjson dart "$dart_json" \
+    --argjson scripts "$scripts_json" \
+    --argjson passed "$passed" \
+    --argjson failed "$failed" \
+    --argjson skipped "$skipped" \
+    '{ok: $ok, task: $task, required: $required, dart: $dart, scripts: $scripts, passed: $passed, failed: $failed, skipped: $skipped}
+     | if .dart == null then del(.dart) else . end')
+
+  if [[ "$overall_ok" != true && -n "$overall_reason" ]]; then
+    final=$(echo "$final" | jq --arg r "$overall_reason" '. + {reason: $r}')
+  fi
+
+  echo "$final"
+}
+
 # --- 実行 -------------------------------------------------------------------
 # 軽い検査から順に実行する(重いビルドは最後)。
 RESULT_ANALYZE="$(run_analyze)"
 RESULT_TEST="$(run_test)"
 RESULT_COVERAGE="$(run_coverage_delta)"
 RESULT_SECRET="$(run_secret_scan)"
+RESULT_ACCEPTANCE="$(run_acceptance)"
 RESULT_CODEGEN="$(run_codegen_clean)"
 RESULT_GOLDEN="$(run_golden)"
 RESULT_WEB="$(run_build_web_release)"
@@ -399,6 +581,7 @@ jq -n \
   --argjson golden "$RESULT_GOLDEN" \
   --argjson codegen "$RESULT_CODEGEN" \
   --argjson secret "$RESULT_SECRET" \
+  --argjson acceptance "$RESULT_ACCEPTANCE" \
   '
   {
     analyze: $analyze,
@@ -408,11 +591,12 @@ jq -n \
     build_web_release: $web,
     golden: $golden,
     codegen_clean: $codegen,
-    secret_scan: $secret
+    secret_scan: $secret,
+    acceptance: $acceptance
   } as $checks
   |
   ($checks
-    | [.analyze.ok, .test.ok, .build_apk_release.ok, .build_web_release.ok, .golden.ok, .codegen_clean.ok, .secret_scan.ok]
+    | [.analyze.ok, .test.ok, .build_apk_release.ok, .build_web_release.ok, .golden.ok, .codegen_clean.ok, .secret_scan.ok, .acceptance.ok]
     | all
   ) as $ok
   | {ok: $ok, checks: $checks}

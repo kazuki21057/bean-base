@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.85 当日やったこと(2026-08-13、Sonnet 5、`/night_loop` 23:00枠、Windows環境。T5-A66実装2回・レビュー2回で中断、PR待ち)
+
+- プリフライト通過済み(`tools/night_loop.ps1`経由起動)、モード判別(`BEANBASE_NIGHT_LOOP=1`=無人、`BEANBASE_NIGHT_TRIGGER=2300`=通常優先ロジック)、`settings.night.json`存在確認、`loop_state.md`(コスト$0)・`git pull`(差分なし)確認。T5-A62〜A65完了によりT5-A66(S、`night_loop.ps1`への失敗プレイブック配線)を選定、設計(`docs/failure_playbook.md` §6-1・§6-2)確定済みのため`implementer`へ直接委譲。
+- 1回目実装(旧`tools/preflight.ps1`呼び出しを`failure_playbook.ps1 -Mode Preflight`へ置換、Watchdog別プロセス起動、Postmortem、`night_outcomes.log`追記、`Send-NightNotification -FailureSummary`)→`verifier`(verify.ps1全8項目green)・`adversary`(Critical 0・Major 2・Minor 2)を並行実行。
+- Major 2件(Watchdog標準出力/エラー未捕捉・停止フラグ削除失敗の無音化)+Minor 1件(`2>$null`が設計書自身のL128禁止事項に抵触)を`implementer`へ差し戻し修正→再度`verifier`(全green)・`adversary`並行実行したところ、**Major指摘が4件に増加**(Major-1/4: Watchdog停止フラグをPostmortem完了直後に削除するとWatchdogが一度も観測できず消え、2026-08-12に実際に3日間の無応答障害を起こした「孤児プロセスによるファイルロック」と同種のレースを再現しうる/Major-2: `Publish-FailurePlaybookStderr`が読み取り失敗時に未転記のまま一時ファイルを削除/Major-3: 診断ログファイル名が`$PID`のみでPID再利用時に衝突しうる)。
+- 2回のレビューで収束せず悪化(1回目Major2→2回目Major4)したため、単純なバグ修正ではなく設計判断(Watchdogライフサイクル順序・PID衝突対策)が必要と判断し、night_loopの中断条件(実装中に設計判断が必要と判明)に該当するとして3回目の差し戻しはせず中断。`git checkout -b night/T5-A66`でブランチを切り`tools/night_loop.ps1`の変更をコミット、PR作成。**mainは未変更**。
+- `.claude/skills/night_loop/SKILL.md`への§6-2該当追記(手順1・5・6・7)は、CLAUDE.mdの「無人ループは`.claude/night_*`以外へ書き込まない」恒久ルールによりハーネスにブロックされ実装セッション内で適用できず(想定どおりの挙動、回避せず)、次回有人セッションへ持ち越し。
+- 検証中に生成された無害な残置ファイル`.claude/night_logs/test_repro_preflight.err.log`は削除も権限ブロックされたため未削除のまま残存(中身は再現テストの生ログのみ、機微情報なし)。
+- コストは`.claude/loop_state.md`/`night_report.md`参照。T5-A12(夜間ループ3トリガー観察)は今回が初回の実地観察(23:00枠)にあたるが、本ループ自体が中断扱いのため観察の完了判定は次回セッションで別途行うこと。
+
 ### -5.84 当日やったこと(2026-08-13、Sonnet 5、`/full_loop 検証のみ`同日中6回目のセッション〈夜〉、Windows環境。T5-A65検証・push・完了)
 
 - セッション冒頭、プリフライトOK・使用率取得(開始: セッション70%/週22%)・`git pull`(差分なし)・`loop_state.md`(コスト$0、新規ループ境界)を確認。`NEXT_SESSION.md`に「検証待ち」の記載があったためタスク選定・実装をスキップし検証から再開(ユーザーも`/full_loop 検証のみ`と明示)。5時間枠使用率70%は高めだったが検証のみの軽量ループのため続行。
