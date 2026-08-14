@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.87 当日やったこと(2026-08-14、Sonnet 5、`/full_loop`日中セッション継続〈T5-A69完了と同一セッション〉、Windows環境。T5-A66完了・PR #3をmainへマージ)
+
+- 前タスク(T5-A69)完了後、新しいループ境界(`loop_state.md`コスト$0)で本ループ開始。プリフライトOK・起動回数カウンタ8・使用率取得(開始: セッション21%/週27%)・`git pull`(差分なし)を確認し、NEXT_SESSION.mdの推奨どおりT5-A66(PR #3、Major指摘4件・設計判断待ち)を最優先タスクとして選定。
+- `git diff main night/T5-A66`とPR本文で状況を把握した上で`architect`へ設計判断を委譲。Major-1/4(Watchdog停止フラグをPostmortem完了直後に削除する既存実装が、30秒間隔ポーリングより速く完了した場合フラグを一度も観測させないままレースになり、ハンドル保持による削除失敗=2026-08-12の孤児プロセスファイルロック障害〈L145〉と同種の欠陥を新規コード自身が作り込んでいた)・Major-2(`Publish-FailurePlaybookStderr`が読み取り失敗時に未転記のまま削除)・Major-3(Watchdog診断ログ名のPID再利用衝突)への対応方針が確定(教訓L152)。`implementer`が実装をタスク粒度まで指示どおりに反映(`Request-NightWatchdogStop`/`Stop-NightWatchdog`の2関数新設、`WaitForExit(45秒)`+強制終了フォールバック、ログ名の`RunStamp`化)。
+- `git diff`で差分レビュー→`verifier`へ検証委譲、6条件(Watchdog正常停止27.2秒・強制終了45.1秒・ログ転記3条件・DryRun非回帰・verify.ps1全green・BOM保持)全PASS。PR残作業(`.claude/skills/night_loop/SKILL.md`§6-2該当追記4箇所、`rules/verification.md`・`CLAUDE.md`・`docs/android_release/開発運用基盤設計.md`への参照追加)も本セッション(有人)で直接適用。検証中の無害な残置ファイル`.claude/night_logs/test_repro_preflight.err.log`はユーザー許可を得て削除。
+- `night/T5-A66`ブランチへcommit・push→`gh pr merge 3 --merge --delete-branch`でmainへfast-forwardマージ(`1cf4a96`)。`lib/`不変・GAS変更なしのためデプロイ・本番確認は不要。
+- `docs/改修マスタープラン.md`のT5-A66行を✅完了済みへ移動(完了済み59件)、`docs/archive/マスタープラン_完了タスク.md`に詳細節を追加。`rules/lessons_archive.md`にL152を追記、`rules/verification.md`へインデックス1行追加。
+- **次に着手可能**: T5-A67(⚠️ユーザー実施、`.claude/settings.night.json`のallow追加)・T5-A68(障害注入テスト、M)・T5-A70/T5-A71(受け入れハーネス配線・受入欄付与)。
+- **前ループからの持ち越し事項(未対応のまま)**: 無人ループでサブエージェント相当の処理が600秒を超えるとラッパーごと強制終了され作業ツリーがdirtyのまま残る問題(T5-A69の回で発見)は、今回は着手せず据え置き。次回セッションで新規タスク化するか判断すること。
+- 使用率: 終了時点セッション55%/週31%(開始比session+34pt/week+4pt、Opus architect呼び出しを含む重いループのため消費が大きい)。本ループコストは`.claude/loop_state.md`参照(2タスク分の作業〈T5-A69+T5-A66〉を1セッションで継続実施)。
+
 ### -5.86 当日やったこと(2026-08-14、Sonnet 5、`/full_loop`日中セッション、Windows環境。T5-A69完了・commit/push済み)
 
 - セッション冒頭、プリフライトOK・起動回数カウンタ7・使用率取得(開始: セッション2%〈直近リセット直後〉/週25%)・`git pull`(差分なし)・`loop_state.md`(コスト$0、新規ループ境界)を確認。**作業ツリーが4ファイルdirtyのまま**だったため調査したところ、前日04:10の夜間ループがT5-A69(受け入れハーネス実装その1)へ着手し`tools/verify.ps1`/`tools/verify.sh`への`-Task`引数実装まで進めていたが、`claude.exe: Background tasks still running after 600s; terminating`でラッパーごと強制終了され、検証・commit前に中断していたと判明(`.claude/night_logs/20260814-041009.err.log`)。さらにこの残置dirty状態が原因で、当日09:20枠の夜間ループが`skipped_dirty_worktree`で自動スキップされていたことも`.claude/night_loop_last_run.json`で確認した。

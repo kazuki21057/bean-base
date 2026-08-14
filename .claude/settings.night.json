@@ -23,6 +23,7 @@
     "allow": [
       "Edit", "Write",
       "PowerShell(powershell -File tools\\verify.ps1*)", "Bash(bash tools/verify.sh*)",
+      "PowerShell(powershell -File tools\\failure_playbook.ps1*)",
       "Bash(flutter analyze*)", "Bash(flutter test*)", "Bash(flutter build*)",
       "Bash(flutter pub get)", "Bash(dart run build_runner*)",
       "Bash(git add*)", "Bash(git commit*)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)",

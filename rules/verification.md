@@ -189,6 +189,7 @@
 - L150 敵対的レビューを2回繰り返してもMajor指摘が減らず増加する場合は個別バグではなく設計判断が必要な兆候。局所修正を重ねず中断してPRへ回す(T5-A66、night_loop、Watchdog停止フラグ削除のレースが過去の実障害〈孤児プロセスのファイルロック〉と同種と判明)
 - L151 PowerShell 5.1で`@()`が`System.Collections.Generic.List[object]`型の変数を包むと`Argument types do not match`で必ず例外化する。`.ToArray()`で明示変換すれば回避できる(T5-A69、`tools/verify.ps1`の`Invoke-CheckAcceptance`が`tools/acceptance/`にスクリプトが1件でもあると毎回クラッシュしていた)
 - L152 「フラグを立てて相手プロセスの自主終了を待つ」設計はフラグ削除・後片付けを能動的な終了確認(`WaitForExit`)より前に置くとL145と同種のファイルロック事故を再生産する。`Start-Process -PassThru`+`WaitForExit`+強制終了フォールバックで終了確認してから後片付けする(T5-A66、Watchdog停止シーケンス)
+- L153 `.claude/settings*.json`のallow/denyにWindowsパスを書くとき単一バックスラッシュはJSONエスケープ(`\f`等)として誤解釈されうる。常に`\\`で二重化するか`/`区切りにする(T5-A67、`tools\failure_playbook.ps1`が`\f`でフォームフィード化し無音で不一致になっていた)
 - L11 日次コスト上限超過後にユーザーが明示的に続行を承認した場合
 - L22 `ScheduleWakeup`は、タスク通知(task-notification)を受けて処理を進めた後は速やかに`stop:true`で明示的に…
 - L68 `loop_guard.js`のようなガードレール系フックは、`.claude/loop_state.md`と同じ実ファイルパスに向けて手動でstd…
