@@ -361,6 +361,7 @@ $OverrideBlock = @'
 
 - あなたはGoogle Antigravity CLI(ヘッドレス)として動いています。ブラウザ操作ツール(claude-in-chrome)は使えません。
 - **シェルコマンドは、次の完全一致の文字列のみ実行を試みてよく、それ以外は1回も試みないでください**(引数が1文字でも違うと拒否され、拒否されると応答全体が失敗扱いで打ち切られます): `flutter analyze` / `flutter test` / `flutter build web` / `flutter pub get` / `dart run build_runner build --force-jit` / `git status` / `git diff` / `git log --oneline -20` / `git show HEAD` / `powershell -File tools/verify.ps1` / `powershell -File tools/verify.ps1 -Edition personal`。上記以外のコマンド(特定ファイル指定の`flutter test <path>`等を含む)は実行を試みず、報告に「未実施」と書いてください。正式な検証(ブラウザでの実データ確認等)は別のエージェントが行います。
+- セルフチェック(`flutter analyze`/`flutter test`/`flutter build web`)はagy委譲では一切実行せず、`実装後のセルフチェック`および`反復中の検証範囲(T5-A92)`の節はagy委譲には適用しないでください。
 - `git commit`/`git push`/`firebase deploy`/`clasp push`/本番データの削除は**絶対に実行しないでください**。
 - 指示された対象ファイル以外を編集しないでください。
 - 既存の`.ps1`ファイルを編集する場合、元のファイルがUTF-8 BOM付きであればBOMを失わないでください(日本語コメントを含む`.ps1`がBOM無しUTF-8で保存されると、PowerShell 5.1で構文エラーになります)。
