@@ -223,3 +223,4 @@
 - L157 PowerShell 5.1の`Set-Content -Encoding UTF8`はBOM無しファイルにBOMを付ける。既存エンコーディングを保つなら`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`。`.ps1`はBOM付きが正解で逆になる。全文: `rules/lessons_archive.md`
 - L158【2026-08-15訂正】agy `-p "/usage"`の失敗はagy自体のregressionではなくGit Bash(MSYS)のパス自動変換が引数を誤変換していたことが真因。PowerShellまたは`MSYS_NO_PATHCONV=1`付きBashなら正常動作する。本番`.ps1`ラッパーはGit Bashを経由しないため元々無傷の可能性が高い。全文: `rules/lessons_archive.md`
 - L159 fail-open(try/catch)は例外しか救えず無限ハングには無力。外部プロセス呼び出しには例外処理と別にタイムアウトが必須、「Xに10秒タイムアウトを掛けた」という記述は対象範囲を実装コードと突き合わせて確認する。全文: `rules/lessons_archive.md`
+- L160 BOM喪失はagy固有ではない。ClaudeのWriteツールでBOM必須`.ps1`を全文書き換えしても同様に起きる、完了後にファイル先頭バイトを確認する。全文: `rules/lessons_archive.md`
