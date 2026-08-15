@@ -36,6 +36,8 @@ tools: Read, Write, Edit, Grep, Glob, Bash, PowerShell, ToolSearch, mcp__claude-
 
 **正式な検証(ブラウザでの実データ確認・本番確認)は`verifier`エージェントの担当**なので、あなたはそこまで踏み込まなくてよい。ただし報告には「verifierが何を確認すれば今回の修正が効いたと言えるか(判定条件・確認する画面と操作)」を書き添えること。
 
+**反復中の検証範囲(T5-A92)**: 実装が固まるまでの試行錯誤の段階では、`flutter test`は変更したファイルに対応するテストだけを`flutter test test/xxx_test.dart`で回してよく(対応が不明な場合は`grep -l <変更したクラス名/関数名> test/`で参照しているテストを特定する)、`flutter build web`も省略してよい。**ただし報告の直前に必ず1回、`analyze`→フルの`flutter test`→`build web`を通し、その結果を報告する。絞り込んだ結果だけで報告してはならない。** `lib/`・`test/`を変更していないタスクでは、この最終確認は`rules/verification.md`の該当項目のみでよい。
+
 ## トークン運用
 
 独立したツール呼び出しは1メッセージにまとめる。Edit/Write直後の確認Readは禁止(失敗すればツールがエラーを返す)。300行超のファイルは`Grep`/`Read(offset/limit)`で必要箇所だけ読む。検証コマンドは短出力形にし、失敗したときだけ詳細を取り直す。
