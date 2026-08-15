@@ -227,3 +227,4 @@
 - L161 agyヘッドレスの`claude-sonnet-4-6`は探索を伴うタスクで`num_turns:1`のまま応答が打ち切られファイル生成に到達しないことがある(モード非依存、探索ゼロなら成功)。全文: `rules/lessons_archive.md`
 - L162 agy委譲の「セルフチェック実施」指示とラッパーのシェル許可完全一致リストが矛盾すると`PERMISSION_DENIED`になる、タスク側で検証コマンド禁止を明示する。全文: `rules/lessons_archive.md`
 - L163 `tools/antigravity_delegate.ps1`の変更検出は同一の既にuntrackedなディレクトリへの2回目以降の書き込みを`git status --porcelain`の仕様上検知できず誤って`NO_CHANGES`になる。全文: `rules/lessons_archive.md`
+- L164 `verify.ps1`の`acceptance`は全既存受け入れスクリプトを毎回回帰実行するため、無関係な既存スクリプトのフレークでも自タスクの`ok`が巻き添えでfalseになる。`checks.acceptance`の内訳で切り分ける。全文: `rules/lessons_archive.md`
