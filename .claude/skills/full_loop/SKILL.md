@@ -37,7 +37,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
 - 新規画面・新規データ構造の追加など、フィールド名/列名/画面IDの**新規決定**を伴う
 - 逆に、方針が既に確定している定型作業(文言修正・既存パターンの横展開・設計書どおりの実装)ではarchitectを呼ばない
 
-**architect委譲プロンプトのテンプレ(T5-A76)**: architectへ委譲するプロンプトは以下6項目を満たすこと(`docs/token_optimization_design.md` §10-2-B):
+**architect委譲プロンプトのテンプレ(T5-A76・T5-A91。7はarchitect以外の委譲にも適用する)**: architectへ委譲するプロンプトは以下7項目を満たすこと(`docs/token_optimization_design.md` §10-2-B):
 
 1. 読むべき正本ファイルを親が列挙する(architectに探索させない)。
 2. 300行超の全文Readを禁止し`Grep`/`Read(offset/limit)`を明示する。
@@ -45,6 +45,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
 4. 実機再現が必要な場合は「再現手順を書かせる」までに留め、実行は親か`verifier`が行う。
 5. ブラウザ確認はテキスト系ツール優先・スクリーンショットは最小(既存規約の再掲)。
 6. 報告は日本語・必要十分(既存の§出力量の規約)。
+7. **長文は貼らずパスで渡す(T5-A91)**: 委譲先に読ませたい仕様・調査結果・差分が長い場合、親が`Read`して本文をプロンプトへ貼らず、**ファイルパスと該当節・行範囲**(例: `docs/xxx.md` §7、`lib/foo.dart:120-180`)を渡す。**委譲のためだけに親が長文をReadすることは禁止**。まだファイル化されていない長文(差分等)は、先に`docs/`かスクラッチパッドへ書き出してからパスを渡す。短い確定仕様(フィールド名・列名・文言・完了条件)は従来どおりプロンプトへ直接書く。
 
 **委譲時の共通ルール**:
 
@@ -57,6 +58,7 @@ description: Use when the user asks to run one full daily-loop iteration autonom
 - **長時間委譲の進捗ハートビート/タイムアウト(2026-08-13新設)**: 委譲したエージェントが目安10分応答なく完了もしない場合、親は状況を確認し、必要なら処理を打ち切って別の担当へ切り替える(agy失敗ならClaudeの`implementer`へ、`implementer`が2回失敗したら`architect`へ)。
 - **エンコーディング/フォーマット制約の明示と事後確認(2026-08-13新設)**: agy委譲で`.ps1`等のUTF-8 BOM付きファイルを編集させる場合、`docs/antigravity_delegation_design.md` §「層1と層2の間に挟む『agy固有の制約ブロック』」に定める固定文(既存BOM・改行コードを保持する旨)がラッパー経由で自動的に委譲プロンプトへ挟まる。それでも過去にBOMが失われ構文エラーになった事故があるため(T5-A41、教訓L127・L142)、**委譲後は必ず該当ファイルの先頭バイト(BOM有無)・改行コードを確認する**。この確認は上記の必須diffレビューと合わせて行ってよい。
 - **`Task`ツールの`subagent_type`に`"fork"`を渡さない(T5-A76)**: 理由・実測根拠は`docs/token_optimization_design.md` §10-4参照。役割名(`architect`/`implementer`/`verifier`等)を渡し続ける限り事故は起きない。
+- **報告は要点のみを返させる(T5-A91)**: 委譲プロンプトに「報告は日本語で1,500字程度まで。長くなる詳細(全ファイル一覧・ログ全文・検証の生出力)は報告に貼らず、ファイルへ書いてパスを示すこと」を含める。
 
 ## 手順
 
