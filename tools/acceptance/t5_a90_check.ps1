@@ -17,10 +17,13 @@
     2. 子孫kill確認: 孫プロセスを起こしてから自身もスリープする親を3秒でタイムアウトさせ、
        5秒以内に親・孫とも消えていることを確認(taskkill /T の実効確認)
     3. フェーズ上限の実地確認: playbookPreflightTimeoutSec=10 の一時configと
-       BEANBASE_FP_TEST_HANG_SEC=60 で tools/night_loop.ps1 -DryRun -Force を実行し、
-       30秒以内にexit 0で戻る・wrapper.logにタイムアウトWARNが出る・
-       .claude/failure_events.tsv にFP-INTERNAL/timeout_preflight行が出る・
-       failure_playbook.ps1 を含むpowershellプロセスが残らないことを確認
+       BEANBASE_FP_TEST_HANG_SEC=60、BEANBASE_NL_TEST_LOCK_PATH(一時ロック)、
+       BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT=1 で tools/night_loop.ps1 -DryRun -Force を
+       実行し、9〜30秒以内にexit 0で戻る・wrapper.logに新規のタイムアウトWARNが出る・
+       .claude/failure_events.tsv に新規のFP-INTERNAL/timeout_preflight行が出る・
+       起動前から存在したプロセス(夜間ループの常駐Watchdog等)を除いて
+       failure_playbook.ps1 を含むpowershellプロセスが新規に残らないことを確認
+       (差分判定、T5-A97でフレーク対策のため書き換え)
     4. 回帰(正常系): 環境変数なしで tools/failure_playbook.ps1 -Mode Check を実行し、
        60秒以内に終了・stdout最終行がJSONとしてパース可能・exit 0または1であることを確認
 
@@ -28,7 +31,8 @@
   実装方法の参考: tools/acceptance/t5_a69_check.ps1 と同じ体裁(BOM付きUTF-8、進捗はstderr、
   stdout最終行に1行JSON)。3番目のケースのみ実際に night_loop.ps1 / failure_playbook.ps1 を
   子プロセスとして起動する(このリポジトリの .claude/night_logs / .claude/failure_events.tsv
-  に実書き込みが発生する。テスト用の一時configとBEANBASE_FP_TEST_HANG_SEC以外はリポジトリの
+  に実書き込みが発生する。テスト用の一時config・BEANBASE_FP_TEST_HANG_SEC・
+  BEANBASE_NL_TEST_LOCK_PATH・BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT以外はリポジトリの
   ファイルを書き換えない。実行後に一時ファイル・環境変数を必ず片付ける)。
 #>
 
@@ -46,6 +50,11 @@ $originalLocation = (Get-Location).Path
 $tempConfigPath = $null
 $hangEnvWasSet = $false
 $hangEnvOriginal = $null
+$nlLockEnvWasSet = $false
+$nlLockEnvOriginal = $null
+$tempLockPath = $null
+$nlStopEnvWasSet = $false
+$nlStopEnvOriginal = $null
 
 try {
     Write-AcceptanceLog "リポジトリルートを検出中..."
@@ -132,10 +141,36 @@ try {
     $env:BEANBASE_FP_TEST_HANG_SEC = '60'
     $hangEnvWasSet = $true
 
+    # T5-A97: 多重起動ロックを他プロセスと共有しないよう一時パスへ差し替え、Preflight
+    # 完了直後に終了するテストシームを有効化する(いずれもnight_loop.ps1側のテスト専用
+    # 環境変数、未設定時は無効)。
+    $nlLockEnvOriginal = $env:BEANBASE_NL_TEST_LOCK_PATH
+    $tempLockPath = Join-Path $env:TEMP ("bb_t5a90_lock_" + [guid]::NewGuid().ToString("N") + ".lock")
+    $env:BEANBASE_NL_TEST_LOCK_PATH = $tempLockPath
+    $nlLockEnvWasSet = $true
+
+    $nlStopEnvOriginal = $env:BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT
+    $env:BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT = '1'
+    $nlStopEnvWasSet = $true
+
     $todayStamp = Get-Date -Format 'yyyyMMdd'
     $wrapperLogPath = Join-Path $repoRoot (".claude\night_logs\wrapper-{0}.log" -f $todayStamp)
     $eventsPath = Join-Path $repoRoot ".claude\failure_events.tsv"
-    $wrapperTailBefore = if (Test-Path $wrapperLogPath) { (Get-Content -Path $wrapperLogPath -Tail 1 -ErrorAction SilentlyContinue) } else { $null }
+
+    # ベースライン取得(差分判定): 夜間ループの常駐Watchdog等、この検証の起動より前から
+    # 存在するプロセス・ログ行を新規発生と誤検知しないため、起動前の状態を記録しておく
+    # (T5-A97、フレーク対策)。
+    $baselinePids = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -match 'failure_playbook\.ps1' } |
+        ForEach-Object { $_.ProcessId })
+    $wrapperLineCountBefore = 0
+    if (Test-Path $wrapperLogPath) {
+        $wrapperLineCountBefore = @(Get-Content -Path $wrapperLogPath -ErrorAction SilentlyContinue).Count
+    }
+    $eventsLineCountBefore = 0
+    if (Test-Path $eventsPath) {
+        $eventsLineCountBefore = @(Get-Content -Path $eventsPath -ErrorAction SilentlyContinue).Count
+    }
 
     $nightLoopArgs = '-NoProfile -NonInteractive -File "tools\night_loop.ps1" -DryRun -Force -ConfigPath "{0}"' -f $tempConfigPath
     $sw3 = [System.Diagnostics.Stopwatch]::StartNew()
@@ -146,34 +181,63 @@ try {
     $hangEnvWasSet = $false
     if ($null -ne $hangEnvOriginal) { $env:BEANBASE_FP_TEST_HANG_SEC = $hangEnvOriginal }
 
-    $withinTime3 = ($sw3.Elapsed.TotalSeconds -le 30)
+    Remove-Item Env:\BEANBASE_NL_TEST_LOCK_PATH -ErrorAction SilentlyContinue
+    $nlLockEnvWasSet = $false
+    if ($null -ne $nlLockEnvOriginal) { $env:BEANBASE_NL_TEST_LOCK_PATH = $nlLockEnvOriginal }
+    if (Test-Path $tempLockPath) { Remove-Item -Path $tempLockPath -Force -ErrorAction SilentlyContinue }
+
+    Remove-Item Env:\BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT -ErrorAction SilentlyContinue
+    $nlStopEnvWasSet = $false
+    if ($null -ne $nlStopEnvOriginal) { $env:BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT = $nlStopEnvOriginal }
+
+    $elapsedSec3 = $sw3.Elapsed.TotalSeconds
+    # 下限9秒: playbookPreflightTimeoutSec=10 の外側タイムアウトを実際に踏んだことの証拠。
+    # これを満たさない場合、多重起動ロック競合等で即終了しただけの偽陽性を拾ってしまう。
+    $withinTime3 = ($elapsedSec3 -ge 9) -and ($elapsedSec3 -le 30)
     $exitOk3 = (-not $r3.TimedOut) -and ($r3.ExitCode -eq 0)
 
     $wrapperHasWarn = $false
     if (Test-Path $wrapperLogPath) {
-        $wrapperTail = Get-Content -Path $wrapperLogPath -Tail 200 -ErrorAction SilentlyContinue
-        $wrapperHasWarn = [bool]($wrapperTail | Where-Object {
+        $wrapperNewLines = @(Get-Content -Path $wrapperLogPath -ErrorAction SilentlyContinue | Select-Object -Skip $wrapperLineCountBefore)
+        $wrapperHasWarn = [bool]($wrapperNewLines | Where-Object {
             $_ -match '10秒以内に終了しなかったため' -and $_ -match '判定不能\(タイムアウト\)'
         })
     }
 
     $eventsHasLine = $false
     if (Test-Path $eventsPath) {
-        $eventsTail = Get-Content -Path $eventsPath -Tail 50 -ErrorAction SilentlyContinue
-        $eventsHasLine = [bool]($eventsTail | Where-Object { $_ -match 'FP-INTERNAL' -and $_ -match 'timeout_preflight' })
+        $eventsNewLines = @(Get-Content -Path $eventsPath -ErrorAction SilentlyContinue | Select-Object -Skip $eventsLineCountBefore)
+        $eventsHasLine = [bool]($eventsNewLines | Where-Object { $_ -match 'FP-INTERNAL' -and $_ -match 'timeout_preflight' })
     }
 
-    Start-Sleep -Milliseconds 500
-    $leftover3 = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -and $_.CommandLine -match 'failure_playbook\.ps1' })
+    # 残存プロセス判定: ベースラインに無い(=今回の起動で新規に生まれた)PIDのみを対象にし、
+    # -Mode Watchdog の常駐プロセス(night_loop.ps1:601と同じ除外パターン)は対象外とする
+    # (T5-A97)。強制終了の完了を待つため500ms間隔で最大10回ポーリングする。
+    $leftover3 = @()
+    for ($i = 0; $i -lt 10; $i++) {
+        $currentProcs = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -and $_.CommandLine -match 'failure_playbook\.ps1' })
+        $leftover3 = @($currentProcs | Where-Object {
+            ($baselinePids -notcontains $_.ProcessId) -and ($_.CommandLine -notmatch '-Mode\s+Watchdog')
+        })
+        if ($leftover3.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 500
+    }
     $noLeftover3 = ($leftover3.Count -eq 0)
 
     $ok3 = $withinTime3 -and $exitOk3 -and $wrapperHasWarn -and $eventsHasLine -and $noLeftover3
+    $leftoverDetail3 = ""
+    if (-not $noLeftover3) {
+        $leftoverDetail3 = " 残存詳細=[" + (($leftover3 | ForEach-Object {
+            $cmdShort = if ($_.CommandLine.Length -gt 120) { $_.CommandLine.Substring(0, 120) } else { $_.CommandLine }
+            "PID=$($_.ProcessId) CMD=$cmdShort"
+        }) -join "; ") + "]"
+    }
     $checks.Add([ordered]@{
-        name   = "フェーズ上限の実地確認: 30秒以内にexit0で戻り、タイムアウトWARN・TSV記録があり、プロセス残存なし"
+        name   = "フェーズ上限の実地確認: 9〜30秒以内にexit0で戻り、タイムアウトWARN・TSV記録(新規分)があり、新規残存プロセスなし"
         ok     = [bool]$ok3
-        detail = ("経過秒={0}, exitOk={1}, wrapperWARN={2}, eventsTSV={3}, 残存プロセス数={4}" -f `
-            [math]::Round($sw3.Elapsed.TotalSeconds, 1), $exitOk3, $wrapperHasWarn, $eventsHasLine, $leftover3.Count)
+        detail = ("経過秒={0}, exitOk={1}, wrapperWARN={2}, eventsTSV={3}, 新規残存プロセス数={4}{5}" -f `
+            [math]::Round($elapsedSec3, 1), $exitOk3, $wrapperHasWarn, $eventsHasLine, $leftover3.Count, $leftoverDetail3)
     })
 
     # --- チェック4: 回帰(正常系) ----------------------------------------------
@@ -230,6 +294,17 @@ try {
     if ($hangEnvWasSet) {
         Remove-Item Env:\BEANBASE_FP_TEST_HANG_SEC -ErrorAction SilentlyContinue
         if ($null -ne $hangEnvOriginal) { $env:BEANBASE_FP_TEST_HANG_SEC = $hangEnvOriginal }
+    }
+    if ($nlLockEnvWasSet) {
+        Remove-Item Env:\BEANBASE_NL_TEST_LOCK_PATH -ErrorAction SilentlyContinue
+        if ($null -ne $nlLockEnvOriginal) { $env:BEANBASE_NL_TEST_LOCK_PATH = $nlLockEnvOriginal }
+    }
+    if ($tempLockPath -and (Test-Path $tempLockPath)) {
+        Remove-Item -Path $tempLockPath -Force -ErrorAction SilentlyContinue
+    }
+    if ($nlStopEnvWasSet) {
+        Remove-Item Env:\BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT -ErrorAction SilentlyContinue
+        if ($null -ne $nlStopEnvOriginal) { $env:BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT = $nlStopEnvOriginal }
     }
     if ($tempConfigPath -and (Test-Path $tempConfigPath)) {
         Remove-Item -Path $tempConfigPath -Force -ErrorAction SilentlyContinue

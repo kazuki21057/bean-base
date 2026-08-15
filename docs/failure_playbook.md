@@ -467,6 +467,7 @@ kill可能な子プロセスとして呼ぶ。-Status がタイムアウトし�
 - **プレイブック内の例外は必ず握りつぶす**(P1)。トップレベルを `try/catch` で包み、catch では `failure_events.tsv` に `ruleId=FP-INTERNAL` を1行書いて exit 0 する。
 - `lib/` 配下の製品コードは**一切変更しない**。本タスク群は運用基盤のみ。
 - **テスト用ハングフック**(T5-A90): 環境変数 `BEANBASE_FP_TEST_HANG_SEC` を設定して起動すると、モード開始直後に指定秒数 `Start-Sleep` する。`tools/acceptance/t5_a90_check.ps1` が `night_loop.ps1` 側の外側タイムアウト(`playbookPreflightTimeoutSec` 等)を実地確認するためのフォールトインジェクション専用で、未設定時は完全に無効。
+- **テスト用シーム2種**(T5-A97、`night_loop.ps1`側): 環境変数 `BEANBASE_NL_TEST_LOCK_PATH` は多重起動ガードのロックファイルパスを差し替え、`BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT=1` はPreflight判定ブロック完了直後(`Save-NightLoopLastRun`を呼ばずに)終了する。いずれも`tools/acceptance/t5_a90_check.ps1`のチェック3が他プロセス(夜間ループの常駐Watchdog等)と競合せず安定して差分判定するための専用フックで、未設定時は完全に無効。
 
 ---
 

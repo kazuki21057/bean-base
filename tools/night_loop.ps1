@@ -22,6 +22,12 @@
                                                              へ変更したためスキップ対象では
                                                              なく、-Force指定時も記録する)
       powershell -File tools\night_loop.ps1 -ConfigPath X  既定は tools\night_loop.config.json
+      環境変数 BEANBASE_NL_TEST_LOCK_PATH  多重起動ガードのロックファイルパスを差し替える
+                              (テスト専用、tools/acceptance/t5_a90_check.ps1が使用。
+                              未設定時は既定の .claude\night_loop.lock を使う)。
+      環境変数 BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT=1  Preflight判定ブロック完了直後に
+                              (Save-NightLoopLastRunを呼ばずに)終了する
+                              (テスト専用、未設定時は完全に無効)。
 
     tools/night_loop.config.json のキー(JSONにコメントを書けないためここに説明を置く):
       weeklyRunLimit          週次予算ガードの上限回数(既定15、2026-08-13に12→15へ変更)。
@@ -95,7 +101,7 @@ if (-not (Test-Path $NightLogsDir)) {
 # tail -f 等で開き続けると、その瞬間から書き込み不能になり続ける実害が起きたため、
 # 日次分割にして被害を当日限りに抑える。
 $WrapperLogPath = Join-Path $NightLogsDir ('wrapper-{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
-$LockPath = Join-Path $ClaudeDir 'night_loop.lock'
+$LockPath = if ($env:BEANBASE_NL_TEST_LOCK_PATH) { $env:BEANBASE_NL_TEST_LOCK_PATH } else { Join-Path $ClaudeDir 'night_loop.lock' }
 $RunsLogPath = Join-Path $ClaudeDir 'night_runs.log'
 $RunCountPath = Join-Path $ClaudeDir 'night_loop_run_count.txt'
 $NightReportPath = Join-Path $RepoRoot 'night_report.md'
@@ -885,6 +891,11 @@ function Invoke-NightLoop {
         Write-Log 'WARN' 'failure_playbook.ps1 -Mode Preflight が検知events(exit 1、続行可能)を返しました。記録して続行します。'
     } else {
         Write-Log 'INFO' '失敗プレイブック(Preflight)は検知なし、または自動対処済みです。'
+    }
+
+    if ($env:BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT -eq '1') {
+        Write-Log 'INFO' 'テスト用シーム(BEANBASE_NL_TEST_STOP_AFTER_PREFLIGHT=1)によりPreflight完了時点で終了します。'
+        return 0
     }
 
     # --- 7.5. 作業ツリー汚れガード ---

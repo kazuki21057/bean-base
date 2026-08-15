@@ -524,7 +524,7 @@ function Invoke-CheckAcceptance {
         $relPath = Get-RelativePath $sf.FullName
         $result = Invoke-LoggedCommand -FilePath "powershell" `
             -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $relPath) `
-            -LogPath $log -TimeoutMs 60000
+            -LogPath $log -TimeoutMs 180000
 
         $logText = ""
         if (Test-Path $log) { $logText = Get-Content -Raw -Encoding UTF8 -Path $log -ErrorAction SilentlyContinue }

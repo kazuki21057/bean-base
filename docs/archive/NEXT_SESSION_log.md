@@ -3,6 +3,14 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.107 当日やったこと(2026-08-16、Sonnet 5、`/full_loop`、Windows環境。T5-A95(a)完了)
+
+- ユーザー指示「/full_loop」で起動。プリフライトOK・起動回数カウンタ25→26・使用率取得(開始: セッション59%/週次70%)・`git pull`差分なし・`loop_state.md`余裕あり($0.000/$24)を確認。
+- `NEXT_SESSION.md`§2の推奨どおりT5-A95(a)(`.claude/skills/full_loop/SKILL.md`手順6.5末尾の文言差し替え、有人セッション限定)を選定。T5-A94の非委譲しきい値(`lib/`・`gas/`・`test/`・`web/`を含まない1ファイル・10行以内・文言確定済み)に該当するため`implementer`へ委譲せず親が直接`Edit`、`git diff`で1行差分が確定済み文言と一致することを確認。
+- `docs/改修マスタープラン.md`のT5-A95行を✅完了へ更新(完了済み一覧・79件目)。コード変更(`lib/`/`gas/`)無しのため`verifier`委譲・デプロイ・本番確認は不要。
+- 変更ファイル: `.claude/skills/full_loop/SKILL.md`(手順6.5、T5-A95(a)分)・`docs/改修マスタープラン.md`(T5-A95完了処理)・`docs/token_optimization_design.md`(§7・§8にログ追記)・`.claude/full_loop_run_count.txt`(25→26)・`docs/archive/NEXT_SESSION_log.md`(-5.106節退避)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A81(S、依存なし、researcher出力への構造化JSONスキーマ)・T5-A68(M、障害注入テスト)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち(2026-08-15の調査でPowerShell経由なら自動計測できると判明済み、詳細は`docs/antigravity_delegation_design.md` §7参照)。`/token_review`スキルはこれで`full_loop`手順6.5・`CLAUDE.md`両方の配線が完了し正式運用開始(次は起動回数30回目で発火)。
+
 ### -5.106 夜間ループ(2026-08-16 04:10枠、無人実行、`BEANBASE_NIGHT_TRIGGER=0410`)T5-A71完了・T5-A95部分完了
 
 - 無人モード(`BEANBASE_NIGHT_LOOP=1`)で起動。前回23:00枠は有人セッションの活動直後だったため`skipped_active_session`。プリフライトは`tools/night_loop.ps1`側で通過済み(`FP-03-EMULATOR`が起動時に自動復旧、`ok`)。**T5-A90(Preflightハング防止修正)が今回04:10枠で実地確認できた**——ハングせず正常にPreflightを通過。
