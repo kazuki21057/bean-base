@@ -224,3 +224,6 @@
 - L158【2026-08-15訂正】agy `-p "/usage"`の失敗はagy自体のregressionではなくGit Bash(MSYS)のパス自動変換が引数を誤変換していたことが真因。PowerShellまたは`MSYS_NO_PATHCONV=1`付きBashなら正常動作する。本番`.ps1`ラッパーはGit Bashを経由しないため元々無傷の可能性が高い。全文: `rules/lessons_archive.md`
 - L159 fail-open(try/catch)は例外しか救えず無限ハングには無力。外部プロセス呼び出しには例外処理と別にタイムアウトが必須、「Xに10秒タイムアウトを掛けた」という記述は対象範囲を実装コードと突き合わせて確認する。全文: `rules/lessons_archive.md`
 - L160 BOM喪失はagy固有ではない。ClaudeのWriteツールでBOM必須`.ps1`を全文書き換えしても同様に起きる、完了後にファイル先頭バイトを確認する。全文: `rules/lessons_archive.md`
+- L161 agyヘッドレスの`claude-sonnet-4-6`は探索を伴うタスクで`num_turns:1`のまま応答が打ち切られファイル生成に到達しないことがある(モード非依存、探索ゼロなら成功)。全文: `rules/lessons_archive.md`
+- L162 agy委譲の「セルフチェック実施」指示とラッパーのシェル許可完全一致リストが矛盾すると`PERMISSION_DENIED`になる、タスク側で検証コマンド禁止を明示する。全文: `rules/lessons_archive.md`
+- L163 `tools/antigravity_delegate.ps1`の変更検出は同一の既にuntrackedなディレクトリへの2回目以降の書き込みを`git status --porcelain`の仕様上検知できず誤って`NO_CHANGES`になる。全文: `rules/lessons_archive.md`
