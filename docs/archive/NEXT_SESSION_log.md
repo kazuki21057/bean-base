@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.98 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A90完了に続く同日セッション。T5-A88完了)
+
+- ユーザー指示「/full_loop」+メモ2件(次回起動20回目のトークン節約見直しは調査から着手・専用スキルも新設してほしい)で起動。プリフライトOK・起動回数カウンタ17→18・使用率(開始: セッション2%/週51%)・`git pull`差分なし。ユーザーメモは`docs/token_optimization_design.md` §10-6へ先に記録。
+- 未完了タスクを確認、バグ対応タスクは無し。agy正式運用移行系列からT5-A84(依存充足済み・最優先候補)を検討したが、`tools/antigravity_delegate.ps1`の`Invoke-QuotaPreflight`を読み込み、Claude/GPTバケットの自動計測が未実装のスタブであることをコードで確認、⚠️ユーザー実施(TUI `/usage`確認)が本当に必要と確定したため見送り。同系列で依存充足・自動化完結するT5-A88(S、`verify_citations.ps1`へのリポジトリ内引用照合モード追加、依存なし)を選定。見積もり約$1〜3で予算内、サイズSのため受け入れ資産は免除と判定・マスタープラン行へ記録。
+- `implementer`へ委譲。新規スイッチ`-RepoCitationMode`を追加(既定はスイッチ無しで従来のURL検証モードのまま、相互排他)。新設「## リポジトリ引用一覧」表(列: #/主張ID/path:行/裏付け引用)を対象に、path実在(`file_exists`)・行番号が総行数以内(`line_in_range`)・裏付け引用があれば対象行の前後3行に一致(`quote_ok`)を判定する機能を実装、既存の`Split-TableRow`/`Find-ColumnIndex`/`Get-NormalizedText`等のURLモード基盤を再利用。実装中、`Write`ツールでの全文書き換えによりUTF-8 BOMを喪失→自ら発見し`[System.IO.File]::WriteAllText`で復旧、`${refPath}:${refLine}`のドライブ参照誤解釈も併せて修正。
+- 親が`git diff --stat`で変更が`tools/verify_citations.ps1`1ファイルに閉じていること・BOM保持(`EF BB BF`)を確認。`verifier`へ独立検証を委譲: 正常系(実在path:行3件)でexit 0、行番号ずれ(`CLAUDE.md:99999`)でexit 1・`reason:"line_out_of_range"`で該当行を特定、`-RepoCitationMode`無しで既存レポート(`docs/research/2026-08-14_m3_breakpoints_flash.md`)を渡した際にURLモードの出力構造・exit code規約に回帰なし、をいずれも確認。`verify.ps1`(タスクID無し)9項目中8項目PASS・1項目skip(`build_apk_release`、`lib/main_public.dart`未作成の既知理由)、ファイル冒頭BOM再確認もOK。
+- `lib/`・`gas/`不変のためデプロイ・本番確認は不要。`/code-review`実行条件(差分5ファイル超/フェーズ完了/夜間10回に1回、有人ループのため対象外)に該当せずスキップ。新規教訓L160を追加(BOM喪失はagy固有ではなくClaudeのWriteツールでの全文書き換え一般で起こりうる、完了後にファイル先頭バイトを確認する)、`rules/verification.md`インデックスにも1行追記。
+- 変更ファイル: `tools/verify_citations.ps1`・`docs/改修マスタープラン.md`(T5-A88完了処理、完了済み69件目)・`docs/token_optimization_design.md`(§10-6新設)・`rules/lessons_archive.md`(L160新規)・`rules/verification.md`(インデックス追記)・`.claude/full_loop_run_count.txt`(17→18)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A81・T5-A89・T5-A71(いずれもS)・T5-A16・T5-A68(M)。T5-A84は⚠️ユーザー実施のTUI確認待ちで次回対話時に着手を検討。**次回`/full_loop`起動回数20回目のトークン節約見直しでは、まずWeb調査(researcher)から着手し、調査結果を踏まえて節約見直し専用スキルを新設すること(詳細は§2・`docs/token_optimization_design.md` §10-6)。**
+
 ### -5.93 当日やったこと(2026-08-14、Sonnet 5、`/full_loop`新規セッション、Windows環境。外部レポートのファクトチェック+T5-A81起票)
 
 - ユーザー依頼「`docs/antigravity_claude_orchestration_report.md`(geminiに聞いた回答)をファクトチェックするとともに、antigravity cli(sonnet4.6)に可能な限りサブエージェントを委譲する検討をして」で起動。プリフライトOK・起動回数カウンタ14・`git pull`差分なし・使用率(開始: セッション0%/週42%、5時間枠リセット直後)。

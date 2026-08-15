@@ -14,6 +14,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 - **`integration_test/`ディレクトリは現時点で存在しない。** スモークスイートは**T5-A7**(依存: T5-A6・T5-B1、いずれも未着手・Lサイズ)で作成予定であり、`tools/verify.ps1`の8項目にも相当するチェックは無い。またT5-A6(エミュレータ/Android SDK未検出)が未整備のため、そもそも実行環境も無い。**スイートが無い間、自動pushゲート条件#2(`integration_test`スモークが全パス)は「判定対象外(スキップ)」として扱う。** この暫定措置は**T5-A7完了時に解除**する(このSKILL.mdを更新すること)。
 - **夜間のしきい値はコスト$20・ターン80・連続失敗2**(2026-08-13、$8/ターン40から引き上げ。1晩に最大2件のS/Mタスクまたは1件のLタスクを許容するため。有人の$24/30/3とは別、設計書§5)。ただし**`loop_guard.js`の夜間分岐はT5-A11で未実装**のため、`.claude/loop_state.md`が表示する上限値は現状すべて有人用($24/30/3)のままである。**表示された上限値をそのまま使わず、$20/ターン80/連続失敗2で自己判定すること。**(T5-A11完了後はこの一文を削除してよい)
 - **`tools/night_loop.ps1`(多重起動ガード・5時間枠チェック・週次予算ガードを担う、設計書§2)も現時点で存在しない。** タスクスケジューラから実行するエントリポイント自体が未整備であり、作成は**タスクT5-A10(依存: 本タスクT5-A9)で行う予定**。`ui_verifier`(T5-A4)・`integration_test`(T5-A7)・`tools/night_loop.ps1`(T5-A10)・`.claude/settings.night.json`(T5-A17、⚠️ユーザー実施)の4点が、現時点で未整備である。**T5-A10実装時は、無人モード判別用の環境変数`BEANBASE_NIGHT_LOOP=1`を実行前に設定することを忘れないこと**(§0参照)。
+- **(2026-08-15追記、T5-A89)agyへ委譲する場合(implementer役等)も、夜間ループでは`claude-sonnet-4-6`・`claude-opus-4-6-thinking`等のClaudeモデルを明示指定しない。**常にGemini既定モデル(自動解決)で委譲する(`docs/antigravity_delegation_design.md` §12.3の除外条件)。
 - **`/code-review`の定期実行ルール(10回に1回)**: `tools/night_loop.ps1`が起動時に`.claude/night_loop_run_count.txt`をインクリメントする。カウンタ値が10の倍数(10回目, 20回目...)の起動では、検証時に`/code-review`(effort=medium相当、対象: `git diff`)を実行し、Critical/Major指摘が出た場合はその場で`implementer`に差し戻して修正する(`CLAUDE.md`「`/code-review`の定期実行ルール」(3)参照)。
 
 ## 手順

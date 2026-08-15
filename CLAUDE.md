@@ -85,7 +85,7 @@ Detailed rules live in `rules/verification.md`. Summary: `flutter analyze`(zero 
 
 **流れ**: `/start` → タスク選択 → 実装(`implementer`へ委譲) → 検証(`verifier`へ委譲、`analyze`→`test`→`run`)→ OKならcommit/push+進捗表更新 / NGなら`NEXT_SESSION.md`に引き継ぎ → `/end`。
 
-**終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。agy(Antigravity CLI)経由の委譲はGeminiバケットを使うため、コスト上限の判定に含めない。件数・所要時間は`loop_state.md`に参考値として出る。
+**終了条件(直近の`/start`・`/full_loop`以降の1ループ単位、`loop_guard.js`が`.claude/loop_state.md`に算出——この数値が真実)**: (1)タスク完了 (2)連続3回失敗(`.claude/loop_failures.txt`に記録、成功で0リセット) (3)コスト$24超 (4)ターン数30到達。停止時は新規着手せず(a)`NEXT_SESSION.md`更新(b)マスタープラン進捗表更新(c)可能ならcommit/push、の順で締める。agy(Antigravity CLI)経由の委譲はGeminiまたは別勘定のClaude/GPTバケットを使うため、コスト上限の判定に含めない(1ループあたりのClaudeモデル委譲件数の上限は`docs/antigravity_delegation_design.md` §12.3参照)。件数・所要時間は`loop_state.md`に参考値として出る。
 
 **無人ループ(night_loop)の書き込み範囲の制限(2026-08-13新設、恒久)**: `night_loop`が状態・ログを書き込む先は`.claude/night_*`(`.claude/night_loop_last_run.json`・`.claude/night_runs.log`・`.claude/night_usage_log.tsv`・`.claude/night_logs/`等)に限定する。`.claude/settings.json`・`.claude/agents/*.md`等の恒久設定を含む、それ以外の`.claude/`直下ファイルへの書き込みは無人ループ実行中は行わない。**この制約はpush・デプロイの確認ルールを変更しない**——pushの自動承認(検証完了時は都度確認不要)、デプロイの都度確認必須は、上記「デプロイ・push・削除の確認ルール」節に定めるとおり従来のまま変わらない。
 
