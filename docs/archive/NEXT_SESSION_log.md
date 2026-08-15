@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.99 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A88完了に続く同日セッション。T5-A89完了)
+
+- ユーザー指示「/full_loop」で起動。プリフライトOK・起動回数カウンタ18→19・使用率(開始: セッション17%/週52%)・`git pull`差分なし。
+- 未完了タスクを確認、バグ対応タスクは無し。T5-A84は⚠️ユーザー実施のTUI `/usage`確認が必要なため引き続き見送り。agy正式移行系列(T5-A82設計の実装群)で依存充足・自動化完結するT5-A89(S、依存T5-A83のみで充足、§9.1ルーティング表の配線)を選定。見積もり約$1〜3で予算内、ドキュメントのみのため受入は免除(ドキュメントのみ)と判定・マスタープラン行へ記録。
+- `implementer`へ委譲。`docs/antigravity_delegation_design.md` §9.1のルーティング表を§12.3の内容(4列: 役割/agyへ委譲/モデル/条件)へ丸ごと差し替え、追加除外条件2件(夜間ループでのClaude指定禁止・1ループあたりClaude委譲上限〈既定2件・`architect`は1件まで〉)を追記、§12.3見出し直下の注記を「T5-A83完了・T5-A89実装により本表は§9.1の現行表として採用済み」に更新。あわせて`.claude/skills/full_loop/SKILL.md`手順3にClaude委譲件数上限の1文、`.claude/skills/night_loop/SKILL.md`大前提節に「夜間ループではClaudeモデルを指定しない」旨、`CLAUDE.md`の「agyはGeminiバケット」記述を「Geminiまたは別勘定のClaude/GPTバケット」へ、それぞれ追記・修正。
+- 親が`git diff`で変更が4ファイル・局所的な差分(BOM無し・CRLF維持)に閉じていることを確認。`verifier`へ独立検証を委譲: `verify.ps1`(タスクID無し)全項目PASS(`build_apk_release`のみ既知理由でskip、analyze 31件・test 367 passed回帰なし)、判定条件5点(§9.1/§12.3の整合・grep該当・night_loop記述・CLAUDE.md修正・4ファイルのBOM/改行保持)すべて確認。
+- `lib/`・`gas/`不変のためデプロイ・本番確認は不要。`/code-review`実行条件(差分5ファイル超/フェーズ完了/夜間10回に1回)に該当せずスキップ。
+- 変更ファイル: `docs/antigravity_delegation_design.md`(§9.1差替・§12.3注記更新)・`.claude/skills/full_loop/SKILL.md`・`.claude/skills/night_loop/SKILL.md`・`CLAUDE.md`・`docs/改修マスタープラン.md`(T5-A89完了処理、完了済み70件目)・`.claude/full_loop_run_count.txt`(18→19)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A81・T5-A71(いずれもS)・T5-A16・T5-A68(M)。T5-A84は⚠️ユーザー実施のTUI確認待ちで次回対話時に着手を検討。T5-A85〜A87はT5-A84完了が前提のため引き続き着手不可。
+
 ### -5.98 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A90完了に続く同日セッション。T5-A88完了)
 
 - ユーザー指示「/full_loop」+メモ2件(次回起動20回目のトークン節約見直しは調査から着手・専用スキルも新設してほしい)で起動。プリフライトOK・起動回数カウンタ17→18・使用率(開始: セッション2%/週51%)・`git pull`差分なし。ユーザーメモは`docs/token_optimization_design.md` §10-6へ先に記録。
