@@ -1,13 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-15(Sonnet 5、`/full_loop`、Windows環境。T5-A96完了〈agy委譲プロンプトの恒久修正〉。commit/push予定)
+最終更新: 2026-08-15(Sonnet 5、`/full_loop T5-A87`、Windows環境。T5-A87不採用確定・T5-A93完了。commit/push予定)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-15・最新の`/full_loop`セッション(起動回数カウンタ24回目)】T5-A96(T5-A86発見バグの恒久修正)完了・commit/push予定**。バグ対応タスクは他に無かったが、前回セッションからの推奨どおりT5-A96(S、依存なし)を選定(見積もり約$1〜3、予算内)。`implementer`が`tools/antigravity_delegate.ps1`・`.sh`の「agy固有の制約ブロック」へ`docs/antigravity_delegation_design.md`185行目に確定済みの文言(セルフチェックはagy委譲では実行せず`実装後のセルフチェック`・`反復中の検証範囲(T5-A92)`の両節は適用しない旨)を追記。親が`git diff`で2ファイル・各1行のみを確認、BOM/改行コードとも維持を確認。**完了条件の実地確認として、検証コマンド禁止をタスク本文に書かずに`-Role implementer -Model claude-sonnet-4-6`の使い捨てテストを1件実行し、`exit_code:0`・`PERMISSION_DENIED`再発なしを実測確認**(着手前に`agy -p "/usage"`でClaude/GPTバケット5時間残30%を確認済み、20%基準を上回っていたため実施)。これでT5-A86で見つかったagy×Claude実装委譲時の`PERMISSION_DENIED`問題は恒久解消し、今後は委譲プロンプトへ手動で検証禁止を書き足す必要が無くなった。Dartコード変更なし・`lib/`/`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。
+- **【2026-08-15・最新の`/full_loop T5-A87`セッション(起動回数カウンタ25回目)】ユーザー指定タスクT5-A87の着手可否を確認、パイロット未実施のまま不採用確定。続けてT5-A93を選定・完了、commit/push予定**。手順1(状況確認)完了後、T5-A87(architect役×`claude-opus-4-6-thinking`パイロット3件)を対象に着手前確認を実施。前回セッションからの申し送り(T5-A85で判明した「探索を伴うタスクでagy×Claudeがnum_turns:1のまま打ち切られる」構造的制約が、architectの設計タスクでも再発する懸念)を`AskUserQuestion`で提示したところ、**ユーザーから「上位モデルはagyに一切委譲しない」という恒久方針が示され、T5-A87をパイロット実行なしで不採用確定**とする指示を受けた。`docs/antigravity_delegation_design.md` §9.1のarchitect行を「不可(恒久)」へ更新、§12.7を不採用確定の記録へ改訂、§7に「T5-A87の結論」を新設。これによりT5-A82設計(§12)のagy×Claudeパイロット系列(T5-A83〜A87)は全完了(最終状態: `implementer`条件付き常時採用/`researcher`不採用/`architect`不採用)。`docs/改修マスタープラン.md`のT5-A87行を✅完了へ更新。続けて「別タスクを選定して」の指示どおりタスク表内で次点のT5-A93(S、依存なし、文言確定済み、受入免除)を選定(見積もり約$1未満、予算内)。§9.1ルーティング表どおり`implementer`役(Gemini既定)をagy経由(`tools/antigravity_delegate.ps1 -Role implementer`)へ委譲し、確定済み文言(委譲1回ごとの予算チェックポイント)を`.claude/skills/full_loop/SKILL.md`58行目へそのまま追記(exit 0、変更1ファイル)。親が`git diff`で意図した2行のみの追記であることを確認、`grep -n "予算チェックポイント"`該当行あり、BOM無し(元ファイルも無し)を確認。ドキュメントのみのため`verifier`委譲・デプロイ・本番確認は不要。**次に着手可能: T5-A94(S、ユーザー確認必須)・T5-A95(S)・T5-A81(S)・T5-A71(S)・T5-A68(M)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま持ち越し。次回セッションで必ず確認すること。**
+- **【2026-08-15・1つ前の`/full_loop`セッション(起動回数カウンタ24回目)】T5-A96(T5-A86発見バグの恒久修正)完了・commit/push予定**。バグ対応タスクは他に無かったが、前回セッションからの推奨どおりT5-A96(S、依存なし)を選定(見積もり約$1〜3、予算内)。`implementer`が`tools/antigravity_delegate.ps1`・`.sh`の「agy固有の制約ブロック」へ`docs/antigravity_delegation_design.md`185行目に確定済みの文言(セルフチェックはagy委譲では実行せず`実装後のセルフチェック`・`反復中の検証範囲(T5-A92)`の両節は適用しない旨)を追記。親が`git diff`で2ファイル・各1行のみを確認、BOM/改行コードとも維持を確認。**完了条件の実地確認として、検証コマンド禁止をタスク本文に書かずに`-Role implementer -Model claude-sonnet-4-6`の使い捨てテストを1件実行し、`exit_code:0`・`PERMISSION_DENIED`再発なしを実測確認**(着手前に`agy -p "/usage"`でClaude/GPTバケット5時間残30%を確認済み、20%基準を上回っていたため実施)。これでT5-A86で見つかったagy×Claude実装委譲時の`PERMISSION_DENIED`問題は恒久解消し、今後は委譲プロンプトへ手動で検証禁止を書き足す必要が無くなった。Dartコード変更なし・`lib/`/`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。
 - **【2026-08-15・1つ前の`/full_loop`セッション】ユーザー指示「T5-A84からA86(連鎖①)を通しで終わらせて」により、agy正式移行系列(T5-A82設計)のパイロット3件を一括完了・T5-A96起票**。
   - **T5-A84(スモーク検証3件+3pバケット実測)完了**: 完了条件にあった⚠️ユーザー実施(TUI `/usage`確認)は**不要と判明**——`agy -p "/usage"`はPowerShell経由(Git Bash非経由)なら正常動作し、教訓L158の訂正どおりGit Bashのパス変換が真因と再確認、親が全自動で計測。結果: (1)ファイル読み取り✅(`--add-dir`は絶対パス必須という新規知見)(2)Web検索✅(3)`claude-opus-4-6-thinking`への`--effort`❌(exit1、T5-A83の抑制ロジックの正しさを実証)。3pバケット消費: 週次99.45%→97.38%・5時間100%→93.77%。
   - **T5-A85(`researcher`役×`claude-sonnet-4-6`パイロット3件)完了、結論「不採用」**: 一般調査2件+緩和候補1件(`drift`マイグレーション仕様の逐語確認)の3件とも同一パターンで失敗——agyは`exit0`/`num_turns:1`で正常終了扱いだが、応答が「レポートを作成します」で尻切れし`docs/research/*.md`が1件も生成されず`verify_citations.ps1`がexit18。**ユーザー指摘「`--mode plan`が原因では」を受け追加診断を実施**: 同一タスクを`--mode accept-edits`で再実行しても同じ失敗が再現(モードは原因ではないと判明)、一方「探索不要・1行書くだけ」の最小タスクは即成功。**探索(Web検索・複数ページ取得)を伴うタスクでagyのClaudeモデルがnum_turns:1のまま打ち切られる**という新規知見を教訓L161として記録。外部AIへのセカンドオピニオンでも「Claude系はステップ消費が速くagyの内部ステップ上限に到達しやすい」という説明で支持を得た。`researcher`役は現行どおりGemini(`gemini-3.7-flash-high`自動解決)を維持、§9.1ルーティング表を更新済み。
@@ -65,7 +66,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-15最新】T5-A96完了(agy委譲プロンプトの恒久修正、PERMISSION_DENIED再発なしを実地確認)。次に着手できるのはT5-A93〜A95(いずれもS)・T5-A81・T5-A71・T5-A68(M)**。**T5-A87(architect役×claude-opus-4-6-thinkingパイロット3件)は依存(T5-A85完了・T5-A88完了)が形式上満たされたが、T5-A85でagy×Claudeが「探索を伴うタスクでnum_turns:1のまま打ち切られる」という構造的な弱点(教訓L161)が判明しているため、architectの設計タスク(それ自体が広い探索・熟考を要する)でも同じ壁に当たる懸念がある。着手前に一言ユーザーに相談すること(前回セッションからの申し送り、変化なし)。** 3pバケット(Claude/GPT)5時間残は本セッション着手前確認で30%(前回セッション終了時29.63%からほぼ横ばい、今回の使用は軽量な使い捨てテスト1件のみ)。次回agy×Claude委譲の前に必ず`agy -p "/usage"`で残量を再確認すること。**今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま持ち越し。次回セッションで必ず確認すること。**
+> **【2026-08-15最新】T5-A87は不採用確定(パイロット未実施、ユーザー方針「上位モデルはagyに一切委譲しない」)、T5-A93完了。agy×Claudeパイロット系列(T5-A83〜A87)は全完了、再検討しない。次に着手できるのはT5-A94(S、着手時`AskUserQuestion`必須)・T5-A95(S)・T5-A81(S)・T5-A71(S)・T5-A68(M)**。**今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま持ち越し。次回セッションで必ず確認すること。**
 
 > **【2026-08-15・1つ前】T5-A16完了(トラックA完了後3ループのトークン実測、悪化なし・`adversary`起動条件は変更せず)。次に着手できるのはT5-A93〜A95(いずれもS、文言は`docs/token_optimization_design.md` §10-7-3に確定済み)・T5-A81・T5-A71・T5-A68(M)**。**今夜23:00枠の夜間ループでT5-A90修正(Preflightハング防止)が実地で機能するか、次回セッションで必ず確認すること(本セッション時点19:47ではまだ発火前)。**
 >
@@ -129,17 +130,19 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.104 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A96完了)
+### -5.105 当日やったこと(2026-08-15、Sonnet 5、`/full_loop T5-A87`、Windows環境。T5-A87不採用確定・T5-A93完了)
 
-- ユーザー指示「/full_loop」で起動。プリフライトOK・起動回数カウンタ23→24・`git pull`差分なし・`loop_state.md`余裕あり($0/$24)。ローカル使用率APIは今回サーバ未起動で未取得(5時間枠・週次とも未取得)。
-- バグ対応タスクは他に無かったが、T5-A86発見バグの恒久修正であるT5-A96(S、agy委譲プロンプトの恒久修正、依存なし)がNEXT_SESSION推奨・優先度高だったためこれを選定(見積もり約$1〜3、予算内)。
-- `implementer`へ委譲し、`tools/antigravity_delegate.ps1`(363行目)・`tools/antigravity_delegate.sh`(288行目)の「agy固有の制約ブロック」($OverrideBlock/OVERRIDE_BLOCK)へ、`docs/antigravity_delegation_design.md`185行目に確定済みの文言(「セルフチェック(flutter analyze/flutter test/flutter build web)はagy委譲では一切実行せず、実装後のセルフチェックおよび反復中の検証範囲(T5-A92)の節はagy委譲には適用しない」)をそのまま1文追記。親が`git diff`で2ファイル・各1行のみの変更を確認、`.ps1`はUTF-8 BOM付きCRLF・`.sh`はBOM無し、いずれも編集前後で維持を確認。
-- 完了条件の実地確認として、検証コマンド禁止の指示をタスク本文に書かずに`tools/antigravity_delegate.ps1 -Role implementer -Model claude-sonnet-4-6`で使い捨てテスト(`test/pilot/t5_a96_check_test.dart`、RoastRangeのユニットテスト、判定後削除)を1件実行。着手前に`agy -p "/usage"`(PowerShell経由)でClaude/GPTバケット5時間残30%を確認(20%の中断基準を上回っており実施)。結果は`exit_code:0`・`status:"SUCCESS"`で`PERMISSION_DENIED`は再発せず、応答内でも新規規則に従い`flutter analyze`/`flutter build web`を自発的に省略したことを確認(`flutter test`本体は既存許可コマンドのため実行され373件全PASS)。
-- Dartコード変更を伴わない・`lib/`・`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。`/code-review`実行条件(差分5ファイル超/フェーズ完了/夜間10回に1回)非該当のためスキップ。
-- 変更ファイル: `tools/antigravity_delegate.ps1`・`tools/antigravity_delegate.sh`・`.claude/full_loop_run_count.txt`(23→24)・`docs/改修マスタープラン.md`(T5-A96完了処理、完了済み74件目)・`docs/archive/NEXT_SESSION_log.md`(-5.103節退避)・`NEXT_SESSION.md`。
-- **次に着手可能**: T5-A93〜A95(いずれもS。T5-A94のみ着手時ユーザー確認必須)・T5-A81・T5-A71(いずれもS)・T5-A68(M)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。T5-A87(architect役パイロット)は依存が形式上満たされているが、T5-A85で判明した「探索を伴うタスクでagy×Claudeがnum_turns:1のまま打ち切られる」弱点への懸念があるため、着手前に一言ユーザーに相談すること(前回セッションからの申し送り、変化なし)。**今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま。次回セッションで必ず確認すること。**
+- ユーザー指示「/full_loop T5-A87」で起動。プリフライトOK・起動回数カウンタ24→25・使用率取得(開始: セッション36%/週次60%)・`git pull`差分なし・`loop_state.md`余裕あり($0/$24)。
+- 手順1完了後、指定タスクT5-A87(architect役×`claude-opus-4-6-thinking`パイロット3件、依存T5-A85・T5-A88は完了済みで形式上着手可能)について、前回セッションからの申し送り(T5-A85で判明した「探索を伴うタスクでagy×Claudeがnum_turns:1のまま打ち切られる」構造的制約〈教訓L161〉が、architectの設計タスクでも再発する懸念)を`AskUserQuestion`でユーザーへ提示。
+- **ユーザー回答: 「上位モデルはagyに一切委譲しない。完了にして。そして別タスクを選定して」**。この恒久方針決定に従い、T5-A87を3件のパイロット実行なしで不採用確定。`docs/antigravity_delegation_design.md` §9.1のarchitect行を「不可(恒久、2026-08-15ユーザー方針決定)」へ更新、§12.7の見出し・冒頭を不採用確定の記録へ改訂(旧パイロット計画は記録として残す)、§7に「T5-A87の結論」を新設。これによりT5-A82設計(§12)のagy×Claudeパイロット系列(T5-A83〜A87)は全完了、最終状態は`implementer`(Claude版)条件付き常時採用/`researcher`不採用/`architect`不採用。`docs/改修マスタープラン.md`のT5-A87行を✅完了へ更新(完了済み75件目)。
+- 続けて「別タスクを選定して」の指示に従い、タスク表内で次点のT5-A93(§10-7採否判断の実装その3、依存なし・S・`docs/token_optimization_design.md` §10-7-3に文言確定済み・受入免除)を選定(見積もり約$1未満、予算内)。
+- §9.1ルーティング表どおり`implementer`役(Gemini既定、`docs/`・`tools/`・`.claude/`の非Dartファイルが対象)を**agy経由**(`tools/antigravity_delegate.ps1 -Role implementer -TaskId T5-A93`)へ委譲。確定済み文言(「委譲1回ごとの予算チェックポイント」)を`.claude/skills/full_loop/SKILL.md`58行目、既存の「委譲後の必須diffレビュー」項目の直後へそのまま追記(exit 0、所要50秒、変更1ファイル)。親が`git diff`で意図した2行のみの追記であることを確認、`grep -n "予算チェックポイント" .claude/skills/full_loop/SKILL.md`該当行あり、先頭バイト確認でBOM無し(元ファイルも無し)を確認。`docs/改修マスタープラン.md`のT5-A93行を✅完了へ更新(完了済み76件目)。
+- ドキュメントのみ・コード変更なし・`lib/`/`gas/`不変のため`verifier`委譲・デプロイ・本番確認は不要。`/code-review`実行条件(差分5ファイル超/フェーズ完了/夜間10回に1回)非該当のためスキップ。
+- 使用率取得(終了): セッション39%/週次61%(差分: セッション3pt/週次1pt)。
+- 変更ファイル: `docs/antigravity_delegation_design.md`(§7・§9.1・§12.7、T5-A87不採用確定)・`docs/改修マスタープラン.md`(T5-A87・T5-A93完了処理)・`.claude/skills/full_loop/SKILL.md`(T5-A93、予算チェックポイント追記)・`docs/token_optimization_design.md`(§7・§8へ本ループ実測追記)・`.claude/full_loop_run_count.txt`(24→25)・`docs/archive/NEXT_SESSION_log.md`(-5.104節退避)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A94(S、着手時`AskUserQuestion`で(a)(b)個別に可否確認必須)・T5-A95(S、`/token_review`スキル配線)・T5-A81(S、researcher出力の構造化JSONスキーマ)・T5-A71(S、受入欄付与)・T5-A68(M、障害注入テスト)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。**今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま。次回セッションで必ず確認すること。**
 
-> これ以前(-5.103節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.104節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 

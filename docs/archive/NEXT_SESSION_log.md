@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.104 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A96完了)
+
+- ユーザー指示「/full_loop」で起動。プリフライトOK・起動回数カウンタ23→24・`git pull`差分なし・`loop_state.md`余裕あり($0/$24)。ローカル使用率APIは今回サーバ未起動で未取得(5時間枠・週次とも未取得)。
+- バグ対応タスクは他に無かったが、T5-A86発見バグの恒久修正であるT5-A96(S、agy委譲プロンプトの恒久修正、依存なし)がNEXT_SESSION推奨・優先度高だったためこれを選定(見積もり約$1〜3、予算内)。
+- `implementer`へ委譲し、`tools/antigravity_delegate.ps1`(363行目)・`tools/antigravity_delegate.sh`(288行目)の「agy固有の制約ブロック」($OverrideBlock/OVERRIDE_BLOCK)へ、`docs/antigravity_delegation_design.md`185行目に確定済みの文言(「セルフチェック(flutter analyze/flutter test/flutter build web)はagy委譲では一切実行せず、実装後のセルフチェックおよび反復中の検証範囲(T5-A92)の節はagy委譲には適用しない」)をそのまま1文追記。親が`git diff`で2ファイル・各1行のみの変更を確認、`.ps1`はUTF-8 BOM付きCRLF・`.sh`はBOM無し、いずれも編集前後で維持を確認。
+- 完了条件の実地確認として、検証コマンド禁止の指示をタスク本文に書かずに`tools/antigravity_delegate.ps1 -Role implementer -Model claude-sonnet-4-6`で使い捨てテスト(`test/pilot/t5_a96_check_test.dart`、RoastRangeのユニットテスト、判定後削除)を1件実行。着手前に`agy -p "/usage"`(PowerShell経由)でClaude/GPTバケット5時間残30%を確認(20%の中断基準を上回っており実施)。結果は`exit_code:0`・`status:"SUCCESS"`で`PERMISSION_DENIED`は再発せず、応答内でも新規規則に従い`flutter analyze`/`flutter build web`を自発的に省略したことを確認(`flutter test`本体は既存許可コマンドのため実行され373件全PASS)。
+- Dartコード変更を伴わない・`lib/`・`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。`/code-review`実行条件(差分5ファイル超/フェーズ完了/夜間10回に1回)非該当のためスキップ。
+- 変更ファイル: `tools/antigravity_delegate.ps1`・`tools/antigravity_delegate.sh`・`.claude/full_loop_run_count.txt`(23→24)・`docs/改修マスタープラン.md`(T5-A96完了処理、完了済み74件目)・`docs/archive/NEXT_SESSION_log.md`(-5.103節退避)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A93〜A95(いずれもS。T5-A94のみ着手時ユーザー確認必須)・T5-A81・T5-A71(いずれもS)・T5-A68(M)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。T5-A87(architect役パイロット)は依存が形式上満たされているが、T5-A85で判明した「探索を伴うタスクでagy×Claudeがnum_turns:1のまま打ち切られる」弱点への懸念があるため、着手前に一言ユーザーに相談すること(前回セッションからの申し送り、変化なし)。**今夜23:00枠の夜間ループでT5-A90の修正(Preflightハング防止)が実地で機能したか、まだ未確認のまま。次回セッションで必ず確認すること。**
+
 ### -5.103 当日やったこと(2026-08-15、Sonnet 5、`/full_loop`、Windows環境。T5-A16完了)
 
 - ユーザー指示「/full_loop」で起動。プリフライトOK・起動回数カウンタ22→23・使用率取得(開始: セッション2%/週次57%〈5時間枠は前セッションからリセット済み〉)・`git pull`差分なし・`loop_state.md`余裕あり($0/$24)。
