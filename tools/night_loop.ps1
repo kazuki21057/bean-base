@@ -55,6 +55,16 @@
       (廃止キー) usageSessionMaxPercent / usageWeekMaxPercent — 2026-08-13、使用率ガードの
                               ゲート撤廃に伴い廃止。設定ファイルに残っていてもWARNログを
                               出すのみで無視される(sessionWindowHoursと同じ非推奨パターン)。
+      playbookPreflightTimeoutSec  tools/failure_playbook.ps1 -Mode Preflight 子プロセスの
+                              外側タイムアウト秒(既定600)。超過時はプロセスツリーごと
+                              強制終了し、Preflightは判定不能(タイムアウト)として続行する
+                              (T5-A90、9時間ハング事故の再発防止)。
+      playbookPostmortemTimeoutSec tools/failure_playbook.ps1 -Mode Postmortem 子プロセスの
+                              外側タイムアウト秒(既定300)。超過時はプロセスツリーごと
+                              強制終了し、警告のみで続行する(T5-A90)。
+      orphanPlaybookKillHours 起動時に前回以前のfailure_playbook.ps1孤児プロセス(-Mode
+                              Watchdogを除く)を検知して強制終了する経過時間のしきい値
+                              (既定3時間、T5-A90)。
 
     終了コード:
       0  正常終了 / 正常スキップ(多重起動中・有人セッション活動中・
@@ -474,6 +484,9 @@ function Get-NightLoopConfig {
         maxBudgetUsd           = 20
         settingsPath           = '.claude\settings.night.json'
         projectSlug            = $null
+        playbookPreflightTimeoutSec  = 600
+        playbookPostmortemTimeoutSec = 300
+        orphanPlaybookKillHours      = 3
     }
 
     if (-not (Test-Path $Path)) {
@@ -493,7 +506,7 @@ function Get-NightLoopConfig {
         return $null
     }
 
-    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug')) {
+    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug', 'playbookPreflightTimeoutSec', 'playbookPostmortemTimeoutSec', 'orphanPlaybookKillHours')) {
         if ($json.PSObject.Properties.Name -contains $key -and $null -ne $json.$key) {
             $config[$key] = $json.$key
         }
@@ -574,6 +587,33 @@ function Invoke-NightLoop {
     } | ConvertTo-Json -Compress)
     Set-Content -Path $LockPath -Value $lockData -Encoding utf8
     $script:LockAcquired = $true
+
+    # 孤児プレイブックプロセスの起動時掃除(T5-A90)。前回以前のfailure_playbook.ps1が
+    # 何らかの理由でハングし続けている場合、そのまま放置すると次回以降のadb/emulator
+    # アクセスを奪い合い新たなハングを誘発するため、-Mode Watchdog(最大90分の正規常駐)を
+    # 除いて経過時間しきい値を超えたものを強制終了する。Get-CimInstance失敗はfail-open。
+    try {
+        $orphanCandidates = Get-CimInstance -ClassName Win32_Process -Filter "Name='powershell.exe'" -OperationTimeoutSec 20 -ErrorAction Stop
+        $orphanThreshold = (Get-Date).AddHours(-1 * [double]$Config.orphanPlaybookKillHours)
+        foreach ($proc in $orphanCandidates) {
+            if (-not $proc.CommandLine) { continue }
+            if ($proc.CommandLine -notmatch 'failure_playbook\.ps1') { continue }
+            if ($proc.CommandLine -match '-Mode\s+Watchdog') { continue }
+            if ($proc.ProcessId -eq $PID) { continue }
+            $creation = $null
+            try { $creation = $proc.CreationDate } catch { $creation = $null }
+            if ($creation -and $creation -gt $orphanThreshold) { continue }
+            Write-Log 'WARN' ('前回以前の失敗プレイブック孤児プロセスを検知しました(PID {0}、開始 {1})。強制終了します。' -f $proc.ProcessId, $creation)
+            try {
+                & taskkill /PID $proc.ProcessId /T /F *> $null
+            } catch {
+                Write-Log 'WARN' ('孤児プレイブックプロセス(PID {0})の強制終了に失敗しました: {1}' -f $proc.ProcessId, $_.Exception.Message)
+            }
+        }
+    } catch {
+        Write-Log 'WARN' ('孤児プレイブックプロセスの列挙に失敗しました(無視して続行します): {0}' -f $_.Exception.Message)
+    }
+
     Write-Log 'INFO' ('ロックを取得しました(PID {0})。' -f $PID)
 
     # --- 3. claude CLI の解決 ---
@@ -794,15 +834,30 @@ function Invoke-NightLoop {
     Write-Log 'INFO' '失敗プレイブック(tools/failure_playbook.ps1 -Mode Preflight)を実行します。'
     $playbookUnattendedArgs = @()
     if (-not $Force) { $playbookUnattendedArgs = @('-Unattended') }
+    $unattendedSuffix = if ($playbookUnattendedArgs.Count -gt 0) { ' ' + ($playbookUnattendedArgs -join ' ') } else { '' }
     $preflightErrLogPath = Join-Path $NightLogsDir ('failure_playbook-preflight-{0}-{1}.err.log' -f $RunStamp, $PID)
-    Push-Location $RepoRoot
+    # tools/failure_playbook.ps1 は自身の[Console]::OutputEncodingをUTF-8(BOM無し)へ
+    # 明示的に上書きして出力するため、こちらも同じエンコーディングで読む(T5-A90実装中に
+    # 実機で発見。既定〈.NET既定〉のまま読むと detail 内の日本語が文字化けする)。
+    $playbookChildEncoding = New-Object System.Text.UTF8Encoding $false
+    $r = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments ('-NoProfile -NonInteractive -File "tools\failure_playbook.ps1" -Mode Preflight' + $unattendedSuffix) -TimeoutSec $Config.playbookPreflightTimeoutSec -WorkingDirectory $RepoRoot -Encoding $playbookChildEncoding
     try {
-        $preflightJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Preflight @playbookUnattendedArgs 2> $preflightErrLogPath
-        $preflightExit = $LASTEXITCODE
-    } finally {
-        Pop-Location
+        Set-Content -Path $preflightErrLogPath -Value $r.StdErr -Encoding utf8
+    } catch {
+        Write-Log 'WARN' ('failure_playbook.ps1(Preflight)のstderrログ書き出しに失敗しました: {0}' -f $_.Exception.Message)
     }
     Publish-FailurePlaybookLog -Path $preflightErrLogPath -Label 'preflight'
+    $preflightJsonLines = @($r.StdOut -split "`r?`n" | Where-Object { $_ -and $_.Trim() })
+    $preflightExit = $r.ExitCode
+    if ($r.TimedOut) {
+        $timeoutMsg = 'failure_playbook.ps1 -Mode Preflight が{0}秒以内に終了しなかったためプロセスツリーを強制終了し、Preflightは判定不能(タイムアウト)として続行します。' -f $Config.playbookPreflightTimeoutSec
+        Write-Log 'WARN' $timeoutMsg
+        $eventsPath = Join-Path $ClaudeDir 'failure_events.tsv'
+        $timeoutLine = "{0}`t{1}`t{2}`t{3}`t{4}`t{5}`t{6}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'), 'preflight', 'FP-INTERNAL', 'escalate', 'killed_process_tree', 'timeout_preflight', $timeoutMsg
+        $eventsFallback = Join-Path $NightLogsDir ('failure_events.fallback-{0}.log' -f $PID)
+        $null = Write-LineWithRetry -Path $eventsPath -Line $timeoutLine -FallbackPath $eventsFallback
+        $preflightExit = 1
+    }
     $preflightJsonText = ($preflightJsonLines | Select-Object -Last 1)
     $preflightResult = $null
     if ($preflightJsonText) {
@@ -988,7 +1043,7 @@ function Invoke-NightLoop {
     $script:WatchdogOutLogPath = Join-Path $NightLogsDir ('watchdog-{0}-{1}.out.log' -f $RunStamp, $PID)
     $script:WatchdogErrLogPath = Join-Path $NightLogsDir ('watchdog-{0}-{1}.err.log' -f $RunStamp, $PID)
     try {
-        $watchdogArgList = @('-NoProfile', '-File', 'tools\failure_playbook.ps1', '-Mode', 'Watchdog', '-WrapperPid', "$PID", '-StreamLogPath', $logPath) + $watchdogUnattendedArgs
+        $watchdogArgList = @('-NoProfile', '-NonInteractive', '-File', 'tools\failure_playbook.ps1', '-Mode', 'Watchdog', '-WrapperPid', "$PID", '-StreamLogPath', $logPath) + $watchdogUnattendedArgs
         $script:WatchdogProcess = Start-Process -FilePath 'powershell' -ArgumentList $watchdogArgList -WorkingDirectory $RepoRoot -WindowStyle Hidden -RedirectStandardOutput $script:WatchdogOutLogPath -RedirectStandardError $script:WatchdogErrLogPath -PassThru
         # Windows PowerShell 5.1でHasExited/ExitCodeを安定して読むためのハンドルキャッシュ。
         # 既に終了していると例外になりうるので握り潰す。
@@ -1024,13 +1079,18 @@ function Invoke-NightLoop {
     $postmortemFailureSummary = @()
     try {
         $postmortemErrLogPath = Join-Path $NightLogsDir ('failure_playbook-postmortem-{0}-{1}.err.log' -f $RunStamp, $PID)
-        Push-Location $RepoRoot
+        $postmortemArgs = '-NoProfile -NonInteractive -File "tools\failure_playbook.ps1" -Mode Postmortem -StreamLogPath "{0}" -ErrLogPath "{1}" -ClaudeExitCode {2}' -f $logPath, $errLogPath, $claudeExit
+        $rPostmortem = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments $postmortemArgs -TimeoutSec $Config.playbookPostmortemTimeoutSec -WorkingDirectory $RepoRoot -Encoding (New-Object System.Text.UTF8Encoding $false)
         try {
-            $postmortemJsonLines = & powershell -NoProfile -File 'tools\failure_playbook.ps1' -Mode Postmortem -StreamLogPath $logPath -ErrLogPath $errLogPath -ClaudeExitCode $claudeExit 2> $postmortemErrLogPath
-        } finally {
-            Pop-Location
+            Set-Content -Path $postmortemErrLogPath -Value $rPostmortem.StdErr -Encoding utf8
+        } catch {
+            Write-Log 'WARN' ('failure_playbook.ps1(Postmortem)のstderrログ書き出しに失敗しました: {0}' -f $_.Exception.Message)
+        }
+        if ($rPostmortem.TimedOut) {
+            Write-Log 'WARN' ('failure_playbook.ps1 -Mode Postmortem が{0}秒以内に終了しなかったためプロセスツリーを強制終了しました(Postmortemは判定不能のまま続行します)。' -f $Config.playbookPostmortemTimeoutSec)
         }
         Publish-FailurePlaybookLog -Path $postmortemErrLogPath -Label 'postmortem'
+        $postmortemJsonLines = @($rPostmortem.StdOut -split "`r?`n" | Where-Object { $_ -and $_.Trim() })
         $postmortemJsonText = ($postmortemJsonLines | Select-Object -Last 1)
         if ($postmortemJsonText) {
             $postmortemResult = $postmortemJsonText | ConvertFrom-Json -ErrorAction Stop

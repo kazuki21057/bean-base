@@ -222,3 +222,4 @@
 - L156 プロンプトで出典規則を強化するとURL捏造は止まるが「実在URLへの無関係な帰属」は止まらない。呼び出し側に機械照合(URL取得+引用の原文照合)の関門を置く。SPAは`unverifiable`として失敗と区別する。全文: `rules/lessons_archive.md`
 - L157 PowerShell 5.1の`Set-Content -Encoding UTF8`はBOM無しファイルにBOMを付ける。既存エンコーディングを保つなら`[System.IO.File]::WriteAllText`+`UTF8Encoding($false)`。`.ps1`はBOM付きが正解で逆になる。全文: `rules/lessons_archive.md`
 - L158【2026-08-15訂正】agy `-p "/usage"`の失敗はagy自体のregressionではなくGit Bash(MSYS)のパス自動変換が引数を誤変換していたことが真因。PowerShellまたは`MSYS_NO_PATHCONV=1`付きBashなら正常動作する。本番`.ps1`ラッパーはGit Bashを経由しないため元々無傷の可能性が高い。全文: `rules/lessons_archive.md`
+- L159 fail-open(try/catch)は例外しか救えず無限ハングには無力。外部プロセス呼び出しには例外処理と別にタイムアウトが必須、「Xに10秒タイムアウトを掛けた」という記述は対象範囲を実装コードと突き合わせて確認する。全文: `rules/lessons_archive.md`

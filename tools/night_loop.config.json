@@ -9,5 +9,8 @@
   "model": "sonnet",
   "maxBudgetUsd": 20,
   "settingsPath": ".claude\\settings.night.json",
-  "projectSlug": null
+  "projectSlug": null,
+  "playbookPreflightTimeoutSec": 600,
+  "playbookPostmortemTimeoutSec": 300,
+  "orphanPlaybookKillHours": 3
 }

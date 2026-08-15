@@ -159,6 +159,18 @@ $AvdHomePath = if ($env:ANDROID_AVD_HOME) { $env:ANDROID_AVD_HOME } else { Join-
 $AndroidSdkRootPath = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
 $AdbExePath = Join-Path $AndroidSdkRootPath 'platform-tools\adb.exe'
 
+# tools/emulator.ps1 は自身の[Console]::OutputEncodingを上書きしないため、非対話・
+# ウィンドウ無しの子プロセスとして起動すると日本語出力がOS既定のOEMコードページ
+# (日本語Windowsでは通常932/Shift_JIS)で書き出される。Invoke-ProcessWithTimeoutの
+# 既定(.NET既定エンコーディング)のまま読むと文字化けし「シリアル: emulator-XXXX」
+# 「停止しています」等の正規表現照合が失敗するため、明示的にこのエンコーディングで読む
+# (T5-A90実装中に実機で発見。tools/emulator.ps1自体は変更しないスコープのためこちらで対処)。
+try {
+    $EmulatorChildEncoding = [System.Text.Encoding]::GetEncoding([System.Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage)
+} catch {
+    $EmulatorChildEncoding = $null
+}
+
 if (-not $ConfigPath) {
     $ConfigPath = Join-Path $RepoRoot 'tools\failure_playbook.config.json'
 }
@@ -170,7 +182,13 @@ $PhaseLower = $Mode.ToLower()
 function Get-PlaybookConfig {
     param([string]$Path)
     $defaults = @{
-        autoKillLockHolders = $false
+        autoKillLockHolders     = $false
+        detectBudgetSec         = 120
+        slowDetectWarnSec       = 30
+        adbTimeoutSec           = 15
+        emulatorStatusTimeoutSec  = 30
+        emulatorControlTimeoutSec = 150
+        wmiTimeoutSec           = 20
     }
     if (Test-Path $Path) {
         try {
@@ -353,7 +371,7 @@ $Rules = @(
             # Get-CimInstanceが権限不足等で失敗する場合は「容疑者不明」として記録するだけに
             # 留め、検知はしない(fail-open、§8リスク表)。
             try {
-                $suspectProcs = Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Where-Object {
+                $suspectProcs = Get-CimInstance -ClassName Win32_Process -OperationTimeoutSec $Config.wmiTimeoutSec -ErrorAction Stop | Where-Object {
                     $_.CommandLine -and
                     ($_.CommandLine -match 'night_logs' -or $_.CommandLine -match 'wrapper-') -and
                     ($_.Name -in @('tail.exe', 'more.com', 'powershell.exe', 'pwsh.exe'))
@@ -547,17 +565,24 @@ $Rules = @(
                 # 事前にこちらでデーモンを起動しておくことでこの誤検知を避ける
                 # (emulator.ps1自体は変更しない、失敗しても致命的ではないためfail-open)。
                 try {
-                    Start-Process -FilePath $AdbExePath -ArgumentList 'start-server' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
+                    Invoke-ProcessWithTimeout -FilePath $AdbExePath -Arguments 'start-server' -TimeoutSec $Config.adbTimeoutSec | Out-Null
                 } catch {
                     # 事前起動に失敗しても後続の-Status判定に委ねる(fail-open)
                 }
                 $statusText = ''
+                $statusTimedOut = $false
                 try {
-                    $statusText = (& $EmulatorScriptPath -Status -AvdName $targetAvd *>&1 | Out-String)
+                    $statusArgs = '-NoProfile -NonInteractive -File "{0}" -Status -AvdName {1}' -f $EmulatorScriptPath, $targetAvd
+                    $r = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments $statusArgs -TimeoutSec $Config.emulatorStatusTimeoutSec -WorkingDirectory $RepoRoot -Encoding $EmulatorChildEncoding
+                    $statusText = $r.StdOut + "`n" + $r.StdErr
+                    $statusTimedOut = $r.TimedOut
                 } catch {
                     $evidence += "A|tools/emulator.ps1 -Status の実行時に例外が発生しました: $($_.Exception.Message)"
                 }
-                if ($statusText -match 'シリアル:\s*(emulator-\d+)') {
+                if ($statusTimedOut) {
+                    # -Statusがタイムアウトした場合は新シグネチャTとして扱い、A/B/Cの判定は行わない。
+                    return @("T|tools/emulator.ps1 -Status が$($Config.emulatorStatusTimeoutSec)秒以内に応答しなかったためプロセスツリーを強制終了しました(adb/エミュレータの応答不能の疑い、判定不能)")
+                } elseif ($statusText -match 'シリアル:\s*(emulator-\d+)') {
                     $serial = $Matches[1]
                     $isRunning = $true
                 } elseif ($statusText -match '停止しています') {
@@ -572,19 +597,11 @@ $Rules = @(
             # での簡易判定に留める(§3 FP-03表Bの注記どおり)。
             if ($isRunning -and $serial -and (Test-Path $AdbExePath)) {
                 try {
-                    $psi = New-Object System.Diagnostics.ProcessStartInfo
-                    $psi.FileName = $AdbExePath
-                    $psi.Arguments = "-s $serial get-state"
-                    $psi.RedirectStandardOutput = $true
-                    $psi.RedirectStandardError = $true
-                    $psi.UseShellExecute = $false
-                    $proc = [System.Diagnostics.Process]::Start($psi)
-                    $exited = $proc.WaitForExit(10000)
-                    if (-not $exited) {
+                    $r = Invoke-ProcessWithTimeout -FilePath $AdbExePath -Arguments "-s $serial get-state" -TimeoutSec 10
+                    if ($r.TimedOut) {
                         $evidence += "B|adb -s $serial get-state が10秒以内に応答しませんでした(ハングの疑い)"
-                        try { $proc.Kill() } catch {}
                     } else {
-                        $stateOut = $proc.StandardOutput.ReadToEnd().Trim()
+                        $stateOut = $r.StdOut.Trim()
                         if ($stateOut -match 'offline') {
                             $evidence += "B|adb -s $serial get-state が device offline を返しました"
                         } elseif ($stateOut -ne 'device') {
@@ -611,7 +628,7 @@ $Rules = @(
             # 直近30分を「ループ開始時刻」の代替として扱う。設計に無い箇所の解釈、完了報告に明記)。
             try {
                 $since = (Get-Date).AddMinutes(-30)
-                $werEvents = Get-WinEvent -FilterHashtable @{LogName = 'Application'; ProviderName = 'Windows Error Reporting'; StartTime = $since } -ErrorAction SilentlyContinue
+                $werEvents = Get-WinEvent -FilterHashtable @{LogName = 'Application'; ProviderName = 'Windows Error Reporting'; StartTime = $since } -MaxEvents 200 -ErrorAction SilentlyContinue
                 if ($werEvents) {
                     $crashEvents = $werEvents | Where-Object { $_.Message -match 'qemu-system-x86_64' }
                     if ($crashEvents) {
@@ -634,6 +651,11 @@ $Rules = @(
         Repair          = {
             param($detail)
             $targetAvd = 'beanbase_ui'
+            if ($detail -like 'T|*') {
+                # -Statusがタイムアウトした場合(新シグネチャT)は、同じadb経路で再び刺さる
+                # おそれがあるため自動再起動を行わない(§3 FP-03訂正注記)。
+                return @{ Action = 'none'; Result = 'warned'; Detail = "検知内容: $detail (adbが応答不能のため自動再起動は行いません。Android検証は未実施として扱ってください)" }
+            }
             if (-not $Unattended) {
                 # 有人時はFP-03の自動再起動を行わない(§3 FP-03・§3-2「有人時の縮退」)。
                 return @{ Action = 'none'; Result = 'warned'; Detail = "検知内容: $detail (有人時のため自動再起動は行いません)" }
@@ -641,7 +663,7 @@ $Rules = @(
             # adbデーモン未起動時の誤例外化を避けるため、Detect側と同じ事前起動を行う
             # (詳細はDetectのコメント参照)。
             try {
-                Start-Process -FilePath $AdbExePath -ArgumentList 'start-server' -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
+                Invoke-ProcessWithTimeout -FilePath $AdbExePath -Arguments 'start-server' -TimeoutSec $Config.adbTimeoutSec | Out-Null
             } catch {
                 # 失敗しても後続の-Stop/-Start判定に委ねる(fail-open)
             }
@@ -649,7 +671,11 @@ $Rules = @(
             $attemptLog = @()
             for ($attempt = 1; $attempt -le 2; $attempt++) {
                 try {
-                    & $EmulatorScriptPath -Stop -AvdName $targetAvd *>&1 | Out-Null
+                    $stopArgs = '-NoProfile -NonInteractive -File "{0}" -Stop -AvdName {1} -TimeoutSec {2}' -f $EmulatorScriptPath, $targetAvd, $Config.emulatorControlTimeoutSec
+                    $rStop = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments $stopArgs -TimeoutSec ($Config.emulatorControlTimeoutSec + 30) -WorkingDirectory $RepoRoot -Encoding $EmulatorChildEncoding
+                    if ($rStop.TimedOut) {
+                        $attemptLog += "試行${attempt}: -Stop が上限時間内に応答しなかったため強制終了しました"
+                    }
                 } catch {
                     $attemptLog += "試行${attempt}: -Stop で例外が発生しました: $($_.Exception.Message)"
                 }
@@ -657,8 +683,19 @@ $Rules = @(
                 # Start-Avd実装)ため、「-Stop → Clear-StaleEmulator → -Start」の3段階(§3 FP-03)は
                 # -Stop に続けて -Start を呼ぶだけで満たされる(車輪の再発明回避)。
                 try {
-                    & $EmulatorScriptPath -Start -AvdName $targetAvd *>&1 | Out-Null
-                    $checkText = (& $EmulatorScriptPath -Status -AvdName $targetAvd *>&1 | Out-String)
+                    $startArgs = '-NoProfile -NonInteractive -File "{0}" -Start -AvdName {1} -TimeoutSec {2}' -f $EmulatorScriptPath, $targetAvd, $Config.emulatorControlTimeoutSec
+                    $rStart = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments $startArgs -TimeoutSec ($Config.emulatorControlTimeoutSec + 30) -WorkingDirectory $RepoRoot -Encoding $EmulatorChildEncoding
+                    if ($rStart.TimedOut) {
+                        $attemptLog += "試行${attempt}: -Start が上限時間内に応答しなかったため強制終了しました"
+                        continue
+                    }
+                    $statusArgs = '-NoProfile -NonInteractive -File "{0}" -Status -AvdName {1}' -f $EmulatorScriptPath, $targetAvd
+                    $rCheck = Invoke-ProcessWithTimeout -FilePath 'powershell' -Arguments $statusArgs -TimeoutSec $Config.emulatorStatusTimeoutSec -WorkingDirectory $RepoRoot -Encoding $EmulatorChildEncoding
+                    if ($rCheck.TimedOut) {
+                        $attemptLog += "試行${attempt}: -Status が上限時間内に応答しなかったため強制終了しました"
+                        continue
+                    }
+                    $checkText = $rCheck.StdOut + $rCheck.StdErr
                     if ($checkText -match 'シリアル:\s*(emulator-\d+)') {
                         $success = $true
                         $attemptLog += "試行${attempt}: 起動成功(シリアル: $($Matches[1]))"
@@ -975,7 +1012,7 @@ $Rules = @(
                 $rootItem = Get-Item -LiteralPath $RepoRoot -ErrorAction Stop
                 $driveName = $rootItem.PSDrive.Name
                 if ($driveName) {
-                    $disk = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='$($driveName):'" -ErrorAction SilentlyContinue
+                    $disk = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='$($driveName):'" -OperationTimeoutSec 10 -ErrorAction SilentlyContinue
                     if ($disk -and $disk.FreeSpace) {
                         $freeGb = [math]::Round(($disk.FreeSpace / 1GB), 2)
                         if ($freeGb -lt 2) {
@@ -1303,6 +1340,8 @@ if ($Mode -eq 'Watchdog') {
 # ============================== メイン処理 ==============================
 try {
     Write-Progress2 "モード=$Mode で開始します。"
+    $testHangSec = $env:BEANBASE_FP_TEST_HANG_SEC
+    if ($testHangSec) { Write-Progress2 "テスト用ハングフック(BEANBASE_FP_TEST_HANG_SEC=$testHangSec)により${testHangSec}秒待機します。"; Start-Sleep -Seconds ([int]$testHangSec) }
     Ensure-EventsFile
     $State = Get-FailureState
 
@@ -1310,13 +1349,38 @@ try {
     $escalations = @()
     $abort = $false
     $anyUnresolved = $false
+    $detectElapsedTotalSec = 0.0
 
     foreach ($rule in $Rules) {
         if ($rule.Phase -notcontains $Mode) { continue }
 
+        if ($detectElapsedTotalSec -ge $Config.detectBudgetSec) {
+            # Detectの累積所要が予算を超えた場合、本ルールは実行せず「判定不能(タイムアウト)」
+            # として記録するだけに留める(fail-open、ループ自体は中断しない、§8リスク表)。
+            $skipDetail = "Detectの累積所要が予算$($Config.detectBudgetSec)秒を超えたため、本ルールは判定不能(タイムアウト)として実行をスキップしました。"
+            Write-FailureEvent -Phase $PhaseLower -RuleId $rule.Id -Severity 'escalate' -Action 'none' -Result 'skipped_timeout' -Detail $skipDetail
+            $detected += [ordered]@{
+                ruleId   = $rule.Id
+                severity = 'escalate'
+                action   = 'none'
+                result   = 'skipped_timeout'
+                detail   = $skipDetail
+            }
+            $escalations += [ordered]@{ ruleId = $rule.Id; detail = $skipDetail }
+            $anyUnresolved = $true
+            continue
+        }
+
         $findings = @()
         try {
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $findings = @(& $rule.Detect)
+            $sw.Stop()
+            $detectSec = $sw.Elapsed.TotalSeconds
+            $detectElapsedTotalSec += $detectSec
+            if ($detectSec -gt $Config.slowDetectWarnSec) {
+                Write-FailureEvent -Phase $PhaseLower -RuleId $rule.Id -Severity 'warn' -Action 'none' -Result 'slow_detect' -Detail "Detectに$([math]::Round($detectSec, 1))秒かかりました(警告閾値$($Config.slowDetectWarnSec)秒)。"
+            }
         } catch {
             Write-Progress2 "ルール $($rule.Id) の検知処理で例外が発生したためスキップします: $($_.Exception.Message)"
             continue

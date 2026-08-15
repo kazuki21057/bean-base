@@ -62,6 +62,17 @@
 | `-Unattended` | switch | — | 無人モード(`$env:BEANBASE_NIGHT_LOOP -eq '1'` を呼び出し元が判定して渡す)。FP-03/FP-05 の自動対処はこの指定時のみ実行する |
 | `-ConfigPath` | string | `tools\failure_playbook.config.json` | しきい値の上書き(無ければ既定値で続行、`night_loop.config.json` と同じ方針) |
 
+`-ConfigPath` で指定する設定ファイル(`tools/failure_playbook.config.json`)のキー(T5-A90で追加。Preflight実行ループの外部呼び出しがタイムアウト無しでハングした事故の再発防止、詳細は§3 FP-03の訂正注記・§8リスク表9行目):
+
+| キー | 既定 | 説明 |
+|---|---|---|
+| detectBudgetSec | 120 | Preflight/Postmortem/Check のDetect累積所要の上限秒。超過後のルールは実行せず「判定不能(タイムアウト)」として escalate 記録する |
+| slowDetectWarnSec | 30 | 単一ルールのDetectがこの秒数を超えたら result=slow_detect の警告を1行記録する(検知結果には影響しない) |
+| adbTimeoutSec | 15 | adb.exe 単発呼び出しの上限秒 |
+| emulatorStatusTimeoutSec | 30 | tools/emulator.ps1 -Status(子プロセス)の上限秒 |
+| emulatorControlTimeoutSec | 150 | tools/emulator.ps1 -Start / -Stop(子プロセス)の上限秒 |
+| wmiTimeoutSec | 20 | Get-CimInstance の -OperationTimeoutSec |
+
 ### 2-3. 標準出力(1行JSON)と終了コード
 
 `tools/antigravity_delegate.ps1` と同じく **標準出力は1行JSONのみ**(人間向けメッセージは `Write-Host` とログファイルへ)。
@@ -209,6 +220,13 @@
 **エスカレーション基準**
 
 - 2回目の起動も失敗 → escalate。ただし**ループ自体は中断しない**。Android 検証を「未実施(理由: エミュレータ復旧失敗)」として扱い、**push ゲートの条件2は「満たされていない」と扱う**(= main には入れず `night/<タスクID>` ブランチ + PR)。Web(Chrome)側の検証は続行してよい。
+
+（訂正・T5-A90）本ルールの「10秒タイムアウト」は当初シグネチャB(adb get-state)のみに掛かっており、
+その手前の adb start-server と tools/emulator.ps1 -Status が無制限だったため、2026-08-15に
+Preflightが約9時間ハングする事故を起こした。以後、FP-03の外部呼び出しは全て
+Invoke-ProcessWithTimeout(tools/lib/loop_io.ps1)経由とし、tools/emulator.ps1 は
+kill可能な子プロセスとして呼ぶ。-Status がタイムアウトした場合は新シグネチャ T として扱い、
+自動再起動(Repair)は行わない(同じadb経路で再び刺さるため)。
 
 ---
 
@@ -448,6 +466,7 @@
 - **外部コマンド出力の `.Trim()` は null ガードを先に置く**(L127 後半)。`adb devices` は一過性に空を返す。
 - **プレイブック内の例外は必ず握りつぶす**(P1)。トップレベルを `try/catch` で包み、catch では `failure_events.tsv` に `ruleId=FP-INTERNAL` を1行書いて exit 0 する。
 - `lib/` 配下の製品コードは**一切変更しない**。本タスク群は運用基盤のみ。
+- **テスト用ハングフック**(T5-A90): 環境変数 `BEANBASE_FP_TEST_HANG_SEC` を設定して起動すると、モード開始直後に指定秒数 `Start-Sleep` する。`tools/acceptance/t5_a90_check.ps1` が `night_loop.ps1` 側の外側タイムアウト(`playbookPreflightTimeoutSec` 等)を実地確認するためのフォールトインジェクション専用で、未設定時は完全に無効。
 
 ---
 
@@ -477,6 +496,7 @@
 | リスク | 緩和 |
 |---|---|
 | Watchdog が停止フラグに応答せず強制終了された場合、Watchdog 自身の JSON 出力・証拠束が失われる | wrapper.log に強制終了の WARN を残す。強制終了自体が異常の兆候なので、この行が出たら人が `failure_events.tsv` を確認する |
+| 検知層(Detect)自身が無期限ブロックすると、fail-openのtry/catchでは救えずループ全体が停止する | 上限を3層で担保する: (1)外部呼び出しごとのタイムアウト (2)Detect累積予算(detectBudgetSec) (3)night_loop.ps1側の子プロセス上限(playbookPreflightTimeoutSec、超過時はプロセスツリーごとkillして続行)。Watchdog(FP-05(c))はclaude起動後にしか動かないため、Preflightフェーズは(3)が唯一の保険である |
 
 ---
 
