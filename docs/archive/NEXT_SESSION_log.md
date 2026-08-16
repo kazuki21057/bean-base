@@ -3,6 +3,19 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.112 当日やったこと(2026-08-16、Sonnet 5、`/clear`後の新規セッションの`/full_loop`(起動回数カウンタ31回目)、Windows環境。**検証待ち**——T5-B0a/T5-B0b実装完了、verifier未実施のままセッション区切り)
+
+- プリフライトOK・起動回数30→31・使用率取得(開始セッション51%/週次79%)・`git pull`差分なし。前回セッション申し送りどおり、まず`/token_review`(30回目)の延期分(手順3: architect突き合わせ)から着手。
+- `architect`へ`docs/research/2026-08-16_token_saving_techniques.md`と§7・§8を突き合わせ採否判断を委譲。結果は`docs/token_optimization_design.md` §10-9に記録(採用5件/様子見4件/不採用7件)。反映: (A)親が直接編集——`CLAUDE.md`のトークン浪費の調査ルールへsubagents内訳記録の1文追加、§8「二軸を分けて解釈する理由」へクォータ共有の注記1文追加。(B)ユーザー確認必須でT5-A100を起票し即実施——`autoCompactWindow:200000`・`env.ENABLE_PROMPT_CACHING_1H:1`をユーザー承認を得て`.claude/settings.json`へ追加、`claude -p "OK"`で新規セッション起動確認済み。
+- 併せて夜間ログ(`.claude/night_logs/wrapper-20260816.log`、04:10枠)を調査し、T5-A67(failure_playbook無人実行の権限プロンプト無し確認)の完了条件が真に無人な発火で満たされていることを確認・完了処理(85件目)。ログ中に見えたEdit/Write権限拒否はT5-A95(既解消済み)の別件と切り分け済み。
+- token_review・T5-A67の対応でトラックAが実質払底(残りは先送り/見送り/ユーザー実施待ち/文脈依存のみ)と判断し、`AskUserQuestion`でトラックB着手をユーザーに確認→承認を得た。
+- トラックB先頭2タスクT5-B0a(全AI機能へ`maxOutputTokens`設定)・T5-B0b(画像を長辺1024pxへ縮小)を、確定済み仕様(コスト試算.md §2-3)のもと`implementer`へバッチ委譲。`lib/services/ai_analysis_service.dart`の5箇所へmaxOutputTokens追加(400/700/600/300/500)、`lib/widgets/image_upload_field.dart`の`pickImageFile()`にリサイズ実装(カメラ側は`image_picker`のmaxWidth/maxHeight、ファイル選択側は新規`image`パッケージでデコード→1024px超のみ縮小→再エンコード)。`pubspec.yaml`へ`image: ^4.5.4`追加。実装側の`flutter analyze`(新規issue0件)・`flutter test`(367件全パス)・`flutter build web`(成功)は完了済み。
+- 親が`git diff`で全9ファイルを確認、意図した変更のみ・BOM/CRLF問題なしを確認。**この時点で`.claude/loop_state.md`のコストが$14.477/$24(6割ライン$14.4超過)に到達**したため、T5-A93の予算チェックポイントルールに従い**`verifier`への検証委譲は開始せずセッションを区切る**(手順3.5)。あわせてユーザーから「週次逼迫への対応は1日あたりのループ数を減らす」との指示を受けているため、本セッションでの追加ループ着手はしない。
+- 使用率: 開始セッション51%/週次79% → (終了時点は本ログ記載時点で未取得、次回セッション冒頭で取得すること)。
+- 変更ファイル(コミット予定・**未push**): `lib/services/ai_analysis_service.dart`・`lib/widgets/image_upload_field.dart`・`pubspec.yaml`・`pubspec.lock`・`CLAUDE.md`・`docs/token_optimization_design.md`・`docs/改修マスタープラン.md`・`.claude/settings.json`・`.claude/full_loop_run_count.txt`・`docs/archive/NEXT_SESSION_log.md`(-5.111節退避)・`NEXT_SESSION.md`。
+- **次回セッションで最初にやること(検証待ち)**: `/verify`スキル(またはverifierへの直接委譲)でT5-B0a/T5-B0bを検証——`rules/verification.md`の§必須検証フロー(analyze/test/buildは実装側で完了済みのためbrowser確認中心)に加え、実データでのAI応答確認(`fetchStoreInfo`のJSONスキーマ応答がmaxOutputTokensで途切れていないか)・大きめ画像アップロード時のリサイズログ確認。PASSしたら`docs/改修マスタープラン.md`のT5-B0a/T5-B0b行を完了処理、commit・push(検証パス済みのため確認不要)。
+- **次に着手可能**: T5-B0a/T5-B0b検証後は、依存充足済みのT5-B1(E-1、公開版エントリポイント)がトラックB次点候補。トラックA側はT5-A77(S、lib/変更を伴うループでのみ試行可、今回のT5-B0a/B0bループで`/code-review`条件〈差分5ファイル超〉に該当するため次回検証時にadversary起動条件拡大を試す good candidate)。
+
 ### -5.111 当日やったこと(2026-08-16、Sonnet 5、`/clear`後の新規セッションの`/full_loop`(起動回数カウンタ30回目)、Windows環境。T5-A68完了・`/token_review`は手順2止まりで延期)
 
 - ユーザーから「ユーザが作業する項目は残っていないよね?」で起動。マスタープラン・NEXT_SESSION.mdを確認し、T3-1(モバイル実機確認)・T5-C1/C2/C4(Play Console登録・テスター確保・署名鍵)の4件がユーザー実施待ちで残っていることを報告。ユーザーから「これらは今やらなくてよい。T5-A68から進めて」の指示を受け着手。
