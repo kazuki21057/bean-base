@@ -202,6 +202,7 @@ class AiAnalysisService {
           generationConfig: GenerationConfig(
             responseMimeType: 'application/json',
             responseSchema: schema,
+            maxOutputTokens: 400,
           ),
         );
         final content = Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)]);
@@ -280,6 +281,7 @@ class AiAnalysisService {
           generationConfig: GenerationConfig(
             responseMimeType: 'application/json',
             responseSchema: schema,
+            maxOutputTokens: 700,
           ),
         );
         debugPrint('[Antigravity] Action: 購入店情報のAI取得を要求 (model=$modelName, store=$storeName)');
@@ -427,7 +429,11 @@ class AiAnalysisService {
 
     for (final modelName in order) {
       try {
-        final model = GenerativeModel(model: modelName, apiKey: apiKey);
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(maxOutputTokens: 600),
+        );
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {
@@ -474,6 +480,7 @@ class AiAnalysisService {
         final model = GenerativeModel(
           model: modelName,
           apiKey: apiKey,
+          generationConfig: GenerationConfig(maxOutputTokens: 300),
         );
 
         final content = [Content.text(prompt)];
@@ -508,7 +515,11 @@ class AiAnalysisService {
 
     for (final modelName in order) {
       try {
-        final model = GenerativeModel(model: modelName, apiKey: apiKey);
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(maxOutputTokens: 500),
+        );
         final response = await model.generateContent([Content.text(prompt)]);
         return response.text ?? '解釈結果が生成されませんでした。';
       } catch (e) {

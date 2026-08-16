@@ -1,10 +1,46 @@
 // ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart' as picker;
 import '../services/image_service.dart';
 import 'bean_image.dart';
+
+/// T5-B0b: 画像を送信・保存する前に長辺1024pxへ縮小する上限値。
+/// AI抽出(`extractBeanInfoFromImage`)とDrive保存(`ImageService.saveImage`)の
+/// 両方の原価/容量を抑えるため、`pickImageFile()`の戻り値をここで縮小する。
+const int _kMaxImageDimension = 1024;
+
+/// ファイル選択で取得したバイト列を、長辺が[_kMaxImageDimension]を超える場合のみ
+/// アスペクト比を保って縮小し、元の拡張子に応じて再エンコードする。
+/// デコードに失敗した場合はリサイズをスキップし、元のバイト列をそのまま返す。
+Uint8List _resizeImageBytesIfNeeded(Uint8List bytes, String fileName) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) {
+    debugPrint('[Antigravity] 画像のデコードに失敗したためリサイズをスキップ (name=$fileName)');
+    return bytes;
+  }
+  if (decoded.width <= _kMaxImageDimension && decoded.height <= _kMaxImageDimension) {
+    return bytes;
+  }
+
+  final resized = decoded.width >= decoded.height
+      ? img.copyResize(decoded, width: _kMaxImageDimension)
+      : img.copyResize(decoded, height: _kMaxImageDimension);
+
+  final isPng = fileName.toLowerCase().endsWith('.png');
+  final resizedBytes = isPng
+      ? Uint8List.fromList(img.encodePng(resized))
+      : Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+
+  debugPrint(
+    '[Antigravity] Action: 画像を長辺1024pxへ縮小 '
+    '(元: ${decoded.width}x${decoded.height} → 新: ${resized.width}x${resized.height})',
+  );
+  return resizedBytes;
+}
 
 /// T3-41: 画像を取得した経路(ファイル選択/カメラ撮影)。呼び出し元が
 /// 撮影画像だけ特別扱いしたい場合(例: 豆情報読取AIの情報画像保存、T3-35)に使う。
@@ -62,12 +98,25 @@ Future<({PlatformFile file, ImagePickSource source})?> pickImageFile(
       withData: true,
     );
     if (result == null || result.files.isEmpty) return null;
-    return (file: result.files.first, source: source);
+    final picked = result.files.first;
+    final originalBytes = picked.bytes;
+    if (originalBytes == null) return (file: picked, source: source);
+
+    final resizedBytes = _resizeImageBytesIfNeeded(originalBytes, picked.name);
+    if (identical(resizedBytes, originalBytes)) {
+      return (file: picked, source: source);
+    }
+    return (
+      file: PlatformFile(name: picked.name, size: resizedBytes.length, bytes: resizedBytes),
+      source: source,
+    );
   }
 
   final photo = await picker.ImagePicker().pickImage(
     source: picker.ImageSource.camera,
     imageQuality: 85,
+    maxWidth: 1024,
+    maxHeight: 1024,
   );
   if (photo == null) return null;
   final bytes = await photo.readAsBytes();
