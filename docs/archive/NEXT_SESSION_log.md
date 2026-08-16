@@ -3,6 +3,17 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.110 当日やったこと(2026-08-16、Sonnet 5、`/full_loop`(起動回数カウンタ29回目、ユーザー「続けて」で同一セッション継続)、Windows環境。T5-A81完了)
+
+- ユーザー「続けて」で前回`/full_loop`の同一セッションを継続(ループ識別子は前回から継続、cost $6.13→開始)。プリフライトOK・起動回数カウンタ28→29・使用率取得(セッション7%/週次74%、変化なし)・`git pull`差分なしを確認。
+- ⚠️上位モデルタスク(T5-B11/B20/B30/B40)は全てトラックB所属で依存(T5-B10/B1/B20/B15)未充足、T5-A57は見送り確定のため選べず、通常タスクへフォールバック。NEXT_SESSION.mdの推奨どおりT5-A81(S、依存なし)を選定(見積もり約$1〜3、予算内)。
+- タスク文言「構造化JSONスキーマを課す」は新規決定を伴うため`architect`へ設計委譲。architectが**既存の`tools/verify_citations.ps1` `-RepoCitationMode`(T5-A88実装済み)が既にMarkdown表「## リポジトリ引用一覧」を機械検証できることを発見し、JSON新設ではなくこの表フォーマットを`researcher`/`implementer`の出力規約として正式採用する方針へ変更**(完了条件〈構造化・機械検証しやすい〉は表形式でも充足、車輪の再発明を回避)。
+- `implementer`へ実装委譲: `.claude/agents/researcher.md`へ「## 引用の書式」節(Web出典表`[C1]`系列+リポジトリ引用表`[R1]`系列、`path:行`は単一行番号のみ・前後3行以内の原文一致が必須)、`.claude/agents/implementer.md`へ「## 調査・原因究明タスクの報告形式」節(コード非変更の調査系委譲に同じリポジトリ引用表を義務付け)を追加。`.claude/agents/`配下はT5-A13で過去にClaude`implementer`委譲がハードブロックされた実績があったが、今回は権限拒否なく成功。
+- 親が`git diff`で2ファイル・意図した箇所のみの追加(既存節は無改変)であることを確認、BOM有無(researcher.md=無し/implementer.md=無し)・改行コード(researcher.md=LF/implementer.md=CRLF)とも維持を確認。ドキュメントのみ・`lib/`/`gas/`不変のため`verifier`委譲・デプロイ・本番確認は不要と判断(architectの検証観点提案どおり、grep確認+git diff確認で足りると判断)。
+- `.claude/loop_state.md`で予算チェックポイントを確認(実装完了時点で$10.87/$24、6割ライン$14.4を下回り余裕あり)。
+- 変更ファイル: `.claude/agents/researcher.md`・`.claude/agents/implementer.md`・`docs/改修マスタープラン.md`(T5-A81完了処理)・`.claude/full_loop_run_count.txt`(28→29)・`docs/archive/NEXT_SESSION_log.md`(-5.109節退避)・`NEXT_SESSION.md`。
+- **次に着手可能**: T5-A68(M、障害注入テスト)のみ(S規模の依存充足タスクは払底)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。
+
 ### -5.109 当日やったこと(2026-08-16、Sonnet 5、`/full_loop`(起動回数カウンタ28回目)、Windows環境。T5-A99完了)
 
 - `/full_loop`で起動。プリフライトOK・起動回数カウンタ27→28・使用率取得(開始: セッション2%/週次74%)・`git pull`差分なし・`loop_state.md`余裕あり($0/$24)を確認。

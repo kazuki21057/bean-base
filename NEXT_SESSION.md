@@ -7,6 +7,7 @@
 
 ## 1. 現状サマリ
 
+- **【2026-08-16・`/clear`後の新規セッション`/full_loop`(起動回数カウンタ30回目)】T5-A68完了、`/token_review`(30回目)は手順2止まりで延期**。ユーザー確認(「ユーザが作業する項目は残っていないよね?」)でT3-1・T5-C1/C2/C4のユーザー実施待ち4件を報告、「今はやらなくてよい」の指示でT5-A68(障害注入テスト)から着手。設計確定済みのため`architect`を介さず`implementer`(実装)→`verifier`(検証)→`/code-review`(T5-A58設計群の完了区切り、指摘0件)で完了。これでT5-A58設計の実装群(T5-A61〜A68)が全完了。起動回数カウンタ30回目到達で`/token_review`を実施し`researcher`がWeb調査を完了(`docs/research/2026-08-16_token_saving_techniques.md`)、ただしresearcher完了時点でループコストが予算チェックポイント($14.4)を超過($15.23)したため`architect`への突き合わせは次回セッションへ延期(§10-8)。詳細は「3. 直近の作業ログ」-5.111節。
 - **【2026-08-16・`/full_loop`(起動回数カウンタ29回目、ユーザー「続けて」で同一セッション継続)】T5-A81完了**。⚠️上位モデルタスク(T5-B11/B20/B30/B40)は全てトラックB所属で依存未充足、T5-A57は見送り確定のため通常タスクへフォールバックしT5-A81(S、依存なし)を選定。タスク文言の「構造化JSONスキーマ」は新規決定を伴うため`architect`へ設計委譲。architectが**JSONスキーマではなくMarkdown表(既存の`verify_citations.ps1` `-RepoCitationMode`〈T5-A88実装済み〉を再利用)へ方針変更**(車輪の再発明回避、完了条件は表形式でも充足すると判断)。`.claude/agents/researcher.md`・`.claude/agents/implementer.md`へ「リポジトリ引用一覧」表の規約を追加、`implementer`が実装(`.claude/agents/`配下だがT5-A13の権限拒否は今回再発せず)。親が`git diff`で2ファイル・意図した箇所のみを確認、BOM無し・改行コード維持を確認。ドキュメントのみ・`lib/`/`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。詳細は「3. 直近の作業ログ」-5.110節。
 - **【2026-08-16・1つ前`/full_loop`(起動回数カウンタ28回目)】T5-A99完了**。バグ対応最優先ルールにより選定(依存なし、S)。タスク文言自体が実装方針をほぼ示していたためarchitect委譲は不要と判断、親が方針(`gh pr list --search "<ID>" --state open`でヒットしたら次点タスクへフォールバック)を確定して`implementer`へ委譲。`.claude/skills/night_loop/SKILL.md`「2. タスク選定」節へ新設ステップを追加(候補選定直後・2件目選定時の両方に適用、除外し尽くした場合は既存の§中断条件へ)。親が`git diff`で1ファイル・意図した4箇所の変更のみであることを確認、BOM無し・CRLF維持を確認。ドキュメントのみ・`lib/`/`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。詳細は「3. 直近の作業ログ」-5.109節。
 - **【2026-08-16・1つ前`/full_loop`(起動回数カウンタ27回目、「PRあるかもしれないから確認して。それと追加でタスクを選定して」)】オープンPR #4(`night/T5-A71`)を発見・調査しクローズ、T5-A97(検証フレークのバグ修正)を選定・完了**。`gh pr list`でPR #4を発見、T5-A71本体は既にmainへ別経路(2026-08-16 04:10枠夜間ループ、cc11582)で完了済みでPRはコンフリクト(CONFLICTING)状態と判明。PR固有の記録(教訓L164、T5-A97/T5-A98の起票)をmainへ転記後、ユーザー確認を得てPR #4をクローズ。**ユーザーからの追加質問「コンフリクトの内容を教えて」を受け`git merge-tree`で実差分を精査した結果、ポートしたT5-A98(境界事例7件の免除カテゴリ拡張検討)の前提が既にmain側で6/7件解決済みという古い情報のまま起票してしまっていたことが判明**——残るT3-75eに`免除(視覚判断のみ)`を付与し、新カテゴリ不要と結論してT5-A98を完了処理。続けてT5-A97(バグ最優先ルールによりagy移行系列より優先選定)を`architect`(原因究明)→`implementer`(実装)→`verifier`(独立検証)の順で完走: 根本原因は真のレース/リークではなく**受け入れチェックがマシン全体のプロセスをコマンドライン文字列一致で数え、`night_loop.ps1`の常駐Watchdogを誤検知**していた決定的バグ(教訓L165)。ベースライン差分方式へ書き換え、`verifier`が単体3回連続pass・ダミーWatchdog常駐下でもpassを確認。**「2回の無人トリガー(23:00枠・04:10枠)が同一タスクT5-A71を独立に再実装し、コンフリクトの真因になった」という`night_loop`のタスク選定設計の穴を新規発見しT5-A99として起票**(オープンPRの有無を見ていない)。全変更は`tools/`・`docs/`・`rules/`のみ・`lib/`/`gas/`不変のためデプロイ・本番確認は不要。詳細は「3. 直近の作業ログ」-5.108節。
@@ -71,7 +72,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-16最新】T5-A81完了(researcher/implementer調査系委譲への引用書式規約、JSONスキーマからMarkdown表へ方針変更)。次に着手できるのはT5-A68(M、障害注入テスト)のみ(S規模の依存充足タスクは払底)。**
+> **【2026-08-16最新】T5-A68完了(T5-A58設計の実装群〈その1〜その8〉が全完了)。`/token_review`(30回目)は手順2(researcher調査)まで実施、コスト予算超過($15.23/$24)のため手順3(architect突き合わせ)を次回セッションへ延期(詳細は`docs/token_optimization_design.md` §10-8)。次回セッション冒頭でまずこの突き合わせを完了させること。通常タスクはマスタープラン§3を再確認(S規模は払底気味、T5-A68完了で新たな候補が生まれている可能性あり)。ユーザー実施待ちのT3-1・T5-C1/C2/C4は「今はやらなくてよい」との指示で選定対象外。**
 >
 > **【2026-08-16・1つ前】T5-A99完了(night_loopのオープンPR未チェック問題を修正)。次に着手できるのはT5-A81(S、依存なし)・T5-A68(M、障害注入テスト)。**
 >
@@ -145,18 +146,21 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.110 当日やったこと(2026-08-16、Sonnet 5、`/full_loop`(起動回数カウンタ29回目、ユーザー「続けて」で同一セッション継続)、Windows環境。T5-A81完了)
+### -5.111 当日やったこと(2026-08-16、Sonnet 5、`/clear`後の新規セッションの`/full_loop`(起動回数カウンタ30回目)、Windows環境。T5-A68完了・`/token_review`は手順2止まりで延期)
 
-- ユーザー「続けて」で前回`/full_loop`の同一セッションを継続(ループ識別子は前回から継続、cost $6.13→開始)。プリフライトOK・起動回数カウンタ28→29・使用率取得(セッション7%/週次74%、変化なし)・`git pull`差分なしを確認。
-- ⚠️上位モデルタスク(T5-B11/B20/B30/B40)は全てトラックB所属で依存(T5-B10/B1/B20/B15)未充足、T5-A57は見送り確定のため選べず、通常タスクへフォールバック。NEXT_SESSION.mdの推奨どおりT5-A81(S、依存なし)を選定(見積もり約$1〜3、予算内)。
-- タスク文言「構造化JSONスキーマを課す」は新規決定を伴うため`architect`へ設計委譲。architectが**既存の`tools/verify_citations.ps1` `-RepoCitationMode`(T5-A88実装済み)が既にMarkdown表「## リポジトリ引用一覧」を機械検証できることを発見し、JSON新設ではなくこの表フォーマットを`researcher`/`implementer`の出力規約として正式採用する方針へ変更**(完了条件〈構造化・機械検証しやすい〉は表形式でも充足、車輪の再発明を回避)。
-- `implementer`へ実装委譲: `.claude/agents/researcher.md`へ「## 引用の書式」節(Web出典表`[C1]`系列+リポジトリ引用表`[R1]`系列、`path:行`は単一行番号のみ・前後3行以内の原文一致が必須)、`.claude/agents/implementer.md`へ「## 調査・原因究明タスクの報告形式」節(コード非変更の調査系委譲に同じリポジトリ引用表を義務付け)を追加。`.claude/agents/`配下はT5-A13で過去にClaude`implementer`委譲がハードブロックされた実績があったが、今回は権限拒否なく成功。
-- 親が`git diff`で2ファイル・意図した箇所のみの追加(既存節は無改変)であることを確認、BOM有無(researcher.md=無し/implementer.md=無し)・改行コード(researcher.md=LF/implementer.md=CRLF)とも維持を確認。ドキュメントのみ・`lib/`/`gas/`不変のため`verifier`委譲・デプロイ・本番確認は不要と判断(architectの検証観点提案どおり、grep確認+git diff確認で足りると判断)。
-- `.claude/loop_state.md`で予算チェックポイントを確認(実装完了時点で$10.87/$24、6割ライン$14.4を下回り余裕あり)。
-- 変更ファイル: `.claude/agents/researcher.md`・`.claude/agents/implementer.md`・`docs/改修マスタープラン.md`(T5-A81完了処理)・`.claude/full_loop_run_count.txt`(28→29)・`docs/archive/NEXT_SESSION_log.md`(-5.109節退避)・`NEXT_SESSION.md`。
-- **次に着手可能**: T5-A68(M、障害注入テスト)のみ(S規模の依存充足タスクは払底)。T5-A84は引き続き⚠️ユーザー実施のTUI確認待ち。
+- ユーザーから「ユーザが作業する項目は残っていないよね?」で起動。マスタープラン・NEXT_SESSION.mdを確認し、T3-1(モバイル実機確認)・T5-C1/C2/C4(Play Console登録・テスター確保・署名鍵)の4件がユーザー実施待ちで残っていることを報告。ユーザーから「これらは今やらなくてよい。T5-A68から進めて」の指示を受け着手。
+- プリフライトOK。T5-A68(障害注入テスト、M、依存T5-A66・T5-A67)は設計(`docs/failure_playbook.md`)確定済みのため`architect`を介さず`implementer`へ直接委譲。`tools/acceptance/t5_a68_check.ps1`新規実装(FP-01〜FP-07の7パターンを安全に隔離して模擬注入、`tools/failure_playbook.ps1`を実子プロセスとして起動し実際の検知・対処ロジックを検証)。
+- 親が`git diff`で新規ファイル1件のみ・BOM付きUTF-8・CRLF維持を確認。`verifier`へ独立検証を委譲し`tools/verify.ps1 -Task T5-A68`全項目PASS(`t5_a68_check.ps1`7/7 pass)、副作用クリーンアップ(`git status`・ledger.tsv/night_outcomes.logへの残骸無し)も確認。
+- T5-A58設計の実装群(その1〜その8、T5-A61〜A68)が今回で全完了する区切りのため`/code-review medium`を実行、指摘0件。
+- `docs/改修マスタープラン.md`のT5-A68行・完了済み一覧(83→84件)、`docs/archive/マスタープラン_完了タスク.md`へ「T5-A68」節を追記して完了処理。
+- 起動回数カウンタが30(10の倍数)に到達したため`/token_review`を実施。§10-7の様子見(#1 Context Editing API)は再検討条件未達のため対象外と確認。`researcher`へWeb調査を委譲し`docs/research/2026-08-16_token_saving_techniques.md`を作成(Sonnet 5の自動コンパクション閾値〈約967Kトークン〉・`autoCompactWindow`設定・usage credits中のキャッシュTTL短縮等、未突き合わせの新規知見あり)。
+- researcher完了時点で`.claude/loop_state.md`のコストが$15.23/$24(6割ライン$14.4超過)に達したため、T5-A93の予算チェックポイントルールに従い**`architect`への突き合わせ・採否判断委譲は開始せず次回セッションへ延期**(`token_review`スキル自体の使用率延期基準〈5時間枠85%超/週次90%超〉には該当しない、実測はセッション48%・週次79%)。延期の経緯は`docs/token_optimization_design.md` §10-8に記録。
+- 使用率: 開始(token_review手順1時点、セッション冒頭の取得を実施し損ねた)セッション37%/週次77% → 終了 セッション48%/週次79%。
+- 変更ファイル: `tools/acceptance/t5_a68_check.ps1`(新規)・`docs/改修マスタープラン.md`・`docs/archive/マスタープラン_完了タスク.md`・`docs/token_optimization_design.md`(§7・§8・§10-8追記)・`docs/research/2026-08-16_token_saving_techniques.md`(新規)・`.claude/full_loop_run_count.txt`(29→30)・`docs/archive/NEXT_SESSION_log.md`(-5.110節退避)・`NEXT_SESSION.md`。
+- **次回セッションで最初にやること**: `docs/research/2026-08-16_token_saving_techniques.md`を`architect`へ渡し、§7・§8と突き合わせて採否判断(`/token_review`手順3〜4)を完了させる。特に`autoCompactWindow`明示設定・`ENABLE_PROMPT_CACHING_1H`は優先的に検討。
+- **次に着手可能な通常タスク**: マスタープラン§3で依存充足タスクを再確認すること(本セッション時点でT5-A68完了によりS/M規模の新規候補が生まれている可能性がある)。ユーザー実施待ちのT3-1・T5-C1/C2/C4は「今はやらなくてよい」との指示のため選定対象外のまま。
 
-> これ以前(-5.109節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.110節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 
