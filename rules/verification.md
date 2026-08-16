@@ -230,3 +230,4 @@
 - L164 `verify.ps1`の`acceptance`は全既存受け入れスクリプトを毎回回帰実行するため、無関係な既存スクリプトのフレークでも自タスクの`ok`が巻き添えでfalseになる。`checks.acceptance`の内訳で切り分ける。全文: `rules/lessons_archive.md`
 - L165 受け入れチェックのプロセス残存判定がコマンドライン文字列一致だと正当な常駐プロセス(Watchdog等)まで誤検知し、フレークでなく決定的に不合格になる。判定対象を自分が起動した分に限定し、下限時間・ログのベースライン差分も併用する。全文: `rules/lessons_archive.md`
 - L166 `claude -p "/usage" --output-format json`はコスト$0で取得できるが、Bash(Git Bash/MSYS)経由だとL158と同じパス変換で壊れ実費がかかる。PowerShellから直接実行するか`MSYS_NO_PATHCONV=1`を付ける。全文: `rules/lessons_archive.md`
+- L167 Gemini 2.5系に`maxOutputTokens`を小さく設定すると内部thinkingが予算を消費し可視応答が空/途中切れになる恐れ(未実測、仮説)。自由文回答系は`finishReason`確認も無い。全文: `rules/lessons_archive.md`

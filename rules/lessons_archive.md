@@ -1012,3 +1012,9 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **事象**: ユーザー依頼でagyの`/usage`(コスト$0取得)と同じことがClaude本体でもできないか検証した。Bashツール(Git Bash/MSYS)から`claude -p "/usage" --output-format json`を実行すると、L158と同一の原因(MSYSが`/usage`を絶対パスと誤認し別のWindowsパス文字列へ書き換える)で組み込みスラッシュコマンドとして認識されず、Opusモデルが自然文として誤解釈して応答を生成し、**実費$0.29がかかった**(num_turns:3)。`MSYS_NO_PATHCONV=1`を付けて再実行、またはPowerShellから直接`& claude -p '/usage' --output-format json`を実行すると、`total_cost_usd:0`・`num_turns:0`で正しくクライアント側完結の使用率パネル(`Current session`/`Current week`に加え、直近24時間・7日間のtop skills/subagents内訳まで)が返る。
 
 **対策**: `claude -p "/usage"`等の組み込みスラッシュコマンドをヘッドレスで叩く検証は、L158と同様に**Bash(Git Bash/MSYS)を避けてPowerShellから直接実行する**か、Bashでどうしても行うなら`MSYS_NO_PATHCONV=1`を付ける。「ヘッドレスでは計測不能」「コストがかかる」と結論づける前に実行シェルを疑う。本件を機に`tools/night_loop.ps1`の使用率取得を、不安定だった`localhost:3000`ローカルAPI(HTTP)から本方式(PowerShellで直接起動、L159に倣いStart-Job+Wait-Jobで明示タイムアウト)へ乗り換えた。
+
+## L167 Gemini 2.5系モデルに`maxOutputTokens`を小さく設定すると、既定有効の内部thinkingがその予算を消費し可視応答が空/途中切れになる恐れがある(未実測、仮説段階。2026-08-16、T5-B0a/adversaryレビュー)
+
+**事象**: T5-B0a(`ai_analysis_service.dart`の全AI呼び出しに`maxOutputTokens`を新規設定、300〜700の範囲)の`adversary`レビューで指摘。`_kGeminiModels`の先頭は`gemini-2.5-flash`で、いずれの呼び出しにも`thinkingConfig`相当の設定が無い。Gemini 2.5系モデルは既定で内部thinkingを行い、多くの実装ではthinkingトークンが`maxOutputTokens`予算の一部を消費するため、300〜700という小さめの上限だとthinkingに予算を使い切られ可視応答が空/極端に短くなる(JSON抽出系は`jsonDecode`失敗で次モデルへフォールバックする安全弁があるが、自由文回答系〈`interpretRegression`/`analyzeComponents`/`analyzeComponentsDeep`〉は`finishReason`を検証せず`response.text`をそのまま返すため、途中切れの不完全な文がユーザーに表示されうる)。**この変更前は`maxOutputTokens`が未設定〈モデル既定の大きな上限〉だったため、この種の予算圧迫は起きていなかった可能性がある**——「出力暴走を防ぐ」目的の変更が、逆に主要モデルの成功率を下げコスト増(フォールバック多発)を招く可能性がある。2026-08-16時点では実機・実APIキーでの再現確認はしていない仮説。
+
+**対策**: Geminiモデルに`maxOutputTokens`の上限を新規追加・縮小する際は、(1)対象モデルがthinking機能を既定で持つ世代(2.5系等)かを確認する、(2)持つ場合はthinkingトークンとの予算競合を考慮した上限値にするか`thinkingConfig`で明示的に制御する、(3)自由文回答系のレスポンスは`finishReason`(`MAX_TOKENS`等)を確認し途中切れを検出できるようにする、(4)導入後は実機で成功率・空応答の発生有無を観測する。本件の実機確認・対応要否の判断はT5-B0cとして起票済み(未実施)。
