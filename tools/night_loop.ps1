@@ -42,8 +42,9 @@
                               ユーザー判断によりゲート(スキップ判定)を撤廃し記録専用に
                               変更(旧usageGuardEnabledから改名、値は
                               .claude/night_usage_log.tsvに追記する)。
-      usageGuardUrl           使用率取得先URL(既定 http://localhost:3000/)。
-      usageGuardTimeoutSec    使用率取得のタイムアウト秒数(既定3)。
+      usageGuardTimeoutSec    使用率取得(claude -p "/usage" --output-format json、
+                              コスト$0)のタイムアウト秒数(既定20。2026-08-16、
+                              L166によりHTTP版(localhost:3000)から乗り換え)。
       worktreeGuardEnabled    作業ツリー汚れガードの有効/無効(既定true)。
       staleLockHours          多重起動ガードのロックファイルをstale(放棄済み)とみなす
                               経過時間(既定3)。PIDが実在してもこの時間を超えていれば
@@ -482,8 +483,7 @@ function Get-NightLoopConfig {
         weeklyRunLimit         = 15
         activeSessionMinutes   = 45
         usageLogEnabled        = $true
-        usageGuardUrl          = 'http://localhost:3000/'
-        usageGuardTimeoutSec   = 3
+        usageGuardTimeoutSec   = 20
         worktreeGuardEnabled   = $true
         staleLockHours         = 3
         model                  = 'sonnet'
@@ -512,7 +512,7 @@ function Get-NightLoopConfig {
         return $null
     }
 
-    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardUrl', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug', 'playbookPreflightTimeoutSec', 'playbookPostmortemTimeoutSec', 'orphanPlaybookKillHours')) {
+    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug', 'playbookPreflightTimeoutSec', 'playbookPostmortemTimeoutSec', 'orphanPlaybookKillHours')) {
         if ($json.PSObject.Properties.Name -contains $key -and $null -ne $json.$key) {
             $config[$key] = $json.$key
         }
@@ -704,23 +704,38 @@ function Invoke-NightLoop {
         $usageWeek = $null
         $usageFailOpen = $false
         try {
-            $usageResponse = Invoke-WebRequest -Uri $Config.usageGuardUrl -TimeoutSec $Config.usageGuardTimeoutSec -UseBasicParsing
-            $usageContent = $usageResponse.Content
+            # claude -p "/usage" --output-format json はコスト$0・num_turns 0で完結する
+            # (L166)。ただし応答がブロッキングで返らない事態に備え、L159の教訓どおり
+            # try/catchだけに頼らずStart-Job+Wait-Jobで明示的にタイムアウトを掛ける。
+            $usageJob = Start-Job -ScriptBlock {
+                param($exePath)
+                & $exePath -p '/usage' --output-format json 2>&1
+            } -ArgumentList $claudeCmd.Source
+            $usageCompleted = Wait-Job -Job $usageJob -Timeout $Config.usageGuardTimeoutSec
+            if (-not $usageCompleted) {
+                Stop-Job -Job $usageJob -ErrorAction SilentlyContinue
+                Remove-Job -Job $usageJob -Force -ErrorAction SilentlyContinue
+                throw ('claude -p "/usage" がタイムアウトしました({0}秒)' -f $Config.usageGuardTimeoutSec)
+            }
+            $usageRaw = Receive-Job -Job $usageJob
+            Remove-Job -Job $usageJob -Force -ErrorAction SilentlyContinue
+            $usageObj = ($usageRaw | Out-String).Trim() | ConvertFrom-Json -ErrorAction Stop
+            $usageContent = $usageObj.result
             $sessionMatch = [regex]::Match($usageContent, 'Current session:\s*(\d+)%', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
             if ($sessionMatch.Success) {
                 $usageSession = [int]$sessionMatch.Groups[1].Value
             } else {
-                Write-Log 'WARN' '使用率APIのレスポンスから5時間枠の値を取得できませんでした。'
+                Write-Log 'WARN' 'claude -p "/usage" の応答から5時間枠の値を取得できませんでした。'
             }
             $weekMatch = [regex]::Match($usageContent, 'Current week[^:]*:\s*(\d+)%', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
             if ($weekMatch.Success) {
                 $usageWeek = [int]$weekMatch.Groups[1].Value
             } else {
-                Write-Log 'WARN' '使用率APIのレスポンスから週次の値を取得できませんでした。'
+                Write-Log 'WARN' 'claude -p "/usage" の応答から週次の値を取得できませんでした。'
             }
         } catch {
             $usageFailOpen = $true
-            Write-Log 'WARN' ('使用率APIに接続できないため使用率ログの記録をスキップします(fail-open): {0}' -f $_.Exception.Message)
+            Write-Log 'WARN' ('claude -p "/usage" を実行できないため使用率ログの記録をスキップします(fail-open): {0}' -f $_.Exception.Message)
         }
 
         if (-not $usageFailOpen) {
