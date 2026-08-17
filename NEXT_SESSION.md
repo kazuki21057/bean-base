@@ -1,12 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-17(Sonnet 5、無人`/night_loop`(23:00枠)。T5-B3完了・push済み、T5-B10はresearcherのWebSearch/WebFetch権限拒否で未完了・T5-A102起票)
+最終更新: 2026-08-18(Sonnet 5、無人`/night_loop`(04:10枠)。着手可能タスク無しで中断、新規実装なし)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
+- **【2026-08-18・無人`/night_loop`(04:10枠)】着手可能なS/M/Lタスクが無く中断、新規実装なし**。前回23:00枠が発見・記録した状況を再確認: T5-B2/T5-B4は`screenRegistry`・`AppEdition`のコードを実際に読み直したが設計判断が必要という前回判定は変わらず(B4はproxyモードの鍵取得方法が未設計、B2はmock/実装済み画面の混在でホワイトリスト化不可)、T5-A45はCI基盤未整備で変わらず見送り、T5-B10は`.claude/settings.night.json`が未更新のためT5-A102(ユーザー実施待ち)ブロック継続。`git pull`はコンフリクトなし・差分なし。`.claude/failure_state.json`のFP-04-PERMISSIONが`consecutive:17`のまま(escalated:falseだが検知は継続中、T5-A102で解消見込み)。
 - **【2026-08-17・無人`/night_loop`(23:00枠)】T5-B3(E-3: `dataServiceProvider`をAppEdition.useLocalDb経由に接続)完了・main push済み(commit 9d80e7a)。2件目T5-B10(ローカルDBパッケージ選定のWeb調査)は`researcher`のWebSearch/WebFetchが`.claude/settings.night.json`の`allow`に無く常時拒否されるため未完了、新規タスクT5-A102(⚠️ユーザー実施)を起票・教訓L169追記**。T5-B2(E-2画面ホワイトリスト)・T5-B4(E-4 AIキーモード配線)は設計判断(前提の食い違い・6箇所の重複コード修正)を伴うため無人実行では見送り、T5-A45(golden OS非依存化)もCI基盤未整備のため見送り。詳細は「3. 直近の作業ログ」-5.114節。
 - **【2026-08-16・無人`/night_loop`(23:00枠)】T5-B0a/T5-B0b検証完了・main push済み(commit a2f6cb5)、T5-B1(E-1差分ゼロの2エントリポイント新設)完了・main push済み(commit ed910bd)**。前回セッションの申し送りどおりT5-B0a/T5-B0bの`verifier`+`adversary`並行検証から着手、verify.ps1全green・adversary Critical 0(Major 5件、うちGemini 2.5系`maxOutputTokens`とthinkingトークンの予算競合リスクが要注意→新規タスクT5-B0c起票・教訓L167追記)。自動pushゲート全条件クリアでmainへ直接push。夜間しきい値($20/ターン80/連続失敗2)に余裕があったため2件目としてT5-B1(E-1、依存T5-B0a/B0bなし・トラックB次点)を選定、`docs/android_monetization/コードベース構成方針.md`の設計どおり`lib/config/app_edition.dart`(新規)・`lib/main_public.dart`(新規、`lib/main.dart`と差分ゼロ)を実装。verifier全green・adversary Critical 0(Minor 2件、将来のE-2以降で検討)でこちらもmain push済み。2件実施でnight_loopの上限(1ループ最大2件)に達したため新規タスクには着手せず締めに入った。次点候補はT5-B2(E-2)・T5-B0c(バグ調査、Major5件の実害確認)。詳細は「3. 直近の作業ログ」-5.113節。
 - **【2026-08-16・1つ前`/full_loop`(起動回数カウンタ31回目)】**検証待ち**のまま区切り——`/token_review`(30回目)延期分完了・T5-A67完了・トラックB着手承認・T5-B0a/T5-B0b実装完了(verifier未実施)**。前回申し送りどおり`/token_review`手順3(architect突き合わせ)から着手、採否判断5採用/4様子見/7不採用(`docs/token_optimization_design.md` §10-9)。反映としてCLAUDE.md・§8へ親が直接1文追記、T5-A100(`autoCompactWindow:200000`・`ENABLE_PROMPT_CACHING_1H:1`)をユーザー承認を得て`.claude/settings.json`へ即反映・起動確認済み。夜間ログ調査でT5-A67(failure_playbook無人実行の権限確認)完了条件を確認・完了処理。トラックA残りが実質払底(先送り/見送り/ユーザー実施待ち/文脈依存のみ)と判断し`AskUserQuestion`でトラックB着手を確認・承認を得て、T5-B0a(maxOutputTokens設定)・T5-B0b(画像1024px縮小)を`implementer`へバッチ委譲・実装完了(analyze/test/build済み)。**実装完了時点でループコストが予算チェックポイント($14.4)を超過($14.477)したためverifier委譲は開始せずセッションを区切った**(T5-A93手順3.5)。あわせてユーザー指示「週次逼迫〈79%〉への対応は1日あたりのループ数を減らす」を受け、本セッションでの追加ループ着手はしない。詳細は「3. 直近の作業ログ」-5.112節。
