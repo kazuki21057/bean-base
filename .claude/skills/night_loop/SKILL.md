@@ -16,6 +16,7 @@ description: Use when the user asks to run one unattended overnight iteration of
 - **`tools/night_loop.ps1`(多重起動ガード・5時間枠チェック・週次予算ガードを担う、設計書§2)も現時点で存在しない。** タスクスケジューラから実行するエントリポイント自体が未整備であり、作成は**タスクT5-A10(依存: 本タスクT5-A9)で行う予定**。`ui_verifier`(T5-A4)・`integration_test`(T5-A7)・`tools/night_loop.ps1`(T5-A10)・`.claude/settings.night.json`(T5-A17、⚠️ユーザー実施)の4点が、現時点で未整備である。**T5-A10実装時は、無人モード判別用の環境変数`BEANBASE_NIGHT_LOOP=1`を実行前に設定することを忘れないこと**(§0参照)。
 - **(2026-08-15追記、T5-A89)agyへ委譲する場合(implementer役等)も、夜間ループでは`claude-sonnet-4-6`・`claude-opus-4-6-thinking`等のClaudeモデルを明示指定しない。**常にGemini既定モデル(自動解決)で委譲する(`docs/antigravity_delegation_design.md` §12.3の除外条件)。
 - **`/code-review`の定期実行ルール(10回に1回)**: `tools/night_loop.ps1`が起動時に`.claude/night_loop_run_count.txt`をインクリメントする。カウンタ値が10の倍数(10回目, 20回目...)の起動では、検証時に`/code-review`(effort=medium相当、対象: `git diff`)を実行し、Critical/Major指摘が出た場合はその場で`implementer`に差し戻して修正する(`CLAUDE.md`「`/code-review`の定期実行ルール」(3)参照)。
+- **(2026-08-17追記、教訓L168)サブエージェント委譲はすべて`run_in_background: false`を明示する。** headless(`claude -p`)実行にはバックグラウンドタスクの待機上限が既定600秒あり、超過すると`claude.exe`ごと強制終了される(`Background tasks still running after 600s; terminating.`)。対話セッションと異なり、無人実行では次のターンで完了通知を受け取る機会が無いため、非同期(既定)のまま委譲すると`implementer`の作業(ファイル編集)だけが完了し検証・コミットへ進めないまま強制終了され、**作業ツリーが未コミットのまま残り次回発火が丸ごとスキップされる**(2026-08-17 04:10枠で実際に発生、T5-B0c実装が該当)。手順3・4のどちらも`run_in_background: false`を必ず指定すること。
 
 ## 手順
 
@@ -52,7 +53,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    - どちらの判断も、根拠(見積もり額・元にしたサイズと実測参考値)を`night_report.md`に一言記録する。**この見積もりはnight_loopにおける唯一の分割判断ポイント**であり(`full_loop`の手順3.5「セッション分割チェック」に相当する事後チェックはnight_loopには無い)、着手前の予測に基づく点が特徴。
 
 3. **実装**(2件実施する場合は1件目・2件目それぞれについて本手順を独立に1回ずつ行う)
-   - `implementer`サブエージェントへ委譲する。委譲プロンプトには対象タスクID・変更対象ファイル・確定済み仕様・完了条件・「日本語で報告して」を明記する(`full_loop`と同じ委譲規約)。
+   - `implementer`サブエージェントへ`run_in_background: false`で委譲する(**大前提「サブエージェント委譲はすべて`run_in_background: false`」参照、教訓L168**)。委譲プロンプトには対象タスクID・変更対象ファイル・確定済み仕様・完了条件・「日本語で報告して」を明記する(`full_loop`と同じ委譲規約)。
    - **T5-A41の昇格判定が完了するまで、夜間ループではagy(`tools/antigravity_delegate.ps1`)を使わない**(無人実行で未検証の委譲先を使うと、失敗の切り分けが翌朝の人間側コストになるため)。`implementer`は常に`Task(implementer)`(Claude)で委譲する。
    - 実装中に**設計判断が必要と判明した時点で直ちに中断**する。`architect`へは回さない(無人実行では設計判断を継続しない)。**§中断条件**へ進む。
    - `implementer`が2回失敗したら3回目を同じやり方で試さず、**§中断条件**へ進む。

@@ -12,6 +12,14 @@ import 'statistics_service.dart';
 /// の現行モデル一覧に存在しなくなっていたため`gemini-2.0-flash`に置き換えて最新化した。
 const _kGeminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
 
+/// T5-B0c: `gemini-2.5-flash`系はデフォルトで思考(thinking)トークンが有効で、
+/// `google_generative_ai: ^0.4.7`の`GenerationConfig`は`thinkingConfig`を公開して
+/// いないため思考トークン量を制御できない。`maxOutputTokens`は思考トークンと
+/// 可視応答テキストの合計に対して適用されるため、T5-B0aで設定した300〜700という
+/// 小さな値では思考トークンだけで予算を使い切り、可視応答が空/途中切断になる恐れが
+/// あった(adversaryレビュー指摘)。安全マージンとして全メソッド共通で2048に統一する。
+const int _kMaxOutputTokens = 2048;
+
 /// T3-39: 設定(090→モデル設定)でユーザーが選択できるモデルの選択肢。
 /// `https://ai.google.dev/gemini-api/docs/pricing?hl=ja`(2026-07-25時点)を参照し、
 /// テキスト/画像入力に対応する汎用モデル(preview版・画像/動画/音声/embedding等の
@@ -163,6 +171,23 @@ class AiAnalysisService {
     return [preferredModel, ..._kGeminiModels.where((m) => m != preferredModel)];
   }
 
+  /// T5-B0c: 自由文回答系メソッド共通。`finishReason`が`MAX_TOKENS`だった場合、
+  /// 可視応答が空ならフォールバック(次のモデルへ)させるため例外を投げ、応答が
+  /// 途中まで得られていれば末尾に注記を付けて返す(adversaryレビュー指摘: 応答が
+  /// 途中で切れても検出できていなかった)。
+  String _extractFreeTextOrThrow(GenerateContentResponse response, String modelName, String label) {
+    final finishReason = response.candidates.isEmpty ? null : response.candidates.first.finishReason;
+    final text = response.text;
+    if (finishReason == FinishReason.maxTokens) {
+      debugPrint('[Antigravity] Gemini応答が長さ制限(MAX_TOKENS)で打ち切られました ($label, model=$modelName)');
+      if (text == null || text.trim().isEmpty) {
+        throw Exception('応答が長さ制限に達し空になりました');
+      }
+      return '$text\n\n(注: 応答が長さ制限により途中で切れている可能性があります)';
+    }
+    return text ?? '解釈結果が生成されませんでした。';
+  }
+
   /// T3-30: 豆の説明カード/パッケージ画像から豆情報を抽出する(設計書に無い新機能、
   /// マスタープランT3-30に基づく)。数値統計計算の絶対規則(Gemini非依存)は
   /// テキスト抽出には適用されないため、抽出自体をGeminiに委ねる。
@@ -202,7 +227,7 @@ class AiAnalysisService {
           generationConfig: GenerationConfig(
             responseMimeType: 'application/json',
             responseSchema: schema,
-            maxOutputTokens: 400,
+            maxOutputTokens: _kMaxOutputTokens,
           ),
         );
         final content = Content.multi([TextPart(prompt), DataPart(mimeType, imageBytes)]);
@@ -281,7 +306,7 @@ class AiAnalysisService {
           generationConfig: GenerationConfig(
             responseMimeType: 'application/json',
             responseSchema: schema,
-            maxOutputTokens: 700,
+            maxOutputTokens: _kMaxOutputTokens,
           ),
         );
         debugPrint('[Antigravity] Action: 購入店情報のAI取得を要求 (model=$modelName, store=$storeName)');
@@ -432,10 +457,10 @@ class AiAnalysisService {
         final model = GenerativeModel(
           model: modelName,
           apiKey: apiKey,
-          generationConfig: GenerationConfig(maxOutputTokens: 600),
+          generationConfig: GenerationConfig(maxOutputTokens: _kMaxOutputTokens),
         );
         final response = await model.generateContent([Content.text(prompt)]);
-        return response.text ?? '解釈結果が生成されませんでした。';
+        return _extractFreeTextOrThrow(response, modelName, 'interpretRegression');
       } catch (e) {
         debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (interpretRegression): $e');
         if (modelName == order.last) {
@@ -480,12 +505,12 @@ class AiAnalysisService {
         final model = GenerativeModel(
           model: modelName,
           apiKey: apiKey,
-          generationConfig: GenerationConfig(maxOutputTokens: 300),
+          generationConfig: GenerationConfig(maxOutputTokens: _kMaxOutputTokens),
         );
 
         final content = [Content.text(prompt)];
         final response = await model.generateContent(content);
-        return response.text ?? '解釈結果が生成されませんでした。';
+        return _extractFreeTextOrThrow(response, modelName, 'analyzeComponents');
       } catch (e) {
         debugPrint('[Antigravity] Gemini モデル $modelName が失敗: $e');
         if (modelName == modelsToTry.last) {
@@ -518,10 +543,10 @@ class AiAnalysisService {
         final model = GenerativeModel(
           model: modelName,
           apiKey: apiKey,
-          generationConfig: GenerationConfig(maxOutputTokens: 500),
+          generationConfig: GenerationConfig(maxOutputTokens: _kMaxOutputTokens),
         );
         final response = await model.generateContent([Content.text(prompt)]);
-        return response.text ?? '解釈結果が生成されませんでした。';
+        return _extractFreeTextOrThrow(response, modelName, 'analyzeComponentsDeep');
       } catch (e) {
         debugPrint('[Antigravity] Gemini モデル $modelName が失敗 (analyzeComponentsDeep): $e');
         if (modelName == order.last) {

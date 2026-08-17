@@ -15,15 +15,31 @@ const int _kMaxImageDimension = 1024;
 
 /// ファイル選択で取得したバイト列を、長辺が[_kMaxImageDimension]を超える場合のみ
 /// アスペクト比を保って縮小し、元の拡張子に応じて再エンコードする。
-/// デコードに失敗した場合はリサイズをスキップし、元のバイト列をそのまま返す。
-Uint8List _resizeImageBytesIfNeeded(Uint8List bytes, String fileName) {
+/// デコードに失敗した場合はリサイズをスキップし、元のバイト列・ファイル名をそのまま返す。
+///
+/// T5-B0c(adversaryレビュー指摘への対応):
+/// - 戻り値をバイト列だけでなくファイル名も含む形にした。PNG以外(webp/gif等)は
+///   JPGに再エンコードされる(下記`isPng`分岐)ため、ファイル名の拡張子を変えないと
+///   実体(JPGバイト列)とファイル名/mimeType判定(拡張子ベース、`ImageService`・
+///   `bean_create_screen.dart`双方)が食い違う不整合が起きるため、拡張子もjpgへ
+///   合わせる。
+/// - `compute()`に渡せるようトップレベル関数・record引数/戻り値の形にした
+///   (大きな画像でのデコード/リサイズがメインアイソレートを同期的にブロックし
+///   UIがフリーズする恐れがあるため。モバイルでは`compute()`で別isolateに逃がせる。
+///   ただしFlutter Web版の`compute()`実装は`await null`で1フレーム待つだけで実際は
+///   メインスレッドで同期実行するため、Web上ではブロック自体は解消しない
+///   [`flutter/packages/flutter/lib/src/foundation/_isolates_web.dart`]。Web上での
+///   完全な非ブロック化にはWeb Worker等の追加実装が要り設計判断が必要なため、
+///   本タスクでは見送る)。
+({Uint8List bytes, String fileName}) _resizeImageIfNeeded(({Uint8List bytes, String fileName}) args) {
+  final (bytes: bytes, fileName: fileName) = args;
   final decoded = img.decodeImage(bytes);
   if (decoded == null) {
     debugPrint('[Antigravity] 画像のデコードに失敗したためリサイズをスキップ (name=$fileName)');
-    return bytes;
+    return (bytes: bytes, fileName: fileName);
   }
   if (decoded.width <= _kMaxImageDimension && decoded.height <= _kMaxImageDimension) {
-    return bytes;
+    return (bytes: bytes, fileName: fileName);
   }
 
   final resized = decoded.width >= decoded.height
@@ -31,15 +47,24 @@ Uint8List _resizeImageBytesIfNeeded(Uint8List bytes, String fileName) {
       : img.copyResize(decoded, height: _kMaxImageDimension);
 
   final isPng = fileName.toLowerCase().endsWith('.png');
-  final resizedBytes = isPng
-      ? Uint8List.fromList(img.encodePng(resized))
-      : Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+  final Uint8List resizedBytes;
+  final String newFileName;
+  if (isPng) {
+    resizedBytes = Uint8List.fromList(img.encodePng(resized));
+    newFileName = fileName;
+  } else {
+    resizedBytes = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+    final dotIndex = fileName.lastIndexOf('.');
+    final base = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+    newFileName = '$base.jpg';
+  }
 
   debugPrint(
     '[Antigravity] Action: 画像を長辺1024pxへ縮小 '
-    '(元: ${decoded.width}x${decoded.height} → 新: ${resized.width}x${resized.height})',
+    '(元: ${decoded.width}x${decoded.height} → 新: ${resized.width}x${resized.height}, '
+    'name: $fileName → $newFileName)',
   );
-  return resizedBytes;
+  return (bytes: resizedBytes, fileName: newFileName);
 }
 
 /// T3-41: 画像を取得した経路(ファイル選択/カメラ撮影)。呼び出し元が
@@ -102,12 +127,14 @@ Future<({PlatformFile file, ImagePickSource source})?> pickImageFile(
     final originalBytes = picked.bytes;
     if (originalBytes == null) return (file: picked, source: source);
 
-    final resizedBytes = _resizeImageBytesIfNeeded(originalBytes, picked.name);
-    if (identical(resizedBytes, originalBytes)) {
+    // T5-B0c: 大きな画像のデコード/リサイズ(重いCPU処理)をメインアイソレートで
+    // 同期実行しないよう`compute()`を経由する(モバイルでは別isolateで実行される)。
+    final resized = await compute(_resizeImageIfNeeded, (bytes: originalBytes, fileName: picked.name));
+    if (identical(resized.bytes, originalBytes)) {
       return (file: picked, source: source);
     }
     return (
-      file: PlatformFile(name: picked.name, size: resizedBytes.length, bytes: resizedBytes),
+      file: PlatformFile(name: resized.fileName, size: resized.bytes.length, bytes: resized.bytes),
       source: source,
     );
   }

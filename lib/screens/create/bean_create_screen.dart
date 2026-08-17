@@ -256,7 +256,21 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
   /// ファイル/カメラの選択ダイアログと取得ロジックはT3-41で`image_upload_field.dart`の
   /// `pickImageFile`へ共通化した(全マスターの画像アップロード欄と同じ経路)。
   Future<void> _extractFromImage() async {
-    final picked = await pickImageFile(context);
+    // T5-B0c: `pickImageFile`内部の画像リサイズ(`compute`経由)が例外を投げた場合
+    // ここで未捕捉のままだとユーザーに何も表示されずボタンが無反応に見えるため、
+    // 取得段階の例外もtry/catchで拾う(adversaryレビュー指摘)。
+    final ({PlatformFile file, ImagePickSource source})? picked;
+    try {
+      picked = await pickImageFile(context);
+    } catch (e) {
+      debugPrint('[Antigravity] Error: 画像の取得に失敗 $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('画像の取得に失敗しました: $e'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
     if (picked == null || picked.file.bytes == null) return;
 
     final bytes = Uint8List.fromList(picked.file.bytes!);
