@@ -5,6 +5,7 @@
 // 実際の画面出し分け・データバックエンド切替・AIキー取得への接続は行わない
 // (接続は後続タスクE-2/E-3/E-4のスコープ)。
 import 'package:bean_base/routing/app_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// アプリの配布形態。
 enum Edition { personal, public }
@@ -100,3 +101,10 @@ const AppEdition kPublicEdition = AppEdition(
   showAds: false,
   enableSubscription: false,
 );
+
+/// T5-B3(E-3): 現在アクティブな[AppEdition]を提供するProvider。
+///
+/// 既定値は[kPersonalEdition](personal版が明示的にoverrideしなくても正しく動くように)。
+/// public版のエントリポイント(lib/main_public.dart)ではProviderScope.overridesで
+/// [kPublicEdition]に差し替える。
+final appEditionProvider = Provider<AppEdition>((ref) => kPersonalEdition);

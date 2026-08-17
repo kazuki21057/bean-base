@@ -11,6 +11,7 @@ import 'utils/nav_key.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'config/app_edition.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +32,7 @@ void main() async {
   runApp(
     ProviderScope(
       overrides: [
+        appEditionProvider.overrideWithValue(kPersonalEdition),
         if (savedColor != null) mainColorProvider.overrideWith((ref) => savedColor),
       ],
       child: const MyApp(),

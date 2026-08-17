@@ -10,6 +10,7 @@ import '../models/analysis_snapshot.dart';
 import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
 import '../models/bean_purchase.dart';
+import '../config/app_edition.dart';
 import 'sheets_service.dart';
 
 /// Abstract data-access contract shared by all storage backends.
@@ -91,6 +92,14 @@ abstract class DataService {
 ///
 /// Cycle 19 (Phase 0): reverted from Firestore to Google Sheets. Flip the
 /// returned implementation here to switch backends app-wide.
+///
+/// T5-B3(E-3): [AppEdition.useLocalDb]経由でバックエンドを切り替える。
+/// 現状は両エディションともuseLocalDb: falseのため、挙動は従来どおり
+/// SheetsServiceのまま変わらない。
 final dataServiceProvider = Provider<DataService>((ref) {
+  final edition = ref.watch(appEditionProvider);
+  if (edition.useLocalDb) {
+    throw UnimplementedError('LocalDbService is not yet implemented (T5-B13)');
+  }
   return SheetsService();
 });
