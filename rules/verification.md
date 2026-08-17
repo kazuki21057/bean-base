@@ -232,3 +232,4 @@
 - L166 `claude -p "/usage" --output-format json`はコスト$0で取得できるが、Bash(Git Bash/MSYS)経由だとL158と同じパス変換で壊れ実費がかかる。PowerShellから直接実行するか`MSYS_NO_PATHCONV=1`を付ける。全文: `rules/lessons_archive.md`
 - L167 Gemini 2.5系に`maxOutputTokens`を小さく設定すると内部thinkingが予算を消費し可視応答が空/途中切れになる恐れ(未実測、仮説)。自由文回答系は`finishReason`確認も無い。全文: `rules/lessons_archive.md`
 - L168 headless(`claude -p`)でサブエージェントを非同期(既定)のまま委譲すると600秒待機上限で`claude.exe`ごと強制終了され、実装だけ完了し検証/コミット未実施のまま作業ツリーがdirtyで残る。無人ループの委譲は必ず`run_in_background: false`。全文: `rules/lessons_archive.md`
+- L169 `.claude/settings.night.json`の`allow`に`WebSearch`/`WebFetch`が無く、無人ループ中は`researcher`のWeb調査タスクが常に拒否される(T5-A102起票、ユーザー実施待ち)。全文: `rules/lessons_archive.md`
