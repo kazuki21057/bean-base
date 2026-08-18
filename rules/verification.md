@@ -233,3 +233,4 @@
 - L167 Gemini 2.5系に`maxOutputTokens`を小さく設定すると内部thinkingが予算を消費し可視応答が空/途中切れになる恐れ(未実測、仮説)。自由文回答系は`finishReason`確認も無い。全文: `rules/lessons_archive.md`
 - L168 headless(`claude -p`)でサブエージェントを非同期(既定)のまま委譲すると600秒待機上限で`claude.exe`ごと強制終了され、実装だけ完了し検証/コミット未実施のまま作業ツリーがdirtyで残る。無人ループの委譲は必ず`run_in_background: false`。全文: `rules/lessons_archive.md`
 - L169 `.claude/settings.night.json`の`allow`に`WebSearch`/`WebFetch`が無く、無人ループ中は`researcher`のWeb調査タスクが常に拒否される(T5-A102起票、ユーザー実施待ち)。全文: `rules/lessons_archive.md`
+- L170 `fontFamily`をコードで指定してもフォント本体を`pubspec.yaml`/`assets/fonts/`に同梱しなければ無警告で既定フォントへフォールバックし、analyze/test/acceptanceのいずれでも検知できない(T5-B21/adversaryレビュー)。全文: `rules/lessons_archive.md`

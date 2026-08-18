@@ -1,0 +1,49 @@
+// T5-B21: 公開版(Android)のテーマ組み立て。
+//
+// 正本は docs/android_monetization/デザイン方針.md §6・§7。
+// `buildPublicTheme(Brightness)`でライト/ダークそれぞれの`ThemeData`を構築する。
+// `CardTheme`/`InputDecorationTheme`等の細かいコンポーネントテーマはT5-B22以降で拡張する
+// (§7の表: 本タスクでは必須ではない)。
+import 'package:flutter/material.dart';
+
+import 'package:bean_base/theme/public/bb_colors.dart';
+import 'package:bean_base/theme/public/bb_typography.dart';
+
+/// 指定[brightness]に応じて公開版の`ThemeData`を構築する。
+ThemeData buildPublicTheme(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  final colorScheme = isDark ? publicColorSchemeDark : publicColorSchemeLight;
+  final bbColors = isDark ? bbColorsDark : bbColorsLight;
+  final bbTypography = buildBbTypography(
+    color: colorScheme.onSurface,
+    unitColor: colorScheme.onSurfaceVariant,
+  );
+
+  // §5.3: 「surfaceTintColorはColors.transparentに固定し、M3の自動ティントで
+  // 色が濁るのを防ぐ」規則。ThemeDataにトップレベルのsurfaceTintColorは無いため、
+  // ティントを描画しうる主要コンポーネントテーマへ個別に設定する。
+  const transparentTint = Colors.transparent;
+
+  return ThemeData(
+    useMaterial3: true,
+    brightness: brightness,
+    colorScheme: colorScheme,
+    scaffoldBackgroundColor: colorScheme.surface,
+    textTheme: publicTextTheme(colorScheme),
+    cardTheme: const CardThemeData(surfaceTintColor: transparentTint),
+    appBarTheme: const AppBarTheme(surfaceTintColor: transparentTint),
+    bottomSheetTheme: const BottomSheetThemeData(surfaceTintColor: transparentTint),
+    dialogTheme: const DialogThemeData(surfaceTintColor: transparentTint),
+    navigationBarTheme:
+        const NavigationBarThemeData(surfaceTintColor: transparentTint),
+    popupMenuTheme: const PopupMenuThemeData(surfaceTintColor: transparentTint),
+    extensions: [bbColors, bbTypography],
+  );
+}
+
+/// `Theme.of(context).extension<BbColors>()!`/`<BbTypography>()!`を
+/// 画面側に直接書かせないための`BuildContext`拡張(§7末尾)。
+extension BbThemeContext on BuildContext {
+  BbColors get bbColors => Theme.of(this).extension<BbColors>()!;
+  BbTypography get bbType => Theme.of(this).extension<BbTypography>()!;
+}

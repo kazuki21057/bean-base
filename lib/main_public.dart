@@ -14,6 +14,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/dashboard_screen.dart';
 import 'layout/main_layout.dart';
 import 'providers/theme_provider.dart';
+import 'providers/public_theme_provider.dart';
+import 'theme/public/bb_theme.dart';
 import 'utils/nav_key.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -22,6 +24,9 @@ import 'config/app_edition.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // デザイン方針§1.3: 公開版はgoogle_fontsの実行時ダウンロードを禁止する
+  // (フォントは同梱アセットのみ使用し、通信での取得は行わない)。
+  GoogleFonts.config.allowRuntimeFetching = false;
   // T3-65: table_calendarのlocale: 'ja_JP'指定にはintlの日付シンボルデータ初期化が別途必要
   // (flutter_localizationsのdelegatesとは無関係。呼ばないとLocaleDataExceptionで落ちる)。
   await initializeDateFormatting('ja_JP', null);
@@ -34,13 +39,19 @@ void main() async {
   }
 
   // Cycle 20 T2-7: 090で保存したメインカラーがあれば起動時に反映する。
+  // (mainColorProviderはpersonal版の画面がまだ残っているため、この段階では削除しない。)
   final savedColor = await loadSavedMainColor();
+
+  // T5-B21: P900(設定)で保存したテーマモードがあれば起動時に反映する。
+  final savedThemeMode = await loadSavedPublicThemeMode();
 
   runApp(
     ProviderScope(
       overrides: [
         appEditionProvider.overrideWithValue(kPublicEdition),
         if (savedColor != null) mainColorProvider.overrideWith((ref) => savedColor),
+        if (savedThemeMode != null)
+          publicThemeModeProvider.overrideWith((ref) => savedThemeMode),
       ],
       child: const MyApp(),
     ),
@@ -52,7 +63,13 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mainColor = ref.watch(mainColorProvider);
+    // mainColorProviderはMainLayoutではなく、settings_screen.dart/
+    // create_form_widgets.dart/mock_scaffold.dart等、公開版でもまだ流用している
+    // personal由来の画面部品が参照するために残している。lib/theme/public/配下の
+    // 新トークン体系(D1)はこの値を一切使わない。画面がT5-B23以降で新デザインへ
+    // 置き換われば、この行も削除できる。
+    ref.watch(mainColorProvider);
+    final themeMode = ref.watch(publicThemeModeProvider);
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
@@ -66,11 +83,9 @@ class MyApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: mainColor),
-        useMaterial3: true,
-        textTheme: GoogleFonts.outfitTextTheme(),
-      ),
+      theme: buildPublicTheme(Brightness.light),
+      darkTheme: buildPublicTheme(Brightness.dark),
+      themeMode: themeMode,
       builder: (context, child) {
         // Wrap the navigator in our MainLayout (Sidebar)
         return MainLayout(child: child ?? const SizedBox.shrink());
