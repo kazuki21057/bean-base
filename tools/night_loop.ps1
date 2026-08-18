@@ -20,7 +20,11 @@
                                                              Proプラン使用率ログの記録は
                                                              2026-08-13にゲートから記録専用
                                                              へ変更したためスキップ対象では
-                                                             なく、-Force指定時も記録する)
+                                                             なく、-Force指定時も記録する。
+                                                             ただし週次使用率ガード(5.6、
+                                                             2026-08-19新設)は実行を止めうる
+                                                             ガードのため-Force指定時はスキップ
+                                                             する)
       powershell -File tools\night_loop.ps1 -ConfigPath X  既定は tools\night_loop.config.json
       環境変数 BEANBASE_NL_TEST_LOCK_PATH  多重起動ガードのロックファイルパスを差し替える
                               (テスト専用、tools/acceptance/t5_a90_check.ps1が使用。
@@ -45,6 +49,11 @@
       usageGuardTimeoutSec    使用率取得(claude -p "/usage" --output-format json、
                               コスト$0)のタイムアウト秒数(既定20。2026-08-16、
                               L166によりHTTP版(localhost:3000)から乗り換え)。
+      usageWeekSkipThreshold  週次Proプラン使用率ガードの閾値(%、既定97)。5.5で取得した
+                              週次使用率がこれ以上なら発火をスキップする(2026-08-19、
+                              ユーザー指示で新設。5.5自体は2026-08-13にゲートから記録専用へ
+                              変更されたままだが、週次軸のみ別ガードとして復活させたもの。
+                              -Force指定時はスキップされる)。
       worktreeGuardEnabled    作業ツリー汚れガードの有効/無効(既定true)。
       staleLockHours          多重起動ガードのロックファイルをstale(放棄済み)とみなす
                               経過時間(既定3)。PIDが実在してもこの時間を超えていれば
@@ -484,6 +493,7 @@ function Get-NightLoopConfig {
         activeSessionMinutes   = 45
         usageLogEnabled        = $true
         usageGuardTimeoutSec   = 20
+        usageWeekSkipThreshold = 97
         worktreeGuardEnabled   = $true
         staleLockHours         = 3
         model                  = 'sonnet'
@@ -512,7 +522,7 @@ function Get-NightLoopConfig {
         return $null
     }
 
-    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardTimeoutSec', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug', 'playbookPreflightTimeoutSec', 'playbookPostmortemTimeoutSec', 'orphanPlaybookKillHours')) {
+    foreach ($key in @('weeklyRunLimit', 'activeSessionMinutes', 'usageLogEnabled', 'usageGuardTimeoutSec', 'usageWeekSkipThreshold', 'worktreeGuardEnabled', 'staleLockHours', 'model', 'maxBudgetUsd', 'settingsPath', 'projectSlug', 'playbookPreflightTimeoutSec', 'playbookPostmortemTimeoutSec', 'orphanPlaybookKillHours')) {
         if ($json.PSObject.Properties.Name -contains $key -and $null -ne $json.$key) {
             $config[$key] = $json.$key
         }
@@ -753,6 +763,21 @@ function Invoke-NightLoop {
             $usageFallback = Join-Path $NightLogsDir ('night_usage_log.fallback-{0}.log' -f $PID)
             $null = Write-LineWithRetry -Path $NightUsageLogPath -Line $usageLine -FallbackPath $usageFallback
         }
+    }
+
+    # --- 5.6. 週次使用率ガード(2026-08-19、ユーザー指示により新設) ---
+    # 5.5は2026-08-13にゲートから記録専用へ変更されたままだが、週次使用率が高止まりして
+    # いる間に無人実行しても失敗するだけなので、週次軸のみ別ガードとして復活させる。
+    # 5時間枠は変動が速く一時的な逼迫で誤スキップしやすいためガード対象にしない。
+    if ($Force) {
+        Write-Log 'INFO' '-Force指定のため週次使用率ガードをスキップします。'
+    } elseif ($usageFailOpen -or $null -eq $usageWeek) {
+        Write-Log 'INFO' '週次使用率を取得できなかったため週次使用率ガードはスキップします(fail-open)。'
+    } elseif ($usageWeek -ge [int]$Config.usageWeekSkipThreshold) {
+        Write-Log 'INFO' ('週次使用率が閾値に達しているため今回の発火をスキップします({0}% >= {1}%)。' -f $usageWeek, $Config.usageWeekSkipThreshold)
+        Send-NightNotification -ResultLine ('⚠️ スキップ(週次使用率{0}%が閾値{1}%以上)' -f $usageWeek, $Config.usageWeekSkipThreshold) -Detail '週次使用率が下がるまで待つか、tools/night_loop.config.json の usageWeekSkipThreshold を見直してください。'
+        Save-NightLoopLastRun -Outcome 'skipped_usage_week_limit' -Reason ('週次使用率{0}%が閾値{1}%以上に達しました。' -f $usageWeek, $Config.usageWeekSkipThreshold) -ExitCode 0
+        return 0
     }
 
     # --- 6. 週次予算ガード ---
