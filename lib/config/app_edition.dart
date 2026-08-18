@@ -33,6 +33,9 @@ class AppEdition {
   final bool showAds;
   final bool enableSubscription;
 
+  /// 開発者向け画面(lib/screens/debug/)への導線を出すか。public版はfalse。
+  final bool showDebugScreens;
+
   const AppEdition({
     required this.kind,
     required this.enabledScreens,
@@ -40,6 +43,7 @@ class AppEdition {
     required this.aiKeyMode,
     required this.showAds,
     required this.enableSubscription,
+    required this.showDebugScreens,
   });
 }
 
@@ -89,10 +93,12 @@ const AppEdition kPersonalEdition = AppEdition(
   aiKeyMode: AiKeyMode.ownKey,
   showAds: false,
   enableSubscription: false,
+  showDebugScreens: true,
 );
 
-/// public(Android)版: 暫定値。E-1時点では「現状から機能的に変わらない」設定として
-/// 全画面を許可しておき、実際のホワイトリスト絞り込みはE-2で行う。
+/// public(Android)版。enabledScreensは現時点では全画面を許可する(T5-B2で決定、
+/// 根拠は コードベース構成方針.md §9.2 D2)。開発者向け画面の遮断は
+/// showDebugScreens=false で行う。
 const AppEdition kPublicEdition = AppEdition(
   kind: Edition.public,
   enabledScreens: kAllAppScreens,
@@ -100,6 +106,7 @@ const AppEdition kPublicEdition = AppEdition(
   aiKeyMode: AiKeyMode.ownKey,
   showAds: false,
   enableSubscription: false,
+  showDebugScreens: false,
 );
 
 /// T5-B3(E-3): 現在アクティブな[AppEdition]を提供するProvider。

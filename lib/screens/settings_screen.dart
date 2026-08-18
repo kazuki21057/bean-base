@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_edition.dart';
 import '../models/origin_master.dart';
 import '../providers/data_providers.dart';
 import '../providers/theme_provider.dart';
@@ -410,35 +411,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        FormSection(
-          icon: Icons.bug_report_outlined,
-          title: 'デバッグ',
-          children: [
-            MockListRow(
-              icon: Icons.cloud_upload_outlined,
-              title: 'Firebaseストレージ動作確認',
-              subtitle: '画像アップロード機能の動作確認',
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const FirebaseTestScreen()));
-              },
-            ),
-            MockListRow(
-              icon: Icons.grid_view_outlined,
-              title: '画面一覧 (Cycle 20 T1-1b)',
-              subtitle: '全22画面のプレースホルダへ遷移確認',
-              onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ScreenGalleryScreen()));
-              },
-            ),
-            MockListRow(
-              icon: Icons.add_photo_alternate_outlined,
-              title: '画像一括インポート',
-              subtitle: 'ファイル名の先頭がマスターIDと一致する画像をまとめて登録',
-              onTap: () => _handleBulkImageImport(context, ref),
-            ),
-          ],
-        ),
+        if (ref.watch(appEditionProvider).showDebugScreens) ...[
+          const SizedBox(height: 8),
+          FormSection(
+            icon: Icons.bug_report_outlined,
+            title: 'デバッグ',
+            children: [
+              MockListRow(
+                icon: Icons.cloud_upload_outlined,
+                title: 'Firebaseストレージ動作確認',
+                subtitle: '画像アップロード機能の動作確認',
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const FirebaseTestScreen()));
+                },
+              ),
+              MockListRow(
+                icon: Icons.grid_view_outlined,
+                title: '画面一覧 (Cycle 20 T1-1b)',
+                subtitle: '全22画面のプレースホルダへ遷移確認',
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ScreenGalleryScreen()));
+                },
+              ),
+              MockListRow(
+                icon: Icons.add_photo_alternate_outlined,
+                title: '画像一括インポート',
+                subtitle: 'ファイル名の先頭がマスターIDと一致する画像をまとめて登録',
+                onTap: () => _handleBulkImageImport(context, ref),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

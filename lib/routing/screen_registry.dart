@@ -1,6 +1,7 @@
 // ignore_for_file: always_use_package_imports
 import 'package:flutter/material.dart';
 import 'app_screen.dart';
+import '../config/app_edition.dart';
 import '../screens/create/bean_create_screen.dart';
 import '../screens/create/dripper_create_screen.dart';
 import '../screens/create/filter_create_screen.dart';
@@ -102,3 +103,8 @@ Widget buildScreenWidget(AppScreen screen) {
 /// UIモック以上が実装済みの画面(ギャラリーでの表示分け用)。
 /// 2026-07-05 時点で全22画面のUIモックが揃っている。
 bool isScreenImplemented(AppScreen screen) => true;
+
+/// このエディションで到達可能な画面の一覧(ホワイトリスト適用後)。
+/// enum の宣言順を保つ。
+List<AppScreen> visibleScreens(AppEdition edition) =>
+    AppScreen.values.where(edition.enabledScreens.contains).toList();

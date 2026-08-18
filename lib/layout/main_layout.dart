@@ -1,6 +1,7 @@
 // ignore_for_file: always_use_package_imports
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/app_edition.dart';
 import '../routing/app_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/masters_hub_screen.dart';
@@ -54,6 +55,18 @@ class MainLayout extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navIndexProvider);
+    final edition = ref.watch(appEditionProvider);
+    final visibleTabs = AppScreen.topLevelTabs
+        .where(edition.enabledScreens.contains)
+        .toList();
+    // enabledScreens の縮小で selectedIndex が範囲外になると
+    // NavigationBar/NavigationRail の assert に触れるため必ずクランプする。
+    final safeIndex =
+        (selectedIndex >= 0 && selectedIndex < visibleTabs.length) ? selectedIndex : 0;
+
+    if (visibleTabs.isEmpty) {
+      return Scaffold(body: child);
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -65,14 +78,14 @@ class MainLayout extends ConsumerWidget {
             : Row(
                 children: [
                   NavigationRail(
-                    selectedIndex: selectedIndex,
+                    selectedIndex: safeIndex,
                     onDestinationSelected: (int index) {
                          ref.read(navIndexProvider.notifier).state = index;
-                        _navigateToIndex(index);
+                        _navigateToIndex(index, visibleTabs);
                     },
                     labelType: NavigationRailLabelType.selected,
                     destinations: [
-                      for (final screen in AppScreen.topLevelTabs)
+                      for (final screen in visibleTabs)
                         NavigationRailDestination(
                           icon: Icon(_tabIcons[screen]),
                           label: Text(_tabLabels[screen]!),
@@ -85,13 +98,13 @@ class MainLayout extends ConsumerWidget {
               ),
           bottomNavigationBar: isMobile
             ? NavigationBar(
-                selectedIndex: selectedIndex,
+                selectedIndex: safeIndex,
                 onDestinationSelected: (int index) {
                    ref.read(navIndexProvider.notifier).state = index;
-                   _navigateToIndex(index);
+                   _navigateToIndex(index, visibleTabs);
                 },
                 destinations: [
-                  for (final screen in AppScreen.topLevelTabs)
+                  for (final screen in visibleTabs)
                     NavigationDestination(
                       icon: Icon(_tabIcons[screen]),
                       label: _tabLabels[screen]!,
@@ -105,8 +118,8 @@ class MainLayout extends ConsumerWidget {
     );
   }
 
-  void _navigateToIndex(int index) {
-    final screen = _screenFor(AppScreen.topLevelTabs[index]);
+  void _navigateToIndex(int index, List<AppScreen> tabs) {
+    final screen = _screenFor(tabs[index]);
 
     // Use the global navigator key to push to the main content area
     // Remove all previous routes to simulate top-level tabs
