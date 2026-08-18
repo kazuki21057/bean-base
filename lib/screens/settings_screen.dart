@@ -2,12 +2,12 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_edition.dart';
 import '../models/origin_master.dart';
 import '../providers/data_providers.dart';
 import '../providers/theme_provider.dart';
 import '../routing/app_screen.dart';
+import '../services/ai_key_service.dart';
 import '../services/data_service.dart';
 import '../services/image_service.dart';
 import '../services/migration_service.dart';
@@ -112,17 +112,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    var apiKey = '';
+    try {
+      apiKey = await ref.read(aiKeyServiceProvider).readKey() ?? '';
+    } on AiKeyUnavailableException catch (e) {
+      debugPrint('[Antigravity] AIキー読み込み: $e');
+    }
     setState(() {
-      _apiKeyController.text = prefs.getString('gemini_api_key') ?? '';
+      _apiKeyController.text = apiKey;
       _isLoading = false;
     });
   }
 
   Future<void> _saveApiKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('gemini_api_key', _apiKeyController.text.trim());
-    debugPrint('[Antigravity] Action: Gemini APIキーを保存');
+    try {
+      await ref.read(aiKeyServiceProvider).saveKey(_apiKeyController.text.trim());
+    } on AiKeyUnavailableException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('設定を保存しました')),
@@ -251,6 +261,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
         ),
+        if (ref.read(aiKeyServiceProvider).requiresUserKey)
         FormSection(
           icon: Icons.key_outlined,
           title: 'Gemini APIキー',
@@ -367,6 +378,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ],
         ),
+        // T5-B4アドバーサリレビュー指摘: このボタンはAPIキー保存専用(_saveApiKey)。
+        // proxyモードではAPIキー入力欄(上のFormSection)と同じ条件で非表示にする。
+        if (ref.read(aiKeyServiceProvider).requiresUserKey)
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(

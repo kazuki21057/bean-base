@@ -99,11 +99,14 @@ const AppEdition kPersonalEdition = AppEdition(
 /// public(Android)版。enabledScreensは現時点では全画面を許可する(T5-B2で決定、
 /// 根拠は コードベース構成方針.md §9.2 D2)。開発者向け画面の遮断は
 /// showDebugScreens=false で行う。
+/// aiKeyMode=proxy(T5-B4/§10.2 D6で決定): public版はサーバ中継でAI機能を
+/// 提供する想定。中継サーバの実体はT5-B41まで無いため、当面はAI機能利用時に
+/// プレースホルダ例外(AiKeyUnavailableException)が出る(public版は未リリースのため実害なし)。
 const AppEdition kPublicEdition = AppEdition(
   kind: Edition.public,
   enabledScreens: kAllAppScreens,
   useLocalDb: false,
-  aiKeyMode: AiKeyMode.ownKey,
+  aiKeyMode: AiKeyMode.proxy,
   showAds: false,
   enableSubscription: false,
   showDebugScreens: false,

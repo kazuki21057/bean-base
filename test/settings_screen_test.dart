@@ -12,6 +12,7 @@ import 'package:bean_base/models/pouring_step.dart';
 import 'package:bean_base/models/recipe_suggestion.dart';
 import 'package:bean_base/models/store_master.dart';
 import 'package:bean_base/models/bean_purchase.dart';
+import 'package:bean_base/config/app_edition.dart';
 import 'package:bean_base/providers/data_providers.dart';
 import 'package:bean_base/providers/theme_provider.dart';
 import 'package:bean_base/screens/settings_screen.dart';
@@ -176,6 +177,27 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('gemini_api_key'), 'test-api-key-123');
     expect(find.text('設定を保存しました'), findsOneWidget);
+  });
+
+  testWidgets('SettingsScreen: kPublicEdition(proxy)ではAPIキー入力欄・保存ボタンともに非表示', (tester) async {
+    // T5-B4アドバーサリレビュー指摘の回帰テスト: proxyモードでは
+    // 「Gemini APIキー」FormSectionと「設定を保存する」ボタンの両方を隠す。
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appEditionProvider.overrideWithValue(kPublicEdition),
+        ],
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Gemini APIキー'), findsNothing);
+    expect(find.text('設定を保存する'), findsNothing);
   });
 
   testWidgets('SettingsScreen: データ移行を実行すると結果が表示され、未突合を手動確定できる', (tester) async {

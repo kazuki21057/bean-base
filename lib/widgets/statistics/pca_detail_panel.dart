@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/coffee_record.dart';
 import '../../screens/create/create_form_widgets.dart';
 import '../../services/ai_analysis_service.dart';
+import '../../services/ai_key_service.dart';
 import '../../services/statistics_service.dart';
 
 /// F2拡張: PCA全成分の詳細パネル (設計書§6.2、T4-3b)。
@@ -203,11 +204,24 @@ class _PcaDeepAiSectionState extends ConsumerState<_PcaDeepAiSection> {
 
   Future<void> _run() async {
     final prefs = await SharedPreferences.getInstance();
-    var apiKey = prefs.getString('gemini_api_key');
+    String? apiKey;
+    try {
+      apiKey = await ref.read(aiKeyServiceProvider).readKey();
+    } on AiKeyUnavailableException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
     if ((apiKey == null || apiKey.isEmpty) && mounted) {
       apiKey = await _askApiKey();
       if (apiKey != null && apiKey.isNotEmpty) {
-        await prefs.setString('gemini_api_key', apiKey);
+        try {
+          await ref.read(aiKeyServiceProvider).saveKey(apiKey);
+        } on AiKeyUnavailableException catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+          return;
+        }
       }
     }
     if (apiKey == null || apiKey.isEmpty) return;
