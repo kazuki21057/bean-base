@@ -1,7 +1,7 @@
-# 夜間ループ報告 2026-08-18 09:20(2回目)
+# 夜間ループ報告 2026-08-19 04:10
 
-- **タスク**: T5-B20 公開版デザイントークンの設計 / T5-B21 公開版デザイントークンの実装
-- **結果**: ✅ 両方完了 / main へ自動push済み(T5-B20: commit 1163220 / T5-B21: 直後のcommit)
-- **検証**: T5-B20はドキュメントのみのためverifier/adversary不要。T5-B21はverify.ps1全green(acceptance含む)、adversary 1回目でMajor3件(`mainColorProvider`残存参照のコメント不正確/フォント未同梱のまま`fontFamily`指定/`unit`色不一致)検出→implementer差し戻し修正→再検証でCritical/Major0・Minor1件(実害なし)
-- **人がやること**: なし。IBM Plex Monoフォント本体の調達(`pubspec.yaml`登録・`assets/fonts/`配置)は未着手のまま(T5-B21のスコープ外、新規タスク化を検討)
-- **次のタスク**: T5-B22(公開版共通コンポーネント12種、依存T5-B21充足)
+- **タスク**: T5-B22 公開版共通コンポーネント(束1: BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)
+- **結果**: ✅ 束1完了 / main へ自動push済み。Lタスクのため束1のみで打ち切り(束2・束3は次回以降)
+- **検証**: verify.ps1全green(golden 14/14、diff_count 0)。adversary 1回目でMajor2件(`BbListRow`が`buildPublicTheme()`外でクラッシュしうる/golden分岐カバレッジ不足)→implementer差し戻し修正。起動回数カウンタが10の倍数だったため定期`/code-review`を追加実行し、さらにMajor2件(BbChipのタップリップルが不透明Containerで隠れる/BbCardのタップ時shadowがClipRRectで消える)を検出→即座にimplementer差し戻し修正。最終再検証でCritical/Major0・Minor1件(実害なしと判断、対応不要)を確認。教訓L171追加
+- **人がやること**: なし
+- **次のタスク**: T5-B22束2(BbEmptyState/BbLoading/BbErrorView、依存T5-B22束1充足)

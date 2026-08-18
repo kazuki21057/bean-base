@@ -1,12 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-18(Sonnet 5、無人`/night_loop`(09:20枠2回目)。T5-B20・T5-B21の2件完了・main push済み)
+最終更新: 2026-08-19(Sonnet 5、無人`/night_loop`(04:10枠)。T5-B22束1完了・main push済み)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
+- **【2026-08-19・無人`/night_loop`(04:10枠)】T5-B22束1(公開版共通コンポーネント5種: BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み**。Lタスクのため束1のみで打ち切り。実装中の`adversary`レビューでMajor2件(`BbListRow`が`buildPublicTheme()`外でクラッシュしうる/golden分岐カバレッジ不足)、締め直前の`/code-review`(カウンタ10の倍数、定期実行ルール)でさらにMajor2件(BbChipのタップリップルが不透明Containerで隠れる/BbCardのタップ時shadowがClipRRectで消える)を検出、いずれも即座に`implementer`へ差し戻し修正・再検証済み(最終Critical0/Major0)。教訓L171追加(ThemeExtension `!`アンラップのクラッシュリスクとフォールバック値パターン)。次点はT5-B22束2(BbEmptyState/BbLoading/BbErrorView)。詳細は「3. 直近の作業ログ」-5.117節。
 - **【2026-08-18・無人`/night_loop`(09:20枠2回目)】T5-B20(公開版デザイントークン設計)・T5-B21(同実装)の2件完了・main push済み**。同じ09:20枠内でT5-B2/T5-B4完了後に継続、「⚠️上位モデルで実施」タスクを`architect`委譲で無人のまま自己解決する2026-08-18改訂ルールの初適用例。T5-B20は`architect`が`docs/android_monetization/デザイン方針.md`(400行、D1〜D8決定事項・トークン仕様・画面構造・共通コンポーネント12種)を新規作成、ドキュメントのみでmain push(commit `1163220`)。2件目T5-B21(M)は`implementer`が`lib/theme/public/`配下にトークン一式実装、1回目`adversary`レビューでMajor指摘3件(D1違反の`mainColorProvider`残存参照とコメント不正確/フォント未同梱のまま`fontFamily`指定/`unit`色が設計と不一致)を検出、`implementer`へ差し戻し修正、再検証でCritical/Major0・Minor1件(実害なし)を確認しmain push。詳細は「3. 直近の作業ログ」-5.116節。
 - **【2026-08-18・無人`/night_loop`(09:20枠)】T5-B2(E-2画面ホワイトリスト)・T5-B4(E-4 AIキー取得の一本化)の2件完了・main push済み**。前々回04:10枠が中断した際にスタックしていたT5-B2/T5-B4は、直前の23:00枠で`architect`が設計判断を確定済み(`docs/android_monetization/コードベース構成方針.md` §9・§10)だったため、今回はimplementer向け仕様がそのまま使える状態だった。オープンPR確認は該当なし。T5-B2(M)を`implementer`実装→`verifier`+`adversary`並行検証(全green、Critical/Major 0)でmain push(commit `2a9bbc6`)。夜間しきい値に余裕があったため2件目にT5-B4(S)を選定・実装、`adversary`1回目レビューでMajor指摘(`kPublicEdition`〈proxy〉で設定画面の「設定を保存する」ボタンがガード漏れ、AI無関係画面でAI専用エラーSnackBarが出る)を検出、`implementer`へ差し戻し修正、再検証でCritical/Major/Minorとも0件を確認しmain push(commit `3786dd5`)。2件実施で本ループの上限(最大2件)に到達し新規タスクには着手せず締めた。
 - **【2026-08-18・無人`/night_loop`(04:10枠)】着手可能なS/M/Lタスクが無く中断、新規実装なし**。前回23:00枠が発見・記録した状況を再確認: T5-B2/T5-B4は`screenRegistry`・`AppEdition`のコードを実際に読み直したが設計判断が必要という前回判定は変わらず(B4はproxyモードの鍵取得方法が未設計、B2はmock/実装済み画面の混在でホワイトリスト化不可)、T5-A45はCI基盤未整備で変わらず見送り、T5-B10は`.claude/settings.night.json`が未更新のためT5-A102(ユーザー実施待ち)ブロック継続。`git pull`はコンフリクトなし・差分なし。`.claude/failure_state.json`のFP-04-PERMISSIONが`consecutive:17`のまま(escalated:falseだが検知は継続中、T5-A102で解消見込み)。
@@ -78,7 +79,9 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-18最新・無人`/night_loop`09:20枠2回目】T5-B20・T5-B21完了・main push済み。次に着手できるのはT5-B22(公開版共通コンポーネント12種、束1〜3に分割、依存T5-B21充足)。** IBM Plex Monoフォント本体の調達(`pubspec.yaml`登録・`assets/fonts/`配置)はT5-B21のスコープ外のまま未着手、後続タスク化を検討すること。デザイン方針.md §14の未決事項(アプリ名・ロゴ、フォント実サイズ影響、wakelock)も判断が必要。
+> **【2026-08-19最新・無人`/night_loop`04:10枠】T5-B22束1(BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み。次に着手できるのはT5-B22束2(BbEmptyState/BbLoading/BbErrorView、依存T5-B22束1充足)。** 束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)はその後。IBM Plex Monoフォント本体の調達は引き続き未着手。
+>
+> **【2026-08-18・1つ前・無人`/night_loop`09:20枠2回目】T5-B20・T5-B21完了・main push済み。** IBM Plex Monoフォント本体の調達(`pubspec.yaml`登録・`assets/fonts/`配置)はT5-B21のスコープ外のまま未着手、後続タスク化を検討すること。デザイン方針.md §14の未決事項(アプリ名・ロゴ、フォント実サイズ影響、wakelock)も判断が必要。
 >
 > **【2026-08-17最新・無人`/night_loop`23:00枠】T5-B3完了・main push済み(commit 9d80e7a)。次に着手できるのはT5-B2(E-2、M、依存T5-B1充足だが`screenRegistry`の前提〈`lib/screens/mock/*`が現行の共有実装であり単純な個人限定debug画面ではない〉が設計書と食い違うため要`architect`判断)・T5-B4(E-4、S、依存T5-B1充足だが`gemini_api_key`取得ロジックが6ファイルに重複しておりS規模を超える恐れ、要判断)・T5-A45(golden OS非依存化、CI基盤未整備のため要設計)。いずれも無人実行では設計判断を要するため見送り済み。**T5-A102(⚠️ユーザー実施、`.claude/settings.night.json`の`allow`へ`WebSearch`/`WebFetch`追加)が完了すればT5-B10(researcher役のDB選定調査)が次点候補になる。**
 >
@@ -159,17 +162,16 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.116 当日やったこと(2026-08-18、Sonnet 5、無人`/night_loop`(09:20枠2回目、`tools/night_loop.ps1`起動・`BEANBASE_NIGHT_LOOP=1`)、Windows環境。T5-B20・T5-B21完了、main push済み)
+### -5.117 当日やったこと(2026-08-19、Sonnet 5、無人`/night_loop`(04:10枠、`tools/night_loop.ps1`起動・`BEANBASE_NIGHT_LOOP=1`)、Windows環境。T5-B22束1完了、main push済み)
 
-- T5-B2/T5-B4完了直後の同じ09:20枠内で継続。T5-B2/T5-B4完了によりE-1〜E-4が全完了、次点のトラックB残りタスクを再選定。T5-A45(CI基盤未整備)・T5-B10(researcher権限gap、T5-A102ユーザー実施待ち)はいずれも見送り、「⚠️上位モデルで実施」のT5-B20(公開版デザイントークンの設計)が唯一の依存充足タスクだったため、2026-08-18改訂の「⚠️上位モデルで実施タスクもarchitectへ委譲して無人のまま自己解決してよい」ルールに従い`architect`へ委譲。
-- **T5-B20(公開版デザイントークン設計)**: `architect`が`docs/android_monetization/デザイン方針.md`(400行)を新規作成。決定事項D1〜D8(D1: 公開版は`mainColorProvider`等personal由来の色系を一切使わない、D6: T5-B21は既定`ThemeMode.light`→T5-B27で`system`へ変更、D7: 画面ID`P100`〜`P920`でpersonal版の3桁IDと衝突回避、他)、`ColorScheme`全ロール値・`BbColors`/`BbTypography`/`BbSpace`等トークン仕様、画面構造・共通コンポーネント12種(3束)・アクセシビリティ最低基準まで一式を確定。ドキュメントのみのため`verifier`/`adversary`委譲なし、マスタープランT5-B20行に✅と要点を記録、T5-B22・T5-B27行にarchitectの推奨文言を追記(非委譲しきい値(a)に該当する軽微な追記のため親が直接編集)。commit `1163220`でpush済み。
-- 夜間しきい値に余裕があったため2件目としてT5-B21(公開版デザイントークンの実装、M、依存T5-B20)を選定。`implementer`へ§7ファイル配置・§3/§4トークン仕様どおりに委譲、`lib/theme/public/bb_colors.dart`・`bb_typography.dart`・`bb_tokens.dart`・`bb_theme.dart`・`lib/providers/public_theme_provider.dart`を新規作成、`lib/main_public.dart`を`buildPublicTheme()`経由の配線へ更新、`test/acceptance/t5_b21_acceptance_test.dart`新規(8ケース)。
-- `verifier`(`verify.ps1 -Task T5-B21`全green、`main.dart`差分ゼロ確認)・`adversary`を並行検証。1回目のadversaryレビューでMajor指摘3件: **M1**設計D1に反し`main_public.dart`が`mainColorProvider`を参照し続け、正当化コメントも不正確(実際は`MainLayout`ではなく`settings_screen.dart`等が参照元)。**M2**`fontFamily: 'IBMPlexMono'`を指定しているがフォント本体が`pubspec.yaml`/`assets/fonts/`に未同梱で実際には効かない。**M3**`BbTypography.unit`の色が設計指定の`onSurfaceVariant`ではなく`onSurface`のまま。Minor2件(N1: `allowRuntimeFetching=false`未実装、N2: `ThemeMode.system`のテスト未整備)。
-- Critical 0件でゲート条件自体は通過可能だったが、後続タスクの土台になる基礎トークン層であることと直近のT5-B4での運用実績(Major差し戻し→再検証の先例)を踏まえ`implementer`へ差し戻し。M1はコメントを正確な記述へ修正(参照元を明記、行自体は残置)、M2はフォント本体が無い間`fontFamily`指定を一旦外し理由をコメント化(`fontFeatures: tabularFigures`は維持)、M3は`buildBbTypography`に`unitColor`引数を追加し`onSurfaceVariant`を渡すよう修正、N1は`google_fonts`を再import・`GoogleFonts.config.allowRuntimeFetching = false;`を追加。テストにunit色検証ケースも追加。
-- 再検証(`verifier`+`adversary`並行)で`verify.ps1 -Task T5-B21`全green(9項目、acceptance含む)、adversary Critical 0・Major 0・Minor 1(`MyApp`内`ref.watch(mainColorProvider)`の必要性説明がやや過大、実害なし)を確認。ゲート全条件クリアでmainへpush。
-- 2件実施で本ループの上限(最大2件)に到達したため、新規タスクには着手せず締めに入った。
-- 変更ファイル: T5-B20はドキュメントのみ(`docs/android_monetization/デザイン方針.md`新規・`docs/改修マスタープラン.md`、commit `1163220`)。T5-B21は`lib/theme/public/bb_colors.dart`・`bb_typography.dart`・`bb_tokens.dart`・`bb_theme.dart`(いずれも新規)・`lib/providers/public_theme_provider.dart`(新規)・`lib/main_public.dart`・`test/acceptance/t5_b21_acceptance_test.dart`(新規)。締めの本コミットで`docs/改修マスタープラン.md`(T5-B21完了マーク)・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`(-5.115節退避)・`night_report.md`・`.claude/night_loop_run_count.txt`を追加更新。
-- **次回セッションで最初にやること**: T5-B21完了により公開版デザイントークンの基盤が整った。次点はT5-B22(共通コンポーネント12種、束1〜3に分割、依存T5-B21充足)。T5-A45・T5-B10は引き続き見送り/ユーザー実施待ち。デザイン方針.md §14の未決事項(アプリ名・ロゴ、IBM Plex Monoの実サイズ影響、wakelock)は後続タスクで判断すること。IBM Plex Monoフォント本体の調達(ダウンロード・`pubspec.yaml`登録・`assets/fonts/`配置)はT5-B21のスコープ外のまま未着手——後続タスクで対応するか新規タスク化するか判断すること。
+- プリフライトOK、`.claude/failure_state.json`にescalated:trueなし(除外対象タスクなし)、`git pull`コンフリクトなし。トリガー04:10のため優先確認(⚠️ユーザー実施の準備作業)を確認したが該当なし、通常のS/M/L選定へフォールバック。依存充足の最上位は「T5-B22(共通コンポーネント12種、束1〜3に分割、L(要分割)、依存T5-B21充足)」のみで、オープンPR確認も該当なし。
+- **T5-B22束1**: Lタスクだが`デザイン方針.md` §8の3束分割案に従い、本ループでは束1(BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChipの5コンポーネント)のみを実装するスコープ縮小判断(既存の「🟦進行中」部分完了の慣例に合わせる)。`implementer`へ§7ファイル配置・§8コンポーネント仕様どおり委譲、`lib/widgets/public/`配下に5ファイル新規、`lib/theme/public/bb_theme.dart`の`context.bbColors`/`context.bbType`拡張ゲッターの`!`強制アンラップをフォールバック値返却へ変更(`buildPublicTheme()`未適用の文脈でもクラッシュしない設計)、`test/golden/golden_test_helper.dart`に`theme`引数を追加(後方互換)、`test/golden/public_bb_widgets_golden_test.dart`新規(golden 10→最終14件)。
+- `verifier`+`adversary`並行検証。1回目adversaryでMajor2件: **M1**`BbListRow`が`context.bbType`を無条件参照しており`buildPublicTheme()`外で使うとクラッシュしうる(`bb_theme.dart`の`!`強制アンラップが真因)。**M2**goldenが各コンポーネント1バリアントのみでBbCard onTap/BbListRow最小構成/BbPrimaryButton isLoading/BbChip選択+roastDotColor組み合わせの4分岐が未カバー。Minor1件(フォールバック値によりtheme未適用の誤用が「もっともらしく」描画され気づきにくくなる、実害なしと判断・対応不要)。
+- `implementer`へ差し戻し: M1は`bb_theme.dart`のゲッターをフォールバック構築値返却に修正、新規スモークテスト`test/widgets/public/bb_widgets_plain_theme_test.dart`(5ケース)で無テーマ環境でもクラッシュしないことを確認。M2はgolden4件追加(`bb_card_on_tap_light`・`bb_list_row_minimal_light`・`bb_primary_button_loading_light`〈`pumpAndSettle`ではなく固定`pump()`、無限アニメーション対応〉・`bb_chip_selected_roast_dot_light`)。再検証でCritical 0・Major 0・Minor 1(実害なし)を確認、教訓L171として記録(ThemeExtension `!`アンラップのクラッシュリスクとフォールバック値パターン)。
+- ゲート通過でmain push前に、`.claude/night_loop_run_count.txt`がループ開始時点で「10」(10の倍数)だったため`/code-review`(effort=medium、対象: 直近のgit diff)を追加実行。**Major2件を新規検出**: **M1**`bb_chip.dart`がInkWellの子を不透明`Container`でラップしタップ時のリップルが見えない。**M2**`bb_card.dart`のタップ可能分岐が影付き`Ink`装飾を`ClipRRect`でラップしBoxShadowがクリップされ見えない(非タップ分岐は正常)。Minor2件(`bb_theme.dart`のTheme.of()複数回呼び出し・`bb_list_row.dart`のvalue未使用時もbbType評価)。ルールどおり`implementer`へ即座に差し戻し、M1は`Container`→`Ink`、M2は影用`DecoratedBox`(ClipRRect外側)+リップル用`ClipRRect`(内側)の二層構成へ分離、Minor2件も低コストのため合わせて修正。golden4件(BbChip関連3件・BbCard onTap)が見た目変化でdiff検出→`--update-goldens`で再生成、14/14再パス確認。`verifier`が再検証しtrue(analyze/test 409件/build web/golden diff_count 0/codegen/secret_scan/acceptance参考、いずれもok)。
+- 変更ファイル: `lib/widgets/public/bb_card.dart`・`bb_chip.dart`・`bb_list_row.dart`・`bb_buttons.dart`・`bb_section_header.dart`(いずれも新規)、`lib/theme/public/bb_theme.dart`(修正)、`test/golden/golden_test_helper.dart`(修正)、`test/golden/public_bb_widgets_golden_test.dart`(新規、14件)、`test/golden/goldens/public/*.png`(新規14件)、`test/widgets/public/bb_widgets_plain_theme_test.dart`(新規)。締めの本コミットで`docs/改修マスタープラン.md`(T5-B22行を🟦進行中へ更新)・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`(-5.116節退避)・`rules/lessons_archive.md`(L171)・`rules/verification.md`(索引)・`night_report.md`・`.claude/night_loop_run_count.txt`を追加更新。
+- Lタスクのため本ループは束1のみで打ち切り(2件目の新規着手なし)。
+- **次回セッションで最初にやること**: T5-B22束2(BbEmptyState/BbLoading/BbErrorView)から着手。束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)はその後。T5-A45・T5-B10は引き続き見送り/ユーザー実施待ち。
 
 > これ以前(-5.114節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 

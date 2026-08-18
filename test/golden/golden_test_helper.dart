@@ -26,6 +26,9 @@ const goldenTargetKey = Key('golden_target');
 ///
 /// [width]/[height] を指定すると`SizedBox`で対象を制約する
 /// (幅無制約でレイアウトできないウィジェット向け)。
+/// [theme] を渡すと、既定の素の`ThemeData(brightness:)`の代わりにそれを使う。
+/// 公開版コンポーネント(T5-B22)の`buildPublicTheme(Brightness)`をそのまま
+/// 渡すことを想定した拡張(既存呼び出し側は[theme]省略で従来どおり動作する)。
 Future<void> pumpAndMatchGolden(
   WidgetTester tester, {
   required Widget child,
@@ -33,18 +36,22 @@ Future<void> pumpAndMatchGolden(
   required String goldenPath,
   double? width,
   double? height,
+  ThemeData? theme,
 }) async {
   Widget target = RepaintBoundary(key: goldenTargetKey, child: child);
   if (width != null || height != null) {
     target = SizedBox(width: width, height: height, child: target);
   }
 
+  final effectiveTheme = theme ?? ThemeData(brightness: brightness, useMaterial3: true);
+
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData(brightness: brightness, useMaterial3: true),
+      theme: effectiveTheme,
       home: Scaffold(
-        backgroundColor:
-            brightness == Brightness.dark ? Colors.black : Colors.white,
+        backgroundColor: theme != null
+            ? effectiveTheme.scaffoldBackgroundColor
+            : (brightness == Brightness.dark ? Colors.black : Colors.white),
         body: Center(child: target),
       ),
     ),

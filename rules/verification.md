@@ -234,3 +234,4 @@
 - L168 headless(`claude -p`)でサブエージェントを非同期(既定)のまま委譲すると600秒待機上限で`claude.exe`ごと強制終了され、実装だけ完了し検証/コミット未実施のまま作業ツリーがdirtyで残る。無人ループの委譲は必ず`run_in_background: false`。全文: `rules/lessons_archive.md`
 - L169 `.claude/settings.night.json`の`allow`に`WebSearch`/`WebFetch`が無く、無人ループ中は`researcher`のWeb調査タスクが常に拒否される(T5-A102起票、ユーザー実施待ち)。全文: `rules/lessons_archive.md`
 - L170 `fontFamily`をコードで指定してもフォント本体を`pubspec.yaml`/`assets/fonts/`に同梱しなければ無警告で既定フォントへフォールバックし、analyze/test/acceptanceのいずれでも検知できない(T5-B21/adversaryレビュー)。全文: `rules/lessons_archive.md`
+- L171 `ThemeExtension`を`BuildContext`拡張ゲッターで`!`強制アンラップすると、テーマ非対応の画面でwidgetを使った瞬間にクラッシュする。フォールバック値を返す実装にし、素テーマ配下でのクラッシュ無しをスモークテストで担保する(T5-B22束1/adversaryレビュー)。全文: `rules/lessons_archive.md`

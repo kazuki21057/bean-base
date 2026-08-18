@@ -1036,3 +1036,9 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **事象**: `docs/android_monetization/デザイン方針.md`の設計指定どおり`lib/theme/public/bb_typography.dart`へ`fontFamily: 'IBMPlexMono'`を実装したが、フォントファイル自体は本タスクのスコープ外(ネットワーク調達不可)で未取得のまま、`pubspec.yaml`の`fonts:`セクション登録・`assets/fonts/`配置も未実施だった。Flutterはこの状態でも一切のエラー・警告を出さず、単に指定した`fontFamily`が見つからないため既定フォントへ静かにフォールバックする。`flutter analyze`・`flutter test`・`verify.ps1`のacceptanceチェックはいずれも「フォントが実際に登録されているか」を検証しておらず全green、`adversary`の敵対的レビュー(実ファイル同梱有無の確認)で初めて発覚した。
 
 **対策**: 新しい`fontFamily`をコードに指定するタスクでは、実装完了の定義に「フォント本体ファイルの同梱」と「`pubspec.yaml`への登録」を必ず含める。フォント本体の調達が別タスク・別セッションのスコープになる場合は、`fontFamily`指定自体をコードに書かず(または未同梱である旨をコメントで明記した上で一時的に外し)、フォントが同梱されるまでの間に「指定したが効いていない」状態が本番へ混入しないようにする。受入テストにフォント登録有無の検証(例: `pubspec.yaml`の`fonts:`セクションに対象ファミリー名が存在するか)を追加することも検討する。
+
+## L171 `ThemeExtension`を`BuildContext`拡張ゲッターで`!`強制アンラップすると、想定外のテーマ(親テーマに`ThemeExtension`を積んでいない画面)配下でwidgetを使った瞬間に`Null check operator used on a null value`でクラッシュする(2026-08-19、T5-B22束1/adversaryレビュー)
+
+**事象**: `lib/widgets/public/`の新規コンポーネント(`BbListRow`)が`context.bbType`(`lib/theme/public/bb_theme.dart`の`BuildContext`拡張、内部で`Theme.of(this).extension<BbTypography>()!`と`!`アンラップ)を無条件に参照していた。`buildPublicTheme()`を通した`MaterialApp`配下では常に非nullで問題ないが、テーマ非対応のテスト・将来の誤用(personal版画面への迷い込み等)では即クラッシュする。`flutter analyze`・通常のgoldenテストでは検知できず、`adversary`が「既存テーマで誤って使った場合の挙動」を観点に指摘して発覚した。
+
+**対策**: `ThemeExtension`を取り出す`BuildContext`拡張ゲッターは`!`で例外を出す代わりに、未登録時のフォールバック値(`brightness`/`ColorScheme`から組み立てた代替インスタンス)を返すようにする。あわせて「想定テーマを経由しない場合に静かにそれらしく描画されてしまう」新たな隠蔽リスクが生まれるため、素のテーマ配下でクラッシュしないことを確認するスモークテスト(`tester.takeException()`)を追加し、フォールバックが発動していないことは別途目視・レビューで担保する。今後の束2・束3実装でも同種の`context.bbXxx`参照を追加する際はこのフォールバック方針を踏襲する。
