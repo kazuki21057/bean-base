@@ -1,11 +1,8 @@
-# 夜間ループ報告 2026-08-18 04:10
+# 夜間ループ報告 2026-08-18 09:20
 
-- **タスク**: なし(着手可能なS/M/Lタスクが無いため中断)
-- **結果**: ⛔ 中断。依存充足済みの候補を全件確認したが、いずれも無人実行では着手不可と判明(新規実装は行っていない)
-  - T5-B2(E-2画面ホワイトリスト)・T5-B4(E-4 AIキーモード配線): `screenRegistry`/`AppEdition`のコードを再確認し、前回セッションの「設計判断が必要」という判定が今回も変わらないことを確認(T5-B4はproxyモードの鍵取得方法が未設計、B2はmock/実装済み画面の混在で単純なホワイトリスト化ができない)
-  - T5-B10(ローカルDB調査): `.claude/settings.night.json`が未更新のためT5-A102(ユーザー実施待ち)は引き続き未完了、`researcher`のWeb調査は依然拒否される見込み
-  - T5-A45(golden OS非依存化): CI基盤未整備のため見送り(変化なし)
-  - T3-1/T3-4/T5-C系: ユーザー実施待ちのため対象外
-- **検証**: 未実施(実装フェーズに進んでいないため)
-- **人がやること**: T5-A102(`.claude/settings.night.json`の`allow`へ`WebSearch`・`WebFetch`を追加) — 未対応のまま。対応されればT5-B10が次回着手可能になる
-- **次のタスク**: T5-A102完了待ち。それ以外は依存充足していてもB2/B4/A45いずれも有人セッションでの設計判断が必要
+- **タスク**: T5-B2(E-2画面ホワイトリスト接続), T5-B4(E-4 AIキー取得の一本化)
+- **結果**: ✅ 両方完了 / main へ自動push済み(T5-B2: commit 2a9bbc6 / T5-B4: commit 3786dd5)
+- **検証(T5-B2)**: verify.ps1 全green(acceptance含む) / adversary Critical 0・Major 0(Minor 1: 将来の防御分岐へのテスト未整備、実害なし)
+- **検証(T5-B4)**: verify.ps1 全green(acceptanceはSサイズ免除でacceptance_missingが正常) / adversary 1回目Major指摘(publicエディションで設定保存ボタンのガード漏れ)→implementer差し戻し修正→再検証Critical/Major/Minorとも0件
+- **人がやること**: なし。T5-A102(`.claude/settings.night.json`の`allow`へ`WebSearch`/`WebFetch`追加)は引き続きユーザー実施待ち。
+- **次のタスク**: E-1〜E-4(コードベース構成方針.md §7の足場)が全完了。次点はトラックB残り(T5-A45/T5-A77/T5-B10〈T5-A102待ち〉/T5-B11以降〈⚠️上位モデル、architect委譲可〉)から依存充足済みのものを選定。

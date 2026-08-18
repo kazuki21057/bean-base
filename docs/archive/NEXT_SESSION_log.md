@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.114 当日やったこと(2026-08-17、Sonnet 5、無人`/night_loop`(23:00枠、`tools/night_loop.ps1`起動・`BEANBASE_NIGHT_LOOP=1`)、Windows環境。T5-B3完了・main push済み、T5-B10は権限拒否で未完了)
+
+- プリフライトOK。前回申し送りどおりT5-B2(E-2)・T5-B0c(バグ調査)を確認したが、T5-B0cは既に前回セッション中に完了済みと判明(adversary指摘5件対応)。T5-B2は`screenRegistry`(`lib/routing/screen_registry.dart`)を確認したところ、設計書の前提「`lib/screens/mock/*`は個人限定debug画面」が誤りで、多数の`AppScreen`値の**現行の共有実装**として使われていることが判明(`lib/screens/debug/*`はそもそも`AppScreen`enumに無くScreenRegistry外)。設計判断を要するため無人実行では見送り、T5-B3(E-3: `dataServiceProvider`をAppEdition.useLocalDb経由に接続、S、依存T5-B1充足)を選定。
+- `implementer`へ委譲: `lib/config/app_edition.dart`に`appEditionProvider`(`Provider<AppEdition>`、既定`kPersonalEdition`)を新設、`lib/services/data_service.dart`の`dataServiceProvider`を`ref.watch(appEditionProvider).useLocalDb`分岐に変更(`true`なら`UnimplementedError`、`false`なら従来の`SheetsService()`)、`lib/main.dart`/`lib/main_public.dart`の`ProviderScope.overrides`にそれぞれ`kPersonalEdition`/`kPublicEdition`を追加。両エディションとも`useLocalDb: false`のため実質無変更。
+- 検証で自分のミスを発見: `verifier`へ`-Task T5-B3`付きで委譲したが、T5-B3はマスタープラン記載どおり「受入: 免除(Sサイズ)」であり`-Task`を付けるべきでなかった(`checks.acceptance.reason: "acceptance_missing"`で`ok:false`になった)。再委譲せず親が直接`-Task`無しで`tools/verify.ps1`を実行し`ok:true`(acceptance含む3スクリプト全PASS)を確認、コスト節約のため`verifier`の再起動は省略。`adversary`並行レビューはCritical/Major無し(39箇所の`dataServiceProvider`呼び出し箇所への影響を確認、いずれも既存動作を破壊しない)。自動pushゲート全条件クリアでmainへpush(commit `9d80e7a`)。
+- 夜間しきい値($20/ターン80/連続失敗2)に余裕があったため2件目としてT5-B10(ローカルDBパッケージ選定のWeb調査)を`researcher`へ委譲したところ、`WebSearch`・`WebFetch`が「running in don't ask mode」で即座に拒否され調査不能。`.claude/settings.night.json`を確認し、`defaultMode: "dontAsk"`の`allow`リストに`WebSearch`/`WebFetch`が含まれていないことが根本原因と特定(researcher自身は代替を試みず正しく拒否を報告して停止)。この設定ファイルはユーザー管理の権限プロファイルで無人ループ中は書き込み対象外のため、新規タスク**T5-A102**(⚠️ユーザー実施)を起票・教訓**L169**を`rules/lessons_archive.md`に全文追記・`rules/verification.md`にインデックス1行追加。
+- 代替の2件目タスクを再探索したが、他の依存充足S/Mタスクは全て(T5-B4=設計曖昧、T5-A45=CI基盤未整備、T5-A77=運用実験タスクで判断要、T5-A72=対象タスク不在)見送り済みのものばかりで、新規に選べる候補が無かったため2件目は選定せず1件で締めに入った。
+- 変更ファイル: `lib/config/app_edition.dart`・`lib/services/data_service.dart`・`lib/main.dart`・`lib/main_public.dart`・`docs/改修マスタープラン.md`(commit 9d80e7a)。締めの本コミットで`docs/改修マスタープラン.md`(T5-A102追加)・`rules/lessons_archive.md`・`rules/verification.md`・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`・`night_report.md`・`.claude/night_loop_run_count.txt`を追加更新。
+- **次回セッションで最初にやること**: T5-A102(ユーザーが`.claude/settings.night.json`の`allow`へ`WebSearch`/`WebFetch`を追加)が完了していればT5-B10から着手。未完了ならT5-B2(E-2)の設計判断(`architect`委譲を検討)またはT5-B4(E-4)の重複コード整理方針の検討から着手。
+
 ### -5.112 当日やったこと(2026-08-16、Sonnet 5、`/clear`後の新規セッションの`/full_loop`(起動回数カウンタ31回目)、Windows環境。**検証待ち**——T5-B0a/T5-B0b実装完了、verifier未実施のままセッション区切り)
 
 - プリフライトOK・起動回数30→31・使用率取得(開始セッション51%/週次79%)・`git pull`差分なし。前回セッション申し送りどおり、まず`/token_review`(30回目)の延期分(手順3: architect突き合わせ)から着手。
