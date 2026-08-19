@@ -6,13 +6,17 @@ import 'package:bean_base/theme/public/bb_theme.dart';
 import 'package:bean_base/widgets/public/bb_buttons.dart';
 import 'package:bean_base/widgets/public/bb_card.dart';
 import 'package:bean_base/widgets/public/bb_chip.dart';
+import 'package:bean_base/widgets/public/bb_empty_state.dart';
+import 'package:bean_base/widgets/public/bb_error_view.dart';
 import 'package:bean_base/widgets/public/bb_list_row.dart';
+import 'package:bean_base/widgets/public/bb_loading.dart';
 import 'package:bean_base/widgets/public/bb_section_header.dart';
 
 import 'golden_test_helper.dart';
 
 /// T5-B22(束1): 公開版共通コンポーネント(BbCard/BbListRow/BbSectionHeader/
 /// BbPrimaryButton・BbTextButton/BbChip)のgolden(ライト/ダーク)。
+/// T5-B22(束2): BbEmptyState/BbLoadingSkeleton・BbLoadingSpinner/BbErrorViewを追加。
 void main() {
   for (final brightness in [Brightness.light, Brightness.dark]) {
     final suffix = brightness == Brightness.dark ? 'dark' : 'light';
@@ -118,6 +122,109 @@ void main() {
         goldenPath: 'goldens/public/bb_chip_$suffix.png',
       );
     }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbEmptyState golden($suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: BbEmptyState(
+          icon: Icons.local_cafe_outlined,
+          title: 'まだ記録がありません',
+          description: '1杯淹れると、味の傾向が見えはじめます。',
+          actionLabel: 'はじめての抽出を記録する',
+          onActionTap: () {},
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_empty_state_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbErrorView golden(フルスクリーン, $suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: BbErrorView(
+          title: 'データを読み込めませんでした。',
+          description: 'アプリを再起動しても直らない場合は、書き出したデータから復元してください。',
+          onRetry: () {},
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_error_view_fullscreen_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbErrorView golden(インライン, $suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: BbErrorView(
+          title: '記録を保存できませんでした。',
+          description: '端末の空き容量を確認して、もう一度お試しください。',
+          onRetry: () {},
+          isInline: true,
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_error_view_inline_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbLoadingSkeleton golden($suffix)', (tester) async {
+      // シマーアニメーションが無限周期のため`pumpAndSettle`はタイムアウトする。
+      // 固定フレームで撮る(束1のBbPrimaryButton isLoading分岐と同じ方針)。
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                child: RepaintBoundary(
+                  key: goldenTargetKey,
+                  child: const BbLoadingSkeleton(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await expectLater(
+        find.byKey(goldenTargetKey),
+        matchesGoldenFile('goldens/public/bb_loading_skeleton_$suffix.png'),
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbLoadingSpinner golden($suffix)', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: const Center(
+              child: SizedBox(
+                width: 320,
+                height: 120,
+                child: RepaintBoundary(
+                  key: goldenTargetKey,
+                  child: BbLoadingSpinner(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await expectLater(
+        find.byKey(goldenTargetKey),
+        matchesGoldenFile('goldens/public/bb_loading_spinner_$suffix.png'),
+      );
+    }, skip: skipGoldenOnNonWindows);
   }
 
   // T5-B22(束1)夜間ループ敵対的レビューMajor-2: 上記ループは各コンポーネント
@@ -196,6 +303,62 @@ void main() {
       theme: lightTheme,
       width: 320,
       goldenPath: 'goldens/public/bb_chip_selected_roast_dot_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  // T5-B22(束2): 束2コンポーネントの未カバー分岐(ライトのみ、束1と同粒度)。
+  testWidgets('BbEmptyState golden(アクション無し分岐)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbEmptyState(
+        icon: Icons.insights_outlined,
+        title: 'あと3件でインサイトが使えます',
+        description: '味の傾向を出すには記録が5件必要です。いまは2件です。',
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      width: 320,
+      goldenPath: 'goldens/public/bb_empty_state_no_action_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbErrorView golden(フルスクリーン・再試行無し分岐)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbErrorView(
+        title: 'データを読み込めませんでした。',
+        description: 'アプリを再起動しても直らない場合は、書き出したデータから復元してください。',
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      width: 320,
+      goldenPath: 'goldens/public/bb_error_view_fullscreen_no_retry_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbLoadingSkeleton golden(5行分岐)', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: lightTheme,
+        home: Scaffold(
+          backgroundColor: lightTheme.scaffoldBackgroundColor,
+          body: const Center(
+            child: SizedBox(
+              width: 320,
+              child: RepaintBoundary(
+                key: goldenTargetKey,
+                child: BbLoadingSkeleton(lineCount: 5),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await expectLater(
+      find.byKey(goldenTargetKey),
+      matchesGoldenFile('goldens/public/bb_loading_skeleton_5lines_light.png'),
     );
   }, skip: skipGoldenOnNonWindows);
 }
