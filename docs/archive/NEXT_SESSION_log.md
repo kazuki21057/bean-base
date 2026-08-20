@@ -3,6 +3,15 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.121 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ35回目)、Windows環境。**検証待ち**——T5-A7(integration_testスモークスイート)実装完了、verifier未着手)
+
+- プリフライトOK、起動回数カウンタ35、使用率取得(開始): セッション46%・週次6%。`git pull`差分なし。
+- **セッション開始時点で`NEXT_SESSION.md`が未コミットのまま変更されていた**(前回セッションが「T5-B10優先」の申し送りを追記して終わっていた形跡。commitされずに残存)。この申し送りはT5-B23とT5-B10の2択比較のみで、**マスタープラン表でその両方より上位にあるT5-A7(342行目、依存T5-A6完了済み・T5-B1完了済みで充足)を見落としていた**と判明。タスク選定規則(表内で上にあるものを優先)に従いT5-A7を選定(T5-B10の優先度判断自体は誤りではないが、T5-A7がさらに上位のため今回はT5-A7を採用)。バグ対応タスク・依存充足済みagy移行タスク・⚠️上位モデルタスクはいずれも無し(優先順位0・1は非該当)。見積もり目安Lサイズ($8〜15)、予算内(有人$24)。デプロイ工程は不要(公開版アプリは本番未デプロイ)と判断。
+- `implementer`へ委譲(実装のみ、エミュレータでの実行は次フェーズ)。新規`integration_test/smoke_test.dart`(起動→記録抽出→評価→保存→一覧反映→インサイト表示→設定、5マスタ全部の一覧→詳細→編集を一筆書き)・`test/acceptance/t5_a7_acceptance_test.dart`(受入資産、9ケース静的検証)を作成。既存コードにKeyがほぼ無かったため、`pubspec.yaml`へ`integration_test`(sdk: flutter)追加に加え、`main_layout.dart`(モバイル幅NavigationDestinationへタブキー)・`master_template.dart`(一覧先頭行の共通キー`kMasterListFirstItemKey`新設)・`bean_list_screen.dart`(同キーを`_BeanCard`先頭に適用)・`brew_recipe_screen.dart`/`brew_evaluation_screen.dart`(メソッド/豆選択・豆量/湯温入力欄へキー)にテスト用`ValueKey`を追加(見た目・挙動は不変)。`flutter analyze`新規issue0件、`flutter test`448件全パス。コスト$9.485(サブエージェント1体)。
+- 親が`git diff`で8ファイル(既存6+新規2)の差分を確認、意図した範囲(Key追加+integration_test依存追加+新規テストファイル2件)に閉じていることを確認。BOM/改行コードの逸脱なし。
+- **セッション分割チェック(T3-73d)に該当**: 本ループコスト$9.485(>$7)かつ変更ファイル数8件(>5)のため、検証フェーズに入らずここでセッションを終える。commitのみ実施しpushはしない。
+- **次回セッション(`/clear`後に`/full_loop 検証のみ`推奨)でやること**: `verifier`へ検証委譲——`integration_test/smoke_test.dart`のエミュレータ実行(`flutter test integration_test/smoke_test.dart -d <emulator>`、`tools/ui_probe.ps1`/`tools/emulator.ps1`でエミュレータ起動)、`test/acceptance/t5_a7_acceptance_test.dart`の実行(`tools/verify.ps1 -Task T5-A7`)。実行前提としてSheetsに(a)注湯ステップに時間設定のある抽出メソッド1件以上(b)在庫あり(`isInStock=true`)の豆1件以上(c)5マスタそれぞれ1件以上、が必要(実データで通常満たされる想定だが未確認)。全PASSなら`docs/改修マスタープラン.md`のT5-A7行を完了処理しpush(検証パス済みのため確認不要)。ファイル数8件(>5)のため`/code-review`実行条件(大きな修正)にも該当、検証と合わせて実行すること。デプロイ・本番確認は不要(公開版アプリ未デプロイ、この変更は`lib/`のテスト容易性向上のみでUI外観は不変)。
+
 ### -5.120 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ34回目)、Windows環境。T5-B30完了、architectへ委譲、コード変更なし)
 
 - プリフライトOK、起動回数カウンタ34、使用率取得(開始): セッション27%・週次4%。`git pull`差分なし。

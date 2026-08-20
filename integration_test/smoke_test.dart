@@ -61,7 +61,12 @@ void main() {
 
         await tester.tap(find.byKey(const ValueKey('brew_recipe_method_dropdown')));
         await tester.pumpAndSettle();
-        final methodOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).first;
+        // DropdownButton は閉じた状態でも選択中アイテムの表示サイズ確保のため、
+        // 全 DropdownMenuItem を IndexedStack でオフスクリーンにビルド済みで残している。
+        // メニューを開くと実際にタップ可能な項目は Overlay(Navigator の Route)として
+        // 別途「後から」追加されるため、ツリー探索順で必ず最後に見つかる。
+        // .first だとオフスクリーンの非表示コピーを掴んでしまいヒットテストに失敗するため .last を使う。
+        final methodOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).last;
         expect(
           methodOption,
           findsOneWidget,
@@ -78,6 +83,29 @@ void main() {
         await tester.enterText(beanWeightField, '18');
         await tester.pumpAndSettle();
 
+        // 030画面は MockScreenScaffold の ListView(通常コンストラクタ)を使っており、
+        // 直前に配置された GpExplorerSection(F4 GP推薦の予測総合評価マップ等、データ量
+        // に応じて非常に長くなる)のせいで最下部の「抽出を終えて評価へ (031)」ボタンが
+        // ビューポート外(Element未構築)になりうる。ListViewは通常コンストラクタでも
+        // SliverChildListDelegate により描画上は遅延構築されるため、tap前に
+        // scrollUntilVisible でスクロールしてビューポート内に入れる。
+        // 030画面にはメソッド選択後、注湯ステップ表(横方向SingleChildScrollView)も
+        // 存在し Scrollable が複数になるため、対象を縦方向(axisDirection.down)の
+        // Scrollable = MockScreenScaffold の ListView に絞る。
+        final verticalScrollable030 = find.byWidgetPredicate(
+          (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+        );
+        await tester.scrollUntilVisible(
+          find.text('抽出を終えて評価へ (031)'),
+          300,
+          scrollable: verticalScrollable030,
+        );
+        // scrollUntilVisible はファインダーが最初にヒットした時点(部分的にしか
+        // 見えていない場合を含む)で止まるため、タップ座標が別のウィジェットに
+        // 重なりヒットテストに失敗することがある。ensureVisible でビューポート内に
+        // 精密に収めてからタップする。
+        await tester.ensureVisible(find.text('抽出を終えて評価へ (031)'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('抽出を終えて評価へ (031)'));
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
@@ -85,7 +113,8 @@ void main() {
         // 2b. 031(評価): 豆を選択し、湯温(必須項目)を入力して登録する。
         await tester.tap(find.byKey(const ValueKey('eval_bean_dropdown')));
         await tester.pumpAndSettle();
-        final beanOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).first;
+        // 上記メソッド選択と同じ理由で .last を使う(開いたメニュー内の実タップ可能項目)。
+        final beanOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).last;
         expect(
           beanOption,
           findsOneWidget,

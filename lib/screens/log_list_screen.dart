@@ -276,6 +276,7 @@ class _LogListScreenState extends ConsumerState<LogListScreen> {
         child: DropdownButton<T?>(
           value: value,
           isDense: true,
+          isExpanded: true,
           icon: const Icon(Icons.arrow_drop_down, size: 18, color: kMocha),
           style: TextStyle(fontSize: 13, color: selected ? kEspresso : kMocha),
           items: items,

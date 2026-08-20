@@ -1,13 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-20(Sonnet 5、有人`/full_loop`(起動回数カウンタ35回目)。**検証待ち**——T5-A7(integration_testスモークスイート)実装完了、verifier委譲から再開すること)
+最終更新: 2026-08-20(Sonnet 5、有人`/full_loop`(起動回数カウンタ36回目)。**検証待ち(継続)**——T5-A7のエミュレータ実行で発見したバグ2件を修正済み・3件目はarchitectが根本原因を特定し具体的な修正コードまで確定済みだが未実装。次回はimplementerへT1〜T3を委譲して実装→エミュレータ再実行から再開すること)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-20・有人`/full_loop`(起動回数カウンタ35回目)】検証待ち——T5-A7(integration_testスモークスイート、5マスタ+記録フローの一筆書き)を`implementer`が実装完了(analyze/test済み)。セッション分割チェック(コスト$9.485>$7、変更8ファイル>5)に該当したため`verifier`委譲前にセッションを区切った。次回`verifier`へエミュレータ実行の検証を委譲すること。詳細は「3. 直近の作業ログ」-5.121節。**
+- **【2026-08-20・有人`/full_loop`(起動回数カウンタ36回目)】検証待ち(継続)——T5-A7のエミュレータ実行で3件のバグを発見、2件は修正・実機確認済み、3件目はarchitectが根本原因を特定し実装コードまで確定済みだが未実装。予算チェックポイント($14.4)超過($15.04)のため新規委譲を開始せずセッションを区切った。次回implementerへ委譲すべき内容は下記「2. 次回の着手点」に具体的なコードで記載。詳細は「3. 直近の作業ログ」-5.122節。**
 - **【2026-08-20・1つ前・有人`/full_loop`(起動回数カウンタ34回目)】T5-B30(⚠️上位モデルで実施、公開版のインサイト表示仕様)完了、architectへ委譲**。T5-B20完了により依存充足、通常タスクより優先して選定(選定規則の順位1)。`statistics_feature_design.md` §13「公開版の表示規則」を新設(§0〜§12は無改変)。決定: (1)カード7種(C1条件の効き方=重回帰/C2好みの組み合わせ=層別/C3おすすめレシピ=GP/C4味の傾向=PCA/C5b最近の伸び/C6安定度/C5a前回との比較)の変換規則・文言テンプレート・採用閾値・遷移先を確定 (2)確信度3段階「確かな傾向/見えてきた傾向/まだ弱い傾向」、点灯個数+ラベルの二重符号化(D8準拠)、カード種別ごとの判定表を確定 (3)データ不足の解禁段階を手法別6段階で確定、`nextUnlock()`で最初の未達段階を返す設計 (4)§0-5(点推定+不確実性のセット表示)を破らない4条件・生の統計量の禁止語リストを確定、受入テストで機械チェックする方針。architectが実コード(`regression_service.dart`・`preference_service.dart`・`statistics_service.dart`・`suggestion_service.dart`・`bean_stock_calculator.dart`・`distributions.dart`)を確認しながら仕様を裏取り、`RecipeSuggestion`がグラインダー/挽き目を返さない制約を発見しC3の仕様に反映済み。設計タスクのためコード変更なし・`verifier`委譲/デプロイ/本番確認は不要。判断待ち事項2件(公開版の総合評価未入力時の保存規則はT5-B24実装時に整合確認/Welch検定の意図的な重複実装を許容)を§13.9に記録。これでT5-B31(変換層の実装)・T5-B32(データ不足表示)が着手可能に。
 - **【2026-08-20・1つ前・有人`/full_loop`(起動回数カウンタ33回目)】T5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)完了、これで束1〜3すべて完了しT5-B22(L)全体が完了・main push予定**。束1・束2のパターンを踏襲して`implementer`が実装(`lib/widgets/public/`に4ファイル新規、golden13枚)。`verifier`検証でanalyze/test/build/golden全PASS(acceptanceのみ束1・束2同様`acceptance_missing`で想定内)。差分ファイル数5超のため`/code-review`(medium)を実行しMajor相当2件を検出(`BbStatTile`の値/補助行Rowにオーバーフロー対策なし、`BbNumberField`の`TextField`に`maxLength`上限なし)、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加)、`verifier`が再検証しCritical/Major0を確認。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。次点はT5-B23(画面: ホーム、依存T5-B22充足で着手可能)。詳細は「3. 直近の作業ログ」-5.119節。
 - **【2026-08-19・無人`/night_loop`(04:10枠)】T5-B22束1(公開版共通コンポーネント5種: BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み**。Lタスクのため束1のみで打ち切り。実装中の`adversary`レビューでMajor2件(`BbListRow`が`buildPublicTheme()`外でクラッシュしうる/golden分岐カバレッジ不足)、締め直前の`/code-review`(カウンタ10の倍数、定期実行ルール)でさらにMajor2件(BbChipのタップリップルが不透明Containerで隠れる/BbCardのタップ時shadowがClipRRectで消える)を検出、いずれも即座に`implementer`へ差し戻し修正・再検証済み(最終Critical0/Major0)。教訓L171追加(ThemeExtension `!`アンラップのクラッシュリスクとフォールバック値パターン)。次点はT5-B22束2(BbEmptyState/BbLoading/BbErrorView)。詳細は「3. 直近の作業ログ」-5.117節。
@@ -82,7 +82,55 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-20最新・有人`/full_loop`(起動回数カウンタ35回目)】検証待ち——T5-A7(integration_testスモークスイート)の実装は完了、`verifier`委譲から再開すること。** 詳細は「3. 直近の作業ログ」-5.121節。検証がPASSしT5-A7が完了したら、次点は下記の「T5-B10 vs T5-B23」の申し送り(T5-B10が表内優先)に従うこと。
+> **【2026-08-20最新・有人`/full_loop`(起動回数カウンタ36回目)】検証待ち(継続)——T5-A7のエミュレータ実行で見つかった3件目のバグに、architectが確定した以下の修正をimplementerへそのまま委譲すること。** 詳細は「3. 直近の作業ログ」-5.122節。
+>
+> **T1**: `lib/screens/brew_recipe_screen.dart:525`の`ElevatedButton.icon`に`key: const ValueKey('brew_recipe_finish_button'),`を追加。
+>
+> **T2**: `integration_test/smoke_test.dart:34`のimportを`show MockListRow, MockScreenScaffold`に拡張。
+>
+> **T3**: `integration_test/smoke_test.dart`の現86-109行目(`scrollUntilVisible`〜`ensureVisible`〜`tap`のブロック)を以下で全置換:
+> ```dart
+>         // 「抽出を終えて評価へ (031)」ボタンは MockScreenScaffold の ListView 最後尾にある。
+>         // scrollUntilVisible は (a) cacheExtent 内でElementが構築された時点で停止し
+>         // ビューポート外のままになる (b) 末尾の Scrollable.ensureVisible が jumpTo のみで
+>         // フレームを回さず tap が古い座標を使う (c) 直後に pump するとGP推薦セクションが
+>         // データ到着で伸びてボタンが再びビルド範囲外へ出る、の3経路で失敗するため使わない。
+>         // 対象の縦 Scrollable を最下部へ直接ジャンプさせ、タップ可能になるまで繰り返す。
+>         // NavigationRail(幅640px以上)も縦 Scrollable を持つため、030画面の骨格配下に限定する。
+>         final recipeScrollable = find
+>             .descendant(
+>               of: find.byType(MockScreenScaffold),
+>               matching: find.byWidgetPredicate(
+>                 (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+>               ),
+>             )
+>             .first;
+>         final finishButton = find.byKey(const ValueKey('brew_recipe_finish_button'));
+>         var finishButtonReady = false;
+>         for (var i = 0; i < 12; i++) {
+>           if (finishButton.hitTestable().evaluate().isNotEmpty) {
+>             finishButtonReady = true;
+>             break;
+>           }
+>           final position = tester.state<ScrollableState>(recipeScrollable).position;
+>           debugPrint('[Antigravity] 030最下部へジャンプ: 試行=$i '
+>               'pixels=${position.pixels} max=${position.maxScrollExtent}');
+>           position.jumpTo(position.maxScrollExtent);
+>           await tester.pumpAndSettle(const Duration(milliseconds: 200));
+>         }
+>         expect(
+>           finishButtonReady,
+>           isTrue,
+>           reason: '030画面を最下部までスクロールしても「抽出を終えて評価へ (031)」ボタンが'
+>               'タップ可能になりませんでした(GP推薦セクションの読み込みが終わらない等)',
+>         );
+>         // ここで pump を挟むと GP推薦セクションの伸長でボタンが再び画面外へ出るため、
+>         // hitTestable の確認直後にフレームを回さずそのままタップする。
+>         await tester.tap(finishButton.hitTestable());
+>         await tester.pumpAndSettle(const Duration(seconds: 2));
+>         expect(tester.takeException(), isNull);
+> ```
+> implementerには`flutter analyze`のみ実行させ、`flutter test integration_test/smoke_test.dart`(本番Sheets書き込みを伴う)は実行させないこと。実装後、親セッションが`git diff`確認→ユーザーに実データ書き込みの許可を再度得た上で`flutter test integration_test/smoke_test.dart -d <emulator>`を親自身が実行する(verifierサブエージェントは規則上この書き込みを実行できない、今回既に確認済み)。全パスしたら`tools/verify.ps1 -Task T5-A7`で受入資産も確認し、`docs/改修マスタープラン.md`のT5-A7行を完了処理してcommit/push。ファイル数(累計で5超)のため`/code-review`実行条件にも該当、検証と合わせて実行すること。検証がPASSしT5-A7が完了したら、次点は下記の「T5-B10 vs T5-B23」の申し送り(T5-B10が表内優先)に従うこと。
 >
 > **【2026-08-20・T5-B23/T5-B10優先順位を確定(同一セッション継続)】結論: T5-B10を先に選定し、完了後にT5-B23(画面: ホーム)へ進む。** 根拠: (1)`full_loop`のタスク選定規則(依存充足タスクが複数あれば表内で上にあるものを優先)どおり、マスタープラン表ではT5-B10(348行目)がT5-B23(364行目)より上位 (2)T5-B10が過去に完了しなかった理由(2026-08-17 23:00枠、T5-A102記載)は`.claude/settings.night.json`が`researcher`のWebSearch/WebFetchを拒否する**無人`night_loop`固有の制約**であり、有人`/full_loop`セッションには適用されない——今回は有人セッションのためブロッカーが存在しない。**この優先順位判断はこれで確定、以後の持ち越しは不要。**
 >
@@ -171,16 +219,19 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.121 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ35回目)、Windows環境。**検証待ち**——T5-A7(integration_testスモークスイート)実装完了、verifier未着手)
+### -5.122 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ36回目)、Windows環境。**検証待ち(継続)**——T5-A7のエミュレータ実行でバグ3件発見、2件修正済み・3件目はarchitectが方針確定、未実装)
 
-- プリフライトOK、起動回数カウンタ35、使用率取得(開始): セッション46%・週次6%。`git pull`差分なし。
-- **セッション開始時点で`NEXT_SESSION.md`が未コミットのまま変更されていた**(前回セッションが「T5-B10優先」の申し送りを追記して終わっていた形跡。commitされずに残存)。この申し送りはT5-B23とT5-B10の2択比較のみで、**マスタープラン表でその両方より上位にあるT5-A7(342行目、依存T5-A6完了済み・T5-B1完了済みで充足)を見落としていた**と判明。タスク選定規則(表内で上にあるものを優先)に従いT5-A7を選定(T5-B10の優先度判断自体は誤りではないが、T5-A7がさらに上位のため今回はT5-A7を採用)。バグ対応タスク・依存充足済みagy移行タスク・⚠️上位モデルタスクはいずれも無し(優先順位0・1は非該当)。見積もり目安Lサイズ($8〜15)、予算内(有人$24)。デプロイ工程は不要(公開版アプリは本番未デプロイ)と判断。
-- `implementer`へ委譲(実装のみ、エミュレータでの実行は次フェーズ)。新規`integration_test/smoke_test.dart`(起動→記録抽出→評価→保存→一覧反映→インサイト表示→設定、5マスタ全部の一覧→詳細→編集を一筆書き)・`test/acceptance/t5_a7_acceptance_test.dart`(受入資産、9ケース静的検証)を作成。既存コードにKeyがほぼ無かったため、`pubspec.yaml`へ`integration_test`(sdk: flutter)追加に加え、`main_layout.dart`(モバイル幅NavigationDestinationへタブキー)・`master_template.dart`(一覧先頭行の共通キー`kMasterListFirstItemKey`新設)・`bean_list_screen.dart`(同キーを`_BeanCard`先頭に適用)・`brew_recipe_screen.dart`/`brew_evaluation_screen.dart`(メソッド/豆選択・豆量/湯温入力欄へキー)にテスト用`ValueKey`を追加(見た目・挙動は不変)。`flutter analyze`新規issue0件、`flutter test`448件全パス。コスト$9.485(サブエージェント1体)。
-- 親が`git diff`で8ファイル(既存6+新規2)の差分を確認、意図した範囲(Key追加+integration_test依存追加+新規テストファイル2件)に閉じていることを確認。BOM/改行コードの逸脱なし。
-- **セッション分割チェック(T3-73d)に該当**: 本ループコスト$9.485(>$7)かつ変更ファイル数8件(>5)のため、検証フェーズに入らずここでセッションを終える。commitのみ実施しpushはしない。
-- **次回セッション(`/clear`後に`/full_loop 検証のみ`推奨)でやること**: `verifier`へ検証委譲——`integration_test/smoke_test.dart`のエミュレータ実行(`flutter test integration_test/smoke_test.dart -d <emulator>`、`tools/ui_probe.ps1`/`tools/emulator.ps1`でエミュレータ起動)、`test/acceptance/t5_a7_acceptance_test.dart`の実行(`tools/verify.ps1 -Task T5-A7`)。実行前提としてSheetsに(a)注湯ステップに時間設定のある抽出メソッド1件以上(b)在庫あり(`isInStock=true`)の豆1件以上(c)5マスタそれぞれ1件以上、が必要(実データで通常満たされる想定だが未確認)。全PASSなら`docs/改修マスタープラン.md`のT5-A7行を完了処理しpush(検証パス済みのため確認不要)。ファイル数8件(>5)のため`/code-review`実行条件(大きな修正)にも該当、検証と合わせて実行すること。デプロイ・本番確認は不要(公開版アプリ未デプロイ、この変更は`lib/`のテスト容易性向上のみでUI外観は不変)。
+- プリフライトOK、起動回数カウンタ36、使用率取得(開始): セッション64%・週次8%。`git pull`差分なし(ローカルはorigin/mainより2コミット先行)。
+- 前回セッションの申し送りどおり「検証待ち」を検知、タスク再選定はスキップして手順4(検証)から再開。`verifier`へT5-A7の検証を委譲したところ、`analyze`/`test`/`build`/`golden`/受入資産(`test/acceptance/t5_a7_acceptance_test.dart`)は全PASS。ただし`integration_test/smoke_test.dart`のエミュレータ実行は「実際に本番Sheetsへ書き込みが発生する」ためverifier自身の絶対規則(本番データ書き換え禁止)により実行不可と報告された。
+- `AskUserQuestion`で本番書き込みを含めた実行の可否をユーザーへ確認、**「実行してよい」の承認を得た**。しかし親経由の伝聞承認ではverifierの絶対規則を上書きできないと判断(verifierも同様の理由で再度差し戻し)、以降のエミュレータ実行は**親セッション自身が直接**`flutter test integration_test/smoke_test.dart -d emulator-5554`で実施。
+- **バグ1(修正済み・実機確認済み)**: 実行1回目、`lib/screens/log_list_screen.dart`の絞り込みバー`_buildDropdownChip`で`DropdownButton`に`isExpanded`指定が無く、`Container(maxWidth:220)`を超えてRenderFlexオーバーフロー(T5-A7の変更とは無関係の既存バグ、本番データ書き込み前の段階で発生)。`implementer`へ委譲し`isExpanded: true`を追加、再実行でこのオーバーフローは解消・突破を確認。
+- **バグ2(修正済み・実機確認済み)**: 実行2回目、`integration_test/smoke_test.dart`64行目・88行目の`find.byWidgetPredicate((w) => w is DropdownMenuItem).first`が、`DropdownButton`が閉じた状態でも保持するオフスクリーンの非表示コピーを掴んでしまいヒットテスト失敗。`implementer`へ委譲し`.first`→`.last`に修正、再実行でメソッド選択が成功することを確認。
+- **バグ3(未修正、architectが方針確定済み)**: 実行3回目、030画面(`brew_recipe_screen.dart`)最下部の「抽出を終えて評価へ (031)」ボタンが、直前の`GpExplorerSection`(GP推薦、データ量次第で非常に長い)のせいで`ListView`のcacheExtent外にありタップ対象が見つからない。`scrollUntilVisible`単体(実行3回目)→`scrollUntilVisible`+`ensureVisible`(実行4回目)と2回implementerへ修正委譲したがいずれも失敗(前者はヒットテスト位置ズレ、後者は追加pumpでGpExplorerSectionが伸長し再度ボタンが範囲外へ)。2回失敗のため`architect`へ根本原因究明を委譲、3経路の原因(cacheExtent外での停止/`ensureVisible`のjumpTo未pump/GP推薦セクションの非同期伸長)を特定し、対象Scrollableを`MockScreenScaffold`配下に限定した上で`position.jumpTo(maxScrollExtent)`を`hitTestable()`になるまで繰り返す方式を設計、`integration_test/smoke_test.dart`への適用コードまで確定(詳細は「2. 次回の着手点」に転記済み)。
+- **予算チェックポイント(T5-A93)超過のためセッションを区切った**: architectの委譲完了時点で`.claude/loop_state.md`のループコストが$15.04(>$14.4、上限$24の6割)に達したため、architectが確定した修正のimplementerへの委譲は行わずここで停止。
+- 親が`git diff`で今回の変更(バグ1: `lib/screens/log_list_screen.dart`1行、バグ2: `integration_test/smoke_test.dart`の`.first`→`.last`2箇所)を確認、意図した範囲のみであることを確認。
+- 次回セッションでやることは「2. 次回の着手点」に具体的なコード(T1〜T3)で記載済み。commitはこのセッションで実施、pushは検証未完了(T5-A7は依然未完了)のため見送り。デプロイ・本番確認は不要(公開版アプリ未デプロイ)。
 
-> これ以前(-5.120節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.121節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 
