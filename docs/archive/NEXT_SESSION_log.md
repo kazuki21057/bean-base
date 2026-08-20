@@ -3,6 +3,19 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.119 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ33回目)、Windows環境。T5-B22束3完了、T5-B22(L)全体完了、main push予定)
+
+- プリフライトOK、起動回数カウンタ33、使用率取得(開始): 週次2%・セッション2%。`git pull`差分なし。
+- タスク選定: NEXT_SESSION.mdの推奨どおりT5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing、依存T5-B22束2充足)を選定。表内ではT5-B10(researcher、依存T5-A5充足)がT5-B22より上位行だったが、前回セッションの明示推奨(束3継続)を優先して採用(次回セッションでT5-B10との優先順位を改めて判断するよう§2に申し送り済み)。見積もり約$3〜8、予算内。
+- `implementer`へ`デザイン方針.md` §8(234〜257行目)・§1.2(20〜31行目)の仕様と束1・束2の実装パターン踏襲を指示して委譲。`lib/widgets/public/bb_bottom_sheet.dart`・`bb_number_field.dart`・`bb_stat_tile.dart`・`bb_extraction_ring.dart`(いずれも新規)、goldenテスト2ファイルへ束3分追記、golden画像13枚追加。`BbExtractionRing`は`CustomPainter`実装(トラック/弧/ステップ目盛/`Semantics`ラベル)。既存のフォールバック値パターン(教訓L171)は今回も踏襲され再発なし。
+- 親が実装内容(特に`BbExtractionRing`)を`Read`で確認後、`verifier`へ検証委譲。`tools/verify.ps1 -Task T5-B22`実行、analyze/test(439件全パス)/build_apk_release(今回`lib/main_public.dart`既存のため実ビルドが走り成功)/build_web/golden(diff_count0)いずれもPASS。acceptanceのみ束1・束2同様`acceptance_missing`(想定内)。
+- コード対象の変更ファイル数が6件(>5)のため`/code-review`(medium)を実行。**Major相当2件を検出**: `bb_stat_tile.dart`の値/補助行Rowにoverflow対策なし(狭い幅でRenderFlexオーバーフローの恐れ)、`bb_number_field.dart`の`TextField`に`maxLength`上限なし(長い数字入力でオーバーフローの恐れ)。両方とも実コードを確認し妥当な指摘と判断、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加+`counterText`抑制)。
+- `verifier`が再検証、analyze/test/build/golden全PASS(既存golden差分なし)、修正コードの実在も確認。長大な値でのオーバーフロー専用の目視確認は、両コンポーネントがまだどの画面にも未組み込みのため実施できなかった旨の申し送りあり(実害なしと判断、画面組み込み時〈T5-B23以降〉に再確認する)。
+- 束1〜3すべて完了したため`docs/改修マスタープラン.md`のT5-B22行を✅完了へ更新。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。検証完了済みのためpush確認不要。
+- 使用率取得(終了): 週次4%・セッション23%(差分: 週2pt/セッション21pt)。`docs/token_optimization_design.md` §7・§8に追記済み。
+- 変更ファイル: `lib/widgets/public/bb_bottom_sheet.dart`・`bb_number_field.dart`・`bb_stat_tile.dart`・`bb_extraction_ring.dart`(新規)、`test/golden/public_bb_widgets_golden_test.dart`・`test/widgets/public/bb_widgets_plain_theme_test.dart`(修正)、`test/golden/goldens/public/bb_bottom_sheet_*`・`bb_number_field_*`・`bb_stat_tile_*`・`bb_extraction_ring_*`(新規13枚)。
+- 次回セッションで最初にやること: T5-B23(画面: ホーム)またはT5-B10(researcher、DBパッケージ選定調査)のどちらを優先するか判断してから着手。IBM Plex Monoフォント本体の調達は引き続き未着手。T5-A45は引き続き見送り。
+
 ### -5.118 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ32回目)、Windows環境。T5-B22束2完了、main push済み)
 
 - プリフライトOK、起動回数カウンタ32、使用率取得(開始: セッション2%・週次2%)、`git pull`差分なし。`.claude/loop_state.md`は前回セッション境界のためコスト$0から開始。`docs/改修マスタープラン.md`未完了行を確認、`NEXT_SESSION.md`の推奨どおりT5-B22束2(BbEmptyState/BbLoading/BbErrorView)を選定(依存T5-B22束1充足、見積もり約$3〜8で予算内)。

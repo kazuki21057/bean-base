@@ -772,3 +772,414 @@ Phase 1 完了時点でユーザーの移行作業 (実データの名寄せ確�
    - **採用: clasp CLI による自動化**: 初回 `clasp login` のみユーザー作業、以降の `clasp push`/`clasp deploy` は Claude Code が Bash から直接実行する。既存の Sheets+GAS Web App アーキテクチャ (`DataService` 抽象、既存7シートと同じ経路) をそのまま維持でき、変更範囲が F6 に閉じる。
    - **不採用: Google Sheets API v4 の直接利用 (GAS完全撤廃)**: サービスアカウント経由で GAS Web App 層自体を無くす案。ユーザーの手作業はさらに減るが、既存 `SheetsService`・全7シートのCRUD経路・画像アップロードまで含む大規模なアーキテクチャ変更になり F6 のスコープを大幅に超える。CLAUDE.md の既存方針 (「Storage backend is Google Sheets via GAS Web App」) とも矛盾するため今回は不採用 (§11⑤に技術的負債として記録)。
 5. **設計書の検証値と Python 検証値が食い違う場合は Python 側を採用 (2026-07-21 追記)**: §9 のテスト期待値の実装前検証 (②の運用方針) で、numpy/scipy 等による独立検証と設計書の記載値が食い違うケースが複数回発生した (tQuantile(df=138)、回帰係数、Welch検定 T-23/T-24 など)。今後同様の食い違いを発見した場合、`AskUserQuestion` で都度ユーザー確認を取る必要はなく、Python 検証値をそのまま採用してよい。設計書側は訂正コメント付きで書き換え、発見の経緯は `NEXT_SESSION.md` に記録する (これまでの運用と同じ訂正フォーマットを維持する)。
+
+---
+
+## 13. 公開版の表示規則 (2026-08-20 追記、T5-B30 の確定仕様)
+
+**位置づけ**: 本節は「公開版 (Android配布版、`lib/**/public/`) で統計解析の結果をどう見せるか」だけを定める。§0〜§12 の計算仕様・personal版UIは一切変更しない。**既存サービス (`RegressionService` / `StatisticsService` / `PreferenceService` / `SuggestionService` / `GpService`) のシグネチャ・挙動を変更してはならない**。公開版は既存サービスを呼ぶだけの**変換層を新規追加**する。
+
+本節が正本となるのは `docs/android_monetization/デザイン方針.md` §14-1 (インサイトカードの中身の変換規則と確信度の定義)。表示層 (色・形・配置) は引き続き同書が正本。
+
+### 13.0 §0-5 との整合 (絶対規則を破らないための4条)
+
+§0-5 「点推定と不確実性を必ずセットで表示。点推定のみの表示UIを作らない」は公開版でも維持する。表現を数値からビジュアル・平易な日本語へ変えるだけで、不確実性の情報自体を落とさない。
+
+1. **点推定を数値で出すカードは、必ず同じ単位の幅を同じ文の中に併記する** (例「およそ8.2点(7.6〜8.8点)」)。幅の出所は §2.5 の区間 (平均のCI / 予測区間 / 係数のCI) で、単位を「点」「℃」等のユーザー単位へ換算したもの。
+2. **幅を持たない実測値** (前回の記録との差、過去最高スコアの条件) は推定量ではないので区間を付けない。その代わり確信度を必ず `low` にし、根拠文に「たまたまの可能性があります」の趣旨を含める (13.3 のテンプレートで固定)。
+3. **確信度3段階は不確実性の要約表示であり、幅の代替ではない**。1 に該当するカードは幅と確信度の両方を出す。
+4. **生の統計量は文言・UIに出さない** (13.1 の禁止語リスト、受入テストで機械チェック)。
+
+### 13.1 表示してよい数値 / 禁止語
+
+| 区分 | 内容 |
+|---|---|
+| 表示してよい | 総合評価・味覚6軸のスコア (0〜10、小数第1位)、湯温 (℃、整数)、豆量/湯量 (g、整数)、抽出時間 (「◯分◯秒」)、比率 (「1:15.0」)、件数 (整数)、日付 |
+| 表示禁止 (語もろとも) | `p値` `有意` `寄与率` `固有値` `負荷量` `決定係数` `R2` `R²` `AIC` `VIF` `t値` `標準誤差` `標準偏差` `回帰係数` `係数` `主成分` `PC1` `PC2` `信頼区間` `予測区間` `自由度` `Bonferroni` `検定` `分散` `相関係数` |
+
+- 幅の表示は「(7.6〜8.8点)」の形にする。**「95%」「信頼区間」等の語は付けない**。
+- 受入テスト (`test/acceptance/t5_b31_acceptance_test.dart`) で (a) 生成された全 `InsightCard` の文字列フィールド (b) `lib/screens/public/` `lib/widgets/public/` のソース中の文字列リテラル、の両方に対して上表の禁止語が1件も出現しないことを検証する。
+
+### 13.2 データモデル (新規、T5-B31)
+
+新規ファイル `lib/models/public/insight_card.dart`。**永続化しないので `json_serializable` を使わない** (= `build_runner` 実行は不要)。
+
+```dart
+enum InsightKind {
+  recipeSuggestion,   // C3 おすすめレシピ (GP)
+  conditionEffect,    // C1 条件の効き方 (重回帰)
+  tastePreference,    // C2 好みの組み合わせ (層別統計)
+  recentChange,       // C5b 最近の伸び (2標本比較)
+  tasteAxis,          // C4 味の傾向 (PCA)
+  consistency,        // C6 淹れ方の安定度
+  lastBrewCompare,    // C5a 前回との比較 (T5-B32)
+}
+
+enum InsightConfidence { high, medium, low }
+
+enum InsightActionType { brewPrefill, beanPicker, historyFilter, insightDetail, none }
+// brewPrefill → P200 (抽出の準備) を args の値でプリフィル
+// beanPicker → P200 の豆選択シートを開く
+// historyFilter → P240 (履歴) を args の条件で開く (args 空なら無条件)
+// insightDetail → P310 (インサイトの詳細) を、そのカードの detail で開く
+// none → タップ不可 (次の一手を文としてだけ見せる)
+
+class InsightAction {
+  final String label;                 // 「次の一手」の文言 (24文字以内)
+  final InsightActionType type;
+  final Map<String, String> args;     // 13.6 のキー表に列挙したキーのみ
+}
+
+class InsightRecipe {               // C3 のみ非null。条件行の表示に使う
+  final String? methodName;
+  final String? beanName;
+  final int temperatureC;
+  final double brewRatio;           // 15.0 → 「1:15.0」
+  final int totalTimeSec;
+}
+
+enum InsightDetailKind { estimate, trend, scatter }
+
+class InsightSeriesPoint {
+  final String label;
+  final double value;
+  final double? lower;              // 帯 (chartBand) を描くとき非null
+  final double? upper;
+}
+
+class InsightDetail {               // P310 用。null 可 (詳細画面を持たないカード)
+  final InsightDetailKind kind;
+  final String caption;             // 図の説明1文
+  final double? point;              // kind==estimate のとき必須
+  final double? lower;              // kind==estimate のとき必須
+  final double? upper;              // kind==estimate のとき必須
+  final String? unitLabel;          // kind==estimate のとき必須 ('点' 等)
+  final List<InsightSeriesPoint> series; // kind==trend/scatter のとき非空
+}
+
+class InsightCard {
+  final String id;                  // 13.5 の安定ID規則
+  final InsightKind kind;
+  final String headline;            // 所見1文 (40文字以内、句点で終わる)
+  final String evidence;            // 根拠1文 (80文字以内、句点で終わる)
+  final InsightAction action;       // 次の一手
+  final InsightConfidence confidence;
+  final String confidenceNote;      // 13.4 の固定文 (P310 最下部で使う)
+  final InsightRecipe? recipe;
+  final InsightDetail? detail;
+  final int priority;               // 昇順ソート (13.5)
+}
+
+class UnlockProgress {              // T5-B32
+  final String featureLabel;        // 13.7 の解禁ラベル
+  final int current;
+  final int required;
+  int get remaining => (required - current).clamp(0, required);
+  double get ratio => required == 0 ? 1.0 : (current / required).clamp(0.0, 1.0);
+}
+
+class InsightFeed {
+  final List<InsightCard> cards;    // priority 昇順、最大6枚
+  final UnlockProgress? progress;   // 全解禁済みなら null
+  final int validRecordCount;       // 13.2.1 の有効件数
+  final DateTime generatedAt;
+}
+```
+
+#### 13.2.1 有効件数の定義 (全閾値の分母)
+
+```dart
+bool isScored(CoffeeRecord r) => r.scoreOverall >= 1 && r.scoreOverall <= 10;
+```
+
+- 公開版 P220 は総合評価の**初期値を入れない** (`デザイン方針.md` §9.4)。**未入力は `scoreOverall = 0` で保存する** — T5-B24 の実装はこの取り決めに従うこと。`0` は欠測であり、インサイトの集計から必ず除外する。
+- `validRecords = records.where(isScored).toList()..sort((a,b) => b.brewedAt.compareTo(a.brewedAt))` (新しい順)。本節で「n件」と書いたら常に `validRecords.length` を指す。
+- 比率が必要な処理では `r.beanWeight > 0` も条件に加える (`brewRatio = r.totalWater / r.beanWeight`)。
+
+### 13.3 変換規則 (統計サービス出力 → カード)
+
+共通の丸め規則:
+
+| 対象 | 規則 |
+|---|---|
+| スコア・スコア差 | `(x*10).round()/10` を小数第1位固定で表示 (`8.0` も「8.0」)。0〜10 にクランプ (差分はクランプしない) |
+| 湯温 | `round()`、「92℃」 |
+| 比率 | 小数第1位、「1:15.0」 |
+| 時間 | 5秒単位に丸め、`s%60==0` なら「{m}分」、それ以外は「{m}分{s}秒」 |
+| 幅 | 下端・上端とも同じ丸め。スコアの幅は 0.0〜10.0 にクランプ |
+
+名前解決の共通規則: `beanName` は `beans` から `beanId` で引き、引けない・空文字なら「この豆」と表記する。`methodName` は `methods` から引き、引けなければ文からその要素ごと落とす。`originLevel`/`roastLabel` は `PreferenceService` が返した値をそのまま使う。
+
+各カードは個別に `try/catch` で囲み、失敗したカードだけスキップして `debugPrint('[Antigravity] インサイト生成に失敗: <kind> <error>')` を出す。フィード全体は落とさない。
+
+#### C1 conditionEffect — 重回帰 (`RegressionService.fit`)
+
+- **入力**: `fit(validRecords, originById)`。`null` (n<30 または n<5p) ならカード無し。
+- **対象係数**: `RegressionResult.coefficients` のうち下表の4つだけ。`切片` / `産地:*` / `焙煎順序×湯温(交互作用)` は**公開版では扱わない** (産地は C2 が担当、交互作用は平易に言い換えられないため)。
+
+| `coefficient.name` | 表示名 | step | β>0 の所見動詞 | β<0 の所見動詞 | action |
+|---|---|---|---|---|---|
+| `湯温(中心化)` | 湯温 | 3.0 (℃) | 「湯温を少し高くする」 | 「湯温を少し低くする」 | `brewPrefill` (温度を ±3℃) |
+| `brewRatio(中心化)` | 湯量の比率 | 1.0 | 「湯を少し多くする」 | 「湯を少し少なくする」 | `brewPrefill` (比率を ±1.0) |
+| `総抽出時間分(中心化)` | 抽出時間 | 0.5 (分=30秒) | 「抽出時間を少し長くする」 | 「抽出時間を少し短くする」 | `brewPrefill` (時間を ±30秒) |
+| `焙煎順序(中心化)` | 焙煎度 | 1.0 (段階) | 「深めの焙煎を選ぶ」 | 「浅めの焙煎を選ぶ」 | `beanPicker` |
+
+- **採用条件**: `pValue < 0.05` かつ `delta >= 0.15`。ここで `delta = |beta| * step`。満たすものを `delta` 降順に**最大2枚**。
+- **幅**: `tCrit = tQuantile(0.975, (n - p - 1).toDouble())` (`lib/services/math/distributions.dart`)、`lo = (|beta| - tCrit*se) * step`、`hi = (|beta| + tCrit*se) * step`。`lo < 0` になった場合は `0.0` にクランプ。
+- **文言**:
+  - headline: `{動詞}と、総合評価が上がる傾向です。` (β の符号で動詞を選ぶので、常に「上がる」側で書く)
+  - evidence: `{表示名}を{stepText}変えると、評価がおよそ{delta}点({lo}〜{hi}点)動きます({n}件の記録から)。`
+    - `stepText`: 湯温「3℃」/ 比率「1つぶん(例: 1:15 → 1:16)」/ 時間「30秒」/ 焙煎度「1段階」
+  - action.label: 温度/比率/時間は「この条件で淹れる」、焙煎度は β>0「深めの豆を選ぶ」/ β<0「浅めの豆を選ぶ」
+- **confidence**: 13.4 の表を参照。
+- **detail**: `kind: estimate`, `point = delta`, `lower = lo`, `upper = hi`, `unitLabel = '点'`, `caption = '{表示名}を{stepText}変えたときの、評価の動き方の見込みです。'`
+
+#### C2 tastePreference — 層別統計 (`PreferenceService.build`)
+
+- **入力**: `build(validRecords, originById)` → `PreferenceProfile.groups`。**`PreferenceProfile.statements` は使わない** (personal版向けに p 値を含むため)。
+- **対象グループの選び方** (上から順に、最初に見つかった1件):
+  1. `significant == true` のうち `|mean - overallMean|` 最大
+  2. `welchP != null && welchP! < 0.05` のうち同上
+  3. `n >= 3` かつ `|mean - overallMean| >= 1.0` のうち同上
+  - `overallMean` = `validRecords` の `scoreOverall` 平均 (Dartローカルで計算)。
+  - 3つとも該当が無ければカード無し。**総件数 n < 12 のときはカードを出さない** (13.7 の解禁条件と一致させる)。
+- **文言** (`diff = mean - overallMean`):
+  - `diff > 0`: headline `{originLevel}の{roastLabel}が、好みに合っています。`
+  - `diff < 0`: headline `{originLevel}の{roastLabel}は、好みから外れがちです。`
+  - evidence: `この組み合わせの平均はおよそ{mean}点({ciLower}〜{ciUpper}点)、全体の平均は{overallMean}点です({n}件)。`
+  - action.label: `diff > 0` は「この組み合わせで淹れる」(`brewPrefill`、`args: {'originLevel':…, 'roastLabel':…}`)、`diff < 0` は「別の組み合わせを試す」(`beanPicker`、args 空)
+  - 該当する豆が在庫に無い場合の遷移先フォールバックは `beanPicker` (P200 の豆選択シート)。
+- **detail**: `kind: estimate`, `point = mean`, `lower = ciLower`, `upper = ciUpper`, `unitLabel = '点'`, `caption = 'この組み合わせで淹れたときの、平均的な評価の範囲です。'`
+
+#### C3 recipeSuggestion — GP 推薦 (`SuggestionService.suggestWithGp`)
+
+- **対象豆**: (1) `calculateBeanRemainingPercent(bean, records)` (`lib/utils/bean_stock_calculator.dart`。**消費量の計算には有効記録ではなく `records` 全件を渡す**) が 0% 超を返す豆のうち、直近の記録が最も新しいもの。(2) 該当が無ければ「直近30日に記録がある豆」で記録数最多。(3) それも無ければカード無し。
+- **入力**: `suggestWithGp(bean, validRecords, originById, methods, grindStepsByGrinderId, explore: SuggestionService.shouldExplore(history))`。`history` は `recipeSuggestionsProvider` の値。`null` ならカード無し。
+- **recipe**: `SuggestionResult.suggestion` の条件をそのまま詰める。`methodName` は `methods` から `suggestion.methodId` で引く。`beanName` は `beans` から `suggestion.beanId` で引く。引けなければ `null` にして表示を省く。`temperatureC = suggestion.temperature.round()`、`brewRatio = suggestion.brewRatio`、`totalTimeSec = suggestion.totalTimeSec`。
+- **予測値**: `SuggestionResult.predMean` / `predLower` / `predUpper` (§2.5 の予測区間、`group_best` では null) をそのまま使う。GPを再実行しない。
+- **文言** (`rationale` で分岐):
+
+| rationale | headline | evidence |
+|---|---|---|
+| `gp_mean` | `{beanName}は、この条件が良さそうです。` | `これまでの記録からの見込みはおよそ{predMean}点({predLower}〜{predUpper}点)です。` |
+| `gp_ei` | `{beanName}で、まだ試していない条件を試す価値がありそうです。` | `ふだんと少し違う条件です。見込みはおよそ{predMean}点({predLower}〜{predUpper}点)と幅があります。` |
+| `group_best` | `{beanName}は、この条件がこれまでで一番でした。` | `過去に実際に淹れたときの条件です。まだ見込みを出せるほど記録が集まっていません。` |
+
+- `beanName` を解決できない場合は「この豆」と表記する。
+- action.label: `gp_mean`/`gp_ei` は「この条件で淹れる」、`group_best` は「もう一度この条件で淹れる」。いずれも `brewPrefill` で 13.6 のキーを全部埋める。
+- **detail**: GP経路のみ `kind: estimate` (`point=predMean`, `lower=predLower`, `upper=predUpper`, `unitLabel='点'`, caption `'この条件で淹れたときに出そうな評価の範囲です。'`)。`group_best` は `detail = null`。
+
+#### C4 tasteAxis — PCA (`StatisticsService.calculatePca`)
+
+- **入力**: `calculatePca(validRecords)`。`components.isEmpty` ならカード無し。
+- **前提条件**: `n >= 10` かつ `components[0].contributionRatio >= 0.30` かつ `components[0].contributions` に `|L| >= 0.5` の軸が2つ以上。満たさなければカード無し。
+- **軸名の日本語化**: `{'Fragrance':'香り','Acidity':'酸味','Bitterness':'苦味','Sweetness':'甘み','Complexity':'複雑さ','Flavor':'風味'}`。
+- **文言**: PC1 の負荷量から、正側最大の軸 `posAxis` と負側最小の軸 `negAxis` を取る。
+  - `|L(negAxis)| >= 0.5` を満たす負側の軸がある (= 対立軸型):
+    - headline: `あなたの記録は「{posAxis}が立つ杯」と「{negAxis}が立つ杯」に分かれます。`
+    - evidence: `{posAxis}が強い記録では、{negAxis}が控えめになりがちです({n}件の記録から)。`
+  - 全ての軸が同符号 (= 総合的な強さ型): `|L|` 上位2軸を `a`,`b` として
+    - headline: `あなたの記録は「{a}と{b}がそろって出る杯」が中心です。`
+    - evidence: `{a}が高い記録は、{b}も高くなりがちです({n}件の記録から)。`
+- action.label: 「どの記録がどちら寄りか見る」(`insightDetail`、`args: {}` — P310 の散布図へ)。
+- **detail**: `kind: scatter`。散布図は x/y の2値が要るため、`series` の各要素を `InsightSeriesPoint(label: p.label, value: p.x, lower: p.y, upper: null)` と**定義する** (`value` = x、`lower` = y)。この用法は `kind == scatter` のときのみ許可し、`InsightDetail` の doc コメントに明記すること。要素は `PcaResult.points` を最大60件 (新しい順)。caption `'近い位置にある記録どうしは、味の傾向が似ています。'`
+
+#### C5b recentChange — 直近5件 vs その前5件
+
+- **前提**: `n >= 8`。`k = min(5, n ~/ 2)`。`recent = validRecords.take(k)`、`prev = validRecords.skip(k).take(k)`。
+- **計算**: 新規 `lib/services/math/two_sample.dart` に Welch 検定 (T-23/T-24) を追加する。
+
+```dart
+({double t, double df, double p})? welchTest(List<double> a, List<double> b);  // 各2件未満なら null
+```
+
+  - `PreferenceService` 内の同等ロジックは**今回は共通化しない** (personal版の挙動を変えないため)。重複は 13.9 に既知課題として記録。
+  - `recent` の平均CI は (T-22) `mean ± tQuantile(0.975, k-1) * sd / sqrt(k)`。
+- **文言** (`diff = meanRecent - meanPrev`):
+  - `|diff| < 0.3`: headline `最近の評価は落ち着いています。` / evidence `最近{k}杯の平均はおよそ{meanRecent}点({lo}〜{hi}点)、その前の{k}杯は{meanPrev}点です。`
+  - `diff >= 0.3`: headline `最近{k}杯は、その前より{diff}点ほど高い評価です。`
+  - `diff <= -0.3`: headline `最近{k}杯は、その前より{|diff|}点ほど低い評価です。`
+  - evidence は3ケース共通 (上記)。
+- action.label: `diff >= 0.3` 「この調子で淹れる」、それ以外は「直近の記録を見返す」(`historyFilter`)。
+- **detail**: `kind: trend`, `series` は `validRecords` を古い順に最大20件、`InsightSeriesPoint(label: 'M/d', value: scoreOverall.toDouble())`。caption `'1杯ごとの総合評価の推移です。'`
+
+#### C6 consistency — 安定度
+
+- **対象**: `validRecords` を `beanId` で集計し、件数最多の豆 (同数なら直近の記録が新しい方)。件数 `nb >= 4` が必要。
+- **計算**: その豆のスコアの標本標準偏差 `sd` (n-1)、最小 `min`、最大 `max`。
+- **文言**:
+  - `sd >= 1.2`: headline `{beanName}は、淹れるたびに評価が変わりやすいです。` / action.label 「条件を1つだけ変えて淹れる」(`brewPrefill`、直近の条件をそのまま)
+  - `sd < 0.8 && nb >= 6`: headline `{beanName}は、安定して淹れられています。` / action.label 「この条件で淹れる」
+  - それ以外 (0.8 ≤ sd < 1.2、または sd<0.8 かつ nb<6): カード無し
+  - evidence 共通: `これまでの評価は{min}〜{max}点の間で動いています({nb}件)。`
+- **detail**: `kind: trend` (その豆のスコア推移、最大20件)。caption `'この豆の評価の動きです。'`
+
+#### C5a lastBrewCompare — 前回との比較 (T5-B32)
+
+- **前提**: `n >= 2`。`a = validRecords[0]`、`b = validRecords[1]`。
+- **文言** (`d = a.scoreOverall - b.scoreOverall`):
+  - `d > 0`: headline `前回より{d}点高い評価でした。`
+  - `d < 0`: headline `前回より{|d|}点低い評価でした。`
+  - `d == 0`: headline `前回と同じ評価でした。`
+  - evidence: `直近は{beanName}を{temp}℃・1:{ratio}・{timeText}で淹れた回です。`
+    - 解決できない要素 (豆名・比率) は文から落とす。全部落ちる場合は `直近の記録との比較です。`
+- action.label: 「同じ条件でもう一度淹れる」(`brewPrefill`、直近記録の条件)。
+- **confidence**: 常に `low` (13.0-2)。confidenceNote は 13.4 の `low` の固定文をそのまま使う。
+- **detail**: `null`。
+
+### 13.4 確信度3段階
+
+| 値 | ラベル (UI文言) | 点の表示 | confidenceNote (P310 「この見立てはどれくらい確かか」) |
+|---|---|---|---|
+| `high` | 確かな傾向 | ●●● | `同じ傾向がくり返し出ています。記録が増えても大きくは変わらない見込みです。` |
+| `medium` | 見えてきた傾向 | ●●○ | `そう見えていますが、記録が増えると変わることがあります。` |
+| `low` | まだ弱い傾向 | ●○○ | `まだ記録が少なく、たまたまの可能性があります。` |
+
+表示 (`lib/widgets/public/bb_confidence_dots.dart`、D8 準拠):
+
+- 直径 8 の点を3つ横並び (間隔 3)。点灯は `BbColors.chartCurrent` の塗り、未点灯は塗り無し + `colorScheme.outlineVariant` 1px の輪郭。**点灯個数 (形) とラベルの二重符号化**なので、色だけに依存しない。
+- 右にラベルを `labelSmall` で必ず併記。`Semantics(label: '確信度: {ラベル}')`。
+- 新しいカラートークンは追加しない (`デザイン方針.md` §3.2 の既存トークンのみ使用)。
+
+判定基準 (カード種別ごと。上から評価し最初に当たった段階を採る):
+
+| kind | high | medium | low |
+|---|---|---|---|
+| `conditionEffect` (C1) | `p < 0.05/m` かつ `n >= 50` かつ `vif < 5` (`m` = 判定対象4係数のうち実在する数) | `p < 0.05` かつ `n >= 30` かつ `vif < 5` | 上記以外 (`vif >= 5`、または `defaultScoreCount > n*0.3`) |
+| `tastePreference` (C2) | `significant == true` かつ `n_group >= 8` | `significant == true`、または (`welchP < 0.05` かつ `n_group >= 8`) | それ以外 (選定条件3で拾ったケース) |
+| `recipeSuggestion` (C3) | `rationale != 'group_best'` かつ 区間幅 `predUpper - predLower <= 2.0` かつ `explore == false` | `rationale != 'group_best'` かつ 幅 `<= 3.0` | `group_best`、または幅 `> 3.0`、または `gp_ei` |
+| `tasteAxis` (C4) | `n >= 40` かつ `contributionRatio >= 0.45` かつ `|L| >= 0.6` の軸が2つ以上 | `n >= 20` かつ `contributionRatio >= 0.35` | それ以外 |
+| `recentChange` (C5b) | **`high` にしない** | 各群 `k >= 5` かつ `welchTest.p < 0.05` | それ以外 |
+| `consistency` (C6) | `nb >= 10` | `nb >= 6` | `nb >= 4` |
+| `lastBrewCompare` (C5a) | — | — | 常に `low` |
+
+- `defaultScoreCount` は personal版データ由来の指標 (`scoreOverall == 7` の件数)。公開版は初期値を入れないため通常0だが、移行データを読み込んだ場合に効く。
+
+### 13.5 並び順・表示枚数・ID
+
+- `priority` = 基礎値 + (`confidence == low` なら +25、`medium` なら +10、`high` なら 0)。
+
+| kind | 基礎値 |
+|---|---|
+| `recipeSuggestion` | 10 |
+| `conditionEffect` | 20 |
+| `tastePreference` | 30 |
+| `recentChange` | 40 |
+| `tasteAxis` | 50 |
+| `consistency` | 60 |
+| `lastBrewCompare` | 70 |
+
+- `cards` は `priority` 昇順。同値なら上表の順。**最大6枚**で切る。`conditionEffect` のみ最大2枚、他の kind は各1枚。
+- `id` は再ビルドしても同じカードなら同じ値になるよう次で作る (アニメーションの `Key` と「既読」判定に使う): `'{kind.name}:{識別子}'`。識別子は C1 = 係数名、C2 = `'{originLevel}|{roastLabel}'`、C3 = `beanId`、C4 = `'pc1'`、C5b = `'recent{k}'`、C6 = `beanId`、C5a = `validRecords[0].id`。
+- ホーム (P100) の「インサイトの要約カード1枚」は `cards.isEmpty ? null : cards.first` を表示する。
+
+### 13.6 `InsightAction.args` のキー (実装はこの表のキーのみ使う)
+
+| キー | 型 (String化) | 使うカード | 例 |
+|---|---|---|---|
+| `beanId` | 豆マスタID | C3, C6, C5a | `'b_12'` |
+| `originLevel` | 産地の水準名 | C2 | `'エチオピア'` |
+| `roastLabel` | 焙煎度ラベル | C2 | `'ミディアム'` |
+| `methodId` | メソッドID | C3, C5a | `'m_3'` |
+| `temperature` | ℃ (整数文字列) | C1, C3, C6, C5a | `'92'` |
+| `brewRatio` | 小数1桁 | C1, C3, C6, C5a | `'15.0'` |
+| `totalTimeSec` | 秒 (整数文字列) | C1, C3, C6, C5a | `'150'` |
+| `grinderId` | グラインダーID | C5a, C6 | `'g_2'` |
+| `grindSize` | 挽き目 (元の文字列) | C5a, C6 | `'12'` |
+
+- **C3 は `grinderId`/`grindSize` を埋めない**。`RecipeSuggestion` (`lib/models/recipe_suggestion.dart`) が持つのは `beanId`/`originId`/`roastLevel`/`methodId`/`temperature`/`brewRatio`/`totalTimeSec` だけで、GP が内部で使う `targetGrinderId`・粒度は返ってこないため。埋めるキーは `beanId`/`methodId`/`temperature`/`brewRatio`/`totalTimeSec` の5つ。**この理由で既存サービスに戻り値を追加する改修はしない** (13.9-5)。
+
+- `brewPrefill` は P200 (抽出の準備) へ遷移し、上記の値を初期値に入れる。埋められないキーは省略し、画面側は既定値のままにする。
+- **クランプ**: C1 が条件をずらす場合、`temperature` は 80〜96、`brewRatio` は 10.0〜20.0、`totalTimeSec` は 60〜300 に収める。範囲外に出る場合はその端の値にする。
+- `beanPicker` は P200 の豆選択シートを開く。`historyFilter` は P240 (履歴) を `args` の条件で開く。`args` が空なら無条件。
+
+### 13.7 データ不足の閾値と進捗表示 (T5-B32)
+
+新規 `lib/services/public/insight_thresholds.dart` に下表を定数として置く。
+
+| 順 | `featureLabel` | 必要件数 | 数える対象 | 対応するカード / 手法 |
+|---|---|---|---|---|
+| 1 | 前回との比較 | 2 | 有効件数 `n` | C5a (統計手法なし) |
+| 2 | 最近の伸び | 8 | 有効件数 `n` | C5b (Welch 2標本、各4件) |
+| 3 | 味の傾向 | 10 | 有効件数 `n` | C4 (PCA。§1.3 の F2 最小3件より厳しくする — 6軸の相関を語るには3件では足りないため) |
+| 4 | 好みの組み合わせ | 12 | 有効件数 `n` | C2 (§1.3 の F5「グループ n≥3」に加え、全体12件を条件に足す) |
+| 5 | おすすめレシピ | 8 | **最も記録が多いメソッドでの**有効件数 | C3 (§1.3 の F4 = `nRows >= 8` かつ `n_eff >= 6.0`。`n_eff` は実際のフィットで判定するため進捗表示は `nRows` を使う) |
+| 6 | 条件の効き方 | 30 | 有効件数 `n` | C1 (§1.3 の F1 = `n >= 30` かつ `n >= 5p`。`5p` 条件は実際のフィットで判定) |
+
+```dart
+UnlockProgress? nextUnlock(List<CoffeeRecord> validRecords);
+```
+
+- 上表を順に見て、`current < required` の**最初のステップ**を返す。全て満たしていれば `null`。
+- 順1〜4,6 の `current` は `validRecords.length`、順5 は `methodId` ごとの件数の最大値。
+- 「必要件数を満たす」ことと「カードが出る」ことは別 (有意な傾向が無ければカードは出ない)。進捗カードの文言は「使えます / 見られます」に留め、「◯件でわかります」とは書かない。
+
+表示規則 (`lib/widgets/public/bb_unlock_progress_card.dart`)、4状態:
+
+| 状態 | 条件 | 表示 |
+|---|---|---|
+| 0件 | `validRecordCount == 0` | 進捗カードを出さず `BbEmptyState`。見出し「まだ記録がありません」/ 説明「1杯淹れると、味の傾向が見えはじめます。」/ ボタン「はじめての抽出を記録する」(`デザイン方針.md` §10) |
+| 数件 (カード0枚) | `cards.isEmpty && progress != null` | 画面**最上部**に進捗カード。見出し「あと{remaining}件でインサイトが使えます」/ 説明「{featureLabel}を出すには記録が{required}件必要です。いまは{current}件です。」+ 進捗バー |
+| 閾値直前 (カード1枚以上) | `cards.isNotEmpty && progress != null` | カード一覧の**最下部**に小さい進捗カード。見出し「あと{remaining}件で「{featureLabel}」が見られます」/ 説明は同上 + 進捗バー |
+| 閾値超え | `progress == null` | 進捗カードを出さない |
+
+- 説明文の書式は `デザイン方針.md` §10「インサイト データ不足」(「味の傾向を出すには記録が◯件必要です。いまは◯件です。」) を一般化したもの。`featureLabel == '味の傾向'` のとき §10 と一字一句一致する。
+- 進捗バーは `LinearProgressIndicator(value: progress.ratio)`。`Semantics(label: '{featureLabel}まで あと{remaining}件')`。
+- 無料版の広告枠は P300 には出さない (`デザイン方針.md` §11: 一覧系は P240 / P5x0 のみ)。
+
+### 13.8 サービス層と Provider (T5-B31)
+
+- 新規 `lib/services/public/insight_service.dart`
+
+```dart
+class InsightService {
+  InsightFeed build({
+    required List<CoffeeRecord> records,
+    required Map<String, OriginMaster> originById,
+    required List<BeanMaster> beans,
+    required List<MethodMaster> methods,
+    required Map<String, int> grindStepsByGrinderId,
+    required List<RecipeSuggestion> suggestionHistory,
+    DateTime? now,                                   // 未指定なら DateTime.now()。テストのため必須引数化しない
+  });
+}
+final insightServiceProvider = Provider((ref) => InsightService());
+```
+
+- 新規 `lib/providers/public/insight_providers.dart`
+
+```dart
+final insightFeedProvider = FutureProvider<InsightFeed>((ref) async { /* 上記の依存を watch して build() */ });
+```
+
+- `build()` は純粋関数 (I/O なし・`DateTime.now()` は `now` 経由のみ)。同じ入力なら同じ出力になること (テスト要件)。
+- ログ: `debugPrint('[Antigravity] インサイト生成: {カード枚数}枚 / 有効{n}件 / 次の解禁={featureLabel}')` を `build()` 末尾で1回。
+- 目安性能: 有効300件で 300ms 以内。GP は対象豆1件分のみ実行する。
+- **Gemini は使わない**。公開版のカード文言は 100% Dart の固定テンプレート (無料版でAPIコストを出さない・オフラインでも出るため)。§8.1〜8.3 のプロンプトは personal 版と将来の Pro 機能専用で、T5-B31/B32 は §8 に手を入れない。P300 最下部の AI 訴求カードは `デザイン方針.md` §11 の Pro導線 (T5-B48) が担当。
+
+### 13.9 既知の限界 (実装対象外)
+
+1. `welchTest` を新設する一方で `PreferenceService` 内の同等ロジックは残るため、Welch 検定の実装が2箇所になる。personal版の挙動を変えないための意図的な重複。将来 `PreferenceService` を `two_sample.dart` に寄せる。
+2. C1 は交互作用項と産地ダミーを公開版に出さないため、「深煎りのときだけ湯温が効く」といった条件付きの傾向は表現できない。
+3. C3 は在庫豆1件だけを対象にする。複数豆の比較は将来課題。
+4. `scoreOverall == 0` を欠測とする取り決めは、personal版から移行したデータ (初期値7) には効かない。移行データの偏りは `defaultScoreCount` 経由で C1 の確信度にだけ反映される。
+5. C3 の「この条件で淹れる」はグラインダーと挽き目をプリフィルできない (`RecipeSuggestion` が返さないため)。既存サービスの戻り値を増やす改修は公開版のために行わない方針なので、挽き目は P200 の既定値のままユーザーが決める。
+
+### 13.10 テスト仕様 (受入)
+
+`test/acceptance/t5_b31_acceptance_test.dart`:
+
+1. **禁止語**: 3種類の入力 (12件 / 40件 / 120件の合成記録) で `build()` した全カードの `headline`/`evidence`/`action.label`/`confidenceNote`/`detail.caption` に 13.1 の禁止語が出現しない。
+2. **§0 準拠**: `detail.kind == estimate` のカードは `point`/`lower`/`upper`/`unitLabel` が全て非null、かつ `lower <= point <= upper`。さらに `evidence` に `〜` を含む幅の表記があること (C3 の `group_best`・C5a を除く)。
+3. **幅なしカードの確信度**: `group_best` の C3 と C5a は `confidence == InsightConfidence.low`。
+4. **枚数・順序**: `cards.length <= 6`、`conditionEffect` は最大2枚、他 kind は各1枚以下、`priority` 昇順。
+5. **確信度判定**: C1 で `n=60, p=0.001, vif=2` 相当の合成データ → `high`、`n=35, p=0.03` → `medium`、`vif=8` → `low`。
+6. **決定性**: 同じ入力で2回 `build()` した結果の `id`/`headline` 列が一致する。
+7. **欠測除外**: `scoreOverall == 0` の記録を10件混ぜても `validRecordCount` が増えず、カード内容が変わらない。
+
+`test/acceptance/t5_b32_acceptance_test.dart`:
+
+1. **4状態**: 有効0件 → `cards.isEmpty && validRecordCount == 0` (UIは `BbEmptyState`)。3件 → `progress!.featureLabel == '最近の伸び'`, `remaining == 5`。11件 → `featureLabel == '好みの組み合わせ'`, `remaining == 1`。全閾値超え (メソッド偏り無しの40件) → `progress == null`。
+2. **文言**: 進捗カードの説明文が `'{featureLabel}を出すには記録が{required}件必要です。いまは{current}件です。'` と完全一致。`featureLabel == '味の傾向'` のケースで `デザイン方針.md` §10 の文言と一致。
+3. **C5a**: 有効2件で `lastBrewCompare` カードが1枚出る。1件では出ない。
+4. **境界**: `remaining` が負にならない (`clamp`)、`ratio` が 0.0〜1.0。

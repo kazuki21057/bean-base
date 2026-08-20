@@ -1,13 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-20(Sonnet 5、有人`/full_loop`(起動回数カウンタ33回目)。T5-B22束3完了、T5-B22(L)全体完了・main push予定)
+最終更新: 2026-08-20(Sonnet 5、有人`/full_loop`(起動回数カウンタ34回目)。T5-B30(⚠️上位モデル設計タスク)完了、architectへ委譲。コード変更なし)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-20・有人`/full_loop`(起動回数カウンタ33回目)】T5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)完了、これで束1〜3すべて完了しT5-B22(L)全体が完了・main push予定**。束1・束2のパターンを踏襲して`implementer`が実装(`lib/widgets/public/`に4ファイル新規、golden13枚)。`verifier`検証でanalyze/test/build/golden全PASS(acceptanceのみ束1・束2同様`acceptance_missing`で想定内)。差分ファイル数5超のため`/code-review`(medium)を実行しMajor相当2件を検出(`BbStatTile`の値/補助行Rowにオーバーフロー対策なし、`BbNumberField`の`TextField`に`maxLength`上限なし)、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加)、`verifier`が再検証しCritical/Major0を確認。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。次点はT5-B23(画面: ホーム、依存T5-B22充足で着手可能)。詳細は「3. 直近の作業ログ」-5.119節。
+- **【2026-08-20・有人`/full_loop`(起動回数カウンタ34回目)】T5-B30(⚠️上位モデルで実施、公開版のインサイト表示仕様)完了、architectへ委譲**。T5-B20完了により依存充足、通常タスクより優先して選定(選定規則の順位1)。`statistics_feature_design.md` §13「公開版の表示規則」を新設(§0〜§12は無改変)。決定: (1)カード7種(C1条件の効き方=重回帰/C2好みの組み合わせ=層別/C3おすすめレシピ=GP/C4味の傾向=PCA/C5b最近の伸び/C6安定度/C5a前回との比較)の変換規則・文言テンプレート・採用閾値・遷移先を確定 (2)確信度3段階「確かな傾向/見えてきた傾向/まだ弱い傾向」、点灯個数+ラベルの二重符号化(D8準拠)、カード種別ごとの判定表を確定 (3)データ不足の解禁段階を手法別6段階で確定、`nextUnlock()`で最初の未達段階を返す設計 (4)§0-5(点推定+不確実性のセット表示)を破らない4条件・生の統計量の禁止語リストを確定、受入テストで機械チェックする方針。architectが実コード(`regression_service.dart`・`preference_service.dart`・`statistics_service.dart`・`suggestion_service.dart`・`bean_stock_calculator.dart`・`distributions.dart`)を確認しながら仕様を裏取り、`RecipeSuggestion`がグラインダー/挽き目を返さない制約を発見しC3の仕様に反映済み。設計タスクのためコード変更なし・`verifier`委譲/デプロイ/本番確認は不要。判断待ち事項2件(公開版の総合評価未入力時の保存規則はT5-B24実装時に整合確認/Welch検定の意図的な重複実装を許容)を§13.9に記録。これでT5-B31(変換層の実装)・T5-B32(データ不足表示)が着手可能に。
+- **【2026-08-20・1つ前・有人`/full_loop`(起動回数カウンタ33回目)】T5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)完了、これで束1〜3すべて完了しT5-B22(L)全体が完了・main push予定**。束1・束2のパターンを踏襲して`implementer`が実装(`lib/widgets/public/`に4ファイル新規、golden13枚)。`verifier`検証でanalyze/test/build/golden全PASS(acceptanceのみ束1・束2同様`acceptance_missing`で想定内)。差分ファイル数5超のため`/code-review`(medium)を実行しMajor相当2件を検出(`BbStatTile`の値/補助行Rowにオーバーフロー対策なし、`BbNumberField`の`TextField`に`maxLength`上限なし)、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加)、`verifier`が再検証しCritical/Major0を確認。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。次点はT5-B23(画面: ホーム、依存T5-B22充足で着手可能)。詳細は「3. 直近の作業ログ」-5.119節。
 - **【2026-08-19・無人`/night_loop`(04:10枠)】T5-B22束1(公開版共通コンポーネント5種: BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み**。Lタスクのため束1のみで打ち切り。実装中の`adversary`レビューでMajor2件(`BbListRow`が`buildPublicTheme()`外でクラッシュしうる/golden分岐カバレッジ不足)、締め直前の`/code-review`(カウンタ10の倍数、定期実行ルール)でさらにMajor2件(BbChipのタップリップルが不透明Containerで隠れる/BbCardのタップ時shadowがClipRRectで消える)を検出、いずれも即座に`implementer`へ差し戻し修正・再検証済み(最終Critical0/Major0)。教訓L171追加(ThemeExtension `!`アンラップのクラッシュリスクとフォールバック値パターン)。次点はT5-B22束2(BbEmptyState/BbLoading/BbErrorView)。詳細は「3. 直近の作業ログ」-5.117節。
 - **【2026-08-18・無人`/night_loop`(09:20枠2回目)】T5-B20(公開版デザイントークン設計)・T5-B21(同実装)の2件完了・main push済み**。同じ09:20枠内でT5-B2/T5-B4完了後に継続、「⚠️上位モデルで実施」タスクを`architect`委譲で無人のまま自己解決する2026-08-18改訂ルールの初適用例。T5-B20は`architect`が`docs/android_monetization/デザイン方針.md`(400行、D1〜D8決定事項・トークン仕様・画面構造・共通コンポーネント12種)を新規作成、ドキュメントのみでmain push(commit `1163220`)。2件目T5-B21(M)は`implementer`が`lib/theme/public/`配下にトークン一式実装、1回目`adversary`レビューでMajor指摘3件(D1違反の`mainColorProvider`残存参照とコメント不正確/フォント未同梱のまま`fontFamily`指定/`unit`色が設計と不一致)を検出、`implementer`へ差し戻し修正、再検証でCritical/Major0・Minor1件(実害なし)を確認しmain push。詳細は「3. 直近の作業ログ」-5.116節。
 - **【2026-08-18・無人`/night_loop`(09:20枠)】T5-B2(E-2画面ホワイトリスト)・T5-B4(E-4 AIキー取得の一本化)の2件完了・main push済み**。前々回04:10枠が中断した際にスタックしていたT5-B2/T5-B4は、直前の23:00枠で`architect`が設計判断を確定済み(`docs/android_monetization/コードベース構成方針.md` §9・§10)だったため、今回はimplementer向け仕様がそのまま使える状態だった。オープンPR確認は該当なし。T5-B2(M)を`implementer`実装→`verifier`+`adversary`並行検証(全green、Critical/Major 0)でmain push(commit `2a9bbc6`)。夜間しきい値に余裕があったため2件目にT5-B4(S)を選定・実装、`adversary`1回目レビューでMajor指摘(`kPublicEdition`〈proxy〉で設定画面の「設定を保存する」ボタンがガード漏れ、AI無関係画面でAI専用エラーSnackBarが出る)を検出、`implementer`へ差し戻し修正、再検証でCritical/Major/Minorとも0件を確認しmain push(commit `3786dd5`)。2件実施で本ループの上限(最大2件)に到達し新規タスクには着手せず締めた。
@@ -80,7 +81,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-20最新・有人`/full_loop`(起動回数カウンタ33回目)】T5-B22(L、束1〜3)全体完了・main push予定。次に着手できるのはT5-B23(画面: ホーム、M、依存T5-B22充足)**。T5-B24(記録画面、L要分割)・T5-B25(インサイト画面、M)・T5-B26(オンボーディング、M)も同じくT5-B22依存で着手可能になった(表内ではT5-B23が最上位)。T5-B10(researcher、DBパッケージ選定調査、依存T5-A5済み)も依存充足のまま未着手で残っている——ただし前回セッションはNEXT_SESSION.mdの推奨(T5-B22束3継続)を優先して選定した経緯があるため、次回セッションで両者のどちらを優先するか改めて判断すること。IBM Plex Monoフォント本体の調達は引き続き未着手。
+> **【2026-08-20最新・有人`/full_loop`(起動回数カウンタ34回目)】T5-B30完了(⚠️上位モデル設計タスク、architect委譲)。依存充足済みの⚠️上位モデルタスクは他に無し(T5-B11はT5-B10未完了で不可、T5-B40はT5-B15未完了で不可)。次回セッションはタスク選定規則の順位2(通常タスクへフォールバック)から始めること**。候補はT5-B23(画面: ホーム、M、依存T5-B22充足)・T5-B24(記録画面、L要分割)・T5-B25(インサイト画面、M。T5-B30完了によりT5-B31〈インサイト変換層〉の依存が半分充足、残りT5-B25待ち)・T5-B26(オンボーディング、M)・T5-B10(researcher、DBパッケージ選定調査、依存T5-A5済み、マスタープラン表内では最上位)。**T5-B23とT5-B10のどちら優先か、複数回持ち越されている判断**——次回セッションで確定させること(表内順ならT5-B10が先)。IBM Plex Monoフォント本体の調達は引き続き未着手。
 >
 > **【2026-08-19・1つ前・無人`/night_loop`04:10枠】T5-B22束1(BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み。** IBM Plex Monoフォント本体の調達は引き続き未着手。
 >
@@ -165,20 +166,17 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.119 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ33回目)、Windows環境。T5-B22束3完了、T5-B22(L)全体完了、main push予定)
+### -5.120 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ34回目)、Windows環境。T5-B30完了、architectへ委譲、コード変更なし)
 
-- プリフライトOK、起動回数カウンタ33、使用率取得(開始): 週次2%・セッション2%。`git pull`差分なし。
-- タスク選定: NEXT_SESSION.mdの推奨どおりT5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing、依存T5-B22束2充足)を選定。表内ではT5-B10(researcher、依存T5-A5充足)がT5-B22より上位行だったが、前回セッションの明示推奨(束3継続)を優先して採用(次回セッションでT5-B10との優先順位を改めて判断するよう§2に申し送り済み)。見積もり約$3〜8、予算内。
-- `implementer`へ`デザイン方針.md` §8(234〜257行目)・§1.2(20〜31行目)の仕様と束1・束2の実装パターン踏襲を指示して委譲。`lib/widgets/public/bb_bottom_sheet.dart`・`bb_number_field.dart`・`bb_stat_tile.dart`・`bb_extraction_ring.dart`(いずれも新規)、goldenテスト2ファイルへ束3分追記、golden画像13枚追加。`BbExtractionRing`は`CustomPainter`実装(トラック/弧/ステップ目盛/`Semantics`ラベル)。既存のフォールバック値パターン(教訓L171)は今回も踏襲され再発なし。
-- 親が実装内容(特に`BbExtractionRing`)を`Read`で確認後、`verifier`へ検証委譲。`tools/verify.ps1 -Task T5-B22`実行、analyze/test(439件全パス)/build_apk_release(今回`lib/main_public.dart`既存のため実ビルドが走り成功)/build_web/golden(diff_count0)いずれもPASS。acceptanceのみ束1・束2同様`acceptance_missing`(想定内)。
-- コード対象の変更ファイル数が6件(>5)のため`/code-review`(medium)を実行。**Major相当2件を検出**: `bb_stat_tile.dart`の値/補助行Rowにoverflow対策なし(狭い幅でRenderFlexオーバーフローの恐れ)、`bb_number_field.dart`の`TextField`に`maxLength`上限なし(長い数字入力でオーバーフローの恐れ)。両方とも実コードを確認し妥当な指摘と判断、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加+`counterText`抑制)。
-- `verifier`が再検証、analyze/test/build/golden全PASS(既存golden差分なし)、修正コードの実在も確認。長大な値でのオーバーフロー専用の目視確認は、両コンポーネントがまだどの画面にも未組み込みのため実施できなかった旨の申し送りあり(実害なしと判断、画面組み込み時〈T5-B23以降〉に再確認する)。
-- 束1〜3すべて完了したため`docs/改修マスタープラン.md`のT5-B22行を✅完了へ更新。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。検証完了済みのためpush確認不要。
-- 使用率取得(終了): 週次4%・セッション23%(差分: 週2pt/セッション21pt)。`docs/token_optimization_design.md` §7・§8に追記済み。
-- 変更ファイル: `lib/widgets/public/bb_bottom_sheet.dart`・`bb_number_field.dart`・`bb_stat_tile.dart`・`bb_extraction_ring.dart`(新規)、`test/golden/public_bb_widgets_golden_test.dart`・`test/widgets/public/bb_widgets_plain_theme_test.dart`(修正)、`test/golden/goldens/public/bb_bottom_sheet_*`・`bb_number_field_*`・`bb_stat_tile_*`・`bb_extraction_ring_*`(新規13枚)。締めの本コミットで`docs/改修マスタープラン.md`(T5-B22行✅完了)・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`(-5.118節退避)・`docs/token_optimization_design.md`(§7・§8追記)を追加更新。
-- **次回セッションで最初にやること**: T5-B23(画面: ホーム)またはT5-B10(researcher、DBパッケージ選定調査)のどちらを優先するか判断してから着手。IBM Plex Monoフォント本体の調達は引き続き未着手。T5-A45は引き続き見送り。
+- プリフライトOK、起動回数カウンタ34、使用率取得(開始): セッション27%・週次4%。`git pull`差分なし。
+- タスク選定: バグ対応タスクなし。agy正式運用移行の状態遷移を進める後続タスクは、T5-A73(ユーザー実施待ち)依存のT5-A77以外に無く選定不可のため優先順位0は該当なし。優先順位1(依存充足済みの⚠️上位モデルタスク)からT5-B30(公開版のインサイト表示仕様、依存T5-B20=完了済み)を選定。T5-B11(依存T5-B10未完了)・T5-B40(依存T5-B15未完了)は依存未充足のため対象外。見積もり約$3〜8(Mサイズ設計タスク)、予算内。
+- `architect`へ委譲: 読むべき正本(`statistics_feature_design.md` §0/§2.5/§5〜§8、`デザイン方針.md` §1.2 D8/§9.4 P300・P310/§10/§14)を節番号・行範囲で指定し、コードを書かせず設計書追記のみを指示。成果物は`statistics_feature_design.md` §13「公開版の表示規則」新設(§0〜§12は無改変)。カード7種の変換規則・確信度3段階の判定表・データ不足の解禁段階(手法別6段階)・§0-5遵守の4条件・生の統計量の禁止語リストを確定。実サービスのコード(`regression_service.dart`・`preference_service.dart`・`statistics_service.dart`・`suggestion_service.dart`・`bean_stock_calculator.dart`・`distributions.dart`)を裏取りし、`RecipeSuggestion`がグラインダー/挽き目を返さない制約を発見してC3仕様に反映。
+- 予算チェックポイント確認: `.claude/loop_state.md`で本ループコスト$7.36/$24(サブエージェント込み、architect1体)、上限の6割($14.4)未満のため差し戻しなしで続行可能と判断(今回は差し戻し不要だった)。
+- 親が`git diff`で差分確認: `statistics_feature_design.md`(+411行、新節追加のみ)・`docs/改修マスタープラン.md`(T5-B30行の状態更新のみ)の2ファイルのみ、意図した範囲に閉じていることを確認。`lib/`・`gas/`不変のためverifier委譲・デプロイ・本番確認は不要。設計タスクのため`/code-review`対象外。
+- `docs/改修マスタープラン.md`のT5-B30行を✅完了へ更新、完了済み一覧(92件目)にも追記。
+- **次回セッションで最初にやること**: T5-B23(画面: ホーム)とT5-B10(researcher、DBパッケージ選定調査)のどちらを優先するか判断してから着手(複数回持ち越し中、マスタープラン表内順ならT5-B10が先)。T5-B30完了によりT5-B25(インサイト画面)の依存が一部充足、T5-B31/T5-B32(インサイト変換層・データ不足表示の実装)も設計面では着手可能に。IBM Plex Monoフォント本体の調達は引き続き未着手。T5-A45は引き続き見送り。
 
-> これ以前(-5.114節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前(-5.119節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 
