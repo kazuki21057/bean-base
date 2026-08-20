@@ -235,3 +235,4 @@
 - L169 `.claude/settings.night.json`の`allow`に`WebSearch`/`WebFetch`が無く、無人ループ中は`researcher`のWeb調査タスクが常に拒否される(T5-A102起票、ユーザー実施待ち)。全文: `rules/lessons_archive.md`
 - L170 `fontFamily`をコードで指定してもフォント本体を`pubspec.yaml`/`assets/fonts/`に同梱しなければ無警告で既定フォントへフォールバックし、analyze/test/acceptanceのいずれでも検知できない(T5-B21/adversaryレビュー)。全文: `rules/lessons_archive.md`
 - L171 `ThemeExtension`を`BuildContext`拡張ゲッターで`!`強制アンラップすると、テーマ非対応の画面でwidgetを使った瞬間にクラッシュする。フォールバック値を返す実装にし、素テーマ配下でのクラッシュ無しをスモークテストで担保する(T5-B22束1/adversaryレビュー)。全文: `rules/lessons_archive.md`
+- L172 「狭い列に収める」`Expanded`前提のコンポーネントは、ラベルだけでなく値・単位・補助テキストの全Rowに`Flexible`+`overflow:ellipsis`を付け、数値入力は`TextField`に`maxLength`を設定する。goldenは短い文字列に偏りがちで検知できないため`/code-review`等の差分レビューで補完する(T5-B22束3/`/code-review`)。全文: `rules/lessons_archive.md`

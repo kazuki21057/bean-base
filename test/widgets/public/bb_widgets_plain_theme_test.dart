@@ -9,11 +9,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bean_base/widgets/public/bb_bottom_sheet.dart';
 import 'package:bean_base/widgets/public/bb_buttons.dart';
 import 'package:bean_base/widgets/public/bb_card.dart';
 import 'package:bean_base/widgets/public/bb_chip.dart';
+import 'package:bean_base/widgets/public/bb_extraction_ring.dart';
 import 'package:bean_base/widgets/public/bb_list_row.dart';
+import 'package:bean_base/widgets/public/bb_number_field.dart';
 import 'package:bean_base/widgets/public/bb_section_header.dart';
+import 'package:bean_base/widgets/public/bb_stat_tile.dart';
 
 Future<void> _pumpUnderPlainTheme(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
@@ -86,6 +90,64 @@ void main() {
         selected: true,
         roastDotColor: Colors.brown,
         onSelected: (_) {},
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  // T5-B22(束3): 束3コンポーネントも同様にスモークテストを追加する。
+  testWidgets('BbBottomSheet: 素のThemeData配下でクラッシュしない', (tester) async {
+    await _pumpUnderPlainTheme(
+      tester,
+      BbBottomSheet(
+        title: '抽出パラメータ',
+        actions: [BbPrimaryButton(label: '保存', onPressed: () {})],
+        child: const Text('内容'),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BbNumberField: 素のThemeData配下でクラッシュしない', (tester) async {
+    await _pumpUnderPlainTheme(
+      tester,
+      BbNumberField(
+        label: '豆量',
+        value: 18,
+        min: 1,
+        max: 100,
+        unit: 'g',
+        presets: const [15, 18, 20, 22],
+        onChanged: (_) {},
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BbStatTile: 素のThemeData配下でクラッシュしない', (tester) async {
+    await _pumpUnderPlainTheme(
+      tester,
+      const BbStatTile(
+        label: '豆量',
+        value: '18',
+        unit: 'g',
+        deltaValue: '+1.2',
+        deltaLabel: '前回比',
+        isPositiveDelta: true,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BbExtractionRing: 素のThemeData配下でクラッシュしない', (tester) async {
+    await _pumpUnderPlainTheme(
+      tester,
+      const BbExtractionRing(
+        steps: [30, 90],
+        totalSeconds: 180,
+        elapsedSeconds: 60,
+        diameter: 96,
+        mode: BbExtractionRingMode.staticMode,
       ),
     );
     expect(tester.takeException(), isNull);

@@ -3,20 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bean_base/theme/public/bb_colors.dart';
 import 'package:bean_base/theme/public/bb_theme.dart';
+import 'package:bean_base/widgets/public/bb_bottom_sheet.dart';
 import 'package:bean_base/widgets/public/bb_buttons.dart';
 import 'package:bean_base/widgets/public/bb_card.dart';
 import 'package:bean_base/widgets/public/bb_chip.dart';
 import 'package:bean_base/widgets/public/bb_empty_state.dart';
 import 'package:bean_base/widgets/public/bb_error_view.dart';
+import 'package:bean_base/widgets/public/bb_extraction_ring.dart';
 import 'package:bean_base/widgets/public/bb_list_row.dart';
 import 'package:bean_base/widgets/public/bb_loading.dart';
+import 'package:bean_base/widgets/public/bb_number_field.dart';
 import 'package:bean_base/widgets/public/bb_section_header.dart';
+import 'package:bean_base/widgets/public/bb_stat_tile.dart';
 
 import 'golden_test_helper.dart';
 
 /// T5-B22(束1): 公開版共通コンポーネント(BbCard/BbListRow/BbSectionHeader/
 /// BbPrimaryButton・BbTextButton/BbChip)のgolden(ライト/ダーク)。
 /// T5-B22(束2): BbEmptyState/BbLoadingSkeleton・BbLoadingSpinner/BbErrorViewを追加。
+/// T5-B22(束3): BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRingを追加。
 void main() {
   for (final brightness in [Brightness.light, Brightness.dark]) {
     final suffix = brightness == Brightness.dark ? 'dark' : 'light';
@@ -225,6 +230,95 @@ void main() {
         matchesGoldenFile('goldens/public/bb_loading_spinner_$suffix.png'),
       );
     }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbBottomSheet golden($suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: BbBottomSheet(
+          title: '抽出パラメータ',
+          actions: [
+            BbTextButton(label: 'キャンセル', onPressed: () {}),
+            BbPrimaryButton(label: '保存', onPressed: () {}),
+          ],
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('豆量・湯温・注湯ステップを調整できます。'),
+          ),
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_bottom_sheet_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbNumberField golden($suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: BbNumberField(
+          label: '豆量',
+          value: 18,
+          min: 1,
+          max: 100,
+          unit: 'g',
+          presets: const [15, 18, 20, 22],
+          onChanged: (_) {},
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_number_field_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbStatTile golden($suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: Row(
+          children: const [
+            Expanded(
+              child: BbStatTile(
+                label: '豆量',
+                value: '18',
+                unit: 'g',
+                deltaValue: '+1.2',
+                deltaLabel: '前回比',
+                isPositiveDelta: true,
+              ),
+            ),
+            Expanded(
+              child: BbStatTile(
+                label: '抽出時間',
+                value: '2:45',
+                deltaValue: '-0.3',
+                deltaLabel: '前回比',
+                isPositiveDelta: false,
+              ),
+            ),
+          ],
+        ),
+        brightness: brightness,
+        theme: theme,
+        width: 320,
+        goldenPath: 'goldens/public/bb_stat_tile_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
+
+    testWidgets('BbExtractionRing golden(live, $suffix)', (tester) async {
+      await pumpAndMatchGolden(
+        tester,
+        child: const BbExtractionRing(
+          steps: [30, 90, 180],
+          totalSeconds: 240,
+          elapsedSeconds: 90,
+          diameter: 240,
+          mode: BbExtractionRingMode.live,
+        ),
+        brightness: brightness,
+        theme: theme,
+        goldenPath: 'goldens/public/bb_extraction_ring_live_$suffix.png',
+      );
+    }, skip: skipGoldenOnNonWindows);
   }
 
   // T5-B22(束1)夜間ループ敵対的レビューMajor-2: 上記ループは各コンポーネント
@@ -359,6 +453,85 @@ void main() {
     await expectLater(
       find.byKey(goldenTargetKey),
       matchesGoldenFile('goldens/public/bb_loading_skeleton_5lines_light.png'),
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  // T5-B22(束3): 束3コンポーネントの未カバー分岐(ライトのみ、束1・束2と同粒度)。
+  testWidgets('BbBottomSheet golden(アクション無し分岐)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbBottomSheet(
+        title: '注湯ステップ',
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Text('1投目: 0:00〜0:30\n2投目: 0:30〜1:30'),
+        ),
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      width: 320,
+      goldenPath: 'goldens/public/bb_bottom_sheet_no_actions_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbNumberField golden(エラー状態・プリセット無し分岐)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: BbNumberField(
+        label: '豆量',
+        value: null,
+        min: 1,
+        max: 100,
+        unit: 'g',
+        onChanged: (_) {},
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      width: 320,
+      goldenPath: 'goldens/public/bb_number_field_error_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbStatTile golden(補助行無し分岐)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbStatTile(label: '湯温', value: '92', unit: '℃'),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      width: 320,
+      goldenPath: 'goldens/public/bb_stat_tile_no_delta_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbExtractionRing golden(staticMode)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbExtractionRing(
+        steps: [15, 45],
+        totalSeconds: 150,
+        elapsedSeconds: 150,
+        diameter: 96,
+        mode: BbExtractionRingMode.staticMode,
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      goldenPath: 'goldens/public/bb_extraction_ring_static_light.png',
+    );
+  }, skip: skipGoldenOnNonWindows);
+
+  testWidgets('BbExtractionRing golden(thumbnail)', (tester) async {
+    await pumpAndMatchGolden(
+      tester,
+      child: const BbExtractionRing(
+        steps: [15, 45],
+        totalSeconds: 150,
+        elapsedSeconds: 150,
+        diameter: 36,
+        mode: BbExtractionRingMode.thumbnail,
+      ),
+      brightness: Brightness.light,
+      theme: lightTheme,
+      goldenPath: 'goldens/public/bb_extraction_ring_thumbnail_light.png',
     );
   }, skip: skipGoldenOnNonWindows);
 }

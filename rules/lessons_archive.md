@@ -1042,3 +1042,9 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **事象**: `lib/widgets/public/`の新規コンポーネント(`BbListRow`)が`context.bbType`(`lib/theme/public/bb_theme.dart`の`BuildContext`拡張、内部で`Theme.of(this).extension<BbTypography>()!`と`!`アンラップ)を無条件に参照していた。`buildPublicTheme()`を通した`MaterialApp`配下では常に非nullで問題ないが、テーマ非対応のテスト・将来の誤用(personal版画面への迷い込み等)では即クラッシュする。`flutter analyze`・通常のgoldenテストでは検知できず、`adversary`が「既存テーマで誤って使った場合の挙動」を観点に指摘して発覚した。
 
 **対策**: `ThemeExtension`を取り出す`BuildContext`拡張ゲッターは`!`で例外を出す代わりに、未登録時のフォールバック値(`brightness`/`ColorScheme`から組み立てた代替インスタンス)を返すようにする。あわせて「想定テーマを経由しない場合に静かにそれらしく描画されてしまう」新たな隠蔽リスクが生まれるため、素のテーマ配下でクラッシュしないことを確認するスモークテスト(`tester.takeException()`)を追加し、フォールバックが発動していないことは別途目視・レビューで担保する。今後の束2・束3実装でも同種の`context.bbXxx`参照を追加する際はこのフォールバック方針を踏襲する。
+
+## L172 `Expanded`前提(狭い列に収める設計)のコンポーネントで、ラベルだけに`overflow`/`maxLines`を付け、値・補助行のRowに付け忘れるとRenderFlexオーバーフローが残る(2026-08-20、T5-B22束3/`/code-review`)
+
+**事象**: `lib/widgets/public/bb_stat_tile.dart`(`BbStatTile`)は「2〜4個を`Expanded`で横並びにしても崩れない」設計のコンポーネントだが、実装時は先頭の`label`の`Text`にだけ`maxLines: 1`+`overflow: TextOverflow.ellipsis`を付け、後続の値+単位のRow・前回比の補助行Rowには付け忘れていた。同時に`lib/widgets/public/bb_number_field.dart`(`BbNumberField`)も、`IntrinsicWidth`でラップした`TextField`に桁数上限(`maxLength`)が無く、長い数字入力で同種のオーバーフローが起きうる状態だった。いずれも`flutter analyze`・通常のgoldenテスト(短い文字列のケースのみ)では検知できず、`/code-review`(`/code-review medium`、変更ファイル数5超の実行条件で発火)が「狭い幅での長い値」という仮説駆動レビューで指摘して発覚した。
+
+**対策**: 「狭い列に収める」「`Expanded`前提」と設計書に書かれたコンポーネントを実装する際は、ラベルだけでなく**値・単位・補助テキストを含む全てのRow**に対して、(a)Row自体を`Flexible`/`Expanded`でラップして親の幅を超えて要求させない、(b)内部の`Text`に`maxLines`+`overflow: TextOverflow.ellipsis`を付ける、の両方をセットで適用する。数値入力系コンポーネントは加えて`TextField`に妥当な`maxLength`(+`counterText: ''`でカウンタ非表示)を設定し、無制限の`IntrinsicWidth`が親の幅を超えないようにする。goldenテストの入力値が短い文字列に偏っていると発見できないため、`/code-review`のような差分レビューで「長い値を入れたらどうなるか」という観点を補完する運用が有効(この指摘自体もgoldenでは検知できていない)。

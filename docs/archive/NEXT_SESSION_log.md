@@ -3,6 +3,16 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.118 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ32回目)、Windows環境。T5-B22束2完了、main push済み)
+
+- プリフライトOK、起動回数カウンタ32、使用率取得(開始: セッション2%・週次2%)、`git pull`差分なし。`.claude/loop_state.md`は前回セッション境界のためコスト$0から開始。`docs/改修マスタープラン.md`未完了行を確認、`NEXT_SESSION.md`の推奨どおりT5-B22束2(BbEmptyState/BbLoading/BbErrorView)を選定(依存T5-B22束1充足、見積もり約$3〜8で予算内)。
+- `implementer`へ束1のパターン(`lib/widgets/public/`配置・golden手順・`context.bbColors`/`bbType`のフォールバック値パターン)を踏襲するよう委譲、`bb_empty_state.dart`・`bb_error_view.dart`・`bb_loading.dart`(`BbLoadingSkeleton`/`BbLoadingSpinner`)を新規実装、`test/golden/public_bb_widgets_golden_test.dart`へgolden13枚追記。束1でMajor指摘の原因だったThemeExtensionの`!`強制アンラップは今回`colorScheme`/`textTheme`のみ参照のため再発なし。
+- `verifier`検証: `tools/verify.ps1 -Task T5-B22`でanalyze/test/build_web/golden(diff_count 0)/codegen/secret_scan全PASS、acceptanceのみ`acceptance_missing`(受入資産未整備、束1同様想定内)。差分ファイル数が5超のため`/code-review`(medium)も実行、指摘0件。
+- 公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ、検証完了済みのためpush確認不要でmain push。
+- 使用率取得(終了): 週次2%・セッション12%(差分: 週2pt/セッション10pt)。`docs/token_optimization_design.md` §7・§8に追記済み。
+- 変更ファイル: `lib/widgets/public/bb_empty_state.dart`・`bb_error_view.dart`・`bb_loading.dart`(新規)、`test/golden/public_bb_widgets_golden_test.dart`(修正)、`test/golden/goldens/public/bb_empty_state_*`・`bb_error_view_*`・`bb_loading_*`(新規13枚)。締めの本コミットで`docs/改修マスタープラン.md`(T5-B22行の束2完了記録)・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`(-5.117節退避)・`docs/token_optimization_design.md`(§7・§8追記)を追加更新。
+- **次回セッションで最初にやること**: T5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)から着手。束3完了でT5-B22(L)全体が完了扱いになる見込み。IBM Plex Monoフォント本体の調達は引き続き未着手。T5-A45・T5-B10は引き続き見送り/ユーザー実施待ち。
+
 ### -5.117 当日やったこと(2026-08-19、Sonnet 5、無人`/night_loop`(04:10枠、`tools/night_loop.ps1`起動・`BEANBASE_NIGHT_LOOP=1`)、Windows環境。T5-B22束1完了、main push済み)
 
 - プリフライトOK、`.claude/failure_state.json`にescalated:trueなし(除外対象タスクなし)、`git pull`コンフリクトなし。トリガー04:10のため優先確認(⚠️ユーザー実施の準備作業)を確認したが該当なし、通常のS/M/L選定へフォールバック。依存充足の最上位は「T5-B22(共通コンポーネント12種、束1〜3に分割、L(要分割)、依存T5-B21充足)」のみで、オープンPR確認も該当なし。
