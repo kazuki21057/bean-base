@@ -452,6 +452,8 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
             ),
             const SizedBox(height: 12),
             MockTextField(
+              // T5-A7: integration_testから湯温入力欄を特定するためのキー。
+              key: const ValueKey('eval_temperature_field'),
               label: '湯温',
               suffix: '℃',
               hint: '92',
@@ -464,6 +466,8 @@ class _BrewEvaluationScreenState extends ConsumerState<BrewEvaluationScreen> {
               data: (beans) {
                 final inStock = beans.where((b) => b.isInStock).toList();
                 return DropdownButtonFormField<BeanMaster>(
+                  // T5-A7: integration_testから豆選択を特定するためのキー。
+                  key: const ValueKey('eval_bean_dropdown'),
                   decoration: const InputDecoration(labelText: '豆'),
                   value: _resolveById(inStock, _bean?.id, (b) => b.id),
                   isExpanded: true,

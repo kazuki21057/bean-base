@@ -69,6 +69,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # T5-A7: integration_testスモークスイート(integration_test/smoke_test.dart)用。
+  # flutter.sdk同梱パッケージのためバージョン指定不要。
+  integration_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

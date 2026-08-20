@@ -109,8 +109,15 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
                   spacing: spacing,
                   runSpacing: spacing,
                   children: [
-                    for (final (bean, percent) in visible)
-                      _BeanCard(bean: bean, percent: percent, width: cardWidth),
+                    for (var i = 0; i < visible.length; i++)
+                      _BeanCard(
+                        // T5-A7: integration_testが一覧先頭カードを種別を問わず
+                        // 一意に特定できるよう、master_template.dartの共通キーを流用する。
+                        key: i == 0 ? kMasterListFirstItemKey : null,
+                        bean: visible[i].$1,
+                        percent: visible[i].$2,
+                        width: cardWidth,
+                      ),
                   ],
                 );
               },
@@ -135,7 +142,7 @@ class _BeanCard extends StatelessWidget {
   final int percent;
   final double width;
 
-  const _BeanCard({required this.bean, required this.percent, required this.width});
+  const _BeanCard({super.key, required this.bean, required this.percent, required this.width});
 
   @override
   Widget build(BuildContext context) {

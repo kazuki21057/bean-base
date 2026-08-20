@@ -409,6 +409,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
                   }
                 }
                 return DropdownButtonFormField<MethodMaster>(
+                  // T5-A7: integration_testからメソッド選択を特定するためのキー。
+                  key: const ValueKey('brew_recipe_method_dropdown'),
                   decoration: const InputDecoration(labelText: 'メソッド'),
                   value: _selectedMethod,
                   isExpanded: true,
@@ -426,6 +428,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
             ),
             const SizedBox(height: 12),
             MockTextField(
+              // T5-A7: integration_testから豆量入力欄を特定するためのキー。
+              key: const ValueKey('brew_recipe_bean_weight_field'),
               label: '豆量',
               suffix: 'g',
               hint: '20',

@@ -105,7 +105,12 @@ class MainLayout extends ConsumerWidget {
                 },
                 destinations: [
                   for (final screen in visibleTabs)
+                    // T5-A7: integration_testからタブを特定するためのキー。
+                    // NavigationRailDestination(デスクトップ幅)はWidgetではなく
+                    // keyを持てないため、モバイル幅のNavigationDestination側にのみ付与する
+                    // (integration_testの主対象はAndroidエミュレータ=モバイル幅)。
                     NavigationDestination(
+                      key: ValueKey('nav_tab_${screen.code}'),
                       icon: Icon(_tabIcons[screen]),
                       label: _tabLabels[screen]!,
                       tooltip: '',

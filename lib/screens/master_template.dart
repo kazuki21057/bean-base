@@ -22,6 +22,12 @@ import 'mock/mock_scaffold.dart';
 /// Cycle 20 T3-19: 一覧・詳細どちらのAppBarにも`MasterSwitcherButton`を
 /// 自動的に追加し、他マスターの一覧へ直接遷移できるようにした
 /// (`MasterListTemplate`/`MasterDetailTemplate`を使う画面は個別対応不要)。
+///
+/// T5-A7: `integration_test`スモークテストが「一覧の先頭項目」を種別を問わず
+/// 一意に特定できるよう、各一覧画面(Grinder/Dripper/Filter/Method、および
+/// `bean_list_screen.dart`の`_BeanCard`)の先頭行にだけこのキーを付与する。
+/// 画面ごとに同時にマウントされることは無いため、種別間で使い回して問題ない。
+const Key kMasterListFirstItemKey = ValueKey('master_list_first_item');
 
 /// Cycle 20 T3-19: 各マスター管理画面(一覧/詳細)から、他マスターの一覧へ
 /// 直接遷移できるようにするAppBarアクション。従来は`MastersHubScreen`を
@@ -142,13 +148,14 @@ class MasterListTemplate<T> extends StatelessWidget {
             }
             return Column(
               children: [
-                for (final item in visible)
+                for (var i = 0; i < visible.length; i++)
                   MockListRow(
+                    key: i == 0 ? kMasterListFirstItemKey : null,
                     icon: icon,
-                    title: nameOf(item),
-                    subtitle: subtitleOf(item),
-                    imageUrl: imageUrlOf(item),
-                    onTap: () => onTapItem(context, item),
+                    title: nameOf(visible[i]),
+                    subtitle: subtitleOf(visible[i]),
+                    imageUrl: imageUrlOf(visible[i]),
+                    onTap: () => onTapItem(context, visible[i]),
                   ),
               ],
             );
