@@ -75,7 +75,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    | # | 条件 | 判定元 | 暫定措置 |
    |---|---|---|---|
    | 1 | `tools/verify.ps1`の全項目がgreen(`ok:true`) | verify.ps1のJSON | 適用(常時判定) |
-   | 2 | `integration_test`スモークが全パス | verifier | **`integration_test`未整備(T5-A7未完了)の間は「判定対象外(スキップ)」。`verifier`が「未実施(理由)」と報告した場合はゲートを落とさない(T5-A2で定義済みの`verifier`既定挙動どおり)。ただしスイートが存在するのに実行して失敗した場合は落とす(未整備によるスキップと実行失敗を区別する)。T5-A7完了で解除** |
+   | 2 | `integration_test`スモークが全パス | verifier | 適用(常時判定、2026-08-21 T5-A7完了により暫定措置解除) |
    | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | **判定対象外(スキップ)。T5-A4完了で解除** |
    | 4 | `adversary`のCritical指摘がゼロ | adversary | 適用(常時判定) |
    | 5 | (T5-A66新設)変更ファイルに`.ps1`が含まれる場合、`powershell -File tools\failure_playbook.ps1 -Mode Check`がexit 0を返す | failure_playbook.ps1のJSON(終了コード) | `.ps1`変更が無いループは判定対象外(スキップ)。exit 0以外(BOM喪失等を検知)ならゲートを落とす |

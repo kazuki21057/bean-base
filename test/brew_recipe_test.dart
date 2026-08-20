@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -350,5 +352,125 @@ void main() {
 
     expect(find.text('メソッドを選択してください'), findsNothing);
     expect(find.text('メソッド未選択'), findsOneWidget);
+  });
+
+  testWidgets(
+      'BrewRecipeScreen: 注湯ステップ読込中はメソッド選択が無効で、読込完了後に選択できる(T5-A7)',
+      (WidgetTester tester) async {
+    final mockMethod = MethodMaster(
+      id: 'M1',
+      name: 'V60 Test',
+      author: 'Test',
+      baseBeanWeight: 15.0,
+      baseWaterAmount: 250.0,
+      description: 'Desc',
+      recommendedEquipment: 'V60',
+    );
+    final mockSteps = [
+      PouringStep(
+        id: 'S1',
+        methodId: 'M1',
+        stepOrder: 1,
+        duration: 30,
+        waterAmount: 30,
+        waterReference: 15.0,
+        description: 'Bloom',
+      ),
+    ];
+    final completer = Completer<List<PouringStep>>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [mockMethod])),
+          pouringStepsProvider.overrideWith((ref) => completer.future),
+          coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
+        ],
+        child: const MaterialApp(
+          home: BrewRecipeScreen(),
+        ),
+      ),
+    );
+
+    // メソッド一覧だけ解決させる(注湯ステップは未解決のまま)。
+    await tester.pump();
+
+    final dropdown = tester.widget<DropdownButtonFormField<MethodMaster>>(
+      find.byKey(const ValueKey('brew_recipe_method_dropdown')),
+    );
+    expect(dropdown.onChanged, isNull);
+    expect(find.text('注湯ステップを読み込み中…'), findsOneWidget);
+
+    completer.complete(mockSteps);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButtonFormField<MethodMaster>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('V60 Test').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('メソッドを選択してください'), findsNothing);
+  });
+
+  testWidgets(
+      'BrewRecipeScreen: 注湯ステップの再取得がエラーになった場合、選択済みの古いステップのまま選べてしまわない(bugfix)',
+      (WidgetTester tester) async {
+    final mockMethod = MethodMaster(
+      id: 'M1',
+      name: 'V60 Test',
+      author: 'Test',
+      baseBeanWeight: 15.0,
+      baseWaterAmount: 250.0,
+      description: 'Desc',
+      recommendedEquipment: 'V60',
+    );
+    final mockSteps = [
+      PouringStep(
+        id: 'S1',
+        methodId: 'M1',
+        stepOrder: 1,
+        duration: 30,
+        waterAmount: 30,
+        waterReference: 15.0,
+        description: 'Bloom',
+      ),
+    ];
+    var callCount = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [mockMethod])),
+          // 1回目(初回読込)は成功、2回目(ref.invalidate相当の再取得)は失敗させる。
+          pouringStepsProvider.overrideWith((ref) async {
+            callCount++;
+            if (callCount == 1) return mockSteps;
+            throw Exception('取得失敗');
+          }),
+          coffeeRecordsProvider.overrideWith((ref) async => <CoffeeRecord>[]),
+        ],
+        child: const MaterialApp(
+          home: BrewRecipeScreen(),
+        ),
+      ),
+    );
+
+    // 初回読込成功: ドロップダウンが有効になる。
+    await tester.pumpAndSettle();
+    final dropdownFinder = find.byKey(const ValueKey('brew_recipe_method_dropdown'));
+    var dropdown = tester.widget<DropdownButtonFormField<MethodMaster>>(dropdownFinder);
+    expect(dropdown.onChanged, isNotNull);
+
+    // 030内でのステップ編集・保存後に呼ばれる ref.invalidate(pouringStepsProvider) を
+    // シミュレートし、再取得を失敗させる。
+    final element = tester.element(find.byType(BrewRecipeScreen));
+    ProviderScope.containerOf(element).invalidate(pouringStepsProvider);
+    await tester.pumpAndSettle();
+
+    // 再取得エラー後は、古い値が残っていてもドロップダウンが無効化され、
+    // エラー表示になっていること(hasValueのみでhasErrorを見ていないバグの回帰確認)。
+    dropdown = tester.widget<DropdownButtonFormField<MethodMaster>>(dropdownFinder);
+    expect(dropdown.onChanged, isNull);
+    expect(find.text('注湯ステップの読み込みに失敗しました'), findsOneWidget);
   });
 }

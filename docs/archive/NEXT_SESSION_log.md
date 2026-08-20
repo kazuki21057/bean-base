@@ -3,6 +3,29 @@
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 
+### -5.123 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`(23:00枠)、Windows環境。**訂正版**: 実装内容は正確だが、末尾の「git push origin mainを実施」は誤り)
+
+> **2026-08-21訂正(-5.124節、NEXT_SESSION.mdより)**: 本節は当時Watchdogの90分ハードキャップでclaude.exeが強制終了され、コミット前に中断した状態で書かれたもの。実装内容(バグ7・バグ8の発見・修正、`verifier`/`adversary`の検証結果)自体はその後の有人セッションでの再検証により正確と確認されたが、末尾の「自動pushゲート判定...git push origin mainを実施」は**実際には実行されていない**(未コミットのまま作業ツリーに残存していた)。実際のcommit・pushは翌有人セッション(-5.124節)で行われた。
+
+- 前セッション(-5.122、アーカイブ済み)の続き。バグ3の architect 確定方針(対象Scrollableを`MockScreenScaffold`配下に限定し`jumpTo(maxScrollExtent)`を`hitTestable()`になるまで繰り返す)を`implementer`へ委譲・適用、実機再実行で突破を確認。
+- **バグ7(修正済み)**: `tester.pageBack()`はFlutter SDK側で英語`'Back'`ツールチップ固定でしか戻るボタンを探さず(Cupertinoへのフォールバックのみ)、本アプリの日本語`'戻る'`ツールチップとは一致せず失敗。SettingsScreenの戻る導線は`implementer`へ、5マスタ詳細→一覧→ハブの戻る導線2箇所は同一パターンを親が直接`find.byTooltip('戻る')`へ置換して修正。
+- **バグ8(修正済み、本番コードの真のバグ)**: バグ7修正後の再実行で030→031遷移時に`method=未選択`が再発(バグ6で直ったはずの症状)、2回連続で決定的に再現。原因は`brew_recipe_screen.dart`のメソッド選択`onChanged`が`stepsAsync.whenData(...)`経由で、`pouringStepsProvider`(注湯ステップ)が未読込(`AsyncLoading`)の間は`whenData`がサイレントに無視し選択が反映されない競合状態。`methodMasterProvider`はダッシュボードで先行ロード済みだが`pouringStepsProvider`は030到達時に初めてロード開始するため構造的に決定的に発生。原因不明のバグとして`architect`へ委譲、3案検討の上「読込完了までドロップダウンを無効化+ヘルパーテキスト表示」を選定、production/smoke_test/回帰テストの3タスクを`implementer`が実装。`flutter test`449/449パス、実機で2回連続フルシナリオパスを確認。
+- 検証: `verifier`と`adversary`を並行起動。`verifier`→`tools/verify.ps1 -Task T5-A7`全green(`checks.acceptance.ok:true`含む)。`adversary`→Critical 0 / Major 2(①`stepsReady`判定がエラー時再取得〈前回値保持〉のケースでエラー表示を出さない余地 ②030→他画面遷移でのinvalidate後の`stepsReady`推移が未検証)/ Minor 2、いずれもフォローアップとして次回以降へ持ち越し(ゲートはCritical0のみが条件)。
+- 自動pushゲート判定: 条件1(verify.ps1全green)・2(integration_testスモーク全パス、T5-A7完了により初適用)・4(adversary Critical0)・6(acceptance.ok:true)すべて満たしたと**判定するところまでは完了していたが、実際のpush実行前にWatchdogにより強制終了**(上記訂正参照)。
+- **人間フォローアップとして保留**: `.claude/skills/night_loop/SKILL.md`のT5-A7暫定措置(条件2スキップ)解除の編集は、CLAUDE.mdの夜間書き込み範囲制限(`.claude/night_*`限定)により本セッションでは実施せず次の有人セッションへ持ち越し(→-5.124節で解除実施済み)。
+
+### -5.122 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ36回目)、Windows環境。**検証待ち(継続)**——T5-A7のエミュレータ実行でバグ3件発見、2件修正済み・3件目はarchitectが方針確定、未実装)
+
+- プリフライトOK、起動回数カウンタ36、使用率取得(開始): セッション64%・週次8%。`git pull`差分なし(ローカルはorigin/mainより2コミット先行)。
+- 前回セッションの申し送りどおり「検証待ち」を検知、タスク再選定はスキップして手順4(検証)から再開。`verifier`へT5-A7の検証を委譲したところ、`analyze`/`test`/`build`/`golden`/受入資産(`test/acceptance/t5_a7_acceptance_test.dart`)は全PASS。ただし`integration_test/smoke_test.dart`のエミュレータ実行は「実際に本番Sheetsへ書き込みが発生する」ためverifier自身の絶対規則(本番データ書き換え禁止)により実行不可と報告された。
+- `AskUserQuestion`で本番書き込みを含めた実行の可否をユーザーへ確認、**「実行してよい」の承認を得た**。しかし親経由の伝聞承認ではverifierの絶対規則を上書きできないと判断(verifierも同様の理由で再度差し戻し)、以降のエミュレータ実行は**親セッション自身が直接**`flutter test integration_test/smoke_test.dart -d emulator-5554`で実施。
+- **バグ1(修正済み・実機確認済み)**: 実行1回目、`lib/screens/log_list_screen.dart`の絞り込みバー`_buildDropdownChip`で`DropdownButton`に`isExpanded`指定が無く、`Container(maxWidth:220)`を超えてRenderFlexオーバーフロー(T5-A7の変更とは無関係の既存バグ、本番データ書き込み前の段階で発生)。`implementer`へ委譲し`isExpanded: true`を追加、再実行でこのオーバーフローは解消・突破を確認。
+- **バグ2(修正済み・実機確認済み)**: 実行2回目、`integration_test/smoke_test.dart`64行目・88行目の`find.byWidgetPredicate((w) => w is DropdownMenuItem).first`が、`DropdownButton`が閉じた状態でも保持するオフスクリーンの非表示コピーを掴んでしまいヒットテスト失敗。`implementer`へ委譲し`.first`→`.last`に修正、再実行でメソッド選択が成功することを確認。
+- **バグ3(未修正、architectが方針確定済み)**: 実行3回目、030画面(`brew_recipe_screen.dart`)最下部の「抽出を終えて評価へ (031)」ボタンが、直前の`GpExplorerSection`(GP推薦、データ量次第で非常に長い)のせいで`ListView`のcacheExtent外にありタップ対象が見つからない。`scrollUntilVisible`単体(実行3回目)→`scrollUntilVisible`+`ensureVisible`(実行4回目)と2回implementerへ修正委譲したがいずれも失敗(前者はヒットテスト位置ズレ、後者は追加pumpでGpExplorerSectionが伸長し再度ボタンが範囲外へ)。2回失敗のため`architect`へ根本原因究明を委譲、3経路の原因(cacheExtent外での停止/`ensureVisible`のjumpTo未pump/GP推薦セクションの非同期伸長)を特定し、対象Scrollableを`MockScreenScaffold`配下に限定した上で`position.jumpTo(maxScrollExtent)`を`hitTestable()`になるまで繰り返す方式を設計、`integration_test/smoke_test.dart`への適用コードまで確定。
+- **予算チェックポイント(T5-A93)超過のためセッションを区切った**: architectの委譲完了時点で`.claude/loop_state.md`のループコストが$15.04(>$14.4、上限$24の6割)に達したため、architectが確定した修正のimplementerへの委譲は行わずここで停止。
+- 親が`git diff`で今回の変更(バグ1: `lib/screens/log_list_screen.dart`1行、バグ2: `integration_test/smoke_test.dart`の`.first`→`.last`2箇所)を確認、意図した範囲のみであることを確認。
+- 次回セッションでやることは当時「2. 次回の着手点」に具体的なコード(T1〜T3)で記載(T5-A7の-5.123節で実装・完了)。commitはこのセッションで実施、pushは検証未完了(T5-A7は依然未完了)のため見送り。デプロイ・本番確認は不要(公開版アプリ未デプロイ)。
+
 ### -5.121 当日やったこと(2026-08-20、Sonnet 5、有人`/full_loop`(起動回数カウンタ35回目)、Windows環境。**検証待ち**——T5-A7(integration_testスモークスイート)実装完了、verifier未着手)
 
 - プリフライトOK、起動回数カウンタ35、使用率取得(開始): セッション46%・週次6%。`git pull`差分なし。

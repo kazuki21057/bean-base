@@ -29,9 +29,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'package:bean_base/main.dart' as app;
+import 'package:bean_base/models/method_master.dart' show MethodMaster;
+import 'package:bean_base/screens/create/brew_evaluation_screen.dart'
+    show BrewEvaluationScreen;
 import 'package:bean_base/screens/create/create_form_widgets.dart' show CreateFormScaffold;
 import 'package:bean_base/screens/master_template.dart' show kMasterListFirstItemKey;
-import 'package:bean_base/screens/mock/mock_scaffold.dart' show MockListRow;
+import 'package:bean_base/screens/mock/mock_scaffold.dart'
+    show MockListRow, MockScreenScaffold;
 import 'package:bean_base/screens/settings_screen.dart';
 import 'package:bean_base/screens/statistics_screen.dart';
 
@@ -59,22 +63,44 @@ void main() {
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
 
-        await tester.tap(find.byKey(const ValueKey('brew_recipe_method_dropdown')));
+        // 030はメソッド一覧(ダッシュボード表示中に取得済み)と注湯ステップ一覧
+        // (030へ来て初めて取得開始)を別々に読み込む。ステップ未読込の間はメソッド選択が
+        // 無効化されているため、有効になるまで待つ(pumpAndSettleはGASの往復を待たない)。
+        final methodDropdown = find.byKey(const ValueKey('brew_recipe_method_dropdown'));
+        await _pumpUntil(
+          tester,
+          () {
+            final elements = methodDropdown.evaluate();
+            if (elements.isEmpty) return false;
+            final field = elements.single.widget as DropdownButtonFormField<MethodMaster>;
+            return field.onChanged != null;
+          },
+          reason: '030のメソッド選択が有効になりませんでした(注湯ステップの取得が完了していない)',
+        );
+        await tester.tap(methodDropdown);
         await tester.pumpAndSettle();
-        // DropdownButton は閉じた状態でも選択中アイテムの表示サイズ確保のため、
-        // 全 DropdownMenuItem を IndexedStack でオフスクリーンにビルド済みで残している。
-        // メニューを開くと実際にタップ可能な項目は Overlay(Navigator の Route)として
-        // 別途「後から」追加されるため、ツリー探索順で必ず最後に見つかる。
-        // .first だとオフスクリーンの非表示コピーを掴んでしまいヒットテストに失敗するため .last を使う。
-        final methodOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).last;
+        // 開いたメニューは全画面のModalBarrierを持つため、この時点でhitTestableな
+        // DropdownMenuItemは「開いているメニューの項目」だけになる(閉じた状態の各
+        // ドロップダウンがIndexedStackに持つ表示用コピーはバリアに隠れて除外される)。
+        // 旧実装は.last(ツリー順で最後)を使っていたが、これは非表示コピーを掴む
+        // ことがあり、タップ自体は例外なく成功するのに実際には選択されない
+        // (031への遷移時に method=未選択 のまま)という問題があった。
+        // 031の豆選択ドロップダウンで確立済みの.hitTestable().first方式に統一する。
+        final methodOptions =
+            find.byWidgetPredicate((w) => w is DropdownMenuItem).hitTestable();
         expect(
-          methodOption,
-          findsOneWidget,
+          methodOptions,
+          findsWidgets,
           reason: 'メソッドマスタが1件も登録されていません(前提未整備)',
         );
-        await tester.tap(methodOption);
+        await tester.tap(methodOptions.first);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        expect(
+          find.text('メソッドを選択してください'),
+          findsNothing,
+          reason: '030でメソッドを選択したのに_selectedMethodが更新されていません',
+        );
 
         final beanWeightField = find.descendant(
           of: find.byKey(const ValueKey('brew_recipe_bean_weight_field')),
@@ -92,38 +118,53 @@ void main() {
         // 030画面にはメソッド選択後、注湯ステップ表(横方向SingleChildScrollView)も
         // 存在し Scrollable が複数になるため、対象を縦方向(axisDirection.down)の
         // Scrollable = MockScreenScaffold の ListView に絞る。
-        final verticalScrollable030 = find.byWidgetPredicate(
-          (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+        // 「抽出を終えて評価へ (031)」ボタンは MockScreenScaffold の ListView 最後尾にある。
+        // scrollUntilVisible は (a) cacheExtent 内でElementが構築された時点で停止し
+        // ビューポート外のままになる (b) 末尾の Scrollable.ensureVisible が jumpTo のみで
+        // フレームを回さず tap が古い座標を使う (c) 直後に pump するとGP推薦セクションが
+        // データ到着で伸びてボタンが再びビルド範囲外へ出る、の3経路で失敗するため使わない。
+        // 対象の縦 Scrollable を最下部へ直接ジャンプさせ、タップ可能になるまで繰り返す。
+        // NavigationRail(幅640px以上)も縦 Scrollable を持つため、030画面の骨格配下に限定する。
+        final recipeScrollable = find
+            .descendant(
+              of: find.byType(MockScreenScaffold),
+              matching: find.byWidgetPredicate(
+                (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+              ),
+            )
+            .first;
+        final finishButton = find.byKey(const ValueKey('brew_recipe_finish_button'));
+        var finishButtonReady = false;
+        for (var i = 0; i < 12; i++) {
+          if (finishButton.hitTestable().evaluate().isNotEmpty) {
+            finishButtonReady = true;
+            break;
+          }
+          final position = tester.state<ScrollableState>(recipeScrollable).position;
+          debugPrint('[Antigravity] 030最下部へジャンプ: 試行=$i '
+              'pixels=${position.pixels} max=${position.maxScrollExtent}');
+          position.jumpTo(position.maxScrollExtent);
+          await tester.pumpAndSettle(const Duration(milliseconds: 200));
+        }
+        expect(
+          finishButtonReady,
+          isTrue,
+          reason: '030画面を最下部までスクロールしても「抽出を終えて評価へ (031)」ボタンが'
+              'タップ可能になりませんでした(GP推薦セクションの読み込みが終わらない等)',
         );
-        await tester.scrollUntilVisible(
-          find.text('抽出を終えて評価へ (031)'),
-          300,
-          scrollable: verticalScrollable030,
-        );
-        // scrollUntilVisible はファインダーが最初にヒットした時点(部分的にしか
-        // 見えていない場合を含む)で止まるため、タップ座標が別のウィジェットに
-        // 重なりヒットテストに失敗することがある。ensureVisible でビューポート内に
-        // 精密に収めてからタップする。
-        await tester.ensureVisible(find.text('抽出を終えて評価へ (031)'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('抽出を終えて評価へ (031)'));
+        // ここで pump を挟むと GP推薦セクションの伸長でボタンが再び画面外へ出るため、
+        // hitTestable の確認直後にフレームを回さずそのままタップする。
+        await tester.tap(finishButton.hitTestable());
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
-
-        // 2b. 031(評価): 豆を選択し、湯温(必須項目)を入力して登録する。
-        await tester.tap(find.byKey(const ValueKey('eval_bean_dropdown')));
-        await tester.pumpAndSettle();
-        // 上記メソッド選択と同じ理由で .last を使う(開いたメニュー内の実タップ可能項目)。
-        final beanOption = find.byWidgetPredicate((w) => w is DropdownMenuItem).last;
         expect(
-          beanOption,
+          find.byType(BrewEvaluationScreen),
           findsOneWidget,
-          reason: '在庫あり(isInStock=true)の豆が1件も登録されていません(前提未整備)',
+          reason: '030の「抽出を終えて評価へ」から031(評価)へ遷移できませんでした',
         );
-        await tester.tap(beanOption);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
 
+        // 2b. 031(評価): 湯温(必須項目)を入力し、豆を選択して登録する。
+        // enterText はヒットテストを伴わないため、スクロール前に入力してよい。
         final temperatureField = find.descendant(
           of: find.byKey(const ValueKey('eval_temperature_field')),
           matching: find.byType(TextField),
@@ -131,13 +172,60 @@ void main() {
         await tester.enterText(temperatureField, '92');
         await tester.pumpAndSettle();
 
+        // 豆選択は031のListViewの5番目の入力欄にあり、エミュレータ(幅411dp)では
+        // 初期表示のビューポート(実効約450dp)に入らない。ListViewのcacheExtent(250)
+        // 内なのでElementは構築されており find.byKey では見つかるが、実描画位置は
+        // CreateFormScaffoldの下部バー/MainLayoutのNavigationBarの裏側にある。
+        // そのままtapすると座標がNavigationBar中央(=マスタータブ)に落ち、
+        // pushAndRemoveUntilで010へ飛んで031が破棄される
+        // (実測: Offset(205.7, 626.8)でヒットテスト失敗 → 直後にDropdownMenuItemが
+        //  0件になり Bad state: No element)。
+        final beanDropdown = find.byKey(const ValueKey('eval_bean_dropdown'));
+        final evalScrollable =
+            find.ancestor(of: beanDropdown, matching: find.byType(Scrollable)).first;
+        await _scrollUntilTappable(
+          tester,
+          evalScrollable,
+          beanDropdown,
+          reason: '031画面をスクロールしても豆選択ドロップダウンがタップ可能になりませんでした',
+        );
+        await tester.tap(beanDropdown.hitTestable());
+        await tester.pumpAndSettle();
+
+        // 開いたメニューは全画面のModalBarrierを持つため、この時点でhitTestableな
+        // DropdownMenuItemは「開いているメニューの項目」だけになる(閉じた状態の各
+        // ドロップダウンがIndexedStackに持つ表示用コピーはバリアに隠れて除外される)。
+        // メニュー内が長いと末尾が画面外になりうるため .last ではなく先頭を選ぶ。
+        final beanOptions =
+            find.byWidgetPredicate((w) => w is DropdownMenuItem).hitTestable();
+        expect(
+          beanOptions,
+          findsWidgets,
+          reason: '在庫あり(isInStock=true)の豆が1件も登録されていません(前提未整備)',
+        );
+        await tester.tap(beanOptions.first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
         await tester.tap(find.text('評価を登録する'));
-        await tester.pumpAndSettle(const Duration(seconds: 3));
+        // 保存はGAS(Sheets)へのHTTP往復を2回直列に行う
+        // (coffee_dataへのadd → 好みプロファイルのAnalysisSnapshot保存)。
+        // その待機中、031画面はフレームを1つもスケジュールしない
+        // (CreateFormScaffoldは`_isSaving`中もローディング表示を出さず、保存ボタンを
+        //  disabledにするだけ)。LiveTestWidgetsFlutterBindingのpumpAndSettleは
+        // 「予約フレームが尽きた」時点で戻るため、`_isSaving=true`の再描画1フレームで
+        // 約3秒後に戻ってしまい、保存完了前にアサートして必ず失敗していた。
+        // SnackBarが出るまで短い間隔でpumpしながらポーリングする。
+        final saveMessage = await _pumpUntilSnackBar(
+          tester,
+          const ['登録しました', '登録に失敗しました', '豆を選択してください', '湯温を入力してください'],
+          reason: '「評価を登録する」を押しても保存結果のSnackBarが表示されませんでした',
+        );
         expect(tester.takeException(), isNull);
         expect(
-          find.textContaining('登録しました'),
-          findsOneWidget,
-          reason: '抽出記録の保存に失敗しました',
+          saveMessage,
+          contains('登録しました'),
+          reason: '抽出記録の保存に失敗しました(表示されたSnackBar: $saveMessage)',
         );
 
         // --- 3. 保存後、一覧画面(002)に反映されていることを確認 ---
@@ -166,7 +254,10 @@ void main() {
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
         expect(find.byType(SettingsScreen), findsOneWidget);
-        await tester.pageBack();
+        // tester.pageBack()はFlutter SDK側で英語の'Back'ツールチップ固定でしか
+        // 戻るボタンを探さない(widget_tester.dart)。本アプリは日本語ローカライズ
+        // されており実際のツールチップは'戻る'のため、直接タップする。
+        await tester.tap(find.byTooltip('戻る'));
         await tester.pumpAndSettle();
 
         // --- 6. 5マスタ全部: 一覧→詳細→編集の導線を確認 ---
@@ -212,14 +303,110 @@ void main() {
           );
 
           // 実データを変更せず、キャンセルで詳細→一覧→マスターハブへ戻る。
+          // pageBack()は英語'Back'ツールチップ固定でしか探さない(SDK側の制約、
+          // 上のSettingsScreenの戻る導線と同じ理由)ため、日本語ツールチップを直接タップする。
           await tester.tap(find.text('キャンセル'));
           await tester.pumpAndSettle(const Duration(seconds: 1));
-          await tester.pageBack(); // 詳細 → 一覧
+          await tester.tap(find.byTooltip('戻る')); // 詳細 → 一覧
           await tester.pumpAndSettle(const Duration(seconds: 1));
-          await tester.pageBack(); // 一覧 → マスターハブ
+          await tester.tap(find.byTooltip('戻る')); // 一覧 → マスターハブ
           await tester.pumpAndSettle(const Duration(seconds: 1));
         }
       },
     );
   });
+}
+
+/// 指定の縦スクロール領域を少しずつスクロールし、[target] がタップ可能
+/// (hitTestable)になるまで待つ。現在位置より「下」にある対象専用。
+///
+/// scrollUntilVisible / ensureVisible は
+/// (a) cacheExtent 内で Element が構築された時点で「見つかった」と判定して停止し、
+///     ウィジェットはビューポート外のまま残る
+/// (b) 内部の Scrollable.ensureVisible が jumpTo のみでフレームを回さず、
+///     直後の tap が古い座標を使う
+/// の2経路で失敗するため使わない(030の「抽出を終えて評価へ」ボタンで実証済み)。
+///
+/// タップ可能になった直後に pump を挟むとレイアウトが動いて再び画面外へ出ることが
+/// あるため、呼び出し側は本メソッドの直後にフレームを回さずそのまま tap すること。
+Future<void> _scrollUntilTappable(
+  WidgetTester tester,
+  Finder scrollable,
+  Finder target, {
+  required String reason,
+  double step = 120,
+  int maxTries = 20,
+}) async {
+  for (var i = 0; i < maxTries; i++) {
+    if (target.hitTestable().evaluate().isNotEmpty) return;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    final next = (position.pixels + step) > position.maxScrollExtent
+        ? position.maxScrollExtent
+        : (position.pixels + step);
+    debugPrint('[Antigravity] タップ可能になるまでスクロール: 試行=$i '
+        'pixels=${position.pixels} → $next max=${position.maxScrollExtent}');
+    if (next <= position.pixels) break; // これ以上スクロールできない
+    position.jumpTo(next);
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+  }
+  expect(target.hitTestable(), findsOneWidget, reason: reason);
+}
+
+/// [condition]が真になるまで実フレームを回して待つ。
+/// `pumpAndSettle`は「スケジュール済みフレームが尽きた」時点で戻り、
+/// GASへのHTTP往復のようにフレームを伴わない待機には使えないため。
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  required String reason,
+  Duration interval = const Duration(milliseconds: 250),
+  Duration timeout = const Duration(seconds: 60),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (!DateTime.now().isBefore(deadline)) {
+      fail('$reason(${timeout.inSeconds}秒待機)');
+    }
+    await tester.pump(interval);
+  }
+}
+
+/// 非同期処理の完了で「後から」表示されるSnackBarを待ち、その本文を返す。
+///
+/// `pumpAndSettle`は「スケジュール済みのフレームが無くなった」時点で戻るため、
+/// GASへのHTTP往復のように**フレームを一切スケジュールしない待機**には使えない。
+/// 031の保存中は`CreateFormScaffold`が保存ボタンをdisabledにするだけでローディング
+/// 表示が無く、`pumpAndSettle(3秒)`は再描画1フレームで戻ってしまう。
+///
+/// SnackBarは既定4秒で自動的に閉じるため、ポーリング間隔はそれより十分短く取る。
+/// タイムアウト時は、待機中に観測したSnackBar本文をすべてエラーメッセージへ含める
+/// (保存失敗・必須入力バリデーション等、どこで止まったかを1回の実行で切り分けるため)。
+Future<String> _pumpUntilSnackBar(
+  WidgetTester tester,
+  List<String> messages, {
+  required String reason,
+  Duration interval = const Duration(milliseconds: 250),
+  Duration timeout = const Duration(seconds: 60),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  final seen = <String>{};
+  while (true) {
+    final texts = find
+        .descendant(of: find.byType(SnackBar), matching: find.byType(Text))
+        .evaluate()
+        .map((e) => (e.widget as Text).data)
+        .whereType<String>();
+    for (final text in texts) {
+      seen.add(text);
+      if (messages.any(text.contains)) {
+        debugPrint('[Antigravity] SnackBarを検出: $text');
+        return text;
+      }
+    }
+    if (!DateTime.now().isBefore(deadline)) {
+      fail('$reason(${timeout.inSeconds}秒待機。'
+          '観測したSnackBar: ${seen.isEmpty ? "なし" : seen.join(" / ")})');
+    }
+    await tester.pump(interval);
+  }
 }

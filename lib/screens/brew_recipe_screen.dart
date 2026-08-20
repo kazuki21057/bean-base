@@ -408,19 +408,42 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
                     });
                   }
                 }
-                return DropdownButtonFormField<MethodMaster>(
-                  // T5-A7: integration_testからメソッド選択を特定するためのキー。
-                  key: const ValueKey('brew_recipe_method_dropdown'),
-                  decoration: const InputDecoration(labelText: 'メソッド'),
-                  value: _selectedMethod,
-                  isExpanded: true,
-                  items: [
-                    for (final m in methods)
-                      DropdownMenuItem(value: m, child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                // T5-A7: 注湯ステップ(pouringStepsProvider)は030到達時に初めて読み込まれるのに対し、
+                // メソッド一覧はダッシュボードで読み込み済みのことが多い。ステップ未読込のまま
+                // 選択されると _onMethodChanged に渡すステップが無く、選択が黙って捨てられていた。
+                // 読み込みが終わるまでは選択自体を受け付けない。
+                final stepsReady = stepsAsync.hasValue && !stepsAsync.hasError;
+                final allSteps = stepsAsync.value ?? const <PouringStep>[];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<MethodMaster>(
+                      key: const ValueKey('brew_recipe_method_dropdown'),
+                      decoration: InputDecoration(
+                        labelText: 'メソッド',
+                        helperText: stepsReady
+                            ? null
+                            : (stepsAsync.hasError
+                                ? '注湯ステップの読み込みに失敗しました'
+                                : '注湯ステップを読み込み中…'),
+                      ),
+                      value: _selectedMethod,
+                      isExpanded: true,
+                      items: [
+                        for (final m in methods)
+                          DropdownMenuItem(value: m, child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                      ],
+                      onChanged: stepsReady ? (val) => _onMethodChanged(val, allSteps) : null,
+                    ),
+                    if (!stepsReady && stepsAsync.hasError)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => ref.invalidate(pouringStepsProvider),
+                          child: const Text('再読み込み'),
+                        ),
+                      ),
                   ],
-                  onChanged: (val) {
-                    stepsAsync.whenData((allSteps) => _onMethodChanged(val, allSteps));
-                  },
                 );
               },
               loading: () => const LinearProgressIndicator(),
@@ -523,6 +546,7 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
+            key: const ValueKey('brew_recipe_finish_button'),
             onPressed: _finishAndEvaluate,
             icon: const Icon(Icons.star),
             label: const Text('抽出を終えて評価へ (031)'),
