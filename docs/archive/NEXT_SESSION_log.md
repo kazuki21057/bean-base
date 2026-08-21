@@ -1,5 +1,13 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.127 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`〈23:00枠〉、Windows環境。**T5-B12検証完了・`night/T5-B12`でPR化**)
+
+- 前回セッションからの申し送り(`/full_loop 検証のみ`で手順4から再開)どおり`verifier`+`adversary`を並行起動。両者とも§10-3(v1→v2マイグレーション往復テスト)が実スキーマ(12テーブル)でなく別立てのダミースキーマで代用されている問題を指摘(adversary Major-1/Major-2)。
+- `architect`へ差し戻して原因特定: `drift_dev 2.34.0`は単一スキーマバージョンのままだと`stepByStep`用生成物を出力しない仕様のため、ダミー代用ではなく`schemaVersion`を実際に2へ引き上げ`coffee_data.updated_at`列を追加した上でdrift公式`SchemaVerifier`パターンを使う方針を確定。
+- `implementer`が全面re実装(`lib/db/tables.dart`列追加、`local_database.dart`の`schemaVersion`2化+`stepByStep`配線、`make-migrations`で6ファイル新規生成、ダミースキーマ一式削除)、`test/acceptance/t5_b12_acceptance_test.dart`を3テストへ書き直し。
+- 第2回`verifier`+`adversary`並行検証はCritical0・Major0(Minor3件、うち2件は親が直接`docs/local_db_schema_design.md`の記述不整合を修正、残り1件はT5-B13時の参考事項として保留)。
+- ただし`tools/verify.ps1`は`integration_test`を含まず、2回の検証委譲いずれも明示的にスモークテスト実行を指示していなかったため、自動pushゲート条件#2の証跡が欠落——「判定元の報告が得られなかった条件は満たされたとみなさない」というskillの規則に従いゲート不成立と判定、`night/T5-B12`ブランチへPRを作成(mainには触れていない)。教訓L175として記録。
+
 ### -5.126 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-B12実装完了・検証待ちで区切り**)
 
 - T5-B11完了で依存充足したT5-B12(マイグレーション基盤、M)を選定。方針は`docs/local_db_schema_design.md`(T5-B11で確定済み)にすべて記載済みのため`architect`は介さず`implementer`へ直接実装委譲。
