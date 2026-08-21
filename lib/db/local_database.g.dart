@@ -367,6 +367,17 @@ class $CoffeeDataTableTable extends CoffeeDataTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -400,6 +411,7 @@ class $CoffeeDataTableTable extends CoffeeDataTable
     dripperImageUrl,
     filterImageUrl,
     beanImageUrl,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -645,6 +657,12 @@ class $CoffeeDataTableTable extends CoffeeDataTable
         ),
       );
     }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -778,6 +796,10 @@ class $CoffeeDataTableTable extends CoffeeDataTable
         DriftSqlType.string,
         data['${effectivePrefix}bean_image_url'],
       ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
     );
   }
 
@@ -819,6 +841,10 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
   final String? dripperImageUrl;
   final String? filterImageUrl;
   final String? beanImageUrl;
+
+  /// 行の最終更新時刻(ローカルDB専用のメタ列。Sheets側に対応列は無い)。
+  /// T5-B15のエクスポート/インポートとT5-B47のバックアップで差分判定に使う。
+  final DateTime? updatedAt;
   const CoffeeDataRow({
     required this.id,
     required this.brewedAt,
@@ -851,6 +877,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
     this.dripperImageUrl,
     this.filterImageUrl,
     this.beanImageUrl,
+    this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -893,6 +920,9 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
     }
     if (!nullToAbsent || beanImageUrl != null) {
       map['bean_image_url'] = Variable<String>(beanImageUrl);
+    }
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
     }
     return map;
   }
@@ -938,6 +968,9 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
       beanImageUrl: beanImageUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(beanImageUrl),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
     );
   }
 
@@ -978,6 +1011,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
       dripperImageUrl: serializer.fromJson<String?>(json['dripperImageUrl']),
       filterImageUrl: serializer.fromJson<String?>(json['filterImageUrl']),
       beanImageUrl: serializer.fromJson<String?>(json['beanImageUrl']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
   }
   @override
@@ -1015,6 +1049,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
       'dripperImageUrl': serializer.toJson<String?>(dripperImageUrl),
       'filterImageUrl': serializer.toJson<String?>(filterImageUrl),
       'beanImageUrl': serializer.toJson<String?>(beanImageUrl),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
   }
 
@@ -1050,6 +1085,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
     Value<String?> dripperImageUrl = const Value.absent(),
     Value<String?> filterImageUrl = const Value.absent(),
     Value<String?> beanImageUrl = const Value.absent(),
+    Value<DateTime?> updatedAt = const Value.absent(),
   }) => CoffeeDataRow(
     id: id ?? this.id,
     brewedAt: brewedAt ?? this.brewedAt,
@@ -1088,6 +1124,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
         ? filterImageUrl.value
         : this.filterImageUrl,
     beanImageUrl: beanImageUrl.present ? beanImageUrl.value : this.beanImageUrl,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
   CoffeeDataRow copyWithCompanion(CoffeeDataTableCompanion data) {
     return CoffeeDataRow(
@@ -1158,6 +1195,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
       beanImageUrl: data.beanImageUrl.present
           ? data.beanImageUrl.value
           : this.beanImageUrl,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
@@ -1194,7 +1232,8 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
           ..write('grinderImageUrl: $grinderImageUrl, ')
           ..write('dripperImageUrl: $dripperImageUrl, ')
           ..write('filterImageUrl: $filterImageUrl, ')
-          ..write('beanImageUrl: $beanImageUrl')
+          ..write('beanImageUrl: $beanImageUrl, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -1232,6 +1271,7 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
     dripperImageUrl,
     filterImageUrl,
     beanImageUrl,
+    updatedAt,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -1267,7 +1307,8 @@ class CoffeeDataRow extends DataClass implements Insertable<CoffeeDataRow> {
           other.grinderImageUrl == this.grinderImageUrl &&
           other.dripperImageUrl == this.dripperImageUrl &&
           other.filterImageUrl == this.filterImageUrl &&
-          other.beanImageUrl == this.beanImageUrl);
+          other.beanImageUrl == this.beanImageUrl &&
+          other.updatedAt == this.updatedAt);
 }
 
 class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
@@ -1302,6 +1343,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
   final Value<String?> dripperImageUrl;
   final Value<String?> filterImageUrl;
   final Value<String?> beanImageUrl;
+  final Value<DateTime?> updatedAt;
   final Value<int> rowid;
   const CoffeeDataTableCompanion({
     this.id = const Value.absent(),
@@ -1335,6 +1377,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
     this.dripperImageUrl = const Value.absent(),
     this.filterImageUrl = const Value.absent(),
     this.beanImageUrl = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CoffeeDataTableCompanion.insert({
@@ -1369,6 +1412,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
     this.dripperImageUrl = const Value.absent(),
     this.filterImageUrl = const Value.absent(),
     this.beanImageUrl = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        brewedAt = Value(brewedAt);
@@ -1404,6 +1448,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
     Expression<String>? dripperImageUrl,
     Expression<String>? filterImageUrl,
     Expression<String>? beanImageUrl,
+    Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1438,6 +1483,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
       if (dripperImageUrl != null) 'dripper_image_url': dripperImageUrl,
       if (filterImageUrl != null) 'filter_image_url': filterImageUrl,
       if (beanImageUrl != null) 'bean_image_url': beanImageUrl,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1474,6 +1520,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
     Value<String?>? dripperImageUrl,
     Value<String?>? filterImageUrl,
     Value<String?>? beanImageUrl,
+    Value<DateTime?>? updatedAt,
     Value<int>? rowid,
   }) {
     return CoffeeDataTableCompanion(
@@ -1508,6 +1555,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
       dripperImageUrl: dripperImageUrl ?? this.dripperImageUrl,
       filterImageUrl: filterImageUrl ?? this.filterImageUrl,
       beanImageUrl: beanImageUrl ?? this.beanImageUrl,
+      updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1608,6 +1656,9 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
     if (beanImageUrl.present) {
       map['bean_image_url'] = Variable<String>(beanImageUrl.value);
     }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1648,6 +1699,7 @@ class CoffeeDataTableCompanion extends UpdateCompanion<CoffeeDataRow> {
           ..write('dripperImageUrl: $dripperImageUrl, ')
           ..write('filterImageUrl: $filterImageUrl, ')
           ..write('beanImageUrl: $beanImageUrl, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8420,6 +8472,7 @@ typedef $$CoffeeDataTableTableCreateCompanionBuilder =
       Value<String?> dripperImageUrl,
       Value<String?> filterImageUrl,
       Value<String?> beanImageUrl,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 typedef $$CoffeeDataTableTableUpdateCompanionBuilder =
@@ -8455,6 +8508,7 @@ typedef $$CoffeeDataTableTableUpdateCompanionBuilder =
       Value<String?> dripperImageUrl,
       Value<String?> filterImageUrl,
       Value<String?> beanImageUrl,
+      Value<DateTime?> updatedAt,
       Value<int> rowid,
     });
 
@@ -8619,6 +8673,11 @@ class $$CoffeeDataTableTableFilterComposer
 
   ColumnFilters<String> get beanImageUrl => $composableBuilder(
     column: $table.beanImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8786,6 +8845,11 @@ class $$CoffeeDataTableTableOrderingComposer
     column: $table.beanImageUrl,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CoffeeDataTableTableAnnotationComposer
@@ -8925,6 +8989,9 @@ class $$CoffeeDataTableTableAnnotationComposer
     column: $table.beanImageUrl,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
 class $$CoffeeDataTableTableTableManager
@@ -8995,6 +9062,7 @@ class $$CoffeeDataTableTableTableManager
                 Value<String?> dripperImageUrl = const Value.absent(),
                 Value<String?> filterImageUrl = const Value.absent(),
                 Value<String?> beanImageUrl = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CoffeeDataTableCompanion(
                 id: id,
@@ -9028,6 +9096,7 @@ class $$CoffeeDataTableTableTableManager
                 dripperImageUrl: dripperImageUrl,
                 filterImageUrl: filterImageUrl,
                 beanImageUrl: beanImageUrl,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9063,6 +9132,7 @@ class $$CoffeeDataTableTableTableManager
                 Value<String?> dripperImageUrl = const Value.absent(),
                 Value<String?> filterImageUrl = const Value.absent(),
                 Value<String?> beanImageUrl = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CoffeeDataTableCompanion.insert(
                 id: id,
@@ -9096,6 +9166,7 @@ class $$CoffeeDataTableTableTableManager
                 dripperImageUrl: dripperImageUrl,
                 filterImageUrl: filterImageUrl,
                 beanImageUrl: beanImageUrl,
+                updatedAt: updatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -19,9 +19,9 @@ void main() {
     });
 
     test('12テーブルが作られ、列数が設計書§4のとおりになる(§10-1)', () async {
-      // 設計書§4のテーブルごとの列数: 31/21/13/8/5/5/5/5/19/9/5/12
+      // 設計書§4のテーブルごとの列数: 32/21/13/8/5/5/5/5/19/9/5/12
       final expectedColumnCounts = <String, int>{
-        'coffee_data': 31,
+        'coffee_data': 32,
         'bean_master': 21,
         'methods_master': 13,
         'pouring_steps': 8,

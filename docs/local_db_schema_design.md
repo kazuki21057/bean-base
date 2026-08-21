@@ -43,12 +43,13 @@ targets:
 |---|---|---|
 | `lib/db/tables.dart` | 12個のテーブル定義クラス | T5-B12 |
 | `lib/db/local_database.dart` | `@DriftDatabase`付きの`LocalDatabase`クラス、`schemaVersion`、`MigrationStrategy`、接続生成 | T5-B12 |
-| `lib/db/schema_versions.dart` | **生成物**(`make-migrations`が出力)。手で編集しない | T5-B12 |
-| `drift_schemas/` | **生成物**。バージョンごとのスキーマJSON。gitにコミットする | T5-B12 |
+| `lib/db/local_database.steps.dart` | **生成物**(`make-migrations`が出力する`stepByStep`ヘルパーと`SchemaN`クラス群)。手で編集しない | T5-B12 |
+| `drift_schemas/local_database/drift_schema_v1.json`・`_v2.json` | **生成物**。バージョンごとのスキーマJSON。gitにコミットする | T5-B12 |
+| `test/db/local_database/generated/schema.dart`・`schema_v1.dart`・`schema_v2.dart` | **生成物**。`SchemaVerifier`用のバージョンごとのDBクラス | T5-B12 |
+| `test/db/local_database/migration_test.dart` | **生成物**。マイグレーションの構造検証テスト | T5-B12 |
 | `lib/db/mappers.dart` | 行クラス↔既存モデルの相互変換(extension) | T5-B13 |
 | `lib/services/local_db_service.dart` | `LocalDbService implements DataService`、`LocalDbException` | T5-B13 |
 | `test/db/local_database_test.dart` | CRUD・型往復のユニットテスト | T5-B12/B13 |
-| `test/db/migration_test.dart` | **生成物ベース**のマイグレーションテスト | T5-B12 |
 
 コード生成は `dart run build_runner build --force-jit`(`--delete-conflicting-outputs`はbuild_runner 2.15.1で廃止済みのため使わない)。
 
@@ -69,12 +70,12 @@ class LocalDatabase extends _$LocalDatabase { ... }
 
 - **クラス名**: `LocalDatabase`。
 - **DBファイル名**: `driftDatabase(name: 'bean_base')` を使う(`drift_flutter`。実ファイルは端末のアプリサポートディレクトリに`bean_base.sqlite`として作られる)。
-- **`schemaVersion`**: 初期値 **1**(§8)。
+- **`schemaVersion`**: 現在**2**(§8。T5-B12で`coffee_data.updated_at`列を追加するため初期値1から引き上げ済み)。
 - **日時の保存形式**: コンストラクタで `options: const DriftDatabaseOptions(storeDateTimeAsText: true)` を指定する。**ISO-8601のテキストで保存する**(理由: Sheetsの保存形式と揃い、エクスポートJSONがそのまま人間に読め、`ORDER BY`が文字列比較で正しく効く)。
   - **注意(未検証)**: テキストモードでのタイムゾーンの往復(UTC保存→読み出し時のローカル変換)の挙動は実測していない。T5-B12のテストに「`DateTime`を書いて読み戻し、`readBack.isAtSameMomentAs(original)`が真」というケースを**必ず**入れて確認すること。ずれた場合はarchitectへ差し戻す(勝手に`storeDateTimeAsText: false`へ変えない。Sheets互換のエクスポート形式に影響するため)。
 - **`MigrationStrategy`**:
   - `onCreate`: `await m.createAll();` の後に §9 の初期データ投入を行う。
-  - `onUpgrade`: `stepByStep(...)`(`schema_versions.dart`の生成物)を使う。バージョン1しかない現時点では中身は空。
+  - `onUpgrade`: `stepByStep(...)`(`local_database.steps.dart`の生成物)を使う。T5-B12で`from1To2`(`coffee_data.updated_at`列追加)を配線済み。
   - `beforeOpen`: 何もしない(外部キーを使わないため`PRAGMA foreign_keys`の設定は不要)。
 - **Riverpod配線**(T5-B13):
   - `lib/providers/data_providers.dart` に `final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.onDispose(db.close); return db; });` を追加する。
@@ -108,11 +109,11 @@ Dartモデルのフィールド型から**機械的に**決める。個別の判
 
 ---
 
-## 4. テーブル定義(12テーブル / 全138列)
+## 4. テーブル定義(12テーブル / 全139列)
 
 各表の見方: 「SQL列名」はdriftが`snake_case`変換で生成する実際の列名、「drift定義」は`lib/db/tables.dart`に書くゲッターの本体、「モデル」は対応する既存Dartモデルのフィールド、「Sheets列」は§6の対応表と同じ日本語列名。
 
-### 4.1 `coffee_data`(抽出記録) — 31列
+### 4.1 `coffee_data`(抽出記録) — 32列
 
 テーブルクラス `CoffeeDataTable` / `@DataClassName('CoffeeDataRow')` / `@override String get tableName => 'coffee_data';` / 対応モデル `CoffeeRecord`
 
@@ -149,6 +150,7 @@ Dartモデルのフィールド型から**機械的に**決める。個別の判
 | `dripper_image_url` | 同上 | String? | ドリッパー写真URL |
 | `filter_image_url` | 同上 | String? | フィルタ写真URL |
 | `bean_image_url` | 同上 | String? | 豆写真URL |
+| `updated_at` | `dateTime().nullable()` | DateTime? | (Sheets対応なし) v2で追加。行の最終更新時刻。T5-B15・T5-B47で使う |
 
 **注意**: Sheetsの`ミル`/`ドリッパー`/`フィルター`/`豆名`列は**名前に反してIDを格納している**(`SheetsService.getCoffeeRecords`のkeyMapで確認済み)。`豆名`はシートによって意味が違う(`coffee_data`ではID、`bean_master`では名称)ため、T5-B15の変換マップは**必ずシートごとに持つ**こと。
 
@@ -401,7 +403,7 @@ Dartモデルのフィールド型から**機械的に**決める。個別の判
 
 | Sheetsシート名 | ローカルDBテーブル名 | 列数 | Dartモデル | 備考 |
 |---|---|---|---|---|
-| `coffee_data` | `coffee_data` | 31 | `CoffeeRecord` | 日本語列名がIDを保持する列あり(§4.1) |
+| `coffee_data` | `coffee_data` | 32 | `CoffeeRecord` | 日本語列名がIDを保持する列あり(§4.1)。v2で`updated_at`追加 |
 | `bean_master` | `bean_master` | 21 | `BeanMaster` | 3値列あり(§4.2) |
 | `methods_master` | `methods_master` | 13 | `MethodMaster` | 列名に全角括弧(§4.3) |
 | `pouring_steps` | `pouring_steps` | 8 | `PouringStep` | ID列名が`ID`のみ |
@@ -495,8 +497,7 @@ class LocalDbException implements Exception {
 
 1. `lib/db/tables.dart`と`lib/db/local_database.dart`を§2〜§4のとおり書き、`schemaVersion => 1;` とする。
 2. `dart run build_runner build --force-jit` で`local_database.g.dart`を生成。
-3. `dart run drift_dev make-migrations` を実行する。これがバージョン1のスキーマJSONを`drift_schemas/`へ書き出し、`lib/db/schema_versions.dart`と`test/db/migration_test.dart`(生成テスト)を作る。
-   - 使用中のdrift_devに`make-migrations`が無い場合のみ、旧2段階コマンドへフォールバックする: `dart run drift_dev schema dump lib/db/local_database.dart drift_schemas/` → `dart run drift_dev schema steps drift_schemas/ lib/db/schema_versions.dart`。
+3. `dart run drift_dev make-migrations`。drift_dev 2.34.0は、スキーマが1バージョンしか無い間はJSONダンプしか生成しない(ステップファイル・生成テスト・旧版schemaクラスはバージョンが2つ以上になって初めて出力される)。生成物名は`lib/db/local_database.steps.dart`・`test/db/local_database/migration_test.dart`・`test/db/local_database/generated/schema_v*.dart`。
 4. `drift_schemas/`と生成ファイルを**gitにコミットする**(これが無いと将来の差分検出ができない)。
 5. `MigrationStrategy`に`onUpgrade: stepByStep(...)`を配線する(v1のみの現時点では実質no-op)。
 
@@ -507,18 +508,12 @@ class LocalDbException implements Exception {
 3. `dart run build_runner build --force-jit`。
 4. `dart run drift_dev make-migrations`(新しいスキーマJSONと`fromNtoN+1`の空ステップが生成される)。
 5. 生成された`stepByStep`の該当ステップに移行処理を書く(`m.addColumn(...)`・`m.alterTable(TableMigration(...))`等)。**`onUpgrade`に生SQLを直書きしない。**
-6. `flutter test test/db/migration_test.dart` を実行し、生成されたスキーマ検証テスト(と`validateDatabaseSchema`)が通ることを確認する。
+6. `flutter test test/db/local_database/migration_test.dart` を実行し、生成されたスキーマ検証テスト(と`validateDatabaseSchema`)が通ることを確認する。
 7. **列の削除・改名は原則やらない**(公開版は端末上に唯一のデータがあり、失敗が即データ消失になる)。やむを得ない場合は「新列を追加 → 既存データをコピーする移行ステップ → 旧列は残したまま非使用にする」の順で行い、旧列の物理削除は次の次のリリース以降にする。
 
-### 8.3 テストの制約(未検証・要確認)
+### 8.3 テストの制約(T5-B12で検証済み)
 
-driftのテストは`NativeDatabase.memory()`(`package:drift/native.dart`)で行うのが公式の流儀だが、**Windowsホストの`flutter test`でsqlite3ネイティブライブラリが見つからず失敗する可能性がある**(未検証)。T5-B12では次の順で試し、結果を`NEXT_SESSION.md`に記録すること。
-
-1. まず`NativeDatabase.memory()`のまま`flutter test test/db/local_database_test.dart`を実行する。
-2. `Couldn't open sqlite3 library`系のエラーが出たら、`dev_dependencies`に`sqlite3`を追加し、公式配布の`sqlite3.dll`をリポジトリ直下へ置いてテスト前に`open.overrideFor(...)`する方式へ切り替える。
-3. それでも通らない場合は、DBテストを`integration_test/`へ移してAndroidエミュレータで実行する(`test/acceptance/t5_b12_acceptance_test.dart`はスキーマ検証のみに縮小する)。
-
-**2回試して解決しない場合は打ち切り、分かったことと分からなかったことを分けてarchitectへ差し戻す。**
+driftのテストは`NativeDatabase.memory()`(`package:drift/native.dart`)で行うのが公式の流儀。**T5-B12で検証済み。Windowsホストの`flutter test`で`NativeDatabase.memory()`は追加設定なしに動作する。**`SchemaVerifier`(`package:drift_dev/api/migrations_native.dart`)を使った移行検証テストも同様に追加設定なしで動作した。
 
 ### 8.4 Web版への影響
 
@@ -544,13 +539,13 @@ driftのテストは`NativeDatabase.memory()`(`package:drift/native.dart`)で行
 
 「効いたと言える」判定条件:
 
-1. **スキーマ**: `LocalDatabase`を新規作成すると12テーブルが作られ、`PRAGMA table_info(<各テーブル>)`の列数が§4の列数(31/21/13/8/5/5/5/5/19/9/5/12)と一致する。
+1. **スキーマ**: `LocalDatabase`を新規作成すると12テーブルが作られ、`PRAGMA table_info(<各テーブル>)`の列数が§4の列数(32/21/13/8/5/5/5/5/19/9/5/12)と一致する。
 2. **型往復**: 12モデルそれぞれについて「モデル → companion → insert → select → モデル」の往復で**全フィールドが等値**になる。特に次の4ケースを明示的に含める。
    - `DateTime`: `readBack.isAtSameMomentAs(original)`(§2の未検証項目の確認を兼ねる)
    - `bool?`の3値: `null` / `true` / `false` がそのまま戻る(`BeanMaster.seekOptimalConditions`)
    - 数字だけの文字列ID(`'1712345678901'`)が**数値化されずに文字列で戻る**
    - `double?`の`null`と`0.0`が区別される(`BeanMaster.initialQuantityGrams`)
-3. **マイグレーション**: 意図的に`schemaVersion`を2へ上げて列を1つ足し、`make-migrations`で生成したステップでv1→v2の移行テストが通る(T5-B12の終了条件そのもの)。**移行後に既存行のデータが保持されている**ことを併せて確認する。
+3. **マイグレーション**: 意図的に`schemaVersion`を2へ上げて列を1つ足し(実際に追加したのは`coffee_data.updated_at`、§4.1)、`make-migrations`で生成したステップでv1→v2の移行テストが通る(T5-B12の終了条件そのもの)。**移行後に既存行のデータが保持されている**ことは、`SchemaVerifier.testWithDataIntegrity`を使う受入テスト(`test/acceptance/t5_b12_acceptance_test.dart`)で確認する。
 4. **CRUD**: 5マスタ(豆・グラインダー・ドリッパー・フィルター・メソッド)+抽出記録+購入履歴+購入店の全部で 追加→一覧に出る→更新→反映→削除→消える が通る(**マスタ系は必ず全種類で確認する**。`CLAUDE.md`の不変条件)。
 5. **異常系**: 空ID→`LocalDbException`、重複ID追加→`LocalDbException`、存在しないIDの更新→`LocalDbException`、存在しないIDの削除→例外なしで無変化。
 6. **順序**: 3件を順に追加すると`getXxx()`が追加順で返る。
@@ -563,4 +558,4 @@ driftのテストは`NativeDatabase.memory()`(`package:drift/native.dart`)で行
 
 1. **公開版に初期メソッドを同梱するか**(§9)。製品仕様の好みのため未決。T5-B13着手前にユーザーへ確認する。
 2. **`kPublicEdition.useLocalDb`を`true`へ切り替えるタイミング**。現状は両エディションとも`false`(`lib/config/app_edition.dart:108`)。T5-B13完了時に切り替える想定だが、T5-B14(画像ローカル保存)未了の状態で切り替えると公開版の画像がDrive依存のまま残る。**T5-B14完了までは`false`のままにする**ことを推奨するが、切り替え時期の最終判断はユーザーに委ねる。
-3. **driftのテキスト日時のタイムゾーン往復**(§2)と**Windowsホストでのsqlite3テスト実行可否**(§8.3)は未検証。T5-B12の実装時に実測して結果をここへ追記すること。
+3. **driftのテキスト日時のタイムゾーン往復**(§2)と**Windowsホストでのsqlite3テスト実行可否**(§8.3)はいずれもT5-B12で検証済み(`test/db/local_database_test.dart`の`isAtSameMomentAs`往復確認、Windows上の`flutter test`で`NativeDatabase.memory()`・`SchemaVerifier`とも追加設定なしに動作)。

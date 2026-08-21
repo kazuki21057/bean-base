@@ -1,11 +1,11 @@
 // ローカルDB(drift)テーブル定義。
 //
-// 正本: docs/local_db_schema_design.md §4(12テーブル・全138列)。
+// 正本: docs/local_db_schema_design.md §4(12テーブル・全139列)。
 // ここに書かれていない列・型・既定値を実装者判断で追加/変更しない。
 // 設計に無い判断が必要になった場合はarchitectへ差し戻すこと。
 import 'package:drift/drift.dart';
 
-/// `coffee_data`(抽出記録) — 31列。対応モデル: `CoffeeRecord`。
+/// `coffee_data`(抽出記録) — 32列。対応モデル: `CoffeeRecord`。
 @DataClassName('CoffeeDataRow')
 @TableIndex(name: 'idx_coffee_data_brewed_at', columns: {#brewedAt})
 @TableIndex(name: 'idx_coffee_data_bean_id', columns: {#beanId})
@@ -45,6 +45,10 @@ class CoffeeDataTable extends Table {
   TextColumn get dripperImageUrl => text().nullable()();
   TextColumn get filterImageUrl => text().nullable()();
   TextColumn get beanImageUrl => text().nullable()();
+
+  /// 行の最終更新時刻(ローカルDB専用のメタ列。Sheets側に対応列は無い)。
+  /// T5-B15のエクスポート/インポートとT5-B47のバックアップで差分判定に使う。
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:bean_base/db/local_database.steps.dart';
 import 'package:bean_base/db/tables.dart';
 import 'package:bean_base/models/origin_master.dart';
 
@@ -31,7 +32,7 @@ class LocalDatabase extends _$LocalDatabase {
   LocalDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   // ISO-8601テキストで保存する(設計書§2)。Sheetsの保存形式と揃え、
   // エクスポートJSONがそのまま人間に読める形にするため。
@@ -64,11 +65,11 @@ class LocalDatabase extends _$LocalDatabase {
             rethrow;
           }
         },
-        // onUpgrade: v1のみの現時点ではマイグレーションステップは無い
-        // (`lib/db/local_database.steps.dart`はdrift_devが2バージョン目を
-        // 検知した時点で初めて生成されるため、v1単独では生成されない。
-        // 設計書§8.1・§8.2のとおり、スキーマを上げる際にここへ
-        // `onUpgrade: stepByStep(...)`を配線する)。
+        onUpgrade: stepByStep(
+          from1To2: (Migrator m, Schema2 schema) async {
+            await m.addColumn(schema.coffeeData, schema.coffeeData.updatedAt);
+          },
+        ),
       );
 }
 

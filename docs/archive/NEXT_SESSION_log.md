@@ -1,5 +1,11 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.126 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-B12実装完了・検証待ちで区切り**)
+
+- T5-B11完了で依存充足したT5-B12(マイグレーション基盤、M)を選定。方針は`docs/local_db_schema_design.md`(T5-B11で確定済み)にすべて記載済みのため`architect`は介さず`implementer`へ直接実装委譲。
+- `implementer`が実装: `lib/db/tables.dart`新規(12テーブル・全138列)、`lib/db/local_database.dart`新規(`schemaVersion=1`)、`drift_schemas/local_database/drift_schema_v1.json`(生成物)、`test/db/local_database_test.dart`新規、`test/acceptance/t5_b12_acceptance_test.dart`+`test/acceptance/support/migration_check_db_v{1,2}.dart`新規(§10-3のv1→v2マイグレーション往復は実スキーマでなく別立ての最小ダミースキーマで代用)。
+- implementer報告のanalyze/test/build結果は全green(454件PASS)だが**`verifier`による独立検証は未実施のまま**、予算チェックポイント($16.42 > $14.4)超過によりcommitのみでセッションを区切った(push未実施)。次回セッション(実際には無人`/night_loop`)で検証から再開する申し送りを残した。**続報は-5.127節参照(§10-3のダミー代用がverifier/adversaryにより指摘され、architect差し戻しで実スキーマ検証へ書き直し・完了)。**
+
 ### -5.125 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B11完了・main push予定**)
 
 - T5-B10完了で新たに依存充足したT5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)を選定。`gh pr list --search "T5-B11"`でオープンPR無しを確認し着手。
