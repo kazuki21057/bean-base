@@ -1,5 +1,18 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.128 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B23実装・3往復の検証でCritical0/Major0、ただしゲート条件#2証跡なしでPRルーティング**)
+
+- `gh pr list`でT5-B12(`night/T5-B12`、オープンPR#5)がまだ未マージと確認、T5-A99ルールによりスキップ。次点のT5-B23(公開版画面: ホーム、依存T5-B22充足、オープンPR無し)を選定。
+- `docs/android_monetization/デザイン方針.md` §9.1〜§9.4・§10を読み、`implementer`へ委譲。`lib/routing/public_screen.dart`(`PublicScreen`列挙、`P100`〜`P920`のID)、`lib/screens/public/home_screen.dart`(0件時`BbEmptyState`+§10の文言、≥1件時: 直近抽出カード/週次`BbStatTile`3種/インサイト要約カード/直近3件リスト)、`lib/screens/public/public_shell.dart`(下部`NavigationBar`4タブ+中央FAB「淹れる」、`IndexedStack`)を新規実装。goldenテスト・受入テスト(`test/acceptance/t5_b23_acceptance_test.dart`)も新規。
+- `verifier`+`adversary`を3回並行起動、往復のたびにMajor1件を発見・修正:
+  1. 週次集計(抽出回数・平均総合点)がゼロ件固定のgoldenしかなく2桁件数・小数平均・月曜始まり週境界が未テスト→非ゼロgolden+境界値ユニットテスト3件を追加。
+  2. 上記の日時注入に使った`homeScreenNowProvider`(Riverpod `Provider<DateTime>`)が初回`watch`後キャッシュされ無効化されないため、アプリを起動しっぱなしで週をまたぐと「今週」集計が古いまま→Providerを廃し、素のトップレベル変数`homeScreenClock`を`build()`内で直接呼ぶ方式へ変更。
+  3. それでも`PublicShell._tabs`が`static const`のままだと、Flutterの`Element.updateChild()`の`child.widget == newWidget`高速パス(同一インスタンスなら`update()`/`rebuild()`自体を呼ばない最適化)によりタブ切替の`setState`で`HomeScreen.build()`が再実行されない→`_tabs`を`build()`内で毎回新規生成する方式へ変更、`public_shell_test.dart`でタブ往復後に`homeScreenClock`の更新が反映されることを回帰テストで確認。
+- 最終(3回目)の`verifier`+`adversary`: `tools/verify.ps1 -Task T5-B23`が全9項目green(analyze/test 469件/build_apk/build_web/golden/codegen/secret_scan/acceptance)、adversaryはCritical0・Major0(Minor2件は将来課題として記録のみ)。タイマーベースの周期リフレッシュ機構の追加は過剰設計と判断し見送り、「タブを一度も切り替えず週境界をまたぐ」残余ケースは許容する低リスクな既知の限界として記録。
+- **自動pushゲート条件#2(integration_testスモーク全パス)の証跡なし**: 本環境はAndroid SDK/エミュレータ未整備(T5-A6未着手)のため`verifier`は3回とも実行不可と報告。skillの規則「判定元の報告が得られなかった条件は満たされたとみなさない」により条件#2を不成立と判定(条件1・4・6は満たすことを確認、条件3〈`ui_verifier`〉はT5-A4未着手のためスキップ扱い)。T5-B12と同一の理由で`night/T5-B23`ブランチ+PRへルーティング(mainには触れない)。
+- `.claude/loop_state.md`の本ループ重み付け概算コストが既に$20超(夜間しきい値$20)だったため、2件目のタスクは選定せず本タスクのみで締めた。
+- 教訓L176を新規記録(`rules/lessons_archive.md`): Flutterの`const`ウィジェット再利用による`Element.updateChild()`高速パスがrebuildをスキップする落とし穴、およびRiverpodの`Provider`キャッシュと「現在時刻」取得の相性(キャッシュされた`Provider<DateTime>`は無効化されるまで古い値を返し続ける)。
+
 ### -5.127 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`〈23:00枠〉、Windows環境。**T5-B12検証完了・`night/T5-B12`でPR化**)
 
 - 前回セッションからの申し送り(`/full_loop 検証のみ`で手順4から再開)どおり`verifier`+`adversary`を並行起動。両者とも§10-3(v1→v2マイグレーション往復テスト)が実スキーマ(12テーブル)でなく別立てのダミースキーマで代用されている問題を指摘(adversary Major-1/Major-2)。
