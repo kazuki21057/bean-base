@@ -237,3 +237,4 @@
 - L171 `ThemeExtension`を`BuildContext`拡張ゲッターで`!`強制アンラップすると、テーマ非対応の画面でwidgetを使った瞬間にクラッシュする。フォールバック値を返す実装にし、素テーマ配下でのクラッシュ無しをスモークテストで担保する(T5-B22束1/adversaryレビュー)。全文: `rules/lessons_archive.md`
 - L172 「狭い列に収める」`Expanded`前提のコンポーネントは、ラベルだけでなく値・単位・補助テキストの全Rowに`Flexible`+`overflow:ellipsis`を付け、数値入力は`TextField`に`maxLength`を設定する。goldenは短い文字列に偏りがちで検知できないため`/code-review`等の差分レビューで補完する(T5-B22束3/`/code-review`)。全文: `rules/lessons_archive.md`
 - L173 無人ループがWatchdogのハードキャップで強制終了されると、直前に書いた「完了・push済み」等の申告が未実行のまま残る。前回が無人実行の場合は`git log origin/main`で申告どおりのコミットが実在するか裏取りしてから次へ進む。全文: `rules/lessons_archive.md`
+- L174 設計書で「既存実装と同じ挙動」と書く箇所は書く時点でコードを実読して裏取りする。「変更点は◯点のみ」等の個数を明示した絶対規則は本文の列挙と機械的に一致させ、追加・修正時は同じコミットで個数側も更新する。全文: `rules/lessons_archive.md`

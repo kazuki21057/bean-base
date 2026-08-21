@@ -1,5 +1,15 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.124 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-A7・T5-B10完了・main push済み**)
+
+- セッション冒頭、T5-B10着手前の`git status`で作業ツリーに8ファイルの未コミット差分を発見(下記-5.123節参照)。`git log`/`night_report.md`/`.claude/night_loop_last_run.json`/`.claude/night_logs/wrapper-20260820.log`を確認し、前回の無人`/night_loop`(23:00枠)がT5-A7実装を完了させたがWatchdogの90分ハードキャップ(`FP-05-HANG-WATCHDOG`)でclaude.exeを強制終了され、コミット直前で中断していたと判明。「main push済み」の記録は誤りだった。
+- 内容の再検証: `git diff`でコード差分を精査(完結していると判断)→`flutter analyze`(新規issue無し)→`flutter test`(5/5 PASS)→**親が直接Androidエミュレータで`integration_test/smoke_test.dart`を2回実行**。1回目はドリッパー、2回目はフィルターのマスタ取得で`ClientException: Connection closed before full header was received`(別々のGAS接続の一時的切断)により失敗したが、記録保存・一覧反映・4/5マスタのlist→detail→edit・メソッド選択の競合状態修正・030最下部ボタンへのスクロール修正・日本語`pageBack`修正はいずれも2回とも成功。エミュレータ検証の2回上限(`rules/verification.md`)に達したため、`flutter run -d chrome`+`claude-in-chrome`のブラウザ確認へ切り替え、フィルターマスタに実データ7件が存在することを直接確認——コード起因ではなくGASの一時的な接続不調と結論。
+- 変更ファイル数(9件)が`/code-review`実行条件(5超)に該当するため`adversary`へ`git diff`を委譲、Major2件検出: (a)上記の記録の食い違い(本セッションで是正) (b)`stepsReady = stepsAsync.hasValue`が再取得失敗時(前回値保持のまま`hasError=true`)も無警告で選択可能になる抜け穴(前回セッションの同一指摘の未着手分)。(b)を`implementer`へ差し戻し`stepsReady = stepsAsync.hasValue && !stepsAsync.hasError`へ1行修正+回帰テスト追加(`test/brew_recipe_test.dart`)。
+- `verifier`が`tools/verify.ps1 -Task T5-A7`で最終確認: 9項目全green(analyze/test 450件・build_web/build_apk/golden/codegen_clean/secret_scan/acceptance〈`t5_a7_acceptance_test.dart`含む〉)。
+- `.claude/skills/night_loop/SKILL.md`の自動pushゲート条件2(T5-A7暫定スキップ措置)を解除(前回セッションが夜間書き込み制限で持ち越していた分)。
+- T5-B10(`researcher`委譲)を実施、`docs/research/2026-08-21_local_db.md`作成。結論は`drift`推奨(3パッケージ中唯一の型安全マイグレーション基盤、Web公式対応)。
+- `docs/改修マスタープラン.md`のT5-A7・T5-B10行を完了処理、`git push origin main`実施。
+
 > 2026-07-28に `NEXT_SESSION.md` が330KBまで肥大化したため作業ログをここへ退避した。2026-07-29にトークン削減のため保持数を「直近5セッション」→**「直近1セッション」**に変更し、-4.80〜-4.83を追加退避した。
 > 各節の番号・本文は当時のまま。他ドキュメントからの「NEXT_SESSION.md「-4.xx」節参照」という参照は、-4.96以前であればこのファイルを見ること。
 

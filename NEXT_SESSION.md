@@ -1,13 +1,14 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-21(Sonnet 5、有人`/full_loop`。**前回の無人`/night_loop`(23:00枠)がT5-A7の実装〈バグ4〜8修正〉を完了させていたが、90分ハードキャップでWatchdogに強制終了されコミット前に中断していた**——本書・マスタープランの「main push済み」記載は誤りで、実際は未コミットのまま作業ツリーに残っていた(教訓化: T5-A97)。本セッションで発見し、analyze/test/実機エミュレータ2回実行+ブラウザでのproduction Sheetsデータ存在確認により内容を再検証、adversaryレビューでMajor2件(記録の食い違い/`stepsReady`ガードが再取得失敗時に無警告で通す抜け穴)を検出し後者を`implementer`へ差し戻して修正・`verifier`で全green確認、正しくcommit・push完了。**T5-A7・T5-B10とも完了**。次点はT5-B23。詳細は「3. 直近の作業ログ」参照)
+最終更新: 2026-08-21(Sonnet 5、無人`/night_loop`。**T5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)完了**——`architect`委譲で`docs/local_db_schema_design.md`新規作成(12テーブル・全138列、`drift`採用、マイグレーション方針確定)。`verifier`+`adversary`並行検証でMajor1件・Minor2件を検出し即座に`architect`へ差し戻して修正・再確認済み。本ループのコストが夜間しきい値超過($14.67 > $8)のため2件目のタスクは着手せず、この1件で締めた。次点はT5-B12(マイグレーション基盤、依存T5-B11充足)。詳細は「3. 直近の作業ログ」参照)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-21・有人`/full_loop`】T5-A7(integration_testスモークスイート、L)・T5-B10(ローカルDB選定調査)完了・main push済み**。**前回の無人`/night_loop`(23:00枠)はT5-A7実装(バグ4〜8修正、詳細は下記アーカイブ済みの旧記述参照)を完了させていたが、Watchdogの90分ハードキャップでclaude.exeが強制終了されコミット前に中断——「main push済み」の記録はその時点の書きかけで、実際は未コミットのまま作業ツリーに8ファイル残っていた**(`night_report.md`の当時の記録は`outcome:"skipped_dirty_worktree"`で後続04:10枠がこれを検知しスキップしていた)。本セッション冒頭、T5-B10着手前の状態確認でこの食い違いを発見。`git diff`でコード差分(`brew_recipe_screen.dart`・`smoke_test.dart`・`test/brew_recipe_test.dart`)を精査し内容は完結していると判断、`flutter analyze`(新規issue無し)・`flutter test`(新規回帰テスト含め5/5 PASS)で静的検証後、**親が直接実機エミュレータで`integration_test/smoke_test.dart`を2回実行**——1回目はドリッパー、2回目はフィルターのマスタ取得で`ClientException: Connection closed before full header was received`という別々のGAS接続の一時的切断が原因で失敗(記録保存・一覧反映・4/5マスタのlist→detail→edit・メソッド選択の競合状態修正・スクロール修正・日本語pageBack修正はいずれも2回とも成功)。ブラウザ(`flutter run -d chrome`)でフィルターマスタに実データ7件が存在することを直接確認し、コード起因ではなくGASの一時的な接続不調と判断。ファイル数5超のため`/code-review`相当を`adversary`へ委譲、Major2件を検出: (a)上記の「main push済み」記録の食い違い(本記述で解消) (b)`stepsReady = stepsAsync.hasValue`が再取得失敗時(前回値保持のまま`hasError=true`)も無警告で選択可能になる抜け穴——前回セッションでも同一指摘済み・フォローアップ未着手のまま持ち越されていたもの。(b)を`implementer`へ差し戻し`stepsReady = stepsAsync.hasValue && !stepsAsync.hasError`へ1行修正+回帰テスト追加、`verifier`が`verify.ps1 -Task T5-A7`で全9項目green(analyze/test 450件/build_web/build_apk/golden/codegen/secret_scan/acceptance)を確認。続けてT5-B10(`researcher`委譲、`docs/research/2026-08-21_local_db.md`作成、結論`drift`推奨——唯一の型安全マイグレーション基盤)も完了。全変更commit・push。詳細は「3. 直近の作業ログ」-5.124節。
+- **【2026-08-21・無人`/night_loop`】T5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計、M)完了・main push予定**。T5-B10完了で新たに依存充足したため選定(`gh pr list`でオープンPR無しを確認)。`architect`へ委譲し`docs/local_db_schema_design.md`(新規)を作成——パッケージ`drift`、12テーブル・全138列(テーブル名=Sheetsシート名、列名=snake_caseのDartフィールド名)、外部キー制約なし・UUID不採用(既存の`DateTime.now().millisecondsSinceEpoch.toString()`パターンを流用)、日時はISO-8601テキスト保存、`data_service.dart`の抽象44メソッドを5パターンへ分類、マイグレーションは`schemaVersion=1`+`make-migrations`のみ(生SQL禁止)。`verifier`(`lib/`変更ゼロのため`integration_test`はN/A判定)+`adversary`を並行起動、Major1件(「空ID/重複ID拒否」を既存Sheets挙動と誤記し§0絶対規則と自己矛盾)・Minor2件(メソッド数不一致、マスタープランのT5-B13行が旧「40メソッド相当」のまま)を検出、いずれも`architect`へ差し戻し修正・`git diff`で再確認済み。`tools/verify.ps1`全green。夜間しきい値($8)を超過(実測$14.67)したため2件目のタスク(T5-B12)には着手せず本セッションで締めた。積み残し(ユーザー確認事項)は初期メソッドのシーディング方針・`useLocalDb`切替時期の2点。次点はT5-B12(マイグレーション基盤、依存T5-B11充足)。詳細は「3. 直近の作業ログ」-5.125節。
+- **【2026-08-21・1つ前・有人`/full_loop`】T5-A7(integration_testスモークスイート、L)・T5-B10(ローカルDB選定調査)完了・main push済み**。**前回の無人`/night_loop`(23:00枠)はT5-A7実装(バグ4〜8修正、詳細は下記アーカイブ済みの旧記述参照)を完了させていたが、Watchdogの90分ハードキャップでclaude.exeが強制終了されコミット前に中断——「main push済み」の記録はその時点の書きかけで、実際は未コミットのまま作業ツリーに8ファイル残っていた**(`night_report.md`の当時の記録は`outcome:"skipped_dirty_worktree"`で後続04:10枠がこれを検知しスキップしていた)。本セッション冒頭、T5-B10着手前の状態確認でこの食い違いを発見。`git diff`でコード差分(`brew_recipe_screen.dart`・`smoke_test.dart`・`test/brew_recipe_test.dart`)を精査し内容は完結していると判断、`flutter analyze`(新規issue無し)・`flutter test`(新規回帰テスト含め5/5 PASS)で静的検証後、**親が直接実機エミュレータで`integration_test/smoke_test.dart`を2回実行**——1回目はドリッパー、2回目はフィルターのマスタ取得で`ClientException: Connection closed before full header was received`という別々のGAS接続の一時的切断が原因で失敗(記録保存・一覧反映・4/5マスタのlist→detail→edit・メソッド選択の競合状態修正・スクロール修正・日本語pageBack修正はいずれも2回とも成功)。ブラウザ(`flutter run -d chrome`)でフィルターマスタに実データ7件が存在することを直接確認し、コード起因ではなくGASの一時的な接続不調と判断。ファイル数5超のため`/code-review`相当を`adversary`へ委譲、Major2件を検出: (a)上記の「main push済み」記録の食い違い(本記述で解消) (b)`stepsReady = stepsAsync.hasValue`が再取得失敗時(前回値保持のまま`hasError=true`)も無警告で選択可能になる抜け穴——前回セッションでも同一指摘済み・フォローアップ未着手のまま持ち越されていたもの。(b)を`implementer`へ差し戻し`stepsReady = stepsAsync.hasValue && !stepsAsync.hasError`へ1行修正+回帰テスト追加、`verifier`が`verify.ps1 -Task T5-A7`で全9項目green(analyze/test 450件/build_web/build_apk/golden/codegen/secret_scan/acceptance)を確認。続けてT5-B10(`researcher`委譲、`docs/research/2026-08-21_local_db.md`作成、結論`drift`推奨——唯一の型安全マイグレーション基盤)も完了。全変更commit・push。詳細は「3. 直近の作業ログ」-5.124節。
 - **【2026-08-20・1つ前・有人`/full_loop`(起動回数カウンタ34回目)】T5-B30(⚠️上位モデルで実施、公開版のインサイト表示仕様)完了、architectへ委譲**。T5-B20完了により依存充足、通常タスクより優先して選定(選定規則の順位1)。`statistics_feature_design.md` §13「公開版の表示規則」を新設(§0〜§12は無改変)。決定: (1)カード7種(C1条件の効き方=重回帰/C2好みの組み合わせ=層別/C3おすすめレシピ=GP/C4味の傾向=PCA/C5b最近の伸び/C6安定度/C5a前回との比較)の変換規則・文言テンプレート・採用閾値・遷移先を確定 (2)確信度3段階「確かな傾向/見えてきた傾向/まだ弱い傾向」、点灯個数+ラベルの二重符号化(D8準拠)、カード種別ごとの判定表を確定 (3)データ不足の解禁段階を手法別6段階で確定、`nextUnlock()`で最初の未達段階を返す設計 (4)§0-5(点推定+不確実性のセット表示)を破らない4条件・生の統計量の禁止語リストを確定、受入テストで機械チェックする方針。architectが実コード(`regression_service.dart`・`preference_service.dart`・`statistics_service.dart`・`suggestion_service.dart`・`bean_stock_calculator.dart`・`distributions.dart`)を確認しながら仕様を裏取り、`RecipeSuggestion`がグラインダー/挽き目を返さない制約を発見しC3の仕様に反映済み。設計タスクのためコード変更なし・`verifier`委譲/デプロイ/本番確認は不要。判断待ち事項2件(公開版の総合評価未入力時の保存規則はT5-B24実装時に整合確認/Welch検定の意図的な重複実装を許容)を§13.9に記録。これでT5-B31(変換層の実装)・T5-B32(データ不足表示)が着手可能に。
 - **【2026-08-20・1つ前・有人`/full_loop`(起動回数カウンタ33回目)】T5-B22束3(BbBottomSheet/BbNumberField/BbStatTile/BbExtractionRing)完了、これで束1〜3すべて完了しT5-B22(L)全体が完了・main push予定**。束1・束2のパターンを踏襲して`implementer`が実装(`lib/widgets/public/`に4ファイル新規、golden13枚)。`verifier`検証でanalyze/test/build/golden全PASS(acceptanceのみ束1・束2同様`acceptance_missing`で想定内)。差分ファイル数5超のため`/code-review`(medium)を実行しMajor相当2件を検出(`BbStatTile`の値/補助行Rowにオーバーフロー対策なし、`BbNumberField`の`TextField`に`maxLength`上限なし)、即座に`implementer`へ差し戻し(`Flexible`+`overflow:ellipsis`追加、`maxLength`追加)、`verifier`が再検証しCritical/Major0を確認。公開版アプリは本番未デプロイのためデプロイ・本番確認はスキップ。次点はT5-B23(画面: ホーム、依存T5-B22充足で着手可能)。詳細は「3. 直近の作業ログ」-5.119節。
 - **【2026-08-19・無人`/night_loop`(04:10枠)】T5-B22束1(公開版共通コンポーネント5種: BbCard/BbListRow/BbSectionHeader/BbPrimaryButton・BbTextButton/BbChip)完了・main push済み**。Lタスクのため束1のみで打ち切り。実装中の`adversary`レビューでMajor2件(`BbListRow`が`buildPublicTheme()`外でクラッシュしうる/golden分岐カバレッジ不足)、締め直前の`/code-review`(カウンタ10の倍数、定期実行ルール)でさらにMajor2件(BbChipのタップリップルが不透明Containerで隠れる/BbCardのタップ時shadowがClipRRectで消える)を検出、いずれも即座に`implementer`へ差し戻し修正・再検証済み(最終Critical0/Major0)。教訓L171追加(ThemeExtension `!`アンラップのクラッシュリスクとフォールバック値パターン)。次点はT5-B22束2(BbEmptyState/BbLoading/BbErrorView)。詳細は「3. 直近の作業ログ」-5.117節。
@@ -82,7 +83,9 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-21最新・有人`/full_loop`】T5-A7・T5-B10とも完了・main push済み。次点はT5-B23(画面: ホーム、依存T5-B22充足)。**
+> **【2026-08-21最新・無人`/night_loop`】T5-B11完了・main push予定。次点はT5-B12(マイグレーション基盤、M、依存T5-B11充足、表内でT5-B23より上位のため優先)。** スキーマの正本は`docs/local_db_schema_design.md`(T5-B11で確定)。記載の無い判断が必要になったら`architect`へ差し戻す。積み残しのユーザー確認事項2件(初期メソッドのシーディング方針・`useLocalDb`切替時期)は同設計書§9/§11参照。
+>
+> **【2026-08-21・1つ前・有人`/full_loop`】T5-A7・T5-B10とも完了・main push済み。次点はT5-B23(画面: ホーム、依存T5-B22充足)。**
 >
 > **旧(a)は本セッションで修正済み**: `stepsReady`を`stepsAsync.hasValue && !stepsAsync.hasError`へ修正し再取得失敗時の無警告選択を解消(`test/brew_recipe_test.dart`に回帰テスト追加、`verifier`確認済み)。
 >
@@ -175,21 +178,16 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.124 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-A7・T5-B10完了・main push済み**)
+### -5.125 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B11完了・main push予定**)
 
-- セッション冒頭、T5-B10着手前の`git status`で作業ツリーに8ファイルの未コミット差分を発見(下記-5.123節参照)。`git log`/`night_report.md`/`.claude/night_loop_last_run.json`/`.claude/night_logs/wrapper-20260820.log`を確認し、前回の無人`/night_loop`(23:00枠)がT5-A7実装を完了させたがWatchdogの90分ハードキャップ(`FP-05-HANG-WATCHDOG`)でclaude.exeを強制終了され、コミット直前で中断していたと判明。「main push済み」の記録は誤りだった。
-- 内容の再検証: `git diff`でコード差分を精査(完結していると判断)→`flutter analyze`(新規issue無し)→`flutter test`(5/5 PASS)→**親が直接Androidエミュレータで`integration_test/smoke_test.dart`を2回実行**。1回目はドリッパー、2回目はフィルターのマスタ取得で`ClientException: Connection closed before full header was received`(別々のGAS接続の一時的切断)により失敗したが、記録保存・一覧反映・4/5マスタのlist→detail→edit・メソッド選択の競合状態修正・030最下部ボタンへのスクロール修正・日本語`pageBack`修正はいずれも2回とも成功。エミュレータ検証の2回上限(`rules/verification.md`)に達したため、`flutter run -d chrome`+`claude-in-chrome`のブラウザ確認へ切り替え、フィルターマスタに実データ7件が存在することを直接確認——コード起因ではなくGASの一時的な接続不調と結論。
-- 変更ファイル数(9件)が`/code-review`実行条件(5超)に該当するため`adversary`へ`git diff`を委譲、Major2件検出: (a)上記の記録の食い違い(本セッションで是正) (b)`stepsReady = stepsAsync.hasValue`が再取得失敗時(前回値保持のまま`hasError=true`)も無警告で選択可能になる抜け穴(前回セッションの同一指摘の未着手分)。(b)を`implementer`へ差し戻し`stepsReady = stepsAsync.hasValue && !stepsAsync.hasError`へ1行修正+回帰テスト追加(`test/brew_recipe_test.dart`)。
-- `verifier`が`tools/verify.ps1 -Task T5-A7`で最終確認: 9項目全green(analyze/test 450件・build_web/build_apk/golden/codegen_clean/secret_scan/acceptance〈`t5_a7_acceptance_test.dart`含む〉)。
-- `.claude/skills/night_loop/SKILL.md`の自動pushゲート条件2(T5-A7暫定スキップ措置)を解除(前回セッションが夜間書き込み制限で持ち越していた分)。
-- T5-B10(`researcher`委譲)を実施、`docs/research/2026-08-21_local_db.md`作成。結論は`drift`推奨(3パッケージ中唯一の型安全マイグレーション基盤、Web公式対応)。
-- `docs/改修マスタープラン.md`のT5-A7・T5-B10行を完了処理、`git push origin main`実施。
+- T5-B10完了で新たに依存充足したT5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)を選定。`gh pr list --search "T5-B11"`でオープンPR無しを確認し着手。
+- `architect`へ委譲し`docs/local_db_schema_design.md`(新規)を作成。パッケージ`drift`(T5-B10の結論を踏襲)、テーブル名=Sheetsシート名・列名=snake_caseのDartフィールド名(`build.yaml`で`case_from_dart_to_sql: snake_case`)、外部キー制約なし(Sheets側に無効ID混入があり将来のインポート機能T5-B15を壊すため)、UUID不採用(既存の`DateTime.now().millisecondsSinceEpoch.toString()`パターンのTEXT IDを流用)、日時はISO-8601テキスト保存。12テーブル・全138列(coffee_data 31/bean_master 21/methods_master 13/pouring_steps 8/mill_master 5/dripper_master 5/filter_master 5/origin_master 5/store_master 19/bean_purchases 9/analysis_history 5/recipe_suggestions 12)。`data_service.dart`の抽象メソッド44個(12取得+9追加+10更新+9削除+3保存+1`deletePouringStepsForMethod`)を5パターンへ分類(§7.1)。マイグレーションは`schemaVersion=1`初期化、`make-migrations`による段階的マイグレーションのみ、生SQL禁止(§8)。
+- `verifier`+`adversary`を並行起動して検証。`verifier`はドキュメントのみの変更(`lib/`変更ゼロ)のため`integration_test`スモークをN/A判定。`adversary`がMajor1件(「空ID/重複ID拒否」を既存Sheets挙動と同一と誤記し、§0絶対規則2「§7.2に列挙した3点のみ」と自己矛盾)・Minor2件(§7.1の追加メソッド数「10種」が実際は9種で不一致、`docs/改修マスタープラン.md`のT5-B13行が旧「40メソッド相当」のまま未更新)を検出。いずれも`architect`へ差し戻し修正(§7.2を3点→5点に拡張、§0参照を「§7」→「§7.2」に修正、T5-B13行を「44メソッド相当」に更新)を確認、`git diff`で再検証済み。
+- `tools/verify.ps1`で最終確認: 全項目green(analyze/test 450件など)。設計書のみの変更のため`checks.acceptance`は対象外。
+- 本ループのコストが夜間しきい値($8、`.claude/loop_state.md`の実測$14.67)を超過したため、2件目のタスク(T5-B12)には着手せず本セッションで締めた。
+- 積み残し(ユーザー確認事項、`docs/local_db_schema_design.md` §9/§11): (1)公開版出荷時の初期メソッドのシーディング方針 (2)`kPublicEdition.useLocalDb`をtrueへ切り替える時期(T5-B14完了を待つ案を推奨)。
 
-### -5.123(訂正版・アーカイブ)前回`/night_loop`(23:00枠)がT5-A7実装を完了させたが未コミットのまま中断
-
-> 元の-5.123節は「git push origin mainを実施」まで記載していたが誤り(Watchdogの強制終了でコミット前に中断していたため未実施)。実装内容自体は正確なため、全文はdocs/archive/NEXT_SESSION_log.mdへ移設した(訂正注記付き)。
-
-> これ以前(-5.123節以前)の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
+> これ以前の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
 ## 4. その他
 
