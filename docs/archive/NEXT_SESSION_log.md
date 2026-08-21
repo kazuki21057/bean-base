@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.125 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B11完了・main push予定**)
+
+- T5-B10完了で新たに依存充足したT5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)を選定。`gh pr list --search "T5-B11"`でオープンPR無しを確認し着手。
+- `architect`へ委譲し`docs/local_db_schema_design.md`(新規)を作成。パッケージ`drift`(T5-B10の結論を踏襲)、テーブル名=Sheetsシート名・列名=snake_caseのDartフィールド名(`build.yaml`で`case_from_dart_to_sql: snake_case`)、外部キー制約なし(Sheets側に無効ID混入があり将来のインポート機能T5-B15を壊すため)、UUID不採用(既存の`DateTime.now().millisecondsSinceEpoch.toString()`パターンのTEXT IDを流用)、日時はISO-8601テキスト保存。12テーブル・全138列(coffee_data 31/bean_master 21/methods_master 13/pouring_steps 8/mill_master 5/dripper_master 5/filter_master 5/origin_master 5/store_master 19/bean_purchases 9/analysis_history 5/recipe_suggestions 12)。`data_service.dart`の抽象メソッド44個(12取得+9追加+10更新+9削除+3保存+1`deletePouringStepsForMethod`)を5パターンへ分類(§7.1)。マイグレーションは`schemaVersion=1`初期化、`make-migrations`による段階的マイグレーションのみ、生SQL禁止(§8)。
+- `verifier`+`adversary`を並行起動して検証。`verifier`はドキュメントのみの変更(`lib/`変更ゼロ)のため`integration_test`スモークをN/A判定。`adversary`がMajor1件(「空ID/重複ID拒否」を既存Sheets挙動と同一と誤記し、§0絶対規則2「§7.2に列挙した3点のみ」と自己矛盾)・Minor2件(§7.1の追加メソッド数「10種」が実際は9種で不一致、`docs/改修マスタープラン.md`のT5-B13行が旧「40メソッド相当」のまま未更新)を検出。いずれも`architect`へ差し戻し修正(§7.2を3点→5点に拡張、§0参照を「§7」→「§7.2」に修正、T5-B13行を「44メソッド相当」に更新)を確認、`git diff`で再検証済み。
+- `tools/verify.ps1`で最終確認: 全項目green(analyze/test 450件など)。設計書のみの変更のため`checks.acceptance`は対象外。
+- 本ループのコストが夜間しきい値($8、`.claude/loop_state.md`の実測$14.67)を超過したため、2件目のタスク(T5-B12)には着手せず本セッションで締めた。
+- 積み残し(ユーザー確認事項、`docs/local_db_schema_design.md` §9/§11): (1)公開版出荷時の初期メソッドのシーディング方針 (2)`kPublicEdition.useLocalDb`をtrueへ切り替える時期(T5-B14完了を待つ案を推奨)。
+
 ### -5.124 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-A7・T5-B10完了・main push済み**)
 
 - セッション冒頭、T5-B10着手前の`git status`で作業ツリーに8ファイルの未コミット差分を発見(下記-5.123節参照)。`git log`/`night_report.md`/`.claude/night_loop_last_run.json`/`.claude/night_logs/wrapper-20260820.log`を確認し、前回の無人`/night_loop`(23:00枠)がT5-A7実装を完了させたがWatchdogの90分ハードキャップ(`FP-05-HANG-WATCHDOG`)でclaude.exeを強制終了され、コミット直前で中断していたと判明。「main push済み」の記録は誤りだった。

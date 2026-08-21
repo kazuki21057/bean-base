@@ -1,6 +1,6 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-21(Sonnet 5、無人`/night_loop`。**T5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)完了**——`architect`委譲で`docs/local_db_schema_design.md`新規作成(12テーブル・全138列、`drift`採用、マイグレーション方針確定)。`verifier`+`adversary`並行検証でMajor1件・Minor2件を検出し即座に`architect`へ差し戻して修正・再確認済み。本ループのコストが夜間しきい値超過($14.67 > $8)のため2件目のタスクは着手せず、この1件で締めた。次点はT5-B12(マイグレーション基盤、依存T5-B11充足)。詳細は「3. 直近の作業ログ」参照)
+最終更新: 2026-08-21(Sonnet 5、有人`/full_loop`。**T5-B12(マイグレーション基盤)実装完了・検証待ち**——`docs/local_db_schema_design.md`の確定済み方針どおり`implementer`が`lib/db/`新設(12テーブル・全138列)・マイグレーション往復テスト・受け入れテストを実装、analyze/test/build web(implementer実行分)は全green。implementer完了直後に予算チェックポイント($16.42 > $14.4)を超過したため`verifier`委譲は行わず、実装のみでセッションを区切った(commit済み・push未実施)。次回セッションは`/full_loop 検証のみ`で手順4(検証)から再開すること。詳細は「3. 直近の作業ログ」参照)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
@@ -83,7 +83,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-21最新・無人`/night_loop`】T5-B11完了・main push予定。次点はT5-B12(マイグレーション基盤、M、依存T5-B11充足、表内でT5-B23より上位のため優先)。** スキーマの正本は`docs/local_db_schema_design.md`(T5-B11で確定)。記載の無い判断が必要になったら`architect`へ差し戻す。積み残しのユーザー確認事項2件(初期メソッドのシーディング方針・`useLocalDb`切替時期)は同設計書§9/§11参照。
+> **【2026-08-21最新・有人`/full_loop`】検証待ち——T5-B12(implementer実装完了、`flutter analyze`/`test`/`build web`済み)の`verifier`委譲から開始すること。** 変更ファイルは`pubspec.yaml`・`build.yaml`(新規)・`lib/db/tables.dart`(新規)・`lib/db/local_database.dart`(新規)・`drift_schemas/`(生成物)・`test/db/local_database_test.dart`(新規)・`test/acceptance/t5_b12_acceptance_test.dart`+`test/acceptance/support/`(新規)。判定条件は`docs/local_db_schema_design.md` §10の1・3・8番のみ(2/4/5/6/7番はT5-B13の担当)。`tools/verify.ps1 -Task T5-B12`で`checks.acceptance`も確認。implementerの申告(drift `2.34.0`固定/生成物名が`local_database.steps.dart`に変わりschema_versions.dart・migration_test.dartは非生成)は環境事実であり設計逸脱ではないが、`git diff`で意図どおりか確認してからPASS/FAIL判定すること。PASSならcommit済み変更をpushしT5-B12を完了処理、次点はT5-B13(`LocalDbService`実装、依存T5-B12・T5-B3)。積み残しのユーザー確認事項2件(初期メソッドのシーディング方針・`useLocalDb`切替時期)は同設計書§9/§11参照。
 >
 > **【2026-08-21・1つ前・有人`/full_loop`】T5-A7・T5-B10とも完了・main push済み。次点はT5-B23(画面: ホーム、依存T5-B22充足)。**
 >
@@ -178,14 +178,15 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.125 当日やったこと(2026-08-21、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B11完了・main push予定**)
+### -5.126 当日やったこと(2026-08-21、Sonnet 5、有人`/full_loop`、Windows環境。**T5-B12実装完了・検証待ち**)
 
-- T5-B10完了で新たに依存充足したT5-B11(⚠️上位モデルで実施、ローカルDBスキーマ設計)を選定。`gh pr list --search "T5-B11"`でオープンPR無しを確認し着手。
-- `architect`へ委譲し`docs/local_db_schema_design.md`(新規)を作成。パッケージ`drift`(T5-B10の結論を踏襲)、テーブル名=Sheetsシート名・列名=snake_caseのDartフィールド名(`build.yaml`で`case_from_dart_to_sql: snake_case`)、外部キー制約なし(Sheets側に無効ID混入があり将来のインポート機能T5-B15を壊すため)、UUID不採用(既存の`DateTime.now().millisecondsSinceEpoch.toString()`パターンのTEXT IDを流用)、日時はISO-8601テキスト保存。12テーブル・全138列(coffee_data 31/bean_master 21/methods_master 13/pouring_steps 8/mill_master 5/dripper_master 5/filter_master 5/origin_master 5/store_master 19/bean_purchases 9/analysis_history 5/recipe_suggestions 12)。`data_service.dart`の抽象メソッド44個(12取得+9追加+10更新+9削除+3保存+1`deletePouringStepsForMethod`)を5パターンへ分類(§7.1)。マイグレーションは`schemaVersion=1`初期化、`make-migrations`による段階的マイグレーションのみ、生SQL禁止(§8)。
-- `verifier`+`adversary`を並行起動して検証。`verifier`はドキュメントのみの変更(`lib/`変更ゼロ)のため`integration_test`スモークをN/A判定。`adversary`がMajor1件(「空ID/重複ID拒否」を既存Sheets挙動と同一と誤記し、§0絶対規則2「§7.2に列挙した3点のみ」と自己矛盾)・Minor2件(§7.1の追加メソッド数「10種」が実際は9種で不一致、`docs/改修マスタープラン.md`のT5-B13行が旧「40メソッド相当」のまま未更新)を検出。いずれも`architect`へ差し戻し修正(§7.2を3点→5点に拡張、§0参照を「§7」→「§7.2」に修正、T5-B13行を「44メソッド相当」に更新)を確認、`git diff`で再検証済み。
-- `tools/verify.ps1`で最終確認: 全項目green(analyze/test 450件など)。設計書のみの変更のため`checks.acceptance`は対象外。
-- 本ループのコストが夜間しきい値($8、`.claude/loop_state.md`の実測$14.67)を超過したため、2件目のタスク(T5-B12)には着手せず本セッションで締めた。
-- 積み残し(ユーザー確認事項、`docs/local_db_schema_design.md` §9/§11): (1)公開版出荷時の初期メソッドのシーディング方針 (2)`kPublicEdition.useLocalDb`をtrueへ切り替える時期(T5-B14完了を待つ案を推奨)。
+- T5-B11完了で依存充足したT5-B12(マイグレーション基盤、M)を選定。`gh pr list --state open`でオープンPRなしを確認、バグ対応タスク・agy移行系列タスクとも既に無いことを確認し通常タスクへフォールバック。方針は`docs/local_db_schema_design.md`(T5-B11で確定済み)にすべて記載済みのため`architect`は介さず`implementer`へ直接実装委譲。
+- `implementer`が実装: `pubspec.yaml`(`drift`/`drift_flutter`/`drift_dev`追加、`drift`は`2.34.0`に固定——理由は下記)、`build.yaml`新規、`lib/db/tables.dart`新規(12テーブル・全138列)、`lib/db/local_database.dart`新規(`schemaVersion=1`、ISO-8601日時、`onCreate`で`origin_master`に`kInitialOriginMasters`15件シード)、`drift_schemas/local_database/drift_schema_v1.json`(生成物)、`test/db/local_database_test.dart`新規(列数一致・`DateTime`往復)、`test/acceptance/t5_b12_acceptance_test.dart`+`test/acceptance/support/migration_check_db_v{1,2}.dart`新規(§10-1列数一致・§10-3のv1→v2マイグレーション往復を検証)。
+- **implementerからの申告2件(設計判断ではなく実装上の事実、次回セッションでverifier確認時に踏まえること)**: (1)`drift 2.34.3`+`drift_dev 2.34.0`の組み合わせで`make-migrations`がクラッシュしたため`drift`を`2.34.0`に固定(Flutter SDKの`meta`ピン止めでこれ以上`drift_dev`を上げられない)。(2)単一バージョン(v1)構成では`drift_dev`が`lib/db/schema_versions.dart`・`test/db/migration_test.dart`を生成しない仕様(2バージョン以上検知して初めて生成)。実際の生成物名は`lib/db/local_database.steps.dart`。§10-3の検証は、実スキーマをv1→v2→v1へ戻す手動検証(pass確認済み)と、独立した最小スキーマでの恒久受け入れテストの2本立てで満たしたとのこと。
+- §8.3(Windows sqlite3ネイティブテスト)は1回目の試行(`NativeDatabase.memory()`のまま)で成功、代替手順は不要だった。
+- implementer報告のanalyze/test/build結果: `flutter analyze`新規issueゼロ、`flutter test`454件全pass、`flutter build web`成功。**ただしこれはimplementer自身の実行結果であり、`verifier`による独立検証はまだ実施していない**。
+- **予算チェックポイント超過によりこのセッションで打ち切り**: implementer委譲完了直後に`.claude/loop_state.md`を確認したところ本ループコスト$16.42(有人上限$24の6割=$14.4を超過)。T5-A93の規則により新しい委譲(verifier含む)を開始せず、実装のみでセッションを区切った。commitは実施、pushはしていない(検証未完了のため)。
+- **次回セッションでやること**: `/clear`後に`/full_loop 検証のみ`で再開し、手順4(検証)から着手する。`verifier`へ委譲する際は「今回の変更対象は上記ファイル一覧、判定条件は`docs/local_db_schema_design.md` §10の1・3・8番(2/4/5/6/7番はT5-B13〈LocalDbService〉担当のため対象外)」であることを明記し、`tools/verify.ps1 -Task T5-B12`で`checks.acceptance`の結果も確認すること。上記implementerの申告2件(drift版数固定・生成物名の相違)は設計逸脱ではなく環境事実だが、`git diff`で意図どおりか確認してからPASS/FAIL判定すること。PASSならcommit済みの変更をpushし、`docs/改修マスタープラン.md`のT5-B12行を完了処理。次点はT5-B13(`LocalDbService`実装、依存T5-B12・T5-B3)。
 
 > これ以前の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
