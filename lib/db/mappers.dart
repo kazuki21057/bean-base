@@ -12,8 +12,11 @@ import 'package:drift/drift.dart';
 import 'local_database.dart';
 import '../models/bean_master.dart';
 import '../models/bean_purchase.dart';
+import '../models/coffee_record.dart';
 import '../models/equipment_masters.dart';
+import '../models/method_master.dart';
 import '../models/origin_master.dart';
+import '../models/pouring_step.dart';
 import '../models/store_master.dart';
 
 // --- mill_master (GrinderMaster) ---
@@ -235,5 +238,148 @@ extension BeanPurchaseCompanionMapper on BeanPurchase {
         storeName: Value(storeName),
         memo: Value(memo),
         createdAt: Value(createdAt),
+      );
+}
+
+// --- coffee_data (CoffeeRecord) ---
+
+extension CoffeeDataRowMapper on CoffeeDataRow {
+  CoffeeRecord toModel() => CoffeeRecord(
+        id: id,
+        brewedAt: brewedAt,
+        grinderId: grinderId,
+        dripperId: dripperId,
+        filterId: filterId,
+        beanId: beanId,
+        roastLevel: roastLevel,
+        origin: origin,
+        beanWeight: beanWeight,
+        grindSize: grindSize,
+        methodId: methodId,
+        taste: taste,
+        concentration: concentration,
+        temperature: temperature,
+        bloomingWater: bloomingWater,
+        totalWater: totalWater,
+        bloomingTime: bloomingTime,
+        totalTime: totalTime,
+        scoreFragrance: scoreFragrance,
+        scoreAcidity: scoreAcidity,
+        scoreBitterness: scoreBitterness,
+        scoreSweetness: scoreSweetness,
+        scoreComplexity: scoreComplexity,
+        scoreFlavor: scoreFlavor,
+        scoreOverall: scoreOverall,
+        comment: comment,
+        grinderImageUrl: grinderImageUrl,
+        dripperImageUrl: dripperImageUrl,
+        filterImageUrl: filterImageUrl,
+        beanImageUrl: beanImageUrl,
+        originId: originId,
+      );
+}
+
+extension CoffeeRecordCompanionMapper on CoffeeRecord {
+  /// `updated_at`はローカルDB専用のメタ列で`CoffeeRecord`に対応フィールドが無いため、
+  /// 保存のたびに現在時刻で埋める(設計書§4.1「行の最終更新時刻」)。
+  CoffeeDataTableCompanion toCompanion() => CoffeeDataTableCompanion(
+        id: Value(id),
+        brewedAt: Value(brewedAt),
+        grinderId: Value(grinderId),
+        dripperId: Value(dripperId),
+        filterId: Value(filterId),
+        beanId: Value(beanId),
+        roastLevel: Value(roastLevel),
+        origin: Value(origin),
+        originId: Value(originId),
+        beanWeight: Value(beanWeight),
+        grindSize: Value(grindSize),
+        methodId: Value(methodId),
+        taste: Value(taste),
+        concentration: Value(concentration),
+        temperature: Value(temperature),
+        bloomingWater: Value(bloomingWater),
+        totalWater: Value(totalWater),
+        bloomingTime: Value(bloomingTime),
+        totalTime: Value(totalTime),
+        scoreFragrance: Value(scoreFragrance),
+        scoreAcidity: Value(scoreAcidity),
+        scoreBitterness: Value(scoreBitterness),
+        scoreSweetness: Value(scoreSweetness),
+        scoreComplexity: Value(scoreComplexity),
+        scoreFlavor: Value(scoreFlavor),
+        scoreOverall: Value(scoreOverall),
+        comment: Value(comment),
+        grinderImageUrl: Value(grinderImageUrl),
+        dripperImageUrl: Value(dripperImageUrl),
+        filterImageUrl: Value(filterImageUrl),
+        beanImageUrl: Value(beanImageUrl),
+        updatedAt: Value(DateTime.now()),
+      );
+}
+
+// --- methods_master (MethodMaster) ---
+
+extension MethodsMasterRowMapper on MethodsMasterRow {
+  MethodMaster toModel() => MethodMaster(
+        id: id,
+        name: name,
+        author: author,
+        baseBeanWeight: baseBeanWeight,
+        baseWaterAmount: baseWaterAmount,
+        temperature: temperature,
+        grindSize: grindSize,
+        description: description,
+        recommendedEquipment: recommendedEquipment,
+        sourceUrl: sourceUrl,
+        recommendedRoastLevel: recommendedRoastLevel,
+        recommendedRoastMin: recommendedRoastMin,
+        recommendedRoastMax: recommendedRoastMax,
+      );
+}
+
+extension MethodMasterCompanionMapper on MethodMaster {
+  MethodsMasterTableCompanion toCompanion() => MethodsMasterTableCompanion(
+        id: Value(id),
+        name: Value(name),
+        author: Value(author),
+        baseBeanWeight: Value(baseBeanWeight),
+        baseWaterAmount: Value(baseWaterAmount),
+        temperature: Value(temperature),
+        grindSize: Value(grindSize),
+        description: Value(description),
+        recommendedEquipment: Value(recommendedEquipment),
+        sourceUrl: Value(sourceUrl),
+        recommendedRoastLevel: Value(recommendedRoastLevel),
+        recommendedRoastMin: Value(recommendedRoastMin),
+        recommendedRoastMax: Value(recommendedRoastMax),
+      );
+}
+
+// --- pouring_steps (PouringStep) ---
+
+extension PouringStepRowMapper on PouringStepRow {
+  PouringStep toModel() => PouringStep(
+        id: id,
+        methodId: methodId,
+        stepOrder: stepOrder,
+        duration: duration,
+        waterAmount: waterAmount,
+        waterReference: waterReference,
+        waterRatio: waterRatio,
+        description: description,
+      );
+}
+
+extension PouringStepCompanionMapper on PouringStep {
+  PouringStepsTableCompanion toCompanion() => PouringStepsTableCompanion(
+        id: Value(id),
+        methodId: Value(methodId),
+        stepOrder: Value(stepOrder),
+        duration: Value(duration),
+        waterAmount: Value(waterAmount),
+        waterReference: Value(waterReference),
+        waterRatio: Value(waterRatio),
+        description: Value(description),
       );
 }

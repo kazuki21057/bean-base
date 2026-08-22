@@ -79,27 +79,50 @@ class LocalDbService implements DataService {
       OrderingTerm(expression: const CustomExpression<int>('rowid'));
 
   // ==========================================================================
-  // Coffee Records — 束3(T5-B13-3)で実装予定
+  // Coffee Records (coffee_data) — 束3(T5-B13-3、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<CoffeeRecord>> getCoffeeRecords() {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<List<CoffeeRecord>> getCoffeeRecords() async {
+    final rows = await (_db.select(_db.coffeeDataTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addCoffeeRecord(CoffeeRecord record) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> addCoffeeRecord(CoffeeRecord record) async {
+    _requireId(record.id, forDelete: false);
+    final id = record.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.coffeeDataTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.coffeeDataTable).insert(record.toCompanion());
+    });
+    _logWrite('coffee_data', '追加', id);
   }
 
   @override
-  Future<void> updateCoffeeRecord(CoffeeRecord record) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> updateCoffeeRecord(CoffeeRecord record) async {
+    _requireId(record.id, forDelete: false);
+    final ok =
+        await _db.update(_db.coffeeDataTable).replace(record.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${record.id})');
+    }
+    _logWrite('coffee_data', '更新', record.id);
   }
 
   @override
-  Future<void> deleteCoffeeRecord(String id) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> deleteCoffeeRecord(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.coffeeDataTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('coffee_data', '削除', id);
   }
 
   // ==========================================================================
@@ -150,56 +173,110 @@ class LocalDbService implements DataService {
   }
 
   // ==========================================================================
-  // Methods — 束3(T5-B13-3)で実装予定
+  // Methods (methods_master) — 束3(T5-B13-3、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<MethodMaster>> getMethods() {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<List<MethodMaster>> getMethods() async {
+    final rows = await (_db.select(_db.methodsMasterTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addMethod(MethodMaster method) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> addMethod(MethodMaster method) async {
+    _requireId(method.id, forDelete: false);
+    final id = method.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.methodsMasterTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.methodsMasterTable).insert(method.toCompanion());
+    });
+    _logWrite('methods_master', '追加', id);
   }
 
   @override
-  Future<void> updateMethod(MethodMaster method) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> updateMethod(MethodMaster method) async {
+    _requireId(method.id, forDelete: false);
+    final ok = await _db
+        .update(_db.methodsMasterTable)
+        .replace(method.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${method.id})');
+    }
+    _logWrite('methods_master', '更新', method.id);
   }
 
   @override
-  Future<void> deleteMethod(String id) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> deleteMethod(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.methodsMasterTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('methods_master', '削除', id);
   }
 
   // ==========================================================================
-  // Pouring Steps — 束3(T5-B13-3)で実装予定
+  // Pouring Steps (pouring_steps) — 束3(T5-B13-3、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<PouringStep>> getPouringSteps() {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<List<PouringStep>> getPouringSteps() async {
+    final rows = await (_db.select(_db.pouringStepsTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addPouringStep(PouringStep step) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> addPouringStep(PouringStep step) async {
+    _requireId(step.id, forDelete: false);
+    final id = step.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.pouringStepsTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.pouringStepsTable).insert(step.toCompanion());
+    });
+    _logWrite('pouring_steps', '追加', id);
   }
 
   @override
-  Future<void> updatePouringStep(PouringStep step) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> updatePouringStep(PouringStep step) async {
+    _requireId(step.id, forDelete: false);
+    final ok = await _db
+        .update(_db.pouringStepsTable)
+        .replace(step.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${step.id})');
+    }
+    _logWrite('pouring_steps', '更新', step.id);
   }
 
   @override
-  Future<void> deletePouringStep(String id) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> deletePouringStep(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.pouringStepsTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('pouring_steps', '削除', id);
   }
 
+  /// メソッド削除時の孤児ステップ一括削除(設計書§7.2-1)。
+  /// Sheets版には対応実装が無い(`sheets_service.dart`は中身が空)ため新規実装。
+  /// 0件でも例外にしない(§7.1の削除パターンと同じ扱い)。
   @override
-  Future<void> deletePouringStepsForMethod(String methodId) {
-    throw UnimplementedError('T5-B13-3 で実装予定');
+  Future<void> deletePouringStepsForMethod(String methodId) async {
+    await (_db.delete(_db.pouringStepsTable)
+          ..where((t) => t.methodId.equals(methodId)))
+        .go();
+    _logWrite('pouring_steps', '一括削除', methodId);
   }
 
   // ==========================================================================

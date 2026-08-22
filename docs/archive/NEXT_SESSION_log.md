@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.132 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`「T5-A107とnextsession.mdの整理とtaskBを進めて、多少予算オーバーしてもOK」。**T5-A107完了・NEXT_SESSION.md整理・T5-B13を4束へ分割しT5-B13-1/-2完了**)
+
+- T5-A107(GETリトライ最大待機時間の見直し)を`AskUserQuestion`で確認。3案(短縮約30秒/現状維持62秒/最短約15秒)を提示し、ユーザーは「現状維持(62秒のまま)」を選択。信頼性を体感の待たされ感より優先する判断。コード変更なし、マスタープランのT5-A107行を✅完了に更新。
+- NEXT_SESSION.mdの「1. 現状サマリ」「2. 次回の着手点」に、運用ルール(直近1件のみ保持)に反して2026-08-14〜08-22の約20セッション分の履歴が溜まっていたことを発見。`docs/archive/NEXT_SESSION_log.md`へ退避し(旧「1. 現状サマリ」バックログ・旧「2. 次回の着手点」バックログの2節を新設)、本文は最新状態のみを残す形(205行→約55行)に整理した。作業中、Writeツールで新規作成した(BOM無し)`.ps1`を`powershell -File`実行するとPowerShell 5.1が日本語をシステム既定コードページで誤読しhere-string終端検出が壊れる事象に遭遇、BOM付与後に解消(新規教訓L180)。
+- タスクB(トラックB)は、依存(T5-B12・T5-B3)が充足済みのT5-B13(`LocalDbService`実装、L要分割)を選定。`architect`へ分割方針の設計を委譲し、テーブル/機能グループ単位でT5-B13-1〜4の4束(各M)へ分解(`docs/local_db_schema_design.md` §7.5新設)。並び順はdriftの生成テーブルに`rowId`列ゲッターが無かったため`CustomExpression<int>('rowid')`方式を採用(束1〜2で確定・統一)。
+- T5-B13-1(基盤+器具4マスタ、14メソッド)を`implementer`が実装、`lib/services/local_db_service.dart`・`lib/db/mappers.dart`・`lib/providers/local_db_provider.dart`を新規作成。`verifier`が独立検証(`verify.ps1`全項目green・`test/db/local_db_service_equipment_test.dart`13件全pass)、commit・push(bbd4b8a→141c14c、NEXT_SESSION.md整理分と合わせて1コミット)。
+- T5-B13-2(豆・購入店・購入履歴、12メソッド)を`implementer`が実装、束1のヘルパー・並び順・upsert方式を踏襲。`bool?`3値・`double?`のnull/0.0区別・数字だけの文字列IDの型往復3ケースをテストで確認。`verifier`が独立検証(全項目green・`test/db/local_db_service_bean_test.dart`12件全pass)、commit・push(141c14c→1e97cf4)。
+- 委譲1回ごとの予算チェックポイント($14.4、有人上限$24の6割)をT5-B13-2検証完了時点で超過($16.19)。ユーザーが事前に「多少予算オーバーしてもOK」と許可していたためT5-B13-2の検証まで完走したが、T5-B13-3への着手は見送りセッションを締めた。
+
 ### -5.131 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**PR #7(T5-A104+新規実装T5-A105)を検証・マージ、T5-A106完了、本番ゴミレコード5件削除、T5-A107起票**)
 
 - オープンPR #7(`night/T5-A104`)から着手。`verifier`へ検証委譲、`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3を再確認。integration_testスモークを実機2回連続実行したところ両方FAIL(`smoke_test.dart:237`)——ただし直前のGET timeoutログから、原因はT5-A104のコードではなく**`smoke_test.dart`側の固定2秒`pumpAndSettle`**(T5-A105が対処予定の既知欠陥)と判明。
