@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.130 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`。**T5-A103完了・main反映済み、T5-A104実装しPR #7でゲート不通過ルーティング**)
+
+- T5-A103(GAS接続不安定性の根本原因調査)を`architect`へ委譲。根本原因は`SheetsService`の GET/POST に timeout・リトライが無く、GAS側の一時的な遅延/エラーがそのまま失敗として伝播していたことと特定(`docs/gas_connection_stability_investigation.md`に詳細)。マスタープランT5-A103行を✅完了に更新、commit・push済み(main反映済み)。
+- 続けてT5-A104(アプリ側対処、GET timeout+リトライ+握り潰し廃止)を`implementer`実装。`sheets_service.dart`に`SheetsFetchException`・`retryBackoff`引数・`_fetchData`の20秒timeout+最大3回リトライ・`_postData`の30秒timeoutのみ(非リトライ)を追加。各画面へのエラー表示追加も実施。
+- `verifier`+`adversary`を並行起動。`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3。`adversary`はMajor3件指摘(①`.valueOrNull`置換漏れ1箇所②GET失敗時にエラー表示が無い画面4件③リトライ最大待機時間~62秒の妥当性未検証)。①②を`implementer`へ差し戻し修正・再検証済み(analyze31/test482件パス)、③は次点へ申し送り。
+- 自動pushゲート判定: 条件#2(integration_testスモーク、T5-A7完了により今回から常時判定)について、本ループの残予算不足でAndroidエミュレータ実機検証を実施できず証跡なし。「判定元の報告が得られなかった条件は満たされたとみなさない」ルールに従い不成立と判定し、`night/T5-A104`ブランチ+PR #7でルーティング(mainには一切push無し)。
+- **要ユーザー対応**: (1) PR #7(T5-A104)のレビュー・マージ判断、特にintegration_testスモークの実機確認 (2) リトライ最大待機時間(~62秒)の妥当性検証 (3) T5-A103調査中に判明した本番`coffee_data`シートの`totalTime=0`ゴミレコード(過去のスモークテスト失敗4回分)の削除要否判断 (4) `.claude/skills/night_loop/SKILL.md`の大前提2文の修正(T5-A106)。
+- **次回セッションでやること**: PR #7マージ後、依存が満たされるT5-A105(smoke_testのタイミング欠陥修正、依存T5-A104)へ進む。T5-A106(SKILL.md修正)は有人セッションで対応。
+
 ### -5.129 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`「PR2件の検証を実施して」。**PR #5(T5-B12)・PR #6(T5-B23)を検証・merge・push**)
 
 - `gh pr list`でオープンPR2件を確認(#5 `night/T5-B12`・#6 `night/T5-B23`)。`git branch -a`/`git log`でローカルの`main`が既に両ブランチの内容を含む状態(origin/mainより4コミット進み、作業ツリーclean)と判明。`emulator -list-avds`でAVD`beanbase_test`/`beanbase_ui`の実在を確認(T5-A6は実は整備済みで、過去記録の「エミュレータ未整備」は誤りだったと判明)。

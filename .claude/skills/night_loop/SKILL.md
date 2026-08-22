@@ -9,9 +9,9 @@ description: Use when the user asks to run one unattended overnight iteration of
 
 ## 大前提
 
-- **`ui_verifier`サブエージェントは現時点(T5-A4未着手)で存在しない。** 検証フェーズでは`verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`、結果を待ってから次に進む)。`ui_verifier`は**T5-A4完了後、UI変更を伴う場合のみ**追加で起動する。
-- **`ui_verifier`が未整備の間、自動pushゲート条件#3(`ui_verifier`が異常なしと報告)は「判定対象外(スキップ)」として扱う。** UI変更があってもこの条件では落とさない。この暫定措置は**T5-A4完了時に解除**する(このSKILL.mdを更新すること)。
-- **`integration_test/`ディレクトリは現時点で存在しない。** スモークスイートは**T5-A7**(依存: T5-A6・T5-B1、いずれも未着手・Lサイズ)で作成予定であり、`tools/verify.ps1`の8項目にも相当するチェックは無い。またT5-A6(エミュレータ/Android SDK未検出)が未整備のため、そもそも実行環境も無い。**スイートが無い間、自動pushゲート条件#2(`integration_test`スモークが全パス)は「判定対象外(スキップ)」として扱う。** この暫定措置は**T5-A7完了時に解除**する(このSKILL.mdを更新すること)。
+- **`ui_verifier`サブエージェントは`.claude/agents/ui_verifier.md`として整備済み(T5-A4完了、2026-08-09)。** 検証フェーズでは`verifier`・`adversary`に加え、**UI変更を伴う場合は`ui_verifier`も同一メッセージで並行起動**する(`run_in_background: false`、結果を待ってから次に進む)。
+- **自動pushゲート条件#3(`ui_verifier`が異常なしと報告)は、T5-A4完了により「適用(常時判定。ただしUI変更が無いループは判定対象外)」とする。**
+- **`integration_test/smoke_test.dart`はT5-A7完了(2026-08-21)により整備済み。** エミュレータ(`beanbase_test`/`beanbase_ui`)も実在し実行環境が揃っている。自動pushゲート条件#2(`integration_test`スモークが全パス)は「適用(常時判定)」。
 - **夜間のしきい値はコスト$20・ターン80・連続失敗2**(2026-08-13、$8/ターン40から引き上げ。1晩に最大2件のS/Mタスクまたは1件のLタスクを許容するため。有人の$24/30/3とは別、設計書§5)。ただし**`loop_guard.js`の夜間分岐はT5-A11で未実装**のため、`.claude/loop_state.md`が表示する上限値は現状すべて有人用($24/30/3)のままである。**表示された上限値をそのまま使わず、$20/ターン80/連続失敗2で自己判定すること。**(T5-A11完了後はこの一文を削除してよい)
 - **`tools/night_loop.ps1`(多重起動ガード・5時間枠チェック・週次予算ガードを担う、設計書§2)も現時点で存在しない。** タスクスケジューラから実行するエントリポイント自体が未整備であり、作成は**タスクT5-A10(依存: 本タスクT5-A9)で行う予定**。`ui_verifier`(T5-A4)・`integration_test`(T5-A7)・`tools/night_loop.ps1`(T5-A10)・`.claude/settings.night.json`(T5-A17、⚠️ユーザー実施)の4点が、現時点で未整備である。**T5-A10実装時は、無人モード判別用の環境変数`BEANBASE_NIGHT_LOOP=1`を実行前に設定することを忘れないこと**(§0参照)。
 - **(2026-08-15追記、T5-A89)agyへ委譲する場合(implementer役等)も、夜間ループでは`claude-sonnet-4-6`・`claude-opus-4-6-thinking`等のClaudeモデルを明示指定しない。**常にGemini既定モデル(自動解決)で委譲する(`docs/antigravity_delegation_design.md` §12.3の除外条件)。
@@ -66,7 +66,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    - `verifier`と`adversary`を**同一メッセージで並行起動**する(`run_in_background: false`)。
      - `verifier`への委譲プロンプトには検証コマンドとして**`powershell -File tools\verify.ps1`を1回実行し、標準出力のJSONだけを読む**ことを明記する(`tools/verify.sh`は`jq`必須のためWindowsでは使わない)。**タスクIDが判明している場合は`-Task <タスクID>`付きで実行し**、`checks.acceptance`の結果(`ok`・`reason`・失敗した個別チェック名)も報告させる(受け入れ資産が免除のタスクでは`-Task`を付けない)。実行時はツール上限の600000ms(10分)をタイムアウトとして明示指定する(この環境での実測は約3分)。失敗した項目があれば、その項目の`log`パスだけを読み直す。`test_coverage_delta`はトップレベル`ok`に含まれない参考値であり、それ単独では合否を左右しない。`build_apk_release`は当面`skipped:true`が正常。
      - `adversary`への委譲プロンプトには変更内容・変更ファイル一覧を渡し、Critical/Major指摘を報告させる。
-   - UI変更を伴い、かつ`ui_verifier`が整備済み(T5-A4完了後)であれば、同一メッセージにさらに`ui_verifier`を追加して3体並行起動する。
+   - UI変更を伴う場合は、同一メッセージにさらに`ui_verifier`を追加して3体並行起動する(T5-A4完了により常時整備済み)。
 
 5. **自動pushゲート判定**(設計書§4-1、**該当する条件すべてが満たされた場合のみ**`git push origin main`。2件実施する場合は1件目・2件目それぞれ独立に判定する——1件目がpush済みでも2件目が落ちれば`night/<タスクID>`ブランチ+PRになる、のように結果が食い違ってよい)
 
@@ -76,7 +76,7 @@ description: Use when the user asks to run one unattended overnight iteration of
    |---|---|---|---|
    | 1 | `tools/verify.ps1`の全項目がgreen(`ok:true`) | verify.ps1のJSON | 適用(常時判定) |
    | 2 | `integration_test`スモークが全パス | verifier | 適用(常時判定、2026-08-21 T5-A7完了により暫定措置解除) |
-   | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | **判定対象外(スキップ)。T5-A4完了で解除** |
+   | 3 | `ui_verifier`が異常なしと報告 | ui_verifier | 適用(常時判定、2026-08-22 T5-A4完了により暫定措置解除。UI変更が無いループは判定対象外) |
    | 4 | `adversary`のCritical指摘がゼロ | adversary | 適用(常時判定) |
    | 5 | (T5-A66新設)変更ファイルに`.ps1`が含まれる場合、`powershell -File tools\failure_playbook.ps1 -Mode Check`がexit 0を返す | failure_playbook.ps1のJSON(終了コード) | `.ps1`変更が無いループは判定対象外(スキップ)。exit 0以外(BOM喪失等を検知)ならゲートを落とす |
    | 6 | (T5-A59新設)`checks.acceptance`が`ok:true`(受け入れ資産が免除のタスクは判定対象外) | verify.ps1のJSON | 適用(常時判定)。`reason:"acceptance_missing"`は**ゲートを落とす**。個別スクリプトの`skipped`はゲートを落とさない |

@@ -1084,3 +1084,9 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **事象**: PR #5(T5-B12)・PR #6(T5-B23)の検証で`integration_test/smoke_test.dart`を計4回実行し4回とも失敗。1回目`ClientException: Connection closed before full header was received`(GAS接続断)、2回目は記録追加後も一覧件数が保存前後で不変、3回目は12分でタイムアウト、4回目はGAS接続断後さらに一覧件数不変。失敗箇所が毎回異なり、T5-B12/T5-B23のコード変更箇所そのものに起因する再現性のある不具合には見えない。2026-08-21のT5-B12検証時にも同種のGAS接続不調が既に観測されていた(NEXT_SESSION -5.127節)。
 
 **対策**: 「GAS側の一時的な不調だろう」という説明は状況証拠(失敗箇所が毎回コード外・接続断/タイムアウト系)としては妥当だが、根本原因(GAS側のクォータ・レート制限か、エミュレータのネットワーク環境固有の問題か、テストコードのタイムアウト設定が短すぎるだけか)は未特定のまま。同じ言い訳が繰り返し使われる状況になったら、原因不明の再発として`architect`へ切り分けを依頼すべき(本件はT5-A103として起票)。将来的にAndroid版がGASを使わなくなる(ローカルDB移行)予定でも、Sheets→ローカルDBのデータ移行自体がGAS接続に依存するなら早期解決が必要。
+
+## L179 PowerShellの`Invoke-RestMethod -Body <string>`は日本語キー(GASの`記録ID`等)を含むJSONを既定エンコーディングで送るとサーバ側で文字化けし、キー一致に失敗する。`ConvertTo-Json`の出力を`[System.Text.Encoding]::UTF8.GetBytes()`でバイト列化してから渡す必要がある(2026-08-22、T5-A103本番ゴミレコード削除作業)
+
+**事象**: T5-A103調査で判明した本番`coffee_data`の`抽出時間(秒)=0`ゴミレコード5件を`gas/Code.gs`の`action=delete`(`data`に`{"記録ID": "<id>"}`を含むJSON、`text/plain`でPOST)で削除しようとしたところ、5件全てで`{"error":"ID column or value not found for delete"}`が返った。GAS側の`deleteRow()`はヘッダー名に`"ID"`を含む列(`記録ID`)を探し`dataObj[headers[i]]`を引くが、PowerShellの`Invoke-RestMethod -ContentType "text/plain" -Body $jsonString`(文字列のまま渡す)では非ASCII文字(日本語キー)のエンコーディングが既定で正しくUTF-8にならず、GAS側の`JSON.parse`後のオブジェクトキーが一致しなくなっていた。
+
+**対策**: GASなど外部APIへ日本語を含むJSONをPOSTする際は、`ConvertTo-Json -Compress`の出力文字列をそのまま`-Body`に渡さず、`$bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonString)`でバイト列化し、`Invoke-RestMethod -ContentType "text/plain; charset=utf-8" -Body $bytes`のように明示的にUTF-8バイトとして送る。エラーメッセージ(`"ID column or value not found"`)からは文字化けが原因と分かりにくいため、日本語キーを含むPOSTが原因不明のサーバエラーを返した場合はまずエンコーディングを疑う。

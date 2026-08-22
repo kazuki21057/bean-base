@@ -86,7 +86,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-22最新・有人`/full_loop`】PR #5(T5-B12)・PR #6(T5-B23)ともmainへmerge・push済み(マージ判断待ちは解消)。次回はバグ対応最優先ルールによりT5-A103(GAS接続不安定性の根本原因調査、M)から着手すること。** T5-A103は`architect`への差し戻しを検討(原因不明・再現性のない失敗パターンのため)。T5-A103完了後は通常のB系列タスク(T5-B24〈記録画面、L〉・T5-B25〈インサイト画面、M〉・T5-B13〈LocalDbService実装、依存T5-B12・T5-B3充足〉等)へ進む。**T5-A6(エミュレータ整備)は完了済みと判明**(AVD `beanbase_test`/`beanbase_ui`が実在、`tools/emulator.ps1 -Doctor`も正常)——過去の「エミュレータ未整備」という記述は誤りだったので、今後のタスク選定・NEXT_SESSION記述で踏襲しないこと。ただしintegration_testスモーク自体はGAS接続不安定性により依然として安定してPASSしない状態が続いている。
+> **【2026-08-22最新・有人`/full_loop`】PR #7(T5-A104+T5-A105)をmainへmerge・push済み(マージ判断待ちは解消)。T5-A106(SKILL.md修正)も完了。次回はT5-A107(GETリトライ最大待機時間62秒の見直し、方針未確定)への着手を検討するか、通常のB系列タスク(T5-B24〈記録画面、L〉・T5-B25〈インサイト画面、M〉・T5-B13〈LocalDbService実装、依存T5-B12・T5-B3充足〉等)へ進むこと。** integration_testスモークはT5-A104(リトライ)・T5-A105(smoke_test側のタイミング欠陥修正)により大幅に改善したが、依然としてGAS接続不安定性そのものに起因する散発的な失敗(3回中1回FAIL)が残る——**今後の検証で失敗した場合、まずT5-A104/A105以降のコード変更が原因かGAS起因かを切り分けてから判断すること**(GAS起因の場合は前例どおりユーザー判断を仰いでよい)。本番`coffee_data`のtotalTime=0ゴミレコードは削除済み(191→186件)。T5-A6(エミュレータ整備)は完了済み(AVD `beanbase_test`/`beanbase_ui`が実在)。
 >
 > **【2026-08-22・1つ前・無人`/night_loop`】PR `night/T5-B23`のマージ判断待ち。** 実装・検証(Critical0/Major0)は完了済み、欠けているのは`integration_test`スモークの証跡のみ(Androidエミュレータ未整備のため実行不可)。PR上でスモークを実施するか、エミュレータ整備(T5-A6)後に`verifier`へ明示指示して再判定した上でマージすること。マージ後の次点はT5-B24(記録画面、L)・T5-B25(インサイト画面、M)・T5-B26(オンボーディング、M)——いずれもT5-B22依存充足済み、T5-B23完了(マージ)は依存関係上は必須ではないが同系統のため先にマージしておくのが望ましい。**T5-A6(エミュレータ/Android SDK整備)が未着手のままだと今後もほぼ全タスクがゲート条件#2で不通過になる**ため優先度見直しを検討。
 >
@@ -185,15 +185,15 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.130 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`。**T5-A103完了・main反映済み、T5-A104実装しPR #7でゲート不通過ルーティング**)
+### -5.131 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**PR #7(T5-A104+新規実装T5-A105)を検証・マージ、T5-A106完了、本番ゴミレコード5件削除、T5-A107起票**)
 
-- T5-A103(GAS接続不安定性の根本原因調査)を`architect`へ委譲。根本原因は`SheetsService`の GET/POST に timeout・リトライが無く、GAS側の一時的な遅延/エラーがそのまま失敗として伝播していたことと特定(`docs/gas_connection_stability_investigation.md`に詳細)。マスタープランT5-A103行を✅完了に更新、commit・push済み(main反映済み)。
-- 対処タスクT5-A104(SheetsServiceへtimeout/retry追加)を`implementer`へ委譲。`_fetchData`(GET)に20秒timeout+最大3回リトライ(429/500/502/503/504・TimeoutException等が対象、4xxは即失敗)、`_postData`(POST)は30秒timeoutのみ・リトライなし(`appendRow`非冪等のため意図的)、失敗時は`SheetsFetchException`を投げる設計に変更。この変更で露見した既存のRiverpod `.value`再スロー問題(AsyncErrorで例外が伝播する)を`.valueOrNull`へ13箇所修正。
-- `verifier`+`adversary`を並行起動。`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3。`adversary`はMajor3件指摘(①`.valueOrNull`置換漏れ1箇所②GET失敗時にエラー表示が無い画面4件③リトライ最大待機時間~62秒の妥当性未検証)。①②を`implementer`へ差し戻し修正・再検証済み(analyze31/test482件パス)、③は次点へ申し送り。
-- 自動pushゲート判定: 条件#2(integration_testスモーク、T5-A7完了により今回から常時判定)について、本ループの残予算不足でAndroidエミュレータ実機検証を実施できず証跡なし。「判定元の報告が得られなかった条件は満たされたとみなさない」ルールに従い不成立と判定し、`night/T5-A104`ブランチ+PR #7でルーティング(mainには一切push無し)。
-- SKILL.md staleness発見: `.claude/skills/night_loop/SKILL.md`冒頭の「大前提」に`ui_verifier`(T5-A4未着手)・`integration_test`(T5-A7未着手)を前提とする記述が残っているが、両方とも既に完了済みでゲート判定テーブル側は既に更新済み・大前提の文章だけが矛盾したまま。無人ループは`.claude/skills/*`へ書き込めない(書き込み範囲制限)ため自己修正不可、**T5-A106として起票**(マスタープランへ追加、有人セッションでの対応が必要)。
-- **要ユーザー対応**: (1) PR #7(T5-A104)のレビュー・マージ判断、特にintegration_testスモークの実機確認 (2) リトライ最大待機時間(~62秒)の妥当性検証 (3) T5-A103調査中に判明した本番`coffee_data`シートの`totalTime=0`ゴミレコード(過去のスモークテスト失敗4回分)の削除要否判断 (4) `.claude/skills/night_loop/SKILL.md`の大前提2文の修正(T5-A106)。
-- **次回セッションでやること**: PR #7マージ後、依存が満たされるT5-A105(smoke_testのタイミング欠陥修正、依存T5-A104)へ進む。T5-A106(SKILL.md修正)は有人セッションで対応。
+- オープンPR #7(`night/T5-A104`)から着手。`verifier`へ検証委譲、`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3を再確認。integration_testスモークを実機2回連続実行したところ両方FAIL(`smoke_test.dart:237`)——ただし直前のGET timeoutログから、原因はT5-A104のコードではなく**`smoke_test.dart`側の固定2秒`pumpAndSettle`**(T5-A105が対処予定の既知欠陥)と判明。
+- 予算に余裕があったため即座にT5-A105を`implementer`へ委譲、同じ`night/T5-A104`ブランチに実装(メソッド選択のポーリング化・一覧反映待機の`_pumpUntil`化)。implementer自己確認で実機2回連続PASS。続けて`verifier`が独立検証したところ**1回PASS・1回FAIL**(FAILは`coffee_data`のGET再取得が3回のリトライ全て失敗、GAS側の純粋な接続不安定性と判定、smoke_test側のロジック不備ではない)。
+- `AskUserQuestion`でユーザーに3点確認: (1)PR #7マージ可否→**マージする**(2)リトライ最大待機時間62秒の妥当性→**見直したい**(3)本番ゴミレコード削除→**削除する**。回答に基づき、T5-A105の変更をコミット・push、`gh pr merge 7 --merge --delete-branch`でmainへマージ(8b9ab53)。マスタープランのT5-A104・T5-A105行を✅完了に更新、リトライ見直しは**T5-A107として新規起票**(方針は未確定のまま、着手時に要ユーザー合意)。
+- T5-A106(SKILL.md大前提の食い違い修正)を実施。`.claude/skills/night_loop/SKILL.md`の「`ui_verifier`/`integration_test`は現時点で存在しない」という誤った大前提2文を実態(いずれもT5-A4・T5-A7完了済み)に合わせて書き換え、ゲート条件#3(`ui_verifier`)を条件#2と同じ扱いで「適用(常時判定、UI変更が無いループは判定対象外)」へ解除。4箇所の差分のみ、非委譲しきい値に該当するため親が直接編集。commit済み(未push、後続コミットとまとめてpush予定)。
+- T5-A103調査で判明していた本番`coffee_data`の`抽出時間(秒)=0`ゴミレコードをGAS API経由で調査、5件(2026-08-20付、全て`bean=d009a114`のテストフィクスチャ)を特定・削除(191件→186件、削除後ゴミレコード0件を確認)。今日のT5-A105実機確認で保存された2件(id=1787387129513, 1787387578233)は`抽出時間(秒)`が正常値でゴミレコードに該当しないため削除対象外。
+- **新規教訓L179**: PowerShell `Invoke-RestMethod -Body <string>`は日本語キーJSONを既定エンコーディングで送るとGAS側で文字化けしキー一致に失敗する(削除APIが原因不明の`"ID column or value not found"`エラーを返した)。`[System.Text.Encoding]::UTF8.GetBytes()`でバイト列化して送ることで解決。
+- **次回セッションでやること**: T5-A107(リトライ最大待機時間の見直し、方針未確定)から着手を検討。通常タスクの次点はT5-B24(記録画面、L)・T5-B25(インサイト画面、M)・T5-B13(LocalDbService実装、依存T5-B12・T5-B3充足)。
 
 > これ以前の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 

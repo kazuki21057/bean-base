@@ -242,3 +242,4 @@
 - L176 `const`/`static const`ウィジェットは`Element.updateChild()`の同一インスタンス高速パスで子の`build()`が再実行されないことがある。Riverpodの`Provider`も無効化しない限りキャッシュ値を返し続けるため「現在時刻」の取得元には向かない。「生き続ける」子リストは`build()`内で毎回生成する(2026-08-22、T5-B23/adversary3往復)。全文: `rules/lessons_archive.md`
 - L177 「Androidエミュレータ未整備」という複数セッションにまたがる申し送りは誤りだった(実際は整備済み)。環境不在の申し送りは鵜呑みにせず`emulator -list-avds`等で実在確認してから行動する(2026-08-22、PR #5/#6検証)。全文: `rules/lessons_archive.md`
 - L178 GAS経由のintegration_testスモークは複数セッションにまたがり接続断・件数不一致・タイムアウト等毎回異なる態様で不安定に失敗する。「GAS起因だろう」で押し通す運用には限界があり、原因不明の再発として`architect`へ切り分けを依頼すべき(2026-08-22、T5-A103起票)。全文: `rules/lessons_archive.md`
+- L179 PowerShellの`Invoke-RestMethod -Body <string>`は日本語キーを含むJSONを既定エンコーディングで送るとGAS側で文字化けしキー一致に失敗する。`ConvertTo-Json`出力を`[System.Text.Encoding]::UTF8.GetBytes()`でバイト列化してから渡すこと(2026-08-22、T5-A103本番ゴミレコード削除)。全文: `rules/lessons_archive.md`
