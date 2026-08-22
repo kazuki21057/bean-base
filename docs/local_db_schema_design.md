@@ -489,6 +489,61 @@ class LocalDbException implements Exception {
 - `extension BeanMasterCompanionMapper on BeanMaster { BeanMasterTableCompanion toCompanion() => ... }`
 - 全12テーブル分を同じ形で用意する。**null許容の非nullフィールド**(例: DBが`''`、モデルが`String`)は素通し。`Value.absent()`は使わず、**全列を明示的に`Value(...)`で埋める**(部分更新を作らない。`replace`が全列上書きであることと整合させる)。
 
+### 7.5 T5-B13の束分割(4束。T5-B22と同じ運用)
+
+44メソッド・12テーブルを1回のimplementer委譲で書き切るのは無理があるため、**テーブルの機能グループ単位で4束に分ける**。マスタープラン上は`T5-B13-1`〜`T5-B13-4`の4行として管理し、後続タスク(T5-B14・T5-B15)の依存`T5-B13`は**4束すべての完了**を指す。
+
+**束の順序は固定**(束1が基盤ファイルを作るため、束2〜4は束1に依存する。束2・3・4の相互依存は無いが、番号順に進める)。
+
+#### 7.5.1 全束に共通する規約(implementerが判断しないための確定事項)
+
+1. **`LocalDbService`は最初の束(束1)で全44メソッドの実装を書く**。Dartの`implements DataService`は全メソッドの実装が無いとコンパイルできないため。**当該束の担当外のメソッドは本体を `throw UnimplementedError('T5-B13-N で実装予定');` の1行にする**(Nは担当束の番号)。後続の束はその1行を実装で置き換える。**メソッドの並び順は`lib/services/data_service.dart`の宣言順と完全に一致させる**(差分レビューを容易にするため)。
+2. **`dataServiceProvider`(`lib/services/data_service.dart:99-105`)の配線は束4でだけ行う**。束1〜3の間は現状の`throw UnimplementedError('LocalDbService is not yet implemented (T5-B13)')`を残す。`kPublicEdition.useLocalDb`は**4束すべて完了しても`false`のまま変えない**(§11-2、切替はT5-B14完了後にユーザー判断)。
+3. **コンストラクタ**: `LocalDbService(this._db);` — `LocalDatabase`を必須の位置引数で受け取る(テストが`NativeDatabase.memory()`で作ったDBを渡せるようにするため)。`LocalDbService`自身はDBを生成も`close`もしない。
+4. **DIプロバイダ**: `lib/providers/local_db_provider.dart`(新規、束1)に
+   `final localDatabaseProvider = Provider<LocalDatabase>((ref) { final db = LocalDatabase(); ref.onDispose(db.close); return db; });`
+   を置く。束4の`dataServiceProvider`はこれを`ref.watch`して`LocalDbService(ref.watch(localDatabaseProvider))`を返す。
+5. **重複IDの検出方法(§7.1「追加」の詳細化)**: `SqliteException`の結果コードに依存せず、**トランザクション内で事前SELECTして判定する**。
+   `await _db.transaction(() async { final exists = await (_db.select(t)..where((r) => r.id.equals(id))).getSingleOrNull(); if (exists != null) throw LocalDbException('既に同じIDのデータが存在します(ID: $id)'); await _db.into(t).insert(companion); });`
+   理由: 例外クラス・結果コードの照合はsqlite3のバージョンとプラットフォーム(ネイティブ/wasm)で挙動が変わり、`flutter build web`のコンパイル要件(§8.4)とも噛み合わないため。
+6. **更新**: `final ok = await _db.update(t).replace(model.toCompanion());` を使う(`replace`は`Insertable`を受けるので§7.4のcompanionマッパーをそのまま渡せる)。`ok == false`(0行)なら`LocalDbException('更新対象のデータが見つかりません(ID: $id)')`。
+7. **空IDガード**: `add`/`update`/`save`は`'IDが空のため保存できません。'`、`delete`は`'IDが空のため削除できません。'`(§5.2-3の文言をそのまま使う)。判定は`id.trim().isEmpty`。ヘルパー`void _requireId(String id, {required bool forDelete})`を束1で作り、全メソッドがこれを呼ぶ。
+8. **ログ**: 書き込み成功時 `debugPrint('[Antigravity] ローカルDB: <テーブル名> へ<追加|更新|削除|保存>(ID: $id)');`、例外送出の直前 `debugPrint('[Antigravity] ローカルDBエラー: $message');`(§7.3)。ヘルパー`_logWrite(String table, String action, String id)`・`_fail(String message) -> Never`を束1で作る。
+9. **一覧取得の並び順**: 全`getXxx`/`fetchXxx`で`..orderBy([(t) => OrderingTerm.asc(t.rowId)])`(§7.1)。**束1でこの書き方が実際にコンパイル・動作することを確認し、通らなければ`customOrderBy('rowid ASC')`へ切り替えて束2以降も同じ方式で統一する**(束ごとに方式を変えない)。
+10. **テストの置き場所**: 束ごとに`test/db/local_db_service_<束の内容>_test.dart`を新規作成する(ファイル名は下表)。既存の`test/db/local_database_test.dart`は触らない。全テストは`LocalDatabase(NativeDatabase.memory())`で作る(§8.3で検証済み)。
+11. **`lib/db/mappers.dart`は束ごとに追記する**(束1で新規作成し、束2〜4はextensionを追加するだけ)。マッピングは**§4の各表の対応どおり、モデルのフィールド名とdriftのゲッター名が同名**なので機械的に写す。**設計書に無いフィールドを発明しない。**
+12. **各束の終わりに`flutter analyze`(新規issueゼロ)・`flutter test`・`flutter build web`を通す**(§10-8)。モデル変更は無いので`build_runner`の再実行は不要(必要になったら`dart run build_runner build --force-jit`)。
+
+#### 7.5.2 束の内訳
+
+| 束 | 担当テーブル(列数) | 担当メソッド(数) | 新規/変更ファイル |
+|---|---|---|---|
+| **束1** 基盤+器具マスタ | `mill_master`(5)・`dripper_master`(5)・`filter_master`(5)・`origin_master`(5) | `getGrinders`/`addGrinder`/`updateGrinder`/`deleteGrinder`、`getDrippers`/`addDripper`/`updateDripper`/`deleteDripper`、`getFilters`/`addFilter`/`updateFilter`/`deleteFilter`、`fetchOriginMasters`/`saveOriginMaster` = **14** | 新規`lib/services/local_db_service.dart`(全44メソッドの骨格+14実装+`LocalDbException`+共通ヘルパー)、新規`lib/db/mappers.dart`(4テーブル分)、新規`lib/providers/local_db_provider.dart`、新規`test/db/local_db_service_equipment_test.dart` |
+| **束2** 豆・購入店・購入履歴 | `bean_master`(21)・`store_master`(19)・`bean_purchases`(9) | `getBeans`/`addBean`/`updateBean`/`deleteBean`、`getStores`/`addStore`/`updateStore`/`deleteStore`、`getBeanPurchases`/`addBeanPurchase`/`updateBeanPurchase`/`deleteBeanPurchase` = **12** | `local_db_service.dart`(12メソッドを置換)、`mappers.dart`(3テーブル分追記)、新規`test/db/local_db_service_bean_test.dart` |
+| **束3** 抽出記録・メソッド・注湯ステップ | `coffee_data`(32)・`methods_master`(13)・`pouring_steps`(8) | `getCoffeeRecords`/`addCoffeeRecord`/`updateCoffeeRecord`/`deleteCoffeeRecord`、`getMethods`/`addMethod`/`updateMethod`/`deleteMethod`、`getPouringSteps`/`addPouringStep`/`updatePouringStep`/`deletePouringStep`/`deletePouringStepsForMethod` = **13** | `local_db_service.dart`(13メソッドを置換)、`mappers.dart`(3テーブル分追記)、新規`test/db/local_db_service_brew_test.dart` |
+| **束4** 解析・提案+配線+受入 | `analysis_history`(5)・`recipe_suggestions`(12) | `fetchAnalysisSnapshots`/`saveAnalysisSnapshot`、`fetchRecipeSuggestions`/`saveRecipeSuggestion`/`updateRecipeSuggestion` = **5** | `local_db_service.dart`(5メソッドを置換、`UnimplementedError`がゼロになる)、`mappers.dart`(2テーブル分追記)、**変更`lib/services/data_service.dart`**(`dataServiceProvider`配線)、新規`test/db/local_db_service_analysis_test.dart`、新規`test/acceptance/t5_b13_acceptance_test.dart` |
+
+合計 14+12+13+5 = **44メソッド**(§7.1の内訳と一致)。列数合計 20+49+53+17 = **139列**(§4と一致)。
+
+#### 7.5.3 束ごとの完了条件
+
+**束1**: `mill_master`・`dripper_master`・`filter_master`・`origin_master`の4テーブルで、追加→一覧に登録順で出る→更新→反映→削除→消える、が`test/db/local_db_service_equipment_test.dart`でpassする。異常系3件(空ID追加→`LocalDbException`/重複ID追加→`LocalDbException`/存在しないIDの更新→`LocalDbException`)と正常系1件(存在しないIDの削除→例外なし・件数不変)も同ファイルでpassする。`saveOriginMaster`は同一IDの2回目の呼び出しで**行が増えず値が更新される**ことを確認する(upsert、§7.1)。`fetchOriginMasters`が新規DBで初期15件(§9のシード)を返すことも確認する。`flutter analyze`新規issueゼロ・`flutter test`全パス・`flutter build web`成功。
+
+**束2**: `bean_master`・`store_master`・`bean_purchases`の3テーブルでCRUD一式+異常系が`test/db/local_db_service_bean_test.dart`でpassする。加えて**§10-2の型往復4ケースのうち豆マスタに該当する3つを必ず含める**——`bool?`の3値(`seekOptimalConditions`が`null`/`true`/`false`のまま戻る)、`double?`の`null`と`0.0`が区別される(`initialQuantityGrams`)、数字だけの文字列ID(`'1712345678901'`)が数値化されず文字列で戻る。`flutter analyze`/`test`/`build web`は束1と同じ。
+
+**束3**: `coffee_data`・`methods_master`・`pouring_steps`の3テーブルでCRUD一式+異常系が`test/db/local_db_service_brew_test.dart`でpassする。加えて(a)`deletePouringStepsForMethod('m1')`が`m1`のステップだけを全削除し他メソッドのステップを残す(§7.2-1、Sheets版に無い新規実装)、(b)`DateTime`往復が`isAtSameMomentAs`で一致する(§10-2)、(c)**§10-7の本番データ模倣**——削除済み豆を指す`bean_id`・空文字の`method_id`・空の`origin_id`を持つ`coffee_data`行を入れても`getCoffeeRecords()`が例外なく全件返す、を含める。`flutter analyze`/`test`/`build web`は束1と同じ。
+
+**束4**: `analysis_history`・`recipe_suggestions`のCRUD/upsertが`test/db/local_db_service_analysis_test.dart`でpassする(`fetchAnalysisSnapshots(type: 'pca')`が種別で絞り込む、`type`未指定で全件、`saveAnalysisSnapshot`/`saveRecipeSuggestion`が同一IDでupsertする、`updateRecipeSuggestion`が存在しないIDで`LocalDbException`)。加えて**T5-B13全体の完了条件**として:
+1. `local_db_service.dart`に`UnimplementedError`が1つも残っていない(44メソッドすべて実装済み)。
+2. `test/acceptance/t5_b13_acceptance_test.dart`が、`kPublicEdition`相当の`useLocalDb: true`で`dataServiceProvider`をオーバーライドし(DBは`NativeDatabase.memory()`)、**5マスタ(豆・グラインダー・ドリッパー・フィルター・メソッド)+抽出記録+購入履歴+購入店の全部で 追加→一覧→更新→削除 が通る**ことを確認する(§10-4。マスタ系は必ず全種類、`CLAUDE.md`の不変条件)。
+3. `flutter analyze`新規issueゼロ・`flutter test`全パス・`flutter build web`成功。
+4. **personal版(`lib/main.dart`、`useLocalDb: false`)が従来どおりSheetsで動く**ことを確認する(§10-8。`dataServiceProvider`を配線する束なので回帰の要注意箇所)。
+5. `integration_test/smoke_test.dart`が通る。**ただしこのスモークは`lib/main.dart`=Sheets版を起動するためGAS接続に依存し、T5-A103で4回連続FAILの実績がある**(対処はT5-A104のtimeout+リトライ・T5-A105のポーリング化で実施済み)。**ローカルDBの実装品質とは無関係の失敗経路なので、スモークがGAS由来で落ちた場合はT5-B13の失敗として数えず、失敗様相を記録した上でT5-A103系の課題として切り離す**(この判断はT5-B13-4の実施時に親セッションが行う)。
+
+#### 7.5.4 束間の依存順序
+
+`束1 → 束2 → 束3 → 束4`(直列)。束2・3は互いに独立だが、`local_db_service.dart`と`mappers.dart`という同一ファイルを編集するため**並行実施しない**(コンフリクトを避ける)。束1は必ず最初に完了させる(共通ヘルパー・例外クラス・骨格が無いと束2以降が書けない)。
+
 ---
 
 ## 8. マイグレーション方針
