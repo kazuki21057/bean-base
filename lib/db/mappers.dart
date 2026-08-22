@@ -10,8 +10,11 @@
 import 'package:drift/drift.dart';
 
 import 'local_database.dart';
+import '../models/bean_master.dart';
+import '../models/bean_purchase.dart';
 import '../models/equipment_masters.dart';
 import '../models/origin_master.dart';
+import '../models/store_master.dart';
 
 // --- mill_master (GrinderMaster) ---
 
@@ -98,5 +101,139 @@ extension OriginMasterCompanionMapper on OriginMaster {
         nameJa: Value(nameJa),
         nameEn: Value(nameEn),
         region: Value(region),
+      );
+}
+
+// --- bean_master (BeanMaster) ---
+
+extension BeanMasterRowMapper on BeanMasterRow {
+  BeanMaster toModel() => BeanMaster(
+        id: id,
+        name: name,
+        roastLevel: roastLevel,
+        origin: origin,
+        store: store,
+        type: type,
+        imageUrl: imageUrl,
+        beanImageUrl: beanImageUrl,
+        infoImageUrl: infoImageUrl,
+        purchaseDate: purchaseDate,
+        firstUseDate: firstUseDate,
+        lastUseDate: lastUseDate,
+        isInStock: isInStock,
+        initialQuantityGrams: initialQuantityGrams,
+        originId: originId,
+        roastDate: roastDate,
+        stockBaselineGrams: stockBaselineGrams,
+        stockBaselineAt: stockBaselineAt,
+        storageLocation: storageLocation,
+        seekOptimalConditions: seekOptimalConditions,
+        storeId: storeId,
+      );
+}
+
+extension BeanMasterCompanionMapper on BeanMaster {
+  BeanMasterTableCompanion toCompanion() => BeanMasterTableCompanion(
+        id: Value(id),
+        name: Value(name),
+        roastLevel: Value(roastLevel),
+        origin: Value(origin),
+        store: Value(store),
+        type: Value(type),
+        imageUrl: Value(imageUrl),
+        beanImageUrl: Value(beanImageUrl),
+        infoImageUrl: Value(infoImageUrl),
+        purchaseDate: Value(purchaseDate),
+        firstUseDate: Value(firstUseDate),
+        lastUseDate: Value(lastUseDate),
+        isInStock: Value(isInStock),
+        initialQuantityGrams: Value(initialQuantityGrams),
+        originId: Value(originId),
+        roastDate: Value(roastDate),
+        stockBaselineGrams: Value(stockBaselineGrams),
+        stockBaselineAt: Value(stockBaselineAt),
+        storageLocation: Value(storageLocation),
+        seekOptimalConditions: Value(seekOptimalConditions),
+        storeId: Value(storeId),
+      );
+}
+
+// --- store_master (StoreMaster) ---
+
+extension StoreMasterRowMapper on StoreMasterRow {
+  StoreMaster toModel() => StoreMaster(
+        id: id,
+        name: name,
+        formalName: formalName,
+        url: url,
+        prefecture: prefecture,
+        address: address,
+        hasOnlineShop: hasOnlineShop,
+        hasPhysicalStore: hasPhysicalStore,
+        hasRoastery: hasRoastery,
+        beanTendency: beanTendency,
+        memo: memo,
+        imageUrl: imageUrl,
+        snsUrl: snsUrl,
+        businessHours: businessHours,
+        closedDays: closedDays,
+        phone: phone,
+        openedYear: openedYear,
+        sourceUrl: sourceUrl,
+        infoFetchedAt: infoFetchedAt,
+      );
+}
+
+extension StoreMasterCompanionMapper on StoreMaster {
+  StoreMasterTableCompanion toCompanion() => StoreMasterTableCompanion(
+        id: Value(id),
+        name: Value(name),
+        formalName: Value(formalName),
+        url: Value(url),
+        prefecture: Value(prefecture),
+        address: Value(address),
+        hasOnlineShop: Value(hasOnlineShop),
+        hasPhysicalStore: Value(hasPhysicalStore),
+        hasRoastery: Value(hasRoastery),
+        beanTendency: Value(beanTendency),
+        memo: Value(memo),
+        imageUrl: Value(imageUrl),
+        snsUrl: Value(snsUrl),
+        businessHours: Value(businessHours),
+        closedDays: Value(closedDays),
+        phone: Value(phone),
+        openedYear: Value(openedYear),
+        sourceUrl: Value(sourceUrl),
+        infoFetchedAt: Value(infoFetchedAt),
+      );
+}
+
+// --- bean_purchases (BeanPurchase) ---
+
+extension BeanPurchaseRowMapper on BeanPurchaseRow {
+  BeanPurchase toModel() => BeanPurchase(
+        id: id,
+        beanId: beanId,
+        purchasedAt: purchasedAt,
+        roastDate: roastDate,
+        quantityGrams: quantityGrams,
+        storeId: storeId,
+        storeName: storeName,
+        memo: memo,
+        createdAt: createdAt,
+      );
+}
+
+extension BeanPurchaseCompanionMapper on BeanPurchase {
+  BeanPurchasesTableCompanion toCompanion() => BeanPurchasesTableCompanion(
+        id: Value(id),
+        beanId: Value(beanId),
+        purchasedAt: Value(purchasedAt),
+        roastDate: Value(roastDate),
+        quantityGrams: Value(quantityGrams),
+        storeId: Value(storeId),
+        storeName: Value(storeName),
+        memo: Value(memo),
+        createdAt: Value(createdAt),
       );
 }

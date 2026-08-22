@@ -103,27 +103,50 @@ class LocalDbService implements DataService {
   }
 
   // ==========================================================================
-  // Beans — 束2(T5-B13-2)で実装予定
+  // Beans (bean_master) — 束2(T5-B13-2、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<BeanMaster>> getBeans() {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<List<BeanMaster>> getBeans() async {
+    final rows = await (_db.select(_db.beanMasterTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addBean(BeanMaster bean) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> addBean(BeanMaster bean) async {
+    _requireId(bean.id, forDelete: false);
+    final id = bean.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.beanMasterTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.beanMasterTable).insert(bean.toCompanion());
+    });
+    _logWrite('bean_master', '追加', id);
   }
 
   @override
-  Future<void> updateBean(BeanMaster bean) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> updateBean(BeanMaster bean) async {
+    _requireId(bean.id, forDelete: false);
+    final ok =
+        await _db.update(_db.beanMasterTable).replace(bean.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${bean.id})');
+    }
+    _logWrite('bean_master', '更新', bean.id);
   }
 
   @override
-  Future<void> deleteBean(String id) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> deleteBean(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.beanMasterTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('bean_master', '削除', id);
   }
 
   // ==========================================================================
@@ -345,51 +368,98 @@ class LocalDbService implements DataService {
   }
 
   // ==========================================================================
-  // Store Masters — 束2(T5-B13-2)で実装予定
+  // Store Masters (store_master) — 束2(T5-B13-2、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<StoreMaster>> getStores() {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<List<StoreMaster>> getStores() async {
+    final rows = await (_db.select(_db.storeMasterTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addStore(StoreMaster store) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> addStore(StoreMaster store) async {
+    _requireId(store.id, forDelete: false);
+    final id = store.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.storeMasterTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.storeMasterTable).insert(store.toCompanion());
+    });
+    _logWrite('store_master', '追加', id);
   }
 
   @override
-  Future<void> updateStore(StoreMaster store) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> updateStore(StoreMaster store) async {
+    _requireId(store.id, forDelete: false);
+    final ok =
+        await _db.update(_db.storeMasterTable).replace(store.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${store.id})');
+    }
+    _logWrite('store_master', '更新', store.id);
   }
 
   @override
-  Future<void> deleteStore(String id) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> deleteStore(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.storeMasterTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('store_master', '削除', id);
   }
 
   // ==========================================================================
-  // Bean Purchases — 束2(T5-B13-2)で実装予定
+  // Bean Purchases (bean_purchases) — 束2(T5-B13-2、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<BeanPurchase>> getBeanPurchases() {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<List<BeanPurchase>> getBeanPurchases() async {
+    final rows = await (_db.select(_db.beanPurchasesTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
   }
 
   @override
-  Future<void> addBeanPurchase(BeanPurchase purchase) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> addBeanPurchase(BeanPurchase purchase) async {
+    _requireId(purchase.id, forDelete: false);
+    final id = purchase.id;
+    await _db.transaction(() async {
+      final exists = await (_db.select(_db.beanPurchasesTable)
+            ..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+      if (exists != null) {
+        _fail('既に同じIDのデータが存在します(ID: $id)');
+      }
+      await _db.into(_db.beanPurchasesTable).insert(purchase.toCompanion());
+    });
+    _logWrite('bean_purchases', '追加', id);
   }
 
   @override
-  Future<void> updateBeanPurchase(BeanPurchase purchase) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> updateBeanPurchase(BeanPurchase purchase) async {
+    _requireId(purchase.id, forDelete: false);
+    final ok = await _db
+        .update(_db.beanPurchasesTable)
+        .replace(purchase.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${purchase.id})');
+    }
+    _logWrite('bean_purchases', '更新', purchase.id);
   }
 
   @override
-  Future<void> deleteBeanPurchase(String id) {
-    throw UnimplementedError('T5-B13-2 で実装予定');
+  Future<void> deleteBeanPurchase(String id) async {
+    _requireId(id, forDelete: true);
+    await (_db.delete(_db.beanPurchasesTable)..where((t) => t.id.equals(id)))
+        .go();
+    _logWrite('bean_purchases', '削除', id);
   }
 
   // ==========================================================================
