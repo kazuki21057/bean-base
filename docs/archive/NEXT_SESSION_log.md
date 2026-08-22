@@ -3021,3 +3021,12 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - UI変更なし・`lib/db`層のみのためデプロイ・本番確認は不要と判断。
 - 委譲1回ごとの予算チェックポイント($14.4)には未到達(実測$8.37)。
 - **次回セッションでやること**: T5-B14(画像のローカル保存、依存T5-B13-4充足)から着手。`path_provider`は既存依存にあるので追加不要。public版の`ImageService`をDrive→ローカルへ差し替える設計・実装が必要(方針は明らかなためarchitect不要、implementerへ直接委譲可)。
+
+### -5.136 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`(23:00枠、起動回数カウンタ16回目)。**T5-B15完了・push済み**)
+
+- 依存(T5-B13-4・T5-B14)が充足済みのT5-B15(エクスポート/インポート)を選定。オープンPR確認は該当なし。設計は`docs/local_db_schema_design.md` §5.2/§6/§6.1に確定済みのため`architect`不要、`implementer`へ直接委譲。
+- `implementer`が`lib/services/import_export_service.dart`を新規実装。全12テーブルのJSONエクスポート(日本語シート列名キー、`formatVersion`/`schemaVersion`/`exportedAt`付き)・JSONインポート(schemaVersionチェック+1トランザクションupsert)・CSVエクスポート(1テーブル1ファイル、CSVインポートは設計書に仕様が無いため対象外)、`normalizeExternalId`関数(設計書§5.2)。UI(P920画面)は別タスクで未実装、今回はサービス層のみ。新規`test/acceptance/t5_b15_acceptance_test.dart`。
+- `verifier`・`adversary`を並行起動。`verifier`は`verify.ps1 -Task T5-B15`全9項目green・acceptance green。`adversary`がMajor2件検出——(1)`seekOptimalConditions`(3値bool)のNULL⇔空文字変換が設計書§4.2(L189)どおり未実装(JSON nullのまま出力され空文字にならない)(2)`importFromJson`はupsertのみで全消去はUI側の責務という前提がdocコメント未記載。
+- `implementer`へその場で差し戻し、両方修正(NULL⇔空文字変換の実装+null往復テスト追加、docコメント追記)。`verifier`が再検証、`verify.ps1 -Task T5-B15`全9項目green再確認。
+- 自動pushゲート判定: `integration_test/smoke_test.dart`を`verifier`が実機(`emulator-5554`)で実行し全パス(GAS一時タイムアウトはリトライで解消)。UI変更が無いため`ui_verifier`は判定対象外。`.ps1`変更なしのため条件5も対象外。全適用条件クリアで**mainへ自動push**。
+- **次回セッションでやること**: `docs/改修マスタープラン.md` §3から依存を満たすタスクを選定。トラックB/P1(ローカルDB化)はこれで全件完了。次点候補はトラックB/P2のT5-B25/T5-B26(依存T5-B22充足)。
