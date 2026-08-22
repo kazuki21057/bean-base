@@ -35,13 +35,18 @@ class StoreDetailScreen extends ConsumerWidget {
     final purchasesAsync = ref.watch(beanPurchasesProvider);
     // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
     // (遷移時点のスナップショット)ではなくstoreMasterProviderの最新値を使う。
-    final stores = ref.watch(storeMasterProvider).value;
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final storesAsync = ref.watch(storeMasterProvider);
+    final stores = storesAsync.valueOrNull;
     final currentStore = stores?.firstWhere((s) => s.id == store.id, orElse: () => store) ?? store;
+    // T5-A104 Major#3: 通信失敗を無言でデータ0件扱いにせず、ユーザーに伝える。
+    final hasError =
+        beansAsync.hasError || logsAsync.hasError || purchasesAsync.hasError || storesAsync.hasError;
 
-    final matchedBeans = beansAsync.value?.where(_matchesBean).toList() ?? const <BeanMaster>[];
+    final matchedBeans = beansAsync.valueOrNull?.where(_matchesBean).toList() ?? const <BeanMaster>[];
     final matchedBeanIds = matchedBeans.map((b) => b.id).toSet();
 
-    final storePurchases = (purchasesAsync.value ?? const <BeanPurchase>[])
+    final storePurchases = (purchasesAsync.valueOrNull ?? const <BeanPurchase>[])
         .where((p) => p.storeId == currentStore.id)
         .toList()
       ..sort((a, b) {
@@ -53,7 +58,7 @@ class StoreDetailScreen extends ConsumerWidget {
         return bd.compareTo(ad);
       });
 
-    final scores = (logsAsync.value ?? const [])
+    final scores = (logsAsync.valueOrNull ?? const [])
         .where((log) => matchedBeanIds.contains(log.beanId))
         .map((log) => log.scoreOverall)
         .toList();
@@ -82,6 +87,14 @@ class StoreDetailScreen extends ConsumerWidget {
         ('開業年', _orDash(currentStore.openedYear)),
       ],
       extraSections: [
+        if (hasError)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Text(
+              'データの読み込みに失敗した項目があります。表示中の内容が最新でない可能性があります。',
+              style: TextStyle(color: kMocha, fontSize: 12),
+            ),
+          ),
         FormSection(
           icon: Icons.coffee,
           title: 'この店で買った豆',
@@ -119,12 +132,12 @@ class StoreDetailScreen extends ConsumerWidget {
                     MockListRow(
                       icon: Icons.coffee,
                       imageUrl: ImageUtils.getOptimizedImageUrl(
-                        _findBean(beansAsync.value ?? const [], p.beanId)?.imageUrl,
+                        _findBean(beansAsync.valueOrNull ?? const [], p.beanId)?.imageUrl,
                       ),
-                      title: _findBean(beansAsync.value ?? const [], p.beanId)?.name ?? '(削除された豆)',
+                      title: _findBean(beansAsync.valueOrNull ?? const [], p.beanId)?.name ?? '(削除された豆)',
                       subtitle: _formatPurchaseSubtitle(p),
                       onTap: () {
-                        final b = _findBean(beansAsync.value ?? const [], p.beanId);
+                        final b = _findBean(beansAsync.valueOrNull ?? const [], p.beanId);
                         if (b == null) return;
                         Navigator.push(
                           context,

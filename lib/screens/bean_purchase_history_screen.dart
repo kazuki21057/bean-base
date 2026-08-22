@@ -8,6 +8,7 @@ import '../providers/data_providers.dart';
 import '../routing/app_screen.dart';
 import '../utils/image_utils.dart';
 import 'bean_detail_screen.dart';
+import 'create/create_form_widgets.dart';
 import 'mock/mock_scaffold.dart';
 
 /// 025 購入履歴(閲覧専用)。
@@ -73,10 +74,26 @@ class _BeanPurchaseHistoryScreenState
         const SizedBox(height: 12),
         purchasesAsync.when(
           data: (purchases) {
-            final beans = beansAsync.value ?? const <BeanMaster>[];
-            return _mode == _PurchaseViewMode.list
+            // T5-A104: beansAsyncがAsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+            final beans = beansAsync.valueOrNull ?? const <BeanMaster>[];
+            final body = _mode == _PurchaseViewMode.list
                 ? _buildList(purchases, beans)
                 : _buildCalendar(purchases, beans);
+            // T5-A104 Major#3: beansAsyncの取得失敗を無言でデータ0件扱いにせず伝える。
+            if (!beansAsync.hasError) return body;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '豆マスターの読み込みに失敗しました(豆名が表示できない場合があります): ${beansAsync.error}',
+                    style: const TextStyle(color: kMocha, fontSize: 12),
+                  ),
+                ),
+                body,
+              ],
+            );
           },
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 32),

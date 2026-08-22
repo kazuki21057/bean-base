@@ -327,4 +327,22 @@ void main() {
 
     expect(fakeService.lastAdded?.name, '岬の焙煎所');
   });
+
+  testWidgets('T5-A104 Major#3: 抽出記録の取得に失敗するとエラーメッセージが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overridesFor(fakeService, stores),
+          coffeeRecordsProvider.overrideWith((ref) async => throw Exception('通信エラー')),
+        ],
+        child: MaterialApp(home: StoreDetailScreen(store: stores[0])),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 通信失敗時も無言でデータ0件扱いにせず、ユーザーにエラーを伝える。
+    expect(find.textContaining('データの読み込みに失敗した項目があります'), findsOneWidget);
+    // 店名自体は(コンストラクタ引数へのフォールバックで)引き続き表示される。
+    expect(find.text('Navy'), findsWidgets);
+  });
 }

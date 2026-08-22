@@ -312,8 +312,9 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
 
     setState(() => _isExtracting = true);
     try {
-      final origins = ref.read(originMasterProvider).value ?? const [];
-      final stores = ref.read(storeMasterProvider).value ?? const [];
+      // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+      final origins = ref.read(originMasterProvider).valueOrNull ?? const [];
+      final stores = ref.read(storeMasterProvider).valueOrNull ?? const [];
       final preferredModel = prefs.getString('gemini_model');
       debugPrint('[Antigravity] Action: 豆情報のAI抽出を実行 (file=$filename, camera=$saveAsInfoImage)');
       final extracted = await ref.read(aiAnalysisServiceProvider).extractBeanInfoFromImage(
@@ -485,11 +486,12 @@ class _BeanCreateScreenState extends ConsumerState<BeanCreateScreen> {
     final edit = widget.editData;
     // T4-1e(設計書§3.2): 選択されたOriginMasterのnameJaをoriginへ同時コピーする
     // (既存のCoffeeRecord.originコピー処理・後方互換を壊さないため)。
-    final origins = ref.read(originMasterProvider).value ?? const [];
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final origins = ref.read(originMasterProvider).valueOrNull ?? const [];
     final selectedOrigin = _resolveById(origins, _selectedOriginId, (o) => o.id);
     // T3-69(設計書§9): 選択されたStoreMasterのnameをstoreへ同時コピーする
     // (originIdと同じパターン。未選択時は既存のstore自由入力文字列を維持=後方互換)。
-    final stores = ref.read(storeMasterProvider).value ?? const [];
+    final stores = ref.read(storeMasterProvider).valueOrNull ?? const [];
     final selectedStore = _resolveById(stores, _selectedStoreId, (s) => s.id);
     final bean = BeanMaster(
       id: _isEdit ? edit!.id : DateTime.now().millisecondsSinceEpoch.toString(),

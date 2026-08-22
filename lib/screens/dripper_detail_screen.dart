@@ -23,7 +23,8 @@ class DripperDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
     // (遷移時点のスナップショット)ではなくdripperMasterProviderの最新値を使う。
-    final drippers = ref.watch(dripperMasterProvider).value;
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final drippers = ref.watch(dripperMasterProvider).valueOrNull;
     final currentDripper = drippers?.firstWhere((d) => d.id == dripper.id, orElse: () => dripper) ?? dripper;
 
     return MasterDetailTemplate(

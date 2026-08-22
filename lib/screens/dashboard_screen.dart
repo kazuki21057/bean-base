@@ -67,7 +67,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final logsAsync = ref.watch(coffeeRecordsProvider);
     final methodsAsync = ref.watch(methodMasterProvider);
     // T3-50: 未回答(seekOptimalConditions == null)の豆があれば案内カードを出す。
-    final unansweredBeans = (beansAsync.value ?? const <BeanMaster>[])
+    // T5-A104: beansAsyncがAsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final unansweredBeans = (beansAsync.valueOrNull ?? const <BeanMaster>[])
         .where((b) => b.name != '-' && b.name.isNotEmpty && b.seekOptimalConditions == null)
         .toList();
 
@@ -163,7 +164,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: Text('在庫中の豆はありません', style: TextStyle(color: kChalkMuted)),
                   );
                 }
-                final logs = logsAsync.value ?? const [];
+                // T5-A104: logsAsyncがAsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+                final logs = logsAsync.valueOrNull ?? const [];
                 final withPercent = [
                   for (final bean in named) (bean, calculateBeanRemainingPercent(bean, logs)),
                 ];

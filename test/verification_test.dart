@@ -197,14 +197,21 @@ void main() {
       expect(methods.first.baseWaterAmount, 250);
     });
 
-    test('Should handle non-List response gracefully', () async {
+    test('Should throw SheetsFetchException for non-List response (T5-A104)', () async {
+       // T5-A104: 従来は[]を返して握り潰していたが、GAS側のエラーオブジェクトを
+       // データ0件と誤認させないよう、例外をthrowする挙動に変更した。
        final client = MockClient((request) async {
          return http.Response('{"error": "Some error"}', 200, headers: {'content-type': 'application/json; charset=utf-8'});
       });
-      
-      final service = SheetsService(client: client);
-      final records = await service.getCoffeeRecords();
-      expect(records, isEmpty);
+
+      final service = SheetsService(
+        client: client,
+        retryBackoff: const [Duration.zero, Duration.zero],
+      );
+      await expectLater(
+        () => service.getCoffeeRecords(),
+        throwsA(isA<SheetsFetchException>()),
+      );
     });
 
     test('Should handle malformed JSON records gracefully', () async {

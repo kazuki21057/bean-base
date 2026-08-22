@@ -413,7 +413,8 @@ class _BrewRecipeScreenState extends ConsumerState<BrewRecipeScreen> {
                 // 選択されると _onMethodChanged に渡すステップが無く、選択が黙って捨てられていた。
                 // 読み込みが終わるまでは選択自体を受け付けない。
                 final stepsReady = stepsAsync.hasValue && !stepsAsync.hasError;
-                final allSteps = stepsAsync.value ?? const <PouringStep>[];
+                // T5-A104: stepsAsyncがAsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+                final allSteps = stepsAsync.valueOrNull ?? const <PouringStep>[];
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

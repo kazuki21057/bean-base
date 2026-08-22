@@ -32,7 +32,8 @@ class MethodDetailScreen extends ConsumerWidget {
     final stepsAsync = ref.watch(pouringStepsProvider);
     // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
     // (遷移時点のスナップショット)ではなくmethodMasterProviderの最新値を使う。
-    final methods = ref.watch(methodMasterProvider).value;
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final methods = ref.watch(methodMasterProvider).valueOrNull;
     final currentMethod = methods?.firstWhere((m) => m.id == method.id, orElse: () => method) ?? method;
 
     final extractionCount = logsAsync.maybeWhen(

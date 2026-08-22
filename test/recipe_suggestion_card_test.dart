@@ -386,5 +386,30 @@ void main() {
       expect(find.text('実験的な提案です'), findsOneWidget);
       expect(find.textContaining('予測スコア'), findsOneWidget);
     });
+
+    testWidgets('T5-A104 Major#3: 抽出記録の取得に失敗するとエラーメッセージが表示される', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            dataServiceProvider.overrideWithValue(_FakeDataService()),
+            beanMasterProvider.overrideWith(() => FakeBeanMasterNotifier(() async => [bean])),
+            coffeeRecordsProvider.overrideWith((ref) async => throw Exception('通信エラー')),
+            originMasterProvider.overrideWith((ref) async => const []),
+            recipeSuggestionsProvider.overrideWith((ref) async => const []),
+            methodMasterProvider.overrideWith(() => FakeMethodMasterNotifier(() async => [_defaultMethod])),
+            grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [_defaultGrinder])),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(child: const RecipeSuggestionCard()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 通信失敗時も無言でデータ0件扱いにせず、ユーザーにエラーを伝える。
+      expect(find.textContaining('関連データの読み込みに失敗しました'), findsOneWidget);
+    });
   });
 }

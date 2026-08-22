@@ -248,4 +248,22 @@ void main() {
     expect(find.text('基本情報'), findsOneWidget);
     expect(find.text('岬の焙煎所'), findsOneWidget);
   });
+
+  testWidgets('T5-A104 Major#3: 抽出記録の取得に失敗するとエラーメッセージが表示される', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overridesFor(fakeService),
+          coffeeRecordsProvider.overrideWith((ref) async => throw Exception('通信エラー')),
+        ],
+        child: const MaterialApp(home: BeanListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 通信失敗時も無言でデータ0件扱いにせず、ユーザーにエラーを伝える。
+    expect(find.textContaining('抽出記録の読み込みに失敗しました'), findsOneWidget);
+    // 豆カード自体は(残量算出が不正確でも)引き続き表示される。
+    expect(find.text('エチオピア イルガチェフェ'), findsOneWidget);
+  });
 }
