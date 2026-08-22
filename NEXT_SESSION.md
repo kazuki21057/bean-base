@@ -185,15 +185,15 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.129 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`「PR2件の検証を実施して」。**PR #5(T5-B12)・PR #6(T5-B23)を検証・merge・push**)
+### -5.130 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`。**T5-A103完了・main反映済み、T5-A104実装しPR #7でゲート不通過ルーティング**)
 
-- `gh pr list`でオープンPR2件を確認(#5 `night/T5-B12`・#6 `night/T5-B23`)。`git branch -a`/`git log`でローカルの`main`が既に両ブランチの内容を含む状態(origin/mainより4コミット進み、作業ツリーclean)と判明。`emulator -list-avds`でAVD`beanbase_test`/`beanbase_ui`の実在を確認(T5-A6は実は整備済みで、過去記録の「エミュレータ未整備」は誤りだったと判明)。
-- `verifier`へ検証委譲: `tools/verify.ps1 -Task T5-B12`・`-Task T5-B23`とも通常9項目+受入資産が全green(analyze 31→31・test 469pass・build両方ok・golden diff0・acceptance 3/3)。
-- integration_testスモーク(自動pushゲート条件#2)を`beanbase_ui`エミュレータで実行、初回2回はFAIL(1回目GAS接続断で履歴0件・2回目記録追加後も一覧件数178→178で不変)。ユーザーに状況報告し「もう数回だけ再試行」の指示を受け同一verifierエージェントを継続、追加2回もFAIL(3回目12分でタイムアウト・4回目GAS接続断後さらに一覧件数179→179で不変)。**計4回中4回失敗、失敗様相が毎回異なりコード起因の再現性なし**。
-- ユーザーに再度状況報告(9項目全green・スモーク4/4 FAILだがGAS起因の状況証拠)、判断を仰いだ結果「GAS接続不安定性が原因と判断しmerge/pushする」との指示。`git push origin main`でorigin/mainをb541d32→2e38b3bへ更新、`gh pr view`で#5・#6とも`MERGED`状態になったことを確認。
-- ユーザーから追加方針: Androidアプリでは将来GASを使わない予定(ローカルDB移行T5-B12〜B15で置き換え)だが、Sheets→ローカルDB移行自体がGAS接続に依存するなら早期解決が必須、との理由でGAS接続不安定性の根本原因調査を要望。**T5-A103(バグ調査・最優先)として起票**——4回の失敗が(a)GAS側の一時的不安定性(b)エミュレータのネットワーク環境固有の問題(c)テストコード側の不具合、のいずれに起因するか、および移行作業自体のGAS依存有無を確認する内容。
-- `docs/改修マスタープラン.md`のT5-B12・T5-B23行を完了処理(✅、詳細記載)、完了済み一覧を92件→94件に更新。T5-B23の`HomeScreen`/`PublicShell`が`lib/main.dart`/`lib/main_public.dart`いずれからも未結線であることも記録(意図的な段階実装)。
-- **次回セッションでやること**: バグ対応最優先ルールによりT5-A103から着手。原因不明・再現性のない失敗パターンのため`architect`への差し戻しを検討。完了後はT5-B13(依存T5-B12・T5-B3充足)・T5-B24/T5-B25(依存T5-B22充足)へ進む。
+- T5-A103(GAS接続不安定性の根本原因調査)を`architect`へ委譲。根本原因は`SheetsService`の GET/POST に timeout・リトライが無く、GAS側の一時的な遅延/エラーがそのまま失敗として伝播していたことと特定(`docs/gas_connection_stability_investigation.md`に詳細)。マスタープランT5-A103行を✅完了に更新、commit・push済み(main反映済み)。
+- 対処タスクT5-A104(SheetsServiceへtimeout/retry追加)を`implementer`へ委譲。`_fetchData`(GET)に20秒timeout+最大3回リトライ(429/500/502/503/504・TimeoutException等が対象、4xxは即失敗)、`_postData`(POST)は30秒timeoutのみ・リトライなし(`appendRow`非冪等のため意図的)、失敗時は`SheetsFetchException`を投げる設計に変更。この変更で露見した既存のRiverpod `.value`再スロー問題(AsyncErrorで例外が伝播する)を`.valueOrNull`へ13箇所修正。
+- `verifier`+`adversary`を並行起動。`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3。`adversary`はMajor3件指摘(①`.valueOrNull`置換漏れ1箇所②GET失敗時にエラー表示が無い画面4件③リトライ最大待機時間~62秒の妥当性未検証)。①②を`implementer`へ差し戻し修正・再検証済み(analyze31/test482件パス)、③は次点へ申し送り。
+- 自動pushゲート判定: 条件#2(integration_testスモーク、T5-A7完了により今回から常時判定)について、本ループの残予算不足でAndroidエミュレータ実機検証を実施できず証跡なし。「判定元の報告が得られなかった条件は満たされたとみなさない」ルールに従い不成立と判定し、`night/T5-A104`ブランチ+PR #7でルーティング(mainには一切push無し)。
+- SKILL.md staleness発見: `.claude/skills/night_loop/SKILL.md`冒頭の「大前提」に`ui_verifier`(T5-A4未着手)・`integration_test`(T5-A7未着手)を前提とする記述が残っているが、両方とも既に完了済みでゲート判定テーブル側は既に更新済み・大前提の文章だけが矛盾したまま。無人ループは`.claude/skills/*`へ書き込めない(書き込み範囲制限)ため自己修正不可、**T5-A106として起票**(マスタープランへ追加、有人セッションでの対応が必要)。
+- **要ユーザー対応**: (1) PR #7(T5-A104)のレビュー・マージ判断、特にintegration_testスモークの実機確認 (2) リトライ最大待機時間(~62秒)の妥当性検証 (3) T5-A103調査中に判明した本番`coffee_data`シートの`totalTime=0`ゴミレコード(過去のスモークテスト失敗4回分)の削除要否判断 (4) `.claude/skills/night_loop/SKILL.md`の大前提2文の修正(T5-A106)。
+- **次回セッションでやること**: PR #7マージ後、依存が満たされるT5-A105(smoke_testのタイミング欠陥修正、依存T5-A104)へ進む。T5-A106(SKILL.md修正)は有人セッションで対応。
 
 > これ以前の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 

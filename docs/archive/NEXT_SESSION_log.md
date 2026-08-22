@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.129 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`「PR2件の検証を実施して」。**PR #5(T5-B12)・PR #6(T5-B23)を検証・merge・push**)
+
+- `gh pr list`でオープンPR2件を確認(#5 `night/T5-B12`・#6 `night/T5-B23`)。`git branch -a`/`git log`でローカルの`main`が既に両ブランチの内容を含む状態(origin/mainより4コミット進み、作業ツリーclean)と判明。`emulator -list-avds`でAVD`beanbase_test`/`beanbase_ui`の実在を確認(T5-A6は実は整備済みで、過去記録の「エミュレータ未整備」は誤りだったと判明)。
+- `verifier`へ検証委譲: `tools/verify.ps1 -Task T5-B12`・`-Task T5-B23`とも通常9項目+受入資産が全green(analyze 31→31・test 469pass・build両方ok・golden diff0・acceptance 3/3)。
+- integration_testスモーク(自動pushゲート条件#2)を`beanbase_ui`エミュレータで実行、初回2回はFAIL(1回目GAS接続断で履歴0件・2回目記録追加後も一覧件数178→178で不変)。ユーザーに状況報告し「もう数回だけ再試行」の指示を受け同一verifierエージェントを継続、追加2回もFAIL(3回目12分でタイムアウト・4回目GAS接続断後さらに一覧件数179→179で不変)。**計4回中4回失敗、失敗様相が毎回異なりコード起因の再現性なし**。
+- ユーザーに再度状況報告(9項目全green・スモーク4/4 FAILだがGAS起因の状況証拠)、判断を仰いだ結果「GAS接続不安定性が原因と判断しmerge/pushする」との指示。`git push origin main`でorigin/mainをb541d32→2e38b3bへ更新、`gh pr view`で#5・#6とも`MERGED`状態になったことを確認。
+- ユーザーから追加方針: Androidアプリでは将来GASを使わない予定(ローカルDB移行T5-B12〜B15で置き換え)だが、Sheets→ローカルDB移行自体がGAS接続に依存するなら早期解決が必須、との理由でGAS接続不安定性の根本原因調査を要望。**T5-A103(バグ調査・最優先)として起票**——4回の失敗が(a)GAS側の一時的不安定性(b)エミュレータのネットワーク環境固有の問題(c)テストコード側の不具合、のいずれに起因するか、および移行作業自体のGAS依存有無を確認する内容。
+- `docs/改修マスタープラン.md`のT5-B12・T5-B23行を完了処理(✅、詳細記載)、完了済み一覧を92件→94件に更新。T5-B23の`HomeScreen`/`PublicShell`が`lib/main.dart`/`lib/main_public.dart`いずれからも未結線であることも記録(意図的な段階実装)。
+
 ### -5.128 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`、Windows環境。**T5-B23実装・3往復の検証でCritical0/Major0、ただしゲート条件#2証跡なしでPRルーティング**)
 
 - `gh pr list`でT5-B12(`night/T5-B12`、オープンPR#5)がまだ未マージと確認、T5-A99ルールによりスキップ。次点のT5-B23(公開版画面: ホーム、依存T5-B22充足、オープンPR無し)を選定。
