@@ -2,13 +2,14 @@
 //
 // 正本は docs/android_monetization/デザイン方針.md §9.2。下部`NavigationBar`
 // (4タブ: ホーム/履歴/インサイト/道具)+中央下FAB「淹れる」を持ち、
-// `IndexedStack`でタブの状態を保持する。ホームタブのみ実画面(`HomeScreen`)を
-// 表示し、他3タブとFABタップ時の遷移先は本タスクの範囲外(それぞれ
-// T5-B24/T5-B25/T5-B27・P200で本実装する)のため、簡単なプレースホルダを
-// 表示するに留める。
+// `IndexedStack`でタブの状態を保持する。ホームタブ(`HomeScreen`)・
+// インサイトタブ(`InsightScreen`)は実画面を表示し、残る履歴/道具タブと
+// FABタップ時の遷移先は本タスクの範囲外(それぞれT5-B24/T5-B27・P200で
+// 本実装する)のため、簡単なプレースホルダを表示するに留める。
 import 'package:flutter/material.dart';
 
 import 'package:bean_base/screens/public/home_screen.dart';
+import 'package:bean_base/screens/public/insight_screen.dart';
 
 /// 公開版のトップレベルナビゲーションシェル。
 class PublicShell extends StatefulWidget {
@@ -42,7 +43,7 @@ class _PublicShellState extends State<PublicShell> {
     final tabs = <Widget>[
       HomeScreen(),
       _PublicPlaceholderScreen(),
-      _PublicPlaceholderScreen(),
+      InsightScreen(),
       _PublicPlaceholderScreen(),
     ];
     return Scaffold(

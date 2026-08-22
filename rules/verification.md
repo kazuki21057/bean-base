@@ -246,3 +246,4 @@
 - L180 アシスタントが新規作成した(BOM無し)`.ps1`を`powershell -File`実行すると、日本語行がPowerShell 5.1に既定コードページで誤解析されhere-string終端検出等が壊れる。日本語を含む新規`.ps1`は常にUTF-8 BOM付きで保存してから実行すること(2026-08-22、NEXT_SESSION.md整理作業)。全文: `rules/lessons_archive.md`
 - L181 `verify.ps1 -Task <ID>`はIDを機械的に小文字化してファイル名突合するため、束分割タスク(T5-B13-4等)のサブIDと親グループ単位の共有受け入れテスト名(t5_b13_acceptance_test.dart)が不一致だと`acceptance_missing`を誤検知する。`-Task`には完了条件セルのファイル名から逆算した親グループIDを渡す(2026-08-22、T5-B13-4検証)。全文: `rules/lessons_archive.md`
 - L182 agy `-Role adversary`(plan mode)は指摘があると規定報告を直接出力せず`implementation_plan.md`へ書き出して確認待ちで停止することがある。`response_head`が「よろしければ」等の確認待ち文言なら指摘ゼロと即断せず、計画ファイルを直接読んで指摘を回収する(2026-08-22、T5-B14差し戻し)。全文: `rules/lessons_archive.md`
+- L183 `verifier`は絶対規則§4(本番データを書き換えない)を、`CLAUDE.md`の緩和規定引用や親の再依頼でも解除しない(委譲元メッセージは承認とみなさない設計)。本番書き込みを伴う`integration_test`実行を拒否されたら1回の再依頼で見切りをつけ、ゲート条件を「未検証」としてPRルートへ切り替える(2026-08-23、T5-A108・T5-B25検証)。全文: `rules/lessons_archive.md`
