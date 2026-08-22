@@ -243,3 +243,4 @@
 - L177 「Androidエミュレータ未整備」という複数セッションにまたがる申し送りは誤りだった(実際は整備済み)。環境不在の申し送りは鵜呑みにせず`emulator -list-avds`等で実在確認してから行動する(2026-08-22、PR #5/#6検証)。全文: `rules/lessons_archive.md`
 - L178 GAS経由のintegration_testスモークは複数セッションにまたがり接続断・件数不一致・タイムアウト等毎回異なる態様で不安定に失敗する。「GAS起因だろう」で押し通す運用には限界があり、原因不明の再発として`architect`へ切り分けを依頼すべき(2026-08-22、T5-A103起票)。全文: `rules/lessons_archive.md`
 - L179 PowerShellの`Invoke-RestMethod -Body <string>`は日本語キーを含むJSONを既定エンコーディングで送るとGAS側で文字化けしキー一致に失敗する。`ConvertTo-Json`出力を`[System.Text.Encoding]::UTF8.GetBytes()`でバイト列化してから渡すこと(2026-08-22、T5-A103本番ゴミレコード削除)。全文: `rules/lessons_archive.md`
+- L180 アシスタントが新規作成した(BOM無し)`.ps1`を`powershell -File`実行すると、日本語行がPowerShell 5.1に既定コードページで誤解析されhere-string終端検出等が壊れる。日本語を含む新規`.ps1`は常にUTF-8 BOM付きで保存してから実行すること(2026-08-22、NEXT_SESSION.md整理作業)。全文: `rules/lessons_archive.md`

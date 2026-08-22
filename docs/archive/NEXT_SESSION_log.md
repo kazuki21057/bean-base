@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.131 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**PR #7(T5-A104+新規実装T5-A105)を検証・マージ、T5-A106完了、本番ゴミレコード5件削除、T5-A107起票**)
+
+- オープンPR #7(`night/T5-A104`)から着手。`verifier`へ検証委譲、`verify.ps1 -Task T5-A104`は全項目green・acceptance 3/3を再確認。integration_testスモークを実機2回連続実行したところ両方FAIL(`smoke_test.dart:237`)——ただし直前のGET timeoutログから、原因はT5-A104のコードではなく**`smoke_test.dart`側の固定2秒`pumpAndSettle`**(T5-A105が対処予定の既知欠陥)と判明。
+- 予算に余裕があったため即座にT5-A105を`implementer`へ委譲、同じ`night/T5-A104`ブランチに実装(メソッド選択のポーリング化・一覧反映待機の`_pumpUntil`化)。implementer自己確認で実機2回連続PASS。続けて`verifier`が独立検証したところ**1回PASS・1回FAIL**(FAILは`coffee_data`のGET再取得が3回のリトライ全て失敗、GAS側の純粋な接続不安定性と判定、smoke_test側のロジック不備ではない)。
+- `AskUserQuestion`でユーザーに3点確認: (1)PR #7マージ可否→**マージする**(2)リトライ最大待機時間62秒の妥当性→**見直したい**(3)本番ゴミレコード削除→**削除する**。回答に基づき、T5-A105の変更をコミット・push、`gh pr merge 7 --merge --delete-branch`でmainへマージ(8b9ab53)。マスタープランのT5-A104・T5-A105行を✅完了に更新、リトライ見直しは**T5-A107として新規起票**(方針は未確定のまま、着手時に要ユーザー合意)。
+- T5-A106(SKILL.md大前提の食い違い修正)を実施。`.claude/skills/night_loop/SKILL.md`の「`ui_verifier`/`integration_test`は現時点で存在しない」という誤った大前提2文を実態(いずれもT5-A4・T5-A7完了済み)に合わせて書き換え、ゲート条件#3(`ui_verifier`)を条件#2と同じ扱いで「適用(常時判定、UI変更が無いループは判定対象外)」へ解除。4箇所の差分のみ、非委譲しきい値に該当するため親が直接編集。
+- T5-A103調査で判明していた本番`coffee_data`の`抽出時間(秒)=0`ゴミレコードをGAS API経由で調査、5件(2026-08-20付、全て`bean=d009a114`のテストフィクスチャ)を特定・削除(191件→186件、削除後ゴミレコード0件を確認)。
+- 新規教訓L179(GAS POST時の日本語キーJSONエンコーディング問題)。
+
 ## 旧「1. 現状サマリ」バックログ(2026-08-22、NEXT_SESSION.md整理により退避。本文は最新1件のみ保持する運用へ変更)
 
 - **【2026-08-14・前セッション】T5-A70(受け入れハーネス設計T5-A59の実装その2)完了・commit/push済み**。ユーザー指示「上位モデルのサブエージェントはagyに委譲しないで。その他軽めのタスクを一つ実行して」を受け、依存充足済みのSサイズタスクからT5-A70を選定。`docs/acceptance_harness_design.md` §8に確定済みの文言を`.claude/skills/full_loop/SKILL.md`・`.claude/skills/night_loop/SKILL.md`・`.claude/agents/verifier.md`・`.claude/skills/verify/SKILL.md`・`rules/verification.md`の5ファイルへ`implementer`が追記(設計判断なし、文言はそのまま使用)。`verifier`が`powershell -File tools/verify.ps1 -Task T5-A70`を実行し、T5-A70用の受け入れ資産が無いため`checks.acceptance.reason:"acceptance_missing"`・トップレベル`ok:false`になることを確認(タスク完了条件どおり。通常実行の9項目は全PASSで回帰なし)。`lib/`不変・ドキュメントのみのためデプロイ・本番確認は不要。architect/agyへの委譲は発生していない(ユーザー指示どおり)。

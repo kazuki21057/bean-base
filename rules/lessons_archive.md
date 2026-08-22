@@ -1090,3 +1090,9 @@ analyzer更新後、別のハードルが出た: `build_runner 2.15.1`はビル�
 **事象**: T5-A103調査で判明した本番`coffee_data`の`抽出時間(秒)=0`ゴミレコード5件を`gas/Code.gs`の`action=delete`(`data`に`{"記録ID": "<id>"}`を含むJSON、`text/plain`でPOST)で削除しようとしたところ、5件全てで`{"error":"ID column or value not found for delete"}`が返った。GAS側の`deleteRow()`はヘッダー名に`"ID"`を含む列(`記録ID`)を探し`dataObj[headers[i]]`を引くが、PowerShellの`Invoke-RestMethod -ContentType "text/plain" -Body $jsonString`(文字列のまま渡す)では非ASCII文字(日本語キー)のエンコーディングが既定で正しくUTF-8にならず、GAS側の`JSON.parse`後のオブジェクトキーが一致しなくなっていた。
 
 **対策**: GASなど外部APIへ日本語を含むJSONをPOSTする際は、`ConvertTo-Json -Compress`の出力文字列をそのまま`-Body`に渡さず、`$bytes = [System.Text.Encoding]::UTF8.GetBytes($jsonString)`でバイト列化し、`Invoke-RestMethod -ContentType "text/plain; charset=utf-8" -Body $bytes`のように明示的にUTF-8バイトとして送る。エラーメッセージ(`"ID column or value not found"`)からは文字化けが原因と分かりにくいため、日本語キーを含むPOSTが原因不明のサーバエラーを返した場合はまずエンコーディングを疑う。
+
+## L180 アシスタントが新規作成した(BOM無し)`.ps1`を`powershell -File`で実行すると、日本語(非ASCII)を含む行がWindows PowerShell 5.1に誤解析され、`here-string`の終端検出などが壊れることがある(2026-08-22、NEXT_SESSION.md整理作業)
+
+**事象**: NEXT_SESSION.mdの肥大化した節をトリムするため、Writeツールで新規`.ps1`スクリプト(日本語の置換文字列を含む`@'...'@`here-stringあり)を作成し`powershell -File <script>`で実行したところ、`The string is missing the terminator: '@.`というパースエラーになった。closing `'@`は正しく行頭(列0)にあり、スクリプト自体の構文は問題なかった。原因は、Write ツールが書き出すファイルにUTF-8 BOMが無く、Windows PowerShell 5.1は`-File`実行時にBOMが無いスクリプトをシステムの既定コードページ(日本語環境ではShift_JIS系)で読み込むため、UTF-8の日本語マルチバイト列がそのバイト境界のまま誤ってデコードされ、パーサが想定と異なるトークン列を見てしまうこと。
+
+**対策**: 日本語を含む`.ps1`をアシスタントが新規作成して`powershell -File`で実行する場合は、実行前に`[System.IO.File]::WriteAllText($path, [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8), (New-Object System.Text.UTF8Encoding($true)))`のようにUTF-8 BOM付きへ変換してから実行する(BOMがあればPowerShellは自動でUTF-8として読む)。既存の`.ps1`編集時にBOMを失わないようにする教訓(L127・L142)とは逆方向の同根の問題——**新規作成であっても日本語を含む`.ps1`は常にBOM付きで保存・実行する**、という原則で統一できる。
