@@ -1,5 +1,7 @@
 // ignore_for_file: always_use_package_imports, avoid_catches_without_on_clauses
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +24,21 @@ class SheetsService implements DataService {
   final http.Client _client;
   final String _baseUrl = kGoogleSheetsApiUrl;
 
-  SheetsService({http.Client? client}) : _client = client ?? http.Client();
+  /// GET失敗時の再試行間隔(T5-A104)。既定は2回再試行(計3回試行)。
+  /// テストでは`const [Duration.zero, Duration.zero]`等を渡して待ち時間を無くせる。
+  final List<Duration> _retryBackoff;
+
+  SheetsService({
+    http.Client? client,
+    List<Duration> retryBackoff = const [
+      Duration(milliseconds: 500),
+      Duration(milliseconds: 1500),
+    ],
+  })  : _client = client ?? http.Client(),
+        _retryBackoff = retryBackoff;
+
+  /// 再試行可能なHTTPステータスコード(GAS側の一時的な過負荷・エラーを想定)。
+  static const Set<int> _retryableStatusCodes = {429, 500, 502, 503, 504};
 
   Future<List<T>> _fetchData<T>(
       String sheetName, T Function(Map<String, dynamic>) fromJson) async {
@@ -31,57 +47,94 @@ class SheetsService implements DataService {
       return [];
     }
 
-    try {
-      final response = await _client.get(Uri.parse('$_baseUrl?sheet=$sheetName'));
+    final int totalAttempts = _retryBackoff.length + 1;
 
-      if (response.statusCode == 200) {
-        final dynamic decoded = json.decode(response.body);
+    for (var attempt = 1; attempt <= totalAttempts; attempt++) {
+      bool retryable = false;
+      Object error;
 
-        // Guard: Check if response is actually a List
-        if (decoded is! List) {
-          debugPrint('[Antigravity] エラー: $sheetName はList型を期待していましたが ${decoded.runtimeType} でした。');
-          return [];
-        }
+      try {
+        final response = await _client
+            .get(Uri.parse('$_baseUrl?sheet=$sheetName'))
+            .timeout(const Duration(seconds: 20));
 
-        final List<dynamic> data = decoded;
+        if (response.statusCode == 200) {
+          final dynamic decoded = json.decode(response.body);
 
-        final List<T> validItems = [];
-        for (var i = 0; i < data.length; i++) {
-           final e = data[i];
-           try {
-             if (e == null) continue;
-             if (e is! Map) {
-                debugPrint('[Antigravity] 警告: $sheetName のインデックス$iがMap型ではありません。');
-                continue;
+          // Guard: Check if response is actually a List
+          // (GASがエラーオブジェクト{"error": ...}を返した場合など。再試行しても
+          // 解消しない類のエラーのため即座に失敗させる)
+          if (decoded is! List) {
+            final body = response.body;
+            final preview = body.length > 100 ? body.substring(0, 100) : body;
+            throw SheetsFetchException(
+              sheetName,
+              'レスポンスがList型ではありません(${decoded.runtimeType}): $preview',
+              attempt,
+            );
+          }
+
+          final List<dynamic> data = decoded;
+
+          final List<T> validItems = [];
+          for (var i = 0; i < data.length; i++) {
+             final e = data[i];
+             try {
+               if (e == null) continue;
+               if (e is! Map) {
+                  debugPrint('[Antigravity] 警告: $sheetName のインデックス$iがMap型ではありません。');
+                  continue;
+               }
+
+               // Sanitize map values (convert empty strings to null, strings to numbers if needed)
+               final map = Map<String, dynamic>.from(e);
+
+               // Remove nulls so defaults can work, or let sanitization handle it
+               // Better: Keep nulls if we want to sanitize them?
+               // Current strategy: Remove null-value keys so json_serializable uses @JsonKey(defaultValue: ...)
+               map.removeWhere((key, value) => value == null);
+
+               // Apply robust conversion via fromJson (which calls _remapKeys internally in our usage patterns below)
+               // Wait, the callback `fromJson` calls `_remapKeys`.
+               // So we pass the raw map to `fromJson` callback, but the callback relies on `_remapKeys` to do the heavy lifting.
+
+               validItems.add(fromJson(map));
+             } catch (err) {
+               debugPrint('[Antigravity] エラー: $sheetName のレコード#$iの解析に失敗しました: $err');
+               // Continue to next item, don't crash entire list
              }
-             
-             // Sanitize map values (convert empty strings to null, strings to numbers if needed)
-             final map = Map<String, dynamic>.from(e);
-             
-             // Remove nulls so defaults can work, or let sanitization handle it
-             // Better: Keep nulls if we want to sanitize them? 
-             // Current strategy: Remove null-value keys so json_serializable uses @JsonKey(defaultValue: ...)
-             map.removeWhere((key, value) => value == null);
-
-             // Apply robust conversion via fromJson (which calls _remapKeys internally in our usage patterns below)
-             // Wait, the callback `fromJson` calls `_remapKeys`.
-             // So we pass the raw map to `fromJson` callback, but the callback relies on `_remapKeys` to do the heavy lifting.
-             
-             validItems.add(fromJson(map));
-           } catch (err) {
-             debugPrint('[Antigravity] エラー: $sheetName のレコード#$iの解析に失敗しました: $err');
-             // Continue to next item, don't crash entire list
-           }
+          }
+          return validItems;
         }
-        return validItems;
 
-      } else {
-        throw Exception('Failed to load $sheetName: ${response.statusCode}');
+        // 200以外: 再試行対象ステータスかどうかで分岐
+        if (!_retryableStatusCodes.contains(response.statusCode)) {
+          throw SheetsFetchException(
+            sheetName,
+            'HTTPステータス${response.statusCode}',
+            attempt,
+          );
+        }
+        retryable = true;
+        error = 'HTTPステータス${response.statusCode}';
+      } on SheetsFetchException {
+        // 即座に失敗させる種別のエラー(非再試行対象4xx・List型でないレスポンス)
+        rethrow;
+      } catch (e) {
+        retryable = e is TimeoutException || e is http.ClientException || e is SocketException;
+        error = e;
       }
-    } catch (e) {
-      debugPrint('[Antigravity] エラー: $sheetName の取得に失敗しました: $e');
-      return [];
+
+      debugPrint('[Antigravity] $sheetName の取得に失敗(試行$attempt/$totalAttempts): $error');
+
+      if (!retryable || attempt == totalAttempts) {
+        throw SheetsFetchException(sheetName, error, attempt);
+      }
+      await Future.delayed(_retryBackoff[attempt - 1]);
     }
+
+    // ここには到達しない(ループは必ずreturnかthrowで抜ける)。型安全のための保険。
+    throw SheetsFetchException(sheetName, '予期しないエラー', totalAttempts);
   }
 
   /// Remaps keys and sanitizes values (e.g. empty strings to null for defaults)
@@ -728,16 +781,23 @@ class SheetsService implements DataService {
      if (_baseUrl.isEmpty) return;
 
      try {
-       final response = await _client.post(
-         Uri.parse(_baseUrl),
-         // Use text/plain to avoid CORS preflight OPTIONS request which GAS doesn't handle well
-         headers: {'Content-Type': 'text/plain'},
-         body: json.encode({
-           'sheet': sheetName,
-           'action': action,
-           'data': data,
-         }),
-       );
+       // T5-A104: 書き込み系はタイムアウトのみ付与し、再試行は行わない。
+       // appendRow等のGAS側処理は冪等ではないため、タイムアウト後に自動再送すると
+       // レスポンスが届かなかっただけで実際は書き込みが成功していた場合に
+       // 同じ行が二重に追加されるおそれがある。失敗時は例外を投げて呼び出し元
+       // (UI)にエラーとして伝え、ユーザー自身の判断で再操作してもらう。
+       final response = await _client
+           .post(
+             Uri.parse(_baseUrl),
+             // Use text/plain to avoid CORS preflight OPTIONS request which GAS doesn't handle well
+             headers: {'Content-Type': 'text/plain'},
+             body: json.encode({
+               'sheet': sheetName,
+               'action': action,
+               'data': data,
+             }),
+           )
+           .timeout(const Duration(seconds: 30));
 
        if (response.statusCode == 200 || response.statusCode == 302) {
          debugPrint('[Antigravity] $sheetName への$action送信に成功しました。');
@@ -755,3 +815,17 @@ class SheetsService implements DataService {
 final sheetsServiceProvider = Provider<SheetsService>((ref) {
   return SheetsService();
 });
+
+/// T5-A104: GETの全試行が失敗した際にthrowされる例外。
+/// 従来は`catch(e) { return []; }`で握り潰していたが、これが
+/// integration_testスモークの間欠的失敗(件数不変に見えるGAS接続断)の
+/// 根本原因だったため、失敗を呼び出し元(Riverpodの`FutureProvider`等)に
+/// `AsyncError`として伝播させるよう変更した。
+class SheetsFetchException implements Exception {
+  SheetsFetchException(this.sheetName, this.cause, this.attempts);
+  final String sheetName;
+  final Object cause;
+  final int attempts;
+  @override
+  String toString() => '[$sheetName]の取得に失敗しました($attempts回試行): $cause';
+}

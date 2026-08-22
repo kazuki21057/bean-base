@@ -21,6 +21,10 @@ void main() {
           grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
           dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
           filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
+          // T5-A104 Major#3: RecipeSuggestionCard(ダッシュボードF3)が参照するため、
+          // ネットワーク経由のエラーバナー表示を避けて実データ通信を回避する。
+          originMasterProvider.overrideWith((ref) async => []),
+          recipeSuggestionsProvider.overrideWith((ref) async => []),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,
@@ -62,6 +66,10 @@ void main() {
           grinderMasterProvider.overrideWith(() => FakeGrinderMasterNotifier(() async => [])),
           dripperMasterProvider.overrideWith(() => FakeDripperMasterNotifier(() async => [])),
           filterMasterProvider.overrideWith(() => FakeFilterMasterNotifier(() async => [])),
+          // T5-A104 Major#3: RecipeSuggestionCard(ダッシュボードF3)が参照するため、
+          // ネットワーク経由のエラーバナー表示を避けて実データ通信を回避する。
+          originMasterProvider.overrideWith((ref) async => []),
+          recipeSuggestionsProvider.overrideWith((ref) async => []),
         ],
         child: MaterialApp(
           navigatorKey: navigatorKey,

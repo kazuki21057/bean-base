@@ -29,17 +29,18 @@ class BeanDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final logs = ref.watch(coffeeRecordsProvider).value ?? const [];
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final logs = ref.watch(coffeeRecordsProvider).valueOrNull ?? const [];
     // T3-60: 残量調整はこの画面を離れずに保存されるため、`bean`(コンストラクタ引数、
     // 遷移時点のスナップショット)ではなく`beanMasterProvider`の最新値を使い、
     // 保存直後に瓶表示・残量表示がこの画面上でも即座に更新されるようにする。
-    final beans = ref.watch(beanMasterProvider).value;
+    final beans = ref.watch(beanMasterProvider).valueOrNull;
     final currentBean = beans?.firstWhere((b) => b.id == bean.id, orElse: () => bean) ?? bean;
     final percent = calculateBeanRemainingPercent(currentBean, logs);
     final remainingGrams = calculateBeanRemainingGrams(currentBean, logs);
     // T3-63: ダイアログを開いた時点でstoreMasterProviderの非同期取得が未完了だと
     // 既定店の一致判定ができないため、buildで先にwatchして解決させておく。
-    final stores = ref.watch(storeMasterProvider).value ?? const <StoreMaster>[];
+    final stores = ref.watch(storeMasterProvider).valueOrNull ?? const <StoreMaster>[];
 
     return MasterDetailTemplate(
       screen: AppScreen.beanDetail,

@@ -81,7 +81,8 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
         const SizedBox(height: 4),
         beansAsync.when(
           data: (beans) {
-            final logs = logsAsync.value ?? const [];
+            // T5-A104: logsAsyncがAsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+            final logs = logsAsync.valueOrNull ?? const [];
             final named = beans.where((b) => b.name != '-' && b.name.isNotEmpty);
             final withPercent = [
               for (final bean in named) (bean, calculateBeanRemainingPercent(bean, logs)),
@@ -91,36 +92,53 @@ class _BeanListScreenState extends ConsumerState<BeanListScreen> {
                     (_showEmpty || e.$2 > 0) &&
                     (_storageFilter == _storageFilterAll || e.$1.storageLocation == _storageFilter))
                 .toList();
+            final Widget body;
             if (visible.isEmpty) {
-              return const Padding(
+              body = const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(child: Text('登録されていません')),
               );
+            } else {
+              body = LayoutBuilder(
+                builder: (context, constraints) {
+                  const spacing = 12.0;
+                  // モバイル幅では220px固定だと1列しか入らないため、
+                  // 狭い画面では2列に収まる幅を算出する(広い画面は220px固定のまま多列)。
+                  final cardWidth = constraints.maxWidth < 460
+                      ? (constraints.maxWidth - spacing) / 2
+                      : 220.0;
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: spacing,
+                    children: [
+                      for (var i = 0; i < visible.length; i++)
+                        _BeanCard(
+                          // T5-A7: integration_testが一覧先頭カードを種別を問わず
+                          // 一意に特定できるよう、master_template.dartの共通キーを流用する。
+                          key: i == 0 ? kMasterListFirstItemKey : null,
+                          bean: visible[i].$1,
+                          percent: visible[i].$2,
+                          width: cardWidth,
+                        ),
+                    ],
+                  );
+                },
+              );
             }
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                const spacing = 12.0;
-                // モバイル幅では220px固定だと1列しか入らないため、
-                // 狭い画面では2列に収まる幅を算出する(広い画面は220px固定のまま多列)。
-                final cardWidth = constraints.maxWidth < 460
-                    ? (constraints.maxWidth - spacing) / 2
-                    : 220.0;
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    for (var i = 0; i < visible.length; i++)
-                      _BeanCard(
-                        // T5-A7: integration_testが一覧先頭カードを種別を問わず
-                        // 一意に特定できるよう、master_template.dartの共通キーを流用する。
-                        key: i == 0 ? kMasterListFirstItemKey : null,
-                        bean: visible[i].$1,
-                        percent: visible[i].$2,
-                        width: cardWidth,
-                      ),
-                  ],
-                );
-              },
+            // T5-A104 Major#3: logsAsyncの取得失敗を無言でデータ0件扱いにせず伝える。
+            if (!logsAsync.hasError) return body;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '抽出記録の読み込みに失敗しました(残量%が正しく計算されない場合があります): ${logsAsync.error}',
+                    style: const TextStyle(color: kMocha, fontSize: 12),
+                  ),
+                ),
+                body,
+              ],
             );
           },
           loading: () => const Padding(

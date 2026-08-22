@@ -23,7 +23,8 @@ class GrinderDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // T3-72d: 編集→保存→pop直後も最新値を表示するため、コンストラクタ引数
     // (遷移時点のスナップショット)ではなくgrinderMasterProviderの最新値を使う。
-    final grinders = ref.watch(grinderMasterProvider).value;
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final grinders = ref.watch(grinderMasterProvider).valueOrNull;
     final currentGrinder = grinders?.firstWhere((g) => g.id == grinder.id, orElse: () => grinder) ?? grinder;
 
     return MasterDetailTemplate(

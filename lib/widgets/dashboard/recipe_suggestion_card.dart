@@ -50,11 +50,23 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
   @override
   Widget build(BuildContext context) {
     final beansAsync = ref.watch(beanMasterProvider);
-    final logs = ref.watch(coffeeRecordsProvider).value ?? const <CoffeeRecord>[];
-    final origins = ref.watch(originMasterProvider).value ?? const <OriginMaster>[];
-    final methods = ref.watch(methodMasterProvider).value ?? const <MethodMaster>[];
-    final grinders = ref.watch(grinderMasterProvider).value ?? const <GrinderMaster>[];
-    final history = ref.watch(recipeSuggestionsProvider).value ?? const <RecipeSuggestion>[];
+    // T5-A104: AsyncErrorの場合`.value`は例外を投げるため`.valueOrNull`を使う。
+    final logsAsync = ref.watch(coffeeRecordsProvider);
+    final originsAsync = ref.watch(originMasterProvider);
+    final methodsAsync = ref.watch(methodMasterProvider);
+    final grindersAsync = ref.watch(grinderMasterProvider);
+    final historyAsync = ref.watch(recipeSuggestionsProvider);
+    final logs = logsAsync.valueOrNull ?? const <CoffeeRecord>[];
+    final origins = originsAsync.valueOrNull ?? const <OriginMaster>[];
+    final methods = methodsAsync.valueOrNull ?? const <MethodMaster>[];
+    final grinders = grindersAsync.valueOrNull ?? const <GrinderMaster>[];
+    final history = historyAsync.valueOrNull ?? const <RecipeSuggestion>[];
+    // T5-A104 Major#3: 通信失敗を無言でデータ0件扱いにせず伝える。
+    final hasSecondaryError = logsAsync.hasError ||
+        originsAsync.hasError ||
+        methodsAsync.hasError ||
+        grindersAsync.hasError ||
+        historyAsync.hasError;
     final originById = {for (final o in origins) o.id: o};
     final methodById = {for (final m in methods) m.id: m};
     final grindStepsByGrinderId = {
@@ -69,6 +81,14 @@ class _RecipeSuggestionCardState extends ConsumerState<RecipeSuggestionCard> {
       title: '今日のおすすめレシピ',
       dark: true,
       children: [
+        if (hasSecondaryError)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              '関連データの読み込みに失敗しました。おすすめレシピが正しく表示されない場合があります。',
+              style: TextStyle(color: kChalkError, fontSize: 11),
+            ),
+          ),
         beansAsync.when(
           data: (beans) {
             final candidates = _buildCandidates(

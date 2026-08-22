@@ -463,7 +463,7 @@ class _GpExplorerSectionState extends ConsumerState<GpExplorerSection> {
   }
 
   Widget _buildRecommendation(_MethodRanking selected) {
-    final grinders = ref.watch(grinderMasterProvider).value ?? const <GrinderMaster>[];
+    final grinders = ref.watch(grinderMasterProvider).valueOrNull ?? const <GrinderMaster>[];
     final grinder = grinders.where((g) => g.id == _selectedGrinderId).firstOrNull;
     final grindSteps = grinder?.grindSteps;
 

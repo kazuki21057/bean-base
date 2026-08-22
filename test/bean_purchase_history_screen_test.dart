@@ -282,4 +282,34 @@ void main() {
       expect(purchaseDayKey(day1), isNot(purchaseDayKey(day2)));
     });
   });
+
+  testWidgets('T5-A104 Major#3: 豆マスターの取得に失敗するとエラーメッセージが表示される', (tester) async {
+    final purchases = [
+      BeanPurchase(
+        id: 'p1',
+        beanId: 'b1',
+        purchasedAt: DateTime(2026, 7, 1),
+        quantityGrams: 200,
+        storeName: 'Navy',
+      ),
+    ];
+    final fakeService = _FakeDataService(beans: beans, purchases: purchases);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...overridesFor(fakeService),
+          beanMasterProvider.overrideWith(
+              () => FakeBeanMasterNotifier(() async => throw Exception('通信エラー'))),
+        ],
+        child: const MaterialApp(home: BeanPurchaseHistoryScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 通信失敗時も無言でデータ0件扱いにせず、ユーザーにエラーを伝える。
+    expect(find.textContaining('豆マスターの読み込みに失敗しました'), findsOneWidget);
+    // 購入履歴自体は(豆名が「不明」等になっても)引き続き表示される。
+    expect(find.textContaining('200.0g'), findsOneWidget);
+  });
 }
