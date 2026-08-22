@@ -540,35 +540,62 @@ class LocalDbService implements DataService {
   }
 
   // ==========================================================================
-  // Analysis Snapshots — 束4(T5-B13-4)で実装予定
+  // Analysis Snapshots (analysis_history) — 束4(T5-B13-4、当バンドルで実装)
+  // ==========================================================================
+
+  /// `type`が非nullなら種別で絞り込む(設計書§7.1)。未指定(null)は全件。
+  @override
+  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) async {
+    final query = _db.select(_db.analysisHistoryTable)
+      ..orderBy([(_) => _byRowId()]);
+    if (type != null) {
+      query.where((t) => t.type.equals(type));
+    }
+    final rows = await query.get();
+    return rows.map((r) => r.toModel()).toList();
+  }
+
+  /// upsert。同一IDの2回目の呼び出しでは行が増えず値だけ更新される。
+  @override
+  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) async {
+    _requireId(snapshot.id, forDelete: false);
+    await _db
+        .into(_db.analysisHistoryTable)
+        .insertOnConflictUpdate(snapshot.toCompanion());
+    _logWrite('analysis_history', '保存', snapshot.id);
+  }
+
+  // ==========================================================================
+  // Recipe Suggestions (recipe_suggestions) — 束4(T5-B13-4、当バンドルで実装)
   // ==========================================================================
 
   @override
-  Future<List<AnalysisSnapshot>> fetchAnalysisSnapshots({String? type}) {
-    throw UnimplementedError('T5-B13-4 で実装予定');
+  Future<List<RecipeSuggestion>> fetchRecipeSuggestions() async {
+    final rows = await (_db.select(_db.recipeSuggestionsTable)
+          ..orderBy([(_) => _byRowId()]))
+        .get();
+    return rows.map((r) => r.toModel()).toList();
+  }
+
+  /// upsert。同一IDの2回目の呼び出しでは行が増えず値だけ更新される。
+  @override
+  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) async {
+    _requireId(suggestion.id, forDelete: false);
+    await _db
+        .into(_db.recipeSuggestionsTable)
+        .insertOnConflictUpdate(suggestion.toCompanion());
+    _logWrite('recipe_suggestions', '保存', suggestion.id);
   }
 
   @override
-  Future<void> saveAnalysisSnapshot(AnalysisSnapshot snapshot) {
-    throw UnimplementedError('T5-B13-4 で実装予定');
-  }
-
-  // ==========================================================================
-  // Recipe Suggestions — 束4(T5-B13-4)で実装予定
-  // ==========================================================================
-
-  @override
-  Future<List<RecipeSuggestion>> fetchRecipeSuggestions() {
-    throw UnimplementedError('T5-B13-4 で実装予定');
-  }
-
-  @override
-  Future<void> saveRecipeSuggestion(RecipeSuggestion suggestion) {
-    throw UnimplementedError('T5-B13-4 で実装予定');
-  }
-
-  @override
-  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) {
-    throw UnimplementedError('T5-B13-4 で実装予定');
+  Future<void> updateRecipeSuggestion(RecipeSuggestion suggestion) async {
+    _requireId(suggestion.id, forDelete: false);
+    final ok = await _db
+        .update(_db.recipeSuggestionsTable)
+        .replace(suggestion.toCompanion());
+    if (!ok) {
+      _fail('更新対象のデータが見つかりません(ID: ${suggestion.id})');
+    }
+    _logWrite('recipe_suggestions', '更新', suggestion.id);
   }
 }

@@ -2993,3 +2993,12 @@ Phase 3の残タスク(T3-1・T3-4・T3-9・T3-13・T3-20、上表参照、い�
 - 2件実施で本ループの上限(最大2件)に到達したため、新規タスクには着手せず締めに入った。
 - 変更ファイル: T5-B2 6ファイル(`lib/config/app_edition.dart`・`lib/layout/main_layout.dart`・`lib/routing/screen_registry.dart`・`lib/screens/debug/screen_gallery_screen.dart`・`lib/screens/settings_screen.dart`・`test/acceptance/t5_b2_acceptance_test.dart`新規、commit `2a9bbc6`)。T5-B4 10ファイル(`lib/config/app_edition.dart`・`lib/screens/create/bean_create_screen.dart`・`lib/screens/create/store_create_screen.dart`・`lib/screens/settings_screen.dart`・`lib/services/ai_key_service.dart`新規・`lib/widgets/statistics/pca_detail_panel.dart`・`lib/widgets/statistics/pca_scatter_plot.dart`・`lib/widgets/statistics/regression_section.dart`・`test/ai_key_service_test.dart`新規・`test/settings_screen_test.dart`、commit `3786dd5`)。締めの本コミットで`docs/改修マスタープラン.md`(T5-B2/T5-B4完了マーク)・`NEXT_SESSION.md`・`docs/archive/NEXT_SESSION_log.md`(-5.114節退避)・`night_report.md`・`.claude/night_loop_run_count.txt`を追加更新。
 - **次回セッションで最初にやること**: T5-B2/T5-B4完了によりE-1〜E-4(コードベース構成方針.md §7の足場4タスク)が全完了。次点は`docs/改修マスタープラン.md`のトラックB残りタスク(T5-A45〈CI基盤未整備で見送り継続〉・T5-A77〈運用実験タスク〉・T5-B10〈researcher権限gap、T5-A102完了待ち〉・T5-B11以降〈⚠️上位モデルで実施、architect委譲可〉)から依存充足済みのものを選定。T5-A102(ユーザーが`.claude/settings.night.json`の`allow`へ`WebSearch`/`WebFetch`を追加)は未完了のまま。
+
+### -5.133 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**T5-B13-3完了**)
+
+- 依存(T5-B13-2)が充足済みのT5-B13-3(`LocalDbService`束3: 抽出記録・メソッド・注湯ステップ)を選定。方針は束1・2の踏襲+設計書§7.2-1で確定済みのためarchitectは呼ばず`implementer`へ直接委譲。
+- `implementer`が`coffee_data`(32列)・`methods_master`(13列)・`pouring_steps`(8列)の13メソッドを実装。`deletePouringStepsForMethod`はSheets版に対応が無いため新規実装。`coffee_data.updated_at`(ローカルDB専用メタ列、`CoffeeRecord`モデルに対応フィールド無し)は保存のたび`DateTime.now()`で埋める実装とした(設計書に明記なし、実装時の判断として報告あり)。`test/db/local_db_service_brew_test.dart`を新規作成。
+- `verifier`が独立検証。`verify.ps1`全項目green(analyze新規issue0・test519件全pass・build web/apk成功・golden/codegen/secret_scan問題なし)。実装者は「21件全pass」と報告したが、verifierの実測では12件(4 group・12 test)、`grep`で確認しCRUD一式+異常系・`deletePouringStepsForMethod`限定削除・DateTime往復・本番模倣ケースの4完了条件が全てカバーされていることを確認、マスタープランの記載を12件に訂正した。
+- UI変更なし・`lib/db`層のみ(`dataServiceProvider`配線は束4)のためデプロイ・本番確認は不要と判断。変更ファイル数4(5超えないため)・区切りでもないため`/code-review`はスキップ。
+- 委譲1回ごとの予算チェックポイント($14.4)には未到達(実測$4.80)。
+- **次回セッションでやること**: T5-B13-4(`LocalDbService`束4: 解析・レシピ提案+`dataServiceProvider`配線+受入、依存T5-B13-3充足)から着手。共通規約(`_requireId`/`_logWrite`/`_fail`/`_byRowId`ヘルパー、rowid並び順、upsert方式)は`lib/services/local_db_service.dart`の既存実装を読んで踏襲すること。束4完了でT5-B13全体(トラックB内の1タスク群)が完了するため、区切り条件に該当し`/code-review`実行を検討すること。

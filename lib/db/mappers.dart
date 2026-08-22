@@ -3,13 +3,16 @@
 //
 // 正本: docs/local_db_schema_design.md §7.4。
 // 束1(T5-B13-1): mill_master・dripper_master・filter_master・origin_masterの4テーブル分。
-// 束2〜4がテーブル分のextensionを追記していく(このファイル自体は束1で新規作成)。
+// 束2(T5-B13-2): bean_master・store_master・bean_purchasesの3テーブル分。
+// 束3(T5-B13-3): coffee_data・methods_master・pouring_stepsの3テーブル分。
+// 束4(T5-B13-4、当バンドル): analysis_history・recipe_suggestionsの2テーブル分。
 //
 // 全列を明示的にValue(...)で埋める(Value.absent()は使わない。部分更新を作らず、
 // update(t).replace(...)が全列上書きであることと整合させるため)。
 import 'package:drift/drift.dart';
 
 import 'local_database.dart';
+import '../models/analysis_snapshot.dart';
 import '../models/bean_master.dart';
 import '../models/bean_purchase.dart';
 import '../models/coffee_record.dart';
@@ -17,6 +20,7 @@ import '../models/equipment_masters.dart';
 import '../models/method_master.dart';
 import '../models/origin_master.dart';
 import '../models/pouring_step.dart';
+import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
 
 // --- mill_master (GrinderMaster) ---
@@ -381,5 +385,64 @@ extension PouringStepCompanionMapper on PouringStep {
         waterReference: Value(waterReference),
         waterRatio: Value(waterRatio),
         description: Value(description),
+      );
+}
+
+// --- analysis_history (AnalysisSnapshot) ---
+
+extension AnalysisHistoryRowMapper on AnalysisHistoryRow {
+  AnalysisSnapshot toModel() => AnalysisSnapshot(
+        id: id,
+        createdAt: createdAt,
+        type: type,
+        dataCount: dataCount,
+        payloadJson: payloadJson,
+      );
+}
+
+extension AnalysisSnapshotCompanionMapper on AnalysisSnapshot {
+  AnalysisHistoryTableCompanion toCompanion() => AnalysisHistoryTableCompanion(
+        id: Value(id),
+        createdAt: Value(createdAt),
+        type: Value(type),
+        dataCount: Value(dataCount),
+        payloadJson: Value(payloadJson),
+      );
+}
+
+// --- recipe_suggestions (RecipeSuggestion) ---
+
+extension RecipeSuggestionRowMapper on RecipeSuggestionRow {
+  RecipeSuggestion toModel() => RecipeSuggestion(
+        id: id,
+        createdAt: createdAt,
+        beanId: beanId,
+        originId: originId,
+        roastLevel: roastLevel,
+        methodId: methodId,
+        temperature: temperature,
+        brewRatio: brewRatio,
+        totalTimeSec: totalTimeSec,
+        rationale: rationale,
+        accepted: accepted,
+        resultRecordId: resultRecordId,
+      );
+}
+
+extension RecipeSuggestionCompanionMapper on RecipeSuggestion {
+  RecipeSuggestionsTableCompanion toCompanion() =>
+      RecipeSuggestionsTableCompanion(
+        id: Value(id),
+        createdAt: Value(createdAt),
+        beanId: Value(beanId),
+        originId: Value(originId),
+        roastLevel: Value(roastLevel),
+        methodId: Value(methodId),
+        temperature: Value(temperature),
+        brewRatio: Value(brewRatio),
+        totalTimeSec: Value(totalTimeSec),
+        rationale: Value(rationale),
+        accepted: Value(accepted),
+        resultRecordId: Value(resultRecordId),
       );
 }

@@ -244,3 +244,4 @@
 - L178 GAS経由のintegration_testスモークは複数セッションにまたがり接続断・件数不一致・タイムアウト等毎回異なる態様で不安定に失敗する。「GAS起因だろう」で押し通す運用には限界があり、原因不明の再発として`architect`へ切り分けを依頼すべき(2026-08-22、T5-A103起票)。全文: `rules/lessons_archive.md`
 - L179 PowerShellの`Invoke-RestMethod -Body <string>`は日本語キーを含むJSONを既定エンコーディングで送るとGAS側で文字化けしキー一致に失敗する。`ConvertTo-Json`出力を`[System.Text.Encoding]::UTF8.GetBytes()`でバイト列化してから渡すこと(2026-08-22、T5-A103本番ゴミレコード削除)。全文: `rules/lessons_archive.md`
 - L180 アシスタントが新規作成した(BOM無し)`.ps1`を`powershell -File`実行すると、日本語行がPowerShell 5.1に既定コードページで誤解析されhere-string終端検出等が壊れる。日本語を含む新規`.ps1`は常にUTF-8 BOM付きで保存してから実行すること(2026-08-22、NEXT_SESSION.md整理作業)。全文: `rules/lessons_archive.md`
+- L181 `verify.ps1 -Task <ID>`はIDを機械的に小文字化してファイル名突合するため、束分割タスク(T5-B13-4等)のサブIDと親グループ単位の共有受け入れテスト名(t5_b13_acceptance_test.dart)が不一致だと`acceptance_missing`を誤検知する。`-Task`には完了条件セルのファイル名から逆算した親グループIDを渡す(2026-08-22、T5-B13-4検証)。全文: `rules/lessons_archive.md`

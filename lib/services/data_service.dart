@@ -11,6 +11,8 @@ import '../models/recipe_suggestion.dart';
 import '../models/store_master.dart';
 import '../models/bean_purchase.dart';
 import '../config/app_edition.dart';
+import '../providers/local_db_provider.dart';
+import 'local_db_service.dart';
 import 'sheets_service.dart';
 
 /// Abstract data-access contract shared by all storage backends.
@@ -94,12 +96,13 @@ abstract class DataService {
 /// returned implementation here to switch backends app-wide.
 ///
 /// T5-B3(E-3): [AppEdition.useLocalDb]経由でバックエンドを切り替える。
-/// 現状は両エディションともuseLocalDb: falseのため、挙動は従来どおり
-/// SheetsServiceのまま変わらない。
+/// T5-B13-4でLocalDbServiceへの配線を行った。現状は両エディションとも
+/// useLocalDb: falseのため、挙動は従来どおりSheetsServiceのまま変わらない
+/// (切替はT5-B14完了後にユーザー判断、docs/local_db_schema_design.md §11-2)。
 final dataServiceProvider = Provider<DataService>((ref) {
   final edition = ref.watch(appEditionProvider);
   if (edition.useLocalDb) {
-    throw UnimplementedError('LocalDbService is not yet implemented (T5-B13)');
+    return LocalDbService(ref.watch(localDatabaseProvider));
   }
   return SheetsService();
 });
