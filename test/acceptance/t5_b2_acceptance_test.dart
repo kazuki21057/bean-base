@@ -22,6 +22,7 @@ final AppEdition _editionWithoutStatistics = AppEdition(
   kind: Edition.public,
   enabledScreens: kAllAppScreens.difference({AppScreen.statistics}),
   useLocalDb: false,
+  useLocalImages: false,
   aiKeyMode: AiKeyMode.ownKey,
   showAds: false,
   enableSubscription: false,

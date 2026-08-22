@@ -29,6 +29,10 @@ class AppEdition {
   /// true=端末ローカルDB / false=Google Sheets(GAS経由)。
   final bool useLocalDb;
 
+  /// true=端末ローカルへ画像を保存 / false=Google Drive(GAS経由)。
+  /// T5-B14で新設。
+  final bool useLocalImages;
+
   final AiKeyMode aiKeyMode;
   final bool showAds;
   final bool enableSubscription;
@@ -40,6 +44,7 @@ class AppEdition {
     required this.kind,
     required this.enabledScreens,
     required this.useLocalDb,
+    required this.useLocalImages,
     required this.aiKeyMode,
     required this.showAds,
     required this.enableSubscription,
@@ -90,6 +95,7 @@ const AppEdition kPersonalEdition = AppEdition(
   kind: Edition.personal,
   enabledScreens: kAllAppScreens,
   useLocalDb: false,
+  useLocalImages: false,
   aiKeyMode: AiKeyMode.ownKey,
   showAds: false,
   enableSubscription: false,
@@ -106,6 +112,7 @@ const AppEdition kPublicEdition = AppEdition(
   kind: Edition.public,
   enabledScreens: kAllAppScreens,
   useLocalDb: false,
+  useLocalImages: true,
   aiKeyMode: AiKeyMode.proxy,
   showAds: false,
   enableSubscription: false,

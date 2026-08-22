@@ -85,6 +85,8 @@ dev_dependencies:
   build_runner: ^2.4.8
   json_serializable: ^6.7.1
   drift_dev: ^2.34.0
+  # T5-B14: 受け入れテストでPathProviderPlatform.instanceをフェイクに差し替えるため。
+  path_provider_platform_interface: ^2.1.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

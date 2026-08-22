@@ -32,6 +32,7 @@ const AppEdition _kLocalDbTestEdition = AppEdition(
   kind: Edition.public,
   enabledScreens: kAllAppScreens,
   useLocalDb: true,
+  useLocalImages: false,
   aiKeyMode: AiKeyMode.proxy,
   showAds: false,
   enableSubscription: false,
