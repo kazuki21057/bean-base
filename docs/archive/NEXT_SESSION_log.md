@@ -1,5 +1,14 @@
 # NEXT_SESSION 作業ログ アーカイブ(-4.95節以前 + 旧「2. 次回の着手点」)
 
+### -5.135 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**T5-B14完了、起動回数カウンタ40回目**)
+
+- 依存(T5-B13-4)が充足済みのT5-B14(画像のローカル保存)を選定。`ImageService`(単一具象クラス)を`dataServiceProvider`と同型のedition切替パターンへ再構成する方針を親が確定し、`implementer`へ直接委譲(architect不要)。
+- `implementer`が`AppEdition.useLocalImages`(personal=false/public=true)を新設、`ImageService`を抽象化して`DriveImageService`(旧実装のリネーム)・`LocalImageService`(`path_provider`の`getApplicationDocumentsDirectory()/bean_images/`へ保存)へ分割、`imageServiceProvider`をedition切替。表示側`BeanImage`ウィジェットは元々ローカルパス対応済みのため無変更。新規`test/acceptance/t5_b14_acceptance_test.dart`。
+- `adversary`(agy、`gemini-3.7-flash-high`)へ差分レビューを委譲。**Critical1件**(`PlatformFile`が`bytes`のみ・`path:null`〈カメラ撮影・自動リサイズ後の実際の形、`image_upload_field.dart`が生成〉だと`uploadImage`が`kIsWeb`分岐の`path==null`判定で無条件に保存失敗、T5-B14の主要ユースケースを直撃)・**Major1件**(ローカルパスに`%`を含むと`bean_image_platform_io.dart`の`Uri.decodeFull`が`FormatException`化し表示が壊れる)を検出。**教訓L182**: agy adversaryはplan modeで指摘を`implementation_plan.md`へ書き出し確認待ちのまま停止することがあり、`response_head`だけでは指摘ゼロと誤読しかねないため計画ファイルを直接読んで回収した。
+- `implementer`へその場で差し戻し、両方修正(`bytes`優先ロジックへ変更+`Uri.decodeFull`のtry/catchフォールバック)、回帰テスト追加。`verifier`が再検証、`verify.ps1 -Task T5-B14`全9項目+受入テスト全green。
+- UI変更なし・personal(web)本番は`useLocalImages:false`のまま不変のためデプロイ・本番確認は不要と判断。
+- 委譲1回ごとの予算チェックポイント($14.4)には未到達(実測$10.00)。起動回数カウンタ40回目で`/token_review`起動条件に該当したが、5時間枠使用率87%(延期基準85%超)のため実行せず次回セッション冒頭へ延期(詳細は`docs/token_optimization_design.md` §8該当行)。
+
 ### -5.132 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`「T5-A107とnextsession.mdの整理とtaskBを進めて、多少予算オーバーしてもOK」。**T5-A107完了・NEXT_SESSION.md整理・T5-B13を4束へ分割しT5-B13-1/-2完了**)
 
 - T5-A107(GETリトライ最大待機時間の見直し)を`AskUserQuestion`で確認。3案(短縮約30秒/現状維持62秒/最短約15秒)を提示し、ユーザーは「現状維持(62秒のまま)」を選択。信頼性を体感の待たされ感より優先する判断。コード変更なし、マスタープランのT5-A107行を✅完了に更新。

@@ -1,13 +1,13 @@
 # 次回開発再開時の手順書 (Next Session Handover)
 
-最終更新: 2026-08-22(Sonnet 5、有人`/full_loop`(引数なし)。**T5-B14完了・commit済み**。詳細は「3. 直近の作業ログ」参照)
+最終更新: 2026-08-22(Sonnet 5、無人`/night_loop`(23:00枠)。**T5-B15完了・push済み**。詳細は「3. 直近の作業ログ」参照)
 
 > 本書の構成(2026-07-29改訂): 「1. 現状サマリ」「2. 次回の着手点」を先頭に置き、その後ろに直近1セッション分の作業ログだけを残す。それ以前はdocs/archive/NEXT_SESSION_log.mdへ退避済み。他ドキュメントの「NEXT_SESSION.md『-4.xx』節参照」は、最新節以外ならアーカイブ側を見ること。
 > 書き足しルール: /end・/full_loopで当日ログを追記する際は「3. 直近の作業ログ」の古い節をアーカイブ先頭へ移してから新しい節を1件だけ置く(本書は常に1件)。タスク定義・進捗の正本はdocs/改修マスタープラン.md。
 
 ## 1. 現状サマリ
 
-- **【2026-08-22・有人`/full_loop`(引数なし)】T5-B14(画像のローカル保存)完了。`AppEdition`に`useLocalImages`を新設(personal=false/public=true)、`ImageService`を抽象化し`DriveImageService`/`LocalImageService`へ分割、`imageServiceProvider`をedition切替。`adversary`(agy)がCritical1件(カメラ撮影・自動リサイズ後の`bytes`のみ・`path:null`な`PlatformFile`だとローカル保存が無条件失敗)・Major1件(ローカルパスに`%`を含むと`Uri.decodeFull`が例外化)を検出、implementerがその場で修正・回帰テスト追加・verifier再検証で全項目green。UI変更なし・personal(web)本番は`useLocalImages:false`のまま不変のためデプロイ・本番確認は不要と判断。commit済み(push実施、下記参照)。**
+- **【2026-08-22・無人`/night_loop`(23:00枠)】T5-B15(エクスポート/インポート)完了。`lib/services/import_export_service.dart`新規実装(全12テーブルJSON/CSV書き出し、JSON読み込み〈schemaVersionチェック+1トランザクションupsert〉)。UI(P920画面)は別タスクで未実装、今回はサービス層のみ。`adversary`がMajor2件検出(`seekOptimalConditions`のNULL⇔空文字変換未実装/upsertのみで全消去はUI側責務という前提のdoc未記載)、implementerがその場で修正。`verifier`再検証で`verify.ps1`全9項目green・`integration_test`スモークも全パス。自動pushゲート全条件クリアでmainへpush済み。**
 - 進行中はマスタープラン Phase 5(Android公開版)がメインライン。Phase 1〜4(統計解析含む)は完了済み。Phase 3残件はT3-75gのみ(要ユーザー確認)。
 - Phase 5トラックA(開発運用基盤)完了済み(38件、詳細はdocs/改修マスタープラン.md §3参照)。トラックCはT5-C3完了済み(1件)。正本はdocs/android_release/開発運用基盤設計.md・検証強化設計.md・リリース計画書.md。agy委譲の正本はdocs/antigravity_delegation_design.md(§7実績ログ・§9設計)。
 - ストレージはGoogle Sheets+Drive(GAS Web App経由)。GASはgas/Code.gsをclaspで管理(現行デプロイ@19)。本番: https://beanbase-app-2016.web.app (Firebase Hosting)。
@@ -17,7 +17,7 @@
 
 ## 2. 次回の着手点
 
-> **【2026-08-22最新】T5-B14完了。次点は依存が満たされたS/Mタスク(`docs/改修マスタープラン.md` §3の未完了行から選定)。** T5-B15(エクスポート/インポート、依存T5-B13-4・T5-B14充足)が候補の一つ。過去セッションの詳細な着手点履歴は`docs/archive/NEXT_SESSION_log.md`「旧『2. 次回の着手点』バックログ」節を参照。
+> **【2026-08-22最新】T5-B15完了。次点は依存が満たされたS/Mタスク(`docs/改修マスタープラン.md` §3の未完了行から選定)。** トラックB/P1(ローカルDB化)はT5-B15完了で全件完了。次点はトラックB/P2(UI全画面の新規デザイン)のT5-B25/T5-B26(依存T5-B22充足済み)、またはL(要分割)のT5-B24。過去セッションの詳細な着手点履歴は`docs/archive/NEXT_SESSION_log.md`「旧『2. 次回の着手点』バックログ」節を参照。
 タスクの正本はdocs/改修マスタープラン.md §3。
 
 サブエージェント委譲(2026-08-05、ユーザー指示で恒久ルール化): .claude/agents/に複数体——architect(設計・原因究明、opus固定)/implementer(実装、sonnet固定)/verifier(検証、sonnet固定)/adversary(敵対的レビュー、sonnet固定)等。/start・/full_loop・/night_loopでは、コードの実装と検証を親セッションが自分で行わず担当エージェントに委譲する。architectを呼ぶのは「上位モデルで実施」タスク・原因不明/再発バグ・implementerが2回失敗した時・フィールド名/画面ID等の新規決定を伴う時。正本は/full_loopスキル§サブエージェントへの委譲、要約はCLAUDE.md§日次改修ループ運用ルール。
@@ -34,15 +34,14 @@ Proプラン使用率ログ(2026-08-09追加): ユーザーがセッション開
 
 ## 3. 直近の作業ログ(最新1セッションのみ)
 
-### -5.135 当日やったこと(2026-08-22、Sonnet 5、有人`/full_loop`(引数なし)。**T5-B14完了、起動回数カウンタ40回目**)
+### -5.136 当日やったこと(2026-08-22、Sonnet 5、無人`/night_loop`(23:00枠、起動回数カウンタ16回目)。**T5-B15完了・push済み**)
 
-- 依存(T5-B13-4)が充足済みのT5-B14(画像のローカル保存)を選定。`ImageService`(単一具象クラス)を`dataServiceProvider`と同型のedition切替パターンへ再構成する方針を親が確定し、`implementer`へ直接委譲(architect不要)。
-- `implementer`が`AppEdition.useLocalImages`(personal=false/public=true)を新設、`ImageService`を抽象化して`DriveImageService`(旧実装のリネーム)・`LocalImageService`(`path_provider`の`getApplicationDocumentsDirectory()/bean_images/`へ保存)へ分割、`imageServiceProvider`をedition切替。表示側`BeanImage`ウィジェットは元々ローカルパス対応済みのため無変更。新規`test/acceptance/t5_b14_acceptance_test.dart`。
-- `adversary`(agy、`gemini-3.7-flash-high`)へ差分レビューを委譲。**Critical1件**(`PlatformFile`が`bytes`のみ・`path:null`〈カメラ撮影・自動リサイズ後の実際の形、`image_upload_field.dart`が生成〉だと`uploadImage`が`kIsWeb`分岐の`path==null`判定で無条件に保存失敗、T5-B14の主要ユースケースを直撃)・**Major1件**(ローカルパスに`%`を含むと`bean_image_platform_io.dart`の`Uri.decodeFull`が`FormatException`化し表示が壊れる)を検出。**教訓L182**: agy adversaryはplan modeで指摘を`implementation_plan.md`へ書き出し確認待ちのまま停止することがあり、`response_head`だけでは指摘ゼロと誤読しかねないため計画ファイルを直接読んで回収した。
-- `implementer`へその場で差し戻し、両方修正(`bytes`優先ロジックへ変更+`Uri.decodeFull`のtry/catchフォールバック)、回帰テスト追加。`verifier`が再検証、`verify.ps1 -Task T5-B14`全9項目+受入テスト全green。
-- UI変更なし・personal(web)本番は`useLocalImages:false`のまま不変のためデプロイ・本番確認は不要と判断。
-- 委譲1回ごとの予算チェックポイント($14.4)には未到達(実測$10.00)。起動回数カウンタ40回目で`/token_review`起動条件に該当したが、5時間枠使用率87%(延期基準85%超)のため実行せず次回セッション冒頭へ延期(詳細は`docs/token_optimization_design.md` §8該当行)。
-- **次回セッションでやること**: まず延期した`/token_review`(10回に1回のトークン浪費調査)をセッション冒頭で実施すること。その後、`docs/改修マスタープラン.md` §3から依存を満たすタスクを選定(候補: T5-B15エクスポート/インポート)。
+- 依存(T5-B13-4・T5-B14)が充足済みのT5-B15(エクスポート/インポート)を選定。オープンPR確認は該当なし。設計は`docs/local_db_schema_design.md` §5.2/§6/§6.1に確定済みのため`architect`不要、`implementer`へ直接委譲。
+- `implementer`が`lib/services/import_export_service.dart`を新規実装。全12テーブルのJSONエクスポート(日本語シート列名キー、`formatVersion`/`schemaVersion`/`exportedAt`付き)・JSONインポート(schemaVersionチェック+1トランザクションupsert)・CSVエクスポート(1テーブル1ファイル、CSVインポートは設計書に仕様が無いため対象外)、`normalizeExternalId`関数(設計書§5.2)。UI(P920画面)は別タスクで未実装、今回はサービス層のみ。新規`test/acceptance/t5_b15_acceptance_test.dart`。
+- `verifier`・`adversary`を並行起動。`verifier`は`verify.ps1 -Task T5-B15`全9項目green・acceptance green。`adversary`がMajor2件検出——(1)`seekOptimalConditions`(3値bool)のNULL⇔空文字変換が設計書§4.2(L189)どおり未実装(JSON nullのまま出力され空文字にならない)(2)`importFromJson`はupsertのみで全消去はUI側の責務という前提がdocコメント未記載。
+- `implementer`へその場で差し戻し、両方修正(NULL⇔空文字変換の実装+null往復テスト追加、docコメント追記)。`verifier`が再検証、`verify.ps1 -Task T5-B15`全9項目green再確認。
+- 自動pushゲート判定: `integration_test/smoke_test.dart`を`verifier`が実機(`emulator-5554`)で実行し全パス(GAS一時タイムアウトはリトライで解消)。UI変更が無いため`ui_verifier`は判定対象外。`.ps1`変更なしのため条件5も対象外。全適用条件クリアで**mainへ自動push**。
+- **次回セッションでやること**: `docs/改修マスタープラン.md` §3から依存を満たすタスクを選定。トラックB/P1(ローカルDB化)はこれで全件完了。次点候補はトラックB/P2のT5-B25/T5-B26(依存T5-B22充足)。
 
 > これ以前の作業ログはdocs/archive/NEXT_SESSION_log.mdを参照。
 
