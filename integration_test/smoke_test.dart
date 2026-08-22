@@ -38,6 +38,7 @@ import 'package:bean_base/screens/mock/mock_scaffold.dart'
     show MockListRow, MockScreenScaffold;
 import 'package:bean_base/screens/settings_screen.dart';
 import 'package:bean_base/screens/statistics_screen.dart';
+import 'package:bean_base/widgets/method_steps_editor.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -52,9 +53,20 @@ void main() {
         expect(tester.takeException(), isNull);
 
         // 履歴一覧の初期件数を記録しておく(保存後の反映確認のベースライン)。
+        // GAS初回GET(タイムアウト+リトライを含む)が完了する前にベースラインを
+        // 取ると0件のまま確定してしまい、後段の件数比較が空振りで通ってしまう
+        // (T5-A105)ため、読み込み完了(件数表示 or 空表示)まで明示的に待つ。
         await tester.tap(find.byKey(const ValueKey('nav_tab_002')));
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
+        await _pumpUntil(
+          tester,
+          () =>
+              find.byType(MockListRow).evaluate().isNotEmpty ||
+              find.text('抽出履歴がありません').evaluate().isNotEmpty,
+          timeout: const Duration(seconds: 90),
+          reason: '002の初期読み込みが完了しませんでした',
+        );
         final baselineLogCount = find.byType(MockListRow).evaluate().length;
 
         // --- 2. 記録: 抽出(豆選択→抽出パラメータ入力)→評価 ---
@@ -77,8 +89,6 @@ void main() {
           },
           reason: '030のメソッド選択が有効になりませんでした(注湯ステップの取得が完了していない)',
         );
-        await tester.tap(methodDropdown);
-        await tester.pumpAndSettle();
         // 開いたメニューは全画面のModalBarrierを持つため、この時点でhitTestableな
         // DropdownMenuItemは「開いているメニューの項目」だけになる(閉じた状態の各
         // ドロップダウンがIndexedStackに持つ表示用コピーはバリアに隠れて除外される)。
@@ -86,21 +96,57 @@ void main() {
         // ことがあり、タップ自体は例外なく成功するのに実際には選択されない
         // (031への遷移時に method=未選択 のまま)という問題があった。
         // 031の豆選択ドロップダウンで確立済みの.hitTestable().first方式に統一する。
-        final methodOptions =
-            find.byWidgetPredicate((w) => w is DropdownMenuItem).hitTestable();
-        expect(
-          methodOptions,
-          findsWidgets,
-          reason: 'メソッドマスタが1件も登録されていません(前提未整備)',
-        );
-        await tester.tap(methodOptions.first);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull);
-        expect(
-          find.text('メソッドを選択してください'),
-          findsNothing,
-          reason: '030でメソッドを選択したのに_selectedMethodが更新されていません',
-        );
+        //
+        // さらに(T5-A105): 先頭候補を無条件に選ぶと、pouring_steps の取得が
+        // (GAS往復の失敗等で)空のまま確定しているメソッドを選んでしまうことがある。
+        // その場合 totalTime=0 の記録が保存され、002の一覧は totalTime>0 の記録
+        // しか表示しないため、保存しても件数が増えず後段の判定が意味を失う
+        // (T5-A103)。注湯ステップ(duration合計>0)を持つメソッドが見つかるまで、
+        // ドロップダウンを開き直して最大5候補まで順に試す。
+        const maxMethodTries = 5;
+        var methodValid = false;
+        for (var i = 0; i < maxMethodTries && !methodValid; i++) {
+          await tester.tap(methodDropdown);
+          await tester.pumpAndSettle();
+          final methodOptions =
+              find.byWidgetPredicate((w) => w is DropdownMenuItem).hitTestable();
+          expect(
+            methodOptions,
+            findsWidgets,
+            reason: 'メソッドマスタが1件も登録されていません(前提未整備)',
+          );
+          final optionCount = methodOptions.evaluate().length;
+          if (i >= optionCount) {
+            // 候補を全て試し終えた(登録メソッドが5件未満)。
+            break;
+          }
+          await tester.tap(methodOptions.at(i));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text('メソッドを選択してください'),
+            findsNothing,
+            reason: '030でメソッドを選択したのに_selectedMethodが更新されていません',
+          );
+
+          final editorFinder = find.byType(MethodStepsEditor);
+          if (editorFinder.evaluate().isNotEmpty) {
+            final steps =
+                tester.widget<MethodStepsEditor>(editorFinder.first).initialSteps;
+            final totalDuration =
+                steps.fold<int>(0, (sum, step) => sum + step.duration);
+            debugPrint('[Antigravity] 030メソッド選択: 候補$i件目 '
+                'steps=${steps.length} totalDuration=$totalDuration');
+            if (steps.isNotEmpty && totalDuration > 0) {
+              methodValid = true;
+            }
+          }
+        }
+        if (!methodValid) {
+          fail('注湯ステップ(duration>0)を持つメソッドが1件もありません。002の一覧は '
+              'totalTime>0 の記録しか表示しないため、このまま保存しても件数が増えません'
+              '(前提未整備、または pouring_steps の取得失敗)');
+        }
 
         final beanWeightField = find.descendant(
           of: find.byKey(const ValueKey('brew_recipe_bean_weight_field')),
@@ -229,9 +275,18 @@ void main() {
         );
 
         // --- 3. 保存後、一覧画面(002)に反映されていることを確認 ---
+        // GAS再取得(タイムアウト+リトライを含む)には固定pumpAndSettleの数秒より
+        // 大幅に長くかかりうる(T5-A105)ため、件数がベースラインを上回るまで
+        // ポーリングする。
         await tester.tap(find.byKey(const ValueKey('nav_tab_002')));
         await tester.pumpAndSettle(const Duration(seconds: 2));
         expect(tester.takeException(), isNull);
+        await _pumpUntil(
+          tester,
+          () => find.byType(MockListRow).evaluate().length > baselineLogCount,
+          timeout: const Duration(seconds: 90),
+          reason: '保存した抽出記録が履歴一覧(002)に反映されませんでした',
+        );
         expect(find.text('抽出履歴がありません'), findsNothing);
         final afterLogCount = find.byType(MockListRow).evaluate().length;
         expect(
